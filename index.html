@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Curriculos EDP</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div>
+          <p class="eyebrow">EDP Seleccion</p>
+          <h1>Gestion de curriculos</h1>
+          <p class="sidebar-copy">
+            Maqueta local con panel publico para recepcion de candidaturas y panel
+            privado para gestion interna.
+          </p>
+        </div>
+
+        <div class="sidebar-card">
+          <h2>Paneles disponibles</h2>
+          <p>Panel publico para enviar el curriculum.</p>
+          <p>Panel privado para revisar y cargar candidaturas.</p>
+        </div>
+      </aside>
+
+      <main class="main-panel">
+        <section class="card public-hero">
+          <div>
+            <p class="eyebrow">Candidaturas</p>
+            <h2>Envia tu curriculum</h2>
+            <p class="hero-copy">
+              Completa el formulario para incorporarte a la bolsa de aspirantes de
+              empleo de Educacion Deportiva del Principado.
+            </p>
+          </div>
+          <button id="show-private-panel" type="button" class="secondary-button">
+            Acceso privado
+          </button>
+        </section>
+
+        <section id="public-panel" class="view">
+          <section class="card">
+            <div class="card-header">
+              <p class="eyebrow">Envio de curriculum</p>
+              <h2>Formulario publico</h2>
+            </div>
+
+            <form id="public-candidate-form" class="form-grid">
+              <label>
+                Nombre y apellidos
+                <input
+                  id="public-full-name"
+                  name="full_name"
+                  type="text"
+                  placeholder="Nombre Apellidos"
+                  required
+                />
+              </label>
+
+              <label>
+                Telefono
+                <input
+                  id="public-phone"
+                  name="phone"
+                  type="tel"
+                  placeholder="+34 600 000 000"
+                  required
+                />
+              </label>
+
+              <label>
+                Correo electronico
+                <input
+                  id="public-email"
+                  name="email"
+                  type="email"
+                  placeholder="persona@email.com"
+                  required
+                />
+              </label>
+
+              <fieldset class="full-width">
+                <legend>Puestos a los que puede optar</legend>
+                <div class="checkbox-grid">
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="public_roles" value="Conserjeria" />
+                    <span>Conserjeria</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Monitorado de tiempo libre"
+                    />
+                    <span>Monitorado de tiempo libre</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Monitorado deportivo"
+                      id="public-sport-role"
+                    />
+                    <span>Monitorado deportivo</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Monitorado acuatico"
+                    />
+                    <span>Monitorado acuatico</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="public_roles" value="Socorrismo" />
+                    <span>Socorrismo</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Control biosanitario"
+                    />
+                    <span>Control biosanitario</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Montaje de eventos"
+                    />
+                    <span>Montaje de eventos</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset
+                id="public-sport-specialties-group"
+                class="full-width hidden-submenu"
+              >
+                <legend>Modalidades de monitorado deportivo</legend>
+                <div class="checkbox-grid specialties-grid">
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_sport_specialties"
+                      value="General"
+                    />
+                    <span>General</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_sport_specialties"
+                      value="Sala de musculacion"
+                    />
+                    <span>Sala de musculacion</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_sport_specialties"
+                      value="Pilates"
+                    />
+                    <span>Pilates</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="public_sport_specialties" value="Yoga" />
+                    <span>Yoga</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_sport_specialties"
+                      value="Tenis y padel"
+                    />
+                    <span>Tenis y padel</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <label class="full-width">
+                Notas
+                <textarea
+                  id="public-notes"
+                  name="notes"
+                  rows="4"
+                  placeholder="Experiencia, disponibilidad, titulaciones o informacion relevante."
+                ></textarea>
+              </label>
+
+              <label class="full-width">
+                Observaciones
+                <textarea
+                  id="public-observations"
+                  name="observations"
+                  rows="4"
+                  placeholder="Cualquier comentario adicional que quieras hacernos llegar."
+                ></textarea>
+              </label>
+
+              <label class="full-width">
+                Adjuntar curriculum
+                <input
+                  id="public-cv-file"
+                  name="cv_file"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.odt,.rtf,.txt,image/*"
+                />
+              </label>
+
+              <section class="full-width consent-box">
+                <details class="consent-details">
+                  <summary class="consent-summary">
+                    Clausula basica de informacion y consentimiento
+                  </summary>
+
+                  <div class="consent-text">
+                    <p>
+                      CLAUSULA BASICA INFORMATIVA PARA LA ACTIVIDAD DEL
+                      TRATAMIENTO CANDIDATOS
+                    </p>
+                    <p>Responsable</p>
+                    <p>
+                      De conformidad con lo establecido en el Reglamento (UE)
+                      2016/679 de proteccion de datos de caracter personal y la
+                      Ley Organica 3/2018 de proteccion de datos y garantia de
+                      los derechos digitales, EDUCACION DEPORTIVA DEL
+                      PRINCIPADO SL, con CIF/NIF B33383928, y direccion en
+                      C/Gonzalez del Valle 14 2º, OVIEDO (33004), ASTURIAS es
+                      responsable del tratamiento de sus datos de caracter
+                      personal.
+                    </p>
+                    <p>Delegado de Proteccion de datos</p>
+                    <p>
+                      El delegado de proteccion de datos es SYSTEM CENTROS DE
+                      FORMACION S.L., con CIF/NIF B41273392, y correo
+                      electronico dpd@virtualsolutions.es.
+                    </p>
+                    <p>Datos personales tratados</p>
+                    <p>
+                      Se tratan los datos personales necesarios para la
+                      incorporacion a la actividad del tratamiento CANDIDATOS.
+                    </p>
+                    <p>Fines del tratamiento.</p>
+                    <p>Disponer de una bolsa de aspirantes de empleo.</p>
+                    <p>Origen</p>
+                    <p>
+                      Las fuentes de las que proceden sus datos personales son:
+                      Obtenidos del propio interesado.
+                    </p>
+                    <p>Elaboracion de Perfiles</p>
+                    <p>No se realizan elaboracion de perfiles.</p>
+                    <p>Derechos</p>
+                    <p>
+                      Puede ejercer sus derechos de acceso, rectificacion,
+                      limitacion del tratamiento, oposicion, portabilidad y
+                      supresion de sus datos, asi como el derecho a retirar el
+                      consentimiento para el tratamiento de sus datos en
+                      cualquier momento dirigiendo su peticion a
+                      edp@asturias.com. En caso de no recibir una respuesta
+                      satisfactoria puede presentar reclamacion ante la
+                      Autoridad de Control en materia de Proteccion de Datos a
+                      traves de la web www.aepd.es
+                    </p>
+                    <p>Consentimiento</p>
+                    <p>Marque si presta su consentimiento expreso para:</p>
+                    <p>[ ] Enviar informacion sobre posibles vacantes.</p>
+                    <p>
+                      He leido, comprendido y acepto la informacion que se me
+                      facilita en relacion con el tratamiento de mis datos
+                      personales. (Nombre, DNI y Firma del interesado o Nombre
+                      de los padres o tutores legales del menor, DNI y Firma en
+                      caso de ser menor de edad)
+                    </p>
+                    <p>
+                      Puede consultar informacion adicional en:
+                      https://consultoria.virtualsolutions.es/APP/DOCUMENTACION/ACTIVIDADES_TRATAMIENTO/VISTA_WEB/95938/105532167223208
+                    </p>
+                  </div>
+                </details>
+
+                <label class="checkbox-item consent-check">
+                  <input
+                    id="public-privacy-acceptance"
+                    name="privacy_acceptance"
+                    type="checkbox"
+                    required
+                  />
+                  <span>
+                    He leido, comprendido y acepto la informacion sobre el
+                    tratamiento de mis datos personales.
+                  </span>
+                </label>
+
+                <label class="checkbox-item consent-check">
+                  <input
+                    id="public-vacancy-consent"
+                    name="vacancy_consent"
+                    type="checkbox"
+                  />
+                  <span>Autorizo el envio de informacion sobre posibles vacantes.</span>
+                </label>
+              </section>
+
+              <button class="full-width" type="submit">Enviar candidatura</button>
+            </form>
+          </section>
+        </section>
+
+        <section id="private-panel" class="view hidden">
+          <section id="login-view" class="card view">
+            <div class="card-header">
+              <p class="eyebrow">Acceso</p>
+              <h2>Entrar al panel de carga</h2>
+            </div>
+
+            <form id="login-form" class="form-grid">
+              <label>
+                Correo electronico
+                <input
+                  id="login-email"
+                  name="email"
+                  type="email"
+                  autocomplete="email"
+                  placeholder="equipo@empresa.com"
+                  required
+                />
+              </label>
+
+              <label>
+                Contrasena
+                <input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  placeholder="********"
+                  required
+                />
+              </label>
+
+              <button id="login-button" type="submit">Entrar</button>
+            </form>
+          </section>
+
+          <section id="private-view" class="view hidden">
+            <div class="card toolbar">
+              <div class="toolbar-copy">
+                <p class="eyebrow">Panel interno</p>
+                <h2>Alta manual de curriculos</h2>
+                <p id="session-email" class="session-email"></p>
+              </div>
+
+              <div class="toolbar-actions">
+                <button id="show-public-panel" type="button" class="secondary-button">
+                  Volver al formulario publico
+                </button>
+                <button id="logout-button" class="secondary-button" type="button">
+                  Cerrar sesion
+                </button>
+              </div>
+            </div>
+
+            <div class="private-tabs">
+              <button
+                id="private-tab-new"
+                type="button"
+                class="private-tab-button active"
+                aria-pressed="true"
+              >
+                Nuevo registro
+              </button>
+              <button
+                id="private-tab-search"
+                type="button"
+                class="private-tab-button"
+                aria-pressed="false"
+              >
+                Consulta y extraccion
+              </button>
+            </div>
+
+            <section id="private-tab-panel-new" class="private-tab-panel">
+              <section class="card">
+                <div class="card-header">
+                  <p class="eyebrow">Nuevo registro</p>
+                  <h3>Datos de la candidatura</h3>
+                </div>
+
+                <form id="candidate-form" class="form-grid">
+                  <label>
+                    Nombre y apellidos
+                    <input
+                      id="full-name"
+                      name="full_name"
+                      type="text"
+                      placeholder="Nombre Apellidos"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Telefono
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      placeholder="+34 600 000 000"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Correo electronico
+                    <input
+                      id="candidate-email"
+                      name="email"
+                      type="email"
+                      placeholder="persona@email.com"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Fecha de registro
+                    <input
+                      id="registration-date"
+                      name="registration_date"
+                      type="date"
+                      required
+                    />
+                  </label>
+
+                  <fieldset class="full-width">
+                    <legend>Puestos a los que puede optar</legend>
+                    <div class="checkbox-grid">
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="roles" value="Conserjeria" />
+                        <span>Conserjeria</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Monitorado de tiempo libre"
+                        />
+                        <span>Monitorado de tiempo libre</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Monitorado deportivo"
+                          id="sport-role"
+                        />
+                        <span>Monitorado deportivo</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Monitorado acuatico"
+                        />
+                        <span>Monitorado acuatico</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="roles" value="Socorrismo" />
+                        <span>Socorrismo</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Control biosanitario"
+                        />
+                        <span>Control biosanitario</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Montaje de eventos"
+                        />
+                        <span>Montaje de eventos</span>
+                      </label>
+                    </div>
+                  </fieldset>
+
+                  <fieldset id="sport-specialties-group" class="full-width hidden-submenu">
+                    <legend>Modalidades de monitorado deportivo</legend>
+                    <div class="checkbox-grid specialties-grid">
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="sport_specialties" value="General" />
+                        <span>General</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="sport_specialties"
+                          value="Sala de musculacion"
+                        />
+                        <span>Sala de musculacion</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="sport_specialties" value="Pilates" />
+                        <span>Pilates</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="sport_specialties" value="Yoga" />
+                        <span>Yoga</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="sport_specialties"
+                          value="Tenis y padel"
+                        />
+                        <span>Tenis y padel</span>
+                      </label>
+                    </div>
+                  </fieldset>
+
+                  <label class="full-width">
+                    Notas
+                    <textarea
+                      id="notes"
+                      name="notes"
+                      rows="4"
+                      placeholder="Informacion relevante del perfil, disponibilidad, titulaciones o experiencia."
+                    ></textarea>
+                  </label>
+
+                  <label class="full-width">
+                    Observaciones
+                    <textarea
+                      id="observations"
+                      name="observations"
+                      rows="4"
+                      placeholder="Comentarios internos sobre la candidatura o seguimiento pendiente."
+                    ></textarea>
+                  </label>
+
+                  <section class="full-width tags-section">
+                    <div class="tags-header">
+                      <label>
+                        Etiquetas
+                        <select id="tag-select" name="tag_select">
+                          <option value="">Selecciona una etiqueta</option>
+                        </select>
+                      </label>
+                      <button id="add-selected-tag" type="button" class="secondary-button">
+                        Anadir etiqueta
+                      </button>
+                    </div>
+
+                    <div class="tags-header">
+                      <label>
+                        Nueva etiqueta
+                        <input
+                          id="new-tag-input"
+                          name="new_tag"
+                          type="text"
+                          placeholder="Ejemplo: Carnet B"
+                        />
+                      </label>
+                      <button id="create-tag-button" type="button" class="secondary-button">
+                        Crear etiqueta
+                      </button>
+                    </div>
+
+                    <div>
+                      <p class="mini-label">Etiquetas asignadas a esta candidatura</p>
+                      <div id="selected-tags" class="tag-cloud empty-cloud">
+                        Sin etiquetas asignadas.
+                      </div>
+                    </div>
+
+                    <div>
+                      <p class="mini-label">Nube de etiquetas</p>
+                      <div id="available-tags" class="tag-cloud empty-cloud">
+                        Aun no hay etiquetas creadas.
+                      </div>
+                    </div>
+                  </section>
+
+                  <button id="save-button" class="full-width" type="submit">
+                    Guardar candidatura
+                  </button>
+                </form>
+              </section>
+            </section>
+
+            <section id="private-tab-panel-search" class="private-tab-panel hidden">
+              <section class="card">
+                <div class="card-header">
+                  <p class="eyebrow">Consulta y extraccion</p>
+                  <h3>Filtros de candidaturas</h3>
+                </div>
+
+                <div class="results-toolbar">
+                  <div class="results-summary">
+                    <article class="summary-chip">
+                      <span class="summary-label">Total cargadas</span>
+                      <strong id="total-candidates-count">0</strong>
+                    </article>
+                    <article class="summary-chip">
+                      <span class="summary-label">Resultados filtrados</span>
+                      <strong id="filtered-candidates-count">0</strong>
+                    </article>
+                  </div>
+
+                  <div class="results-actions">
+                    <button id="clear-filters-button" type="button" class="secondary-button">
+                      Limpiar filtros
+                    </button>
+                    <button id="export-csv-button" type="button">
+                      Exportar CSV
+                    </button>
+                  </div>
+                </div>
+
+                <form id="filters-form" class="filters-grid">
+                  <label>
+                    Buscar texto
+                    <input
+                      id="filter-search"
+                      name="search"
+                      type="search"
+                      placeholder="Nombre, correo, telefono, notas..."
+                    />
+                  </label>
+
+                  <label>
+                    Puesto
+                    <select id="filter-role" name="role">
+                      <option value="">Todos los puestos</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Etiqueta
+                    <select id="filter-tag" name="tag">
+                      <option value="">Todas las etiquetas</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Estado
+                    <select id="filter-status" name="status">
+                      <option value="">Todos los estados</option>
+                      <option value="Pendiente">Pendiente</option>
+                      <option value="Preseleccionado">Preseleccionado</option>
+                      <option value="Descartado">Descartado</option>
+                      <option value="Contratado">Contratado</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Fecha desde
+                    <input id="filter-date-from" name="date_from" type="date" />
+                  </label>
+
+                  <label>
+                    Fecha hasta
+                    <input id="filter-date-to" name="date_to" type="date" />
+                  </label>
+
+                  <label class="checkbox-item with-label">
+                    <input id="filter-has-cv" name="has_cv" type="checkbox" />
+                    <span>Solo con CV adjunto</span>
+                  </label>
+                </form>
+              </section>
+
+              <section class="card">
+                <div class="card-header">
+                  <p class="eyebrow">Ultimos registros</p>
+                  <h3>Candidaturas guardadas</h3>
+                </div>
+
+                <div class="table-wrapper">
+                  <table id="candidates-table">
+                    <thead>
+                      <tr>
+                        <th>Acciones</th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="registration_date">
+                            Fecha
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="candidate_status">
+                            Estado
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="full_name">
+                            Nombre
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="phone">
+                            Telefono
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="email">
+                            Correo
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="job_roles">
+                            Puestos
+                          </button>
+                        </th>
+                        <th>Etiquetas</th>
+                        <th>CV</th>
+                        <th>Notas</th>
+                        <th>Observaciones</th>
+                      </tr>
+                    </thead>
+                    <tbody id="candidates-table-body">
+                      <tr>
+                        <td colspan="11" class="empty-state">
+                          No hay datos cargados todavia.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="pagination-bar">
+                  <div class="pagination-summary">
+                    <span id="pagination-summary">Mostrando 0-0 de 0</span>
+                  </div>
+
+                  <div class="pagination-controls">
+                    <label class="pagination-size">
+                      <span>Por pagina</span>
+                      <select id="page-size-select">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                      </select>
+                    </label>
+
+                    <button
+                      id="previous-page-button"
+                      type="button"
+                      class="secondary-button"
+                    >
+                      Anterior
+                    </button>
+                    <span id="pagination-page-indicator">Pagina 1 de 1</span>
+                    <button id="next-page-button" type="button" class="secondary-button">
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </section>
+          </section>
+        </section>
+
+        <section class="card status-card">
+          <p id="status-message" class="status-message">
+            Puedes usar el panel publico para enviar candidaturas y el privado para gestionarlas.
+          </p>
+        </section>
+
+        <section id="candidate-detail-panel" class="detail-panel hidden">
+          <div class="detail-overlay" id="detail-overlay"></div>
+          <aside class="detail-drawer">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Ficha de candidatura</p>
+                <h3 id="detail-title">Detalle</h3>
+              </div>
+              <div class="detail-header-actions">
+                <button id="detail-delete-button" type="button" class="danger-button">
+                  Borrar
+                </button>
+                <button id="close-detail-button" type="button" class="secondary-button">
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <form id="detail-form" class="detail-form">
+              <input id="detail-id" type="hidden" />
+
+              <label>
+                Nombre y apellidos
+                <input id="detail-full-name" type="text" />
+              </label>
+
+              <label>
+                Telefono
+                <input id="detail-phone" type="tel" />
+              </label>
+
+              <label>
+                Correo electronico
+                <input id="detail-email" type="email" />
+              </label>
+
+              <label>
+                Fecha de registro
+                <input id="detail-registration-date" type="date" />
+              </label>
+
+              <label>
+                Estado
+                <select id="detail-status">
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="Preseleccionado">Preseleccionado</option>
+                  <option value="Descartado">Descartado</option>
+                  <option value="Contratado">Contratado</option>
+                </select>
+              </label>
+
+              <fieldset>
+                <legend>Puestos</legend>
+                <div class="checkbox-grid detail-checkbox-grid">
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="detail_roles" value="Conserjeria" />
+                    <span>Conserjeria</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Monitorado de tiempo libre"
+                    />
+                    <span>Monitorado de tiempo libre</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      id="detail-sport-role"
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Monitorado deportivo"
+                    />
+                    <span>Monitorado deportivo</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Monitorado acuatico"
+                    />
+                    <span>Monitorado acuatico</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="detail_roles" value="Socorrismo" />
+                    <span>Socorrismo</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Control biosanitario"
+                    />
+                    <span>Control biosanitario</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Montaje de eventos"
+                    />
+                    <span>Montaje de eventos</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset id="detail-sport-specialties-group" class="hidden-submenu">
+                <legend>Modalidades deportivas</legend>
+                <div class="checkbox-grid detail-checkbox-grid">
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="detail_sport_specialties" value="General" />
+                    <span>General</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_sport_specialties"
+                      value="Sala de musculacion"
+                    />
+                    <span>Sala de musculacion</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="detail_sport_specialties" value="Pilates" />
+                    <span>Pilates</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="detail_sport_specialties" value="Yoga" />
+                    <span>Yoga</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_sport_specialties"
+                      value="Tenis y padel"
+                    />
+                    <span>Tenis y padel</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <label>
+                Etiquetas
+                <input
+                  id="detail-tags"
+                  type="text"
+                  placeholder="Separadas por comas"
+                />
+              </label>
+
+              <label>
+                Notas
+                <textarea id="detail-notes" rows="4"></textarea>
+              </label>
+
+              <label>
+                Observaciones
+                <textarea id="detail-observations" rows="4"></textarea>
+              </label>
+
+              <label>
+                CV adjunto
+                <input id="detail-attachment-name" type="text" readonly />
+              </label>
+
+              <label class="checkbox-item with-label">
+                <input id="detail-vacancy-consent" type="checkbox" />
+                <span>Autorizacion para posibles vacantes</span>
+              </label>
+
+              <div class="detail-actions">
+                <button id="detail-edit-button" type="button" class="secondary-button">
+                  Editar
+                </button>
+                <button id="detail-save-button" type="submit">
+                  Guardar cambios
+                </button>
+              </div>
+            </form>
+          </aside>
+        </section>
+
+        <div id="public-toast" class="toast-message hidden" role="status" aria-live="polite">
+          Candidatura enviada correctamente.
+        </div>
+      </main>
+    </div>
+
+    <script src="./config.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
