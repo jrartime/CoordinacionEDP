@@ -1,0 +1,3105 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coordinación EDP</title>
+    <script>
+      if (
+        window.location.hostname === "coordinacion.edpsl.es" ||
+        window.location.hostname.includes("coordinacion") ||
+        window.location.pathname.split("/").filter(Boolean)[0] === "coordinacion"
+      ) {
+        document.documentElement.classList.add("coordination-host");
+      }
+    </script>
+    <style>
+      html.coordination-host .public-hero,
+      html.coordination-host #public-panel {
+        display: none !important;
+      }
+
+      html.coordination-host #private-panel.hidden {
+        display: block !important;
+      }
+    </style>
+    <link rel="preconnect" href="https://esm.sh" />
+    <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
+    <link rel="stylesheet" href="./styles.css?v=20260522-2" />
+  </head>
+  <body>
+    <script>
+      window.__curriculosLoginSubmit = function (event) {
+        event.preventDefault();
+        if (typeof window.__curriculosHandleLogin === "function") {
+          window.__curriculosHandleLogin(event);
+          return false;
+        }
+
+        const status = document.getElementById("status-message");
+        if (status) {
+          status.textContent =
+            "La aplicación no ha terminado de cargar o ha fallado al iniciar. Recarga la página.";
+          status.className = "status-message error";
+        }
+
+        return false;
+      };
+    </script>
+    <div class="app-shell">
+      <main class="main-panel">
+        <section class="card public-hero">
+          <div>
+            <p class="eyebrow">Candidaturas</p>
+            <h1>Trabaja con nosotros</h1>
+            <p class="hero-copy">
+              Completa el formulario para incorporarte a la bolsa de empleo de
+              Educación Deportiva del Principado. Tu candidatura quedará registrada
+              para futuros procesos de selección acordes a tu perfil.
+            </p>
+          </div>
+          <a
+            id="show-private-panel"
+            class="secondary-button button-link"
+            href="https://coordinacion.edpsl.es/"
+          >
+            Acceso privado
+          </a>
+        </section>
+
+        <section id="public-panel" class="view">
+          <section class="card access-help-card">
+            <p class="access-help-text">
+              Si esta página no carga correctamente, abre el formulario en una pestaña nueva:
+              <a
+                href="https://curriculos.edpsl.es/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                curriculos.edpsl.es
+              </a>
+            </p>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <p class="eyebrow">Envío de currículum</p>
+              <h2>Formulario público</h2>
+            </div>
+
+            <form id="public-candidate-form" class="form-grid">
+              <label>
+                Nombre y apellidos
+                <input
+                  id="public-full-name"
+                  name="full_name"
+                  type="text"
+                  placeholder="Nombre Apellidos"
+                  required
+                />
+              </label>
+
+              <label>
+                Teléfono
+                <input
+                  id="public-phone"
+                  name="phone"
+                  type="tel"
+                  placeholder="+34 600 000 000"
+                  required
+                />
+              </label>
+
+              <label>
+                Correo electrónico
+                <input
+                  id="public-email"
+                  name="email"
+                  type="email"
+                  placeholder="persona@email.com"
+                  required
+                />
+              </label>
+
+              <fieldset class="full-width">
+                <legend>Puestos a los que puede optar</legend>
+                <div class="checkbox-grid">
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="public_roles" value="Conserjeria" />
+                    <span>Conserjería</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Monitorado de tiempo libre"
+                    />
+                    <span>Monitorado de tiempo libre</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Monitorado deportivo"
+                      id="public-sport-role"
+                    />
+                    <span>Monitorado deportivo</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Monitorado acuatico"
+                    />
+                    <span>Monitorado acuático</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="public_roles" value="Socorrismo" />
+                    <span>Socorrismo</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Control biosanitario"
+                    />
+                    <span>Control biosanitario</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Montaje de eventos"
+                    />
+                    <span>Montaje de eventos</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_roles"
+                      value="Tecnico Informatico/imagen y sonido"
+                    />
+                    <span>Técnico Informático/imagen y sonido</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset
+                id="public-sport-specialties-group"
+                class="full-width hidden-submenu"
+              >
+                <legend>Modalidades de monitorado deportivo</legend>
+                <div class="checkbox-grid specialties-grid">
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_sport_specialties"
+                      value="General"
+                    />
+                    <span>General</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_sport_specialties"
+                      value="Sala de musculacion"
+                    />
+                    <span>Sala de musculación</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_sport_specialties"
+                      value="Pilates"
+                    />
+                    <span>Pilates</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="public_sport_specialties" value="Yoga" />
+                    <span>Yoga</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="public_sport_specialties"
+                      value="Tenis y padel"
+                    />
+                    <span>Tenis y pádel</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <label class="full-width">
+                Notas
+                <textarea
+                  id="public-notes"
+                  name="notes"
+                  rows="4"
+                  placeholder="Experiencia, disponibilidad, titulaciones o informacion relevante."
+                ></textarea>
+              </label>
+
+              <label class="full-width">
+                Observaciones
+                <textarea
+                  id="public-observations"
+                  name="observations"
+                  rows="4"
+                  placeholder="Cualquier comentario adicional que quieras hacernos llegar."
+                ></textarea>
+              </label>
+
+              <label class="full-width">
+                Adjuntar currículum
+                <input
+                  id="public-cv-file"
+                  name="cv_file"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.odt,.rtf,.txt,image/*"
+                />
+              </label>
+
+              <section class="full-width consent-box">
+                <details class="consent-details">
+                  <summary class="consent-summary">
+                    Clausula basica de informacion y consentimiento
+                  </summary>
+
+                  <div class="consent-text">
+                    <p>
+                      CLAUSULA BASICA INFORMATIVA PARA LA ACTIVIDAD DEL
+                      TRATAMIENTO CANDIDATOS
+                    </p>
+                    <p>Responsable</p>
+                    <p>
+                      De conformidad con lo establecido en el Reglamento (UE)
+                      2016/679 de proteccion de datos de caracter personal y la
+                      Ley Organica 3/2018 de proteccion de datos y garantia de
+                      los derechos digitales, EDUCACION DEPORTIVA DEL
+                      PRINCIPADO SL, con CIF/NIF B33383928, y direccion en
+                      C/Gonzalez del Valle 14 2º izq., OVIEDO (33004), ASTURIAS es
+                      responsable del tratamiento de sus datos de caracter
+                      personal.
+                    </p>
+                    <p>Delegado de Proteccion de datos</p>
+                    <p>
+                      El delegado de proteccion de datos es SYSTEM CENTROS DE
+                      FORMACION S.L., con CIF/NIF B41273392, y correo
+                      electrónico dpd@virtualsolutions.es.
+                    </p>
+                    <p>Datos personales tratados</p>
+                    <p>
+                      Se tratan los datos personales necesarios para la
+                      incorporacion a la actividad del tratamiento CANDIDATOS.
+                    </p>
+                    <p>Fines del tratamiento.</p>
+                    <p>Disponer de una bolsa de aspirantes de empleo.</p>
+                    <p>Origen</p>
+                    <p>
+                      Las fuentes de las que proceden sus datos personales son:
+                      Obtenidos del propio interesado.
+                    </p>
+                    <p>Elaboracion de Perfiles</p>
+                    <p>No se realizan elaboracion de perfiles.</p>
+                    <p>Derechos</p>
+                    <p>
+                      Puede ejercer sus derechos de acceso, rectificacion,
+                      limitacion del tratamiento, oposicion, portabilidad y
+                      supresion de sus datos, asi como el derecho a retirar el
+                      consentimiento para el tratamiento de sus datos en
+                      cualquier momento dirigiendo su peticion a
+                      edp@asturias.com. En caso de no recibir una respuesta
+                      satisfactoria puede presentar reclamacion ante la
+                      Autoridad de Control en materia de Proteccion de Datos a
+                      traves de la web www.aepd.es
+                    </p>
+                    <p>Consentimiento</p>
+                    <p>Marque si presta su consentimiento expreso para:</p>
+                    <p>[ ] Enviar informacion sobre posibles vacantes.</p>
+                    <p>
+                      He leido, comprendido y acepto la informacion que se me
+                      facilita en relacion con el tratamiento de mis datos
+                      personales. (Nombre, DNI y Firma del interesado o Nombre
+                      de los padres o tutores legales del menor, DNI y Firma en
+                      caso de ser menor de edad)
+                    </p>
+                    <p>
+                      Puede consultar informacion adicional en:
+                      https://consultoria.virtualsolutions.es/APP/DOCUMENTACION/ACTIVIDADES_TRATAMIENTO/VISTA_WEB/95938/105532167223208
+                    </p>
+                  </div>
+                </details>
+
+                <label class="checkbox-item consent-check">
+                  <input
+                    id="public-privacy-acceptance"
+                    name="privacy_acceptance"
+                    type="checkbox"
+                    required
+                  />
+                  <span>
+                    He leido, comprendido y acepto la informacion sobre el
+                    tratamiento de mis datos personales.
+                  </span>
+                </label>
+
+                <label class="checkbox-item consent-check">
+                  <input
+                    id="public-vacancy-consent"
+                    name="vacancy_consent"
+                    type="checkbox"
+                  />
+                  <span>Autorizo el envio de informacion sobre posibles vacantes.</span>
+                </label>
+              </section>
+
+              <button class="full-width" type="submit">Enviar candidatura</button>
+            </form>
+          </section>
+        </section>
+
+        <section id="private-panel" class="view hidden">
+          <section id="login-view" class="card view">
+            <div class="card-header">
+              <p class="eyebrow">Acceso</p>
+              <h2>Entrar al panel de carga</h2>
+            </div>
+
+            <form
+              id="login-form"
+              class="form-grid"
+              onsubmit="return window.__curriculosLoginSubmit(event);"
+            >
+              <label>
+                Correo electrónico
+                <input
+                  id="login-email"
+                  name="email"
+                  type="email"
+                  autocomplete="email"
+                  placeholder="equipo@empresa.com"
+                  required
+                />
+              </label>
+
+              <label>
+                Contrasena
+                <input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  placeholder="********"
+                  required
+                />
+              </label>
+
+              <button id="login-button" type="submit">Entrar</button>
+              <button id="show-password-recovery-button" type="button" class="secondary-button">
+                Recuperar contraseña
+              </button>
+            </form>
+
+            <form id="password-recovery-form" class="form-grid hidden">
+              <div class="form-intro">
+                <p class="eyebrow">Recuperación</p>
+                <h3>Restablecer contraseña</h3>
+                <p>
+                  Escribe tu correo y te enviaremos un enlace de Supabase para
+                  crear una nueva contraseña de acceso.
+                </p>
+              </div>
+
+              <label>
+                Correo electrónico
+                <input
+                  id="password-recovery-email"
+                  name="email"
+                  type="email"
+                  autocomplete="email"
+                  placeholder="equipo@empresa.com"
+                  required
+                />
+              </label>
+
+              <button id="password-recovery-submit-button" type="submit">
+                Enviar enlace
+              </button>
+              <button
+                id="cancel-password-recovery-button"
+                type="button"
+                class="secondary-button"
+              >
+                Volver al acceso
+              </button>
+            </form>
+
+            <form id="invite-setup-form" class="form-grid hidden">
+              <div class="form-intro">
+                <p class="eyebrow">Nuevo acceso</p>
+                <h3>Crear contrasena</h3>
+                <p>
+                  La invitacion ya esta validada. Define una contrasena para
+                  activar tu usuario y entrar al panel.
+                </p>
+              </div>
+
+              <label>
+                Nueva contrasena
+                <input
+                  id="invite-password"
+                  name="password"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="8"
+                  placeholder="Minimo 8 caracteres"
+                  required
+                />
+              </label>
+
+              <label>
+                Repetir contrasena
+                <input
+                  id="invite-password-confirm"
+                  name="password_confirm"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="8"
+                  placeholder="Repite la contrasena"
+                  required
+                />
+              </label>
+
+              <button id="invite-setup-button" type="submit">Guardar contrasena</button>
+            </form>
+          </section>
+
+          <section id="private-view" class="view hidden">
+            <div class="card toolbar">
+              <div class="toolbar-copy">
+                <p class="eyebrow">Panel interno</p>
+                <h2>
+                  <img src="./EDP.jpg" alt="" class="header-logo" />
+                  <span>EDP Portal</span>
+                </h2>
+                <p id="session-email" class="session-email"></p>
+              </div>
+
+              <div class="toolbar-actions">
+                <a
+                  class="secondary-button button-link"
+                  href="https://concilia.edpsl.es/"
+                >
+                  Ir a Concilia
+                </a>
+                <a
+                  id="show-public-panel"
+                  class="secondary-button button-link"
+                  href="https://curriculos.edpsl.es/"
+                >
+                  Volver al formulario público
+                </a>
+                <button id="logout-button" class="secondary-button" type="button">
+                  Cerrar sesión
+                </button>
+              </div>
+            </div>
+
+            <div class="private-tabs">
+              <button
+                id="private-tab-programming"
+                type="button"
+                class="private-tab-button active"
+                aria-pressed="true"
+              >
+                Programación
+              </button>
+              <button
+                id="private-tab-control"
+                type="button"
+                class="private-tab-button"
+                aria-pressed="false"
+              >
+                Control personal
+              </button>
+              <button
+                id="private-tab-events"
+                type="button"
+                class="private-tab-button"
+                aria-pressed="false"
+              >
+                Eventos
+              </button>
+              <button
+                id="private-tab-search"
+                type="button"
+                class="private-tab-button"
+                aria-pressed="false"
+              >
+                Candidaturas
+              </button>
+            </div>
+
+            <section id="private-tab-panel-new" class="detail-panel hidden">
+              <div id="candidate-create-overlay" class="detail-overlay"></div>
+              <aside class="detail-drawer candidate-create-drawer">
+                <div class="detail-header">
+                  <div>
+                    <p class="eyebrow">Nuevo registro</p>
+                    <h3>Datos de la candidatura</h3>
+                  </div>
+                  <button
+                    id="close-candidate-create-button"
+                    type="button"
+                    class="secondary-button"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+
+                <form id="candidate-form" class="form-grid">
+                  <label>
+                    Nombre y apellidos
+                    <input
+                      id="full-name"
+                      name="full_name"
+                      type="text"
+                      placeholder="Nombre Apellidos"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Teléfono
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      placeholder="+34 600 000 000"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Correo electrónico
+                    <input
+                      id="candidate-email"
+                      name="email"
+                      type="email"
+                      placeholder="persona@email.com"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Fecha de registro
+                    <input
+                      id="registration-date"
+                      name="registration_date"
+                      type="date"
+                      required
+                    />
+                  </label>
+
+                  <fieldset class="full-width">
+                    <legend>Puestos a los que puede optar</legend>
+                    <div class="checkbox-grid">
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="roles" value="Conserjeria" />
+                        <span>Conserjería</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Monitorado de tiempo libre"
+                        />
+                        <span>Monitorado de tiempo libre</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Monitorado deportivo"
+                          id="sport-role"
+                        />
+                        <span>Monitorado deportivo</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Monitorado acuatico"
+                        />
+                        <span>Monitorado acuático</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="roles" value="Socorrismo" />
+                        <span>Socorrismo</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Control biosanitario"
+                        />
+                        <span>Control biosanitario</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Montaje de eventos"
+                        />
+                        <span>Montaje de eventos</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="roles"
+                          value="Tecnico Informatico/imagen y sonido"
+                        />
+                        <span>Técnico Informático/imagen y sonido</span>
+                      </label>
+                    </div>
+                  </fieldset>
+
+                  <fieldset id="sport-specialties-group" class="full-width hidden-submenu">
+                    <legend>Modalidades de monitorado deportivo</legend>
+                    <div class="checkbox-grid specialties-grid">
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="sport_specialties" value="General" />
+                        <span>General</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="sport_specialties"
+                          value="Sala de musculacion"
+                        />
+                        <span>Sala de musculación</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="sport_specialties" value="Pilates" />
+                        <span>Pilates</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input type="checkbox" name="sport_specialties" value="Yoga" />
+                        <span>Yoga</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input
+                          type="checkbox"
+                          name="sport_specialties"
+                          value="Tenis y padel"
+                        />
+                          <span>Tenis y pádel</span>
+                      </label>
+                    </div>
+                  </fieldset>
+
+                  <label class="full-width">
+                    Adjuntar currículum
+                    <input
+                      id="candidate-cv-file"
+                      name="candidate_cv_file"
+                      type="file"
+                      accept=".pdf,.doc,.docx,.odt,.rtf,.txt,image/*"
+                    />
+                  </label>
+
+                  <label class="full-width">
+                    Notas
+                    <textarea
+                      id="notes"
+                      name="notes"
+                      rows="4"
+                      placeholder="Informacion relevante del perfil, disponibilidad, titulaciones o experiencia."
+                    ></textarea>
+                  </label>
+
+                  <label class="full-width">
+                    Observaciones
+                    <textarea
+                      id="observations"
+                      name="observations"
+                      rows="4"
+                      placeholder="Comentarios internos sobre la candidatura o seguimiento pendiente."
+                    ></textarea>
+                  </label>
+
+                  <section class="full-width tags-section">
+                    <div class="tags-header">
+                      <label>
+                        Etiquetas
+                        <select id="tag-select" name="tag_select">
+                          <option value="">Selecciona una etiqueta</option>
+                        </select>
+                      </label>
+                      <button id="add-selected-tag" type="button" class="secondary-button">
+                        Anadir etiqueta
+                      </button>
+                    </div>
+
+                    <div class="tags-header">
+                      <label>
+                        Nueva etiqueta
+                        <input
+                          id="new-tag-input"
+                          name="new_tag"
+                          type="text"
+                          placeholder="Ejemplo: Carnet B"
+                        />
+                      </label>
+                      <button id="create-tag-button" type="button" class="secondary-button">
+                        Crear etiqueta
+                      </button>
+                    </div>
+
+                    <div>
+                      <p class="mini-label">Etiquetas asignadas a esta candidatura</p>
+                      <div id="selected-tags" class="tag-cloud empty-cloud">
+                        Sin etiquetas asignadas.
+                      </div>
+                    </div>
+
+                    <div>
+                      <p class="mini-label">Nube de etiquetas</p>
+                      <div id="available-tags" class="tag-cloud empty-cloud">
+                        Aun no hay etiquetas creadas.
+                      </div>
+                    </div>
+                  </section>
+
+                  <button id="save-button" class="full-width" type="submit">
+                    Guardar candidatura
+                  </button>
+                </form>
+              </aside>
+            </section>
+
+            <section id="private-tab-panel-search" class="private-tab-panel hidden">
+              <section class="card">
+                <div class="card-header">
+                  <p class="eyebrow">Candidaturas</p>
+                  <h3>Gestión de candidaturas</h3>
+                </div>
+
+                <div class="results-toolbar section-summary-toolbar">
+                  <div class="results-summary">
+                    <article class="summary-chip">
+                      <span class="summary-label">Total cargadas</span>
+                      <strong id="total-candidates-count">0</strong>
+                    </article>
+                    <article class="summary-chip">
+                      <span class="summary-label">Resultados filtrados</span>
+                      <strong id="filtered-candidates-count">0</strong>
+                    </article>
+                  </div>
+
+                  <div class="results-actions">
+                    <button id="open-candidate-create-button" type="button">
+                      Nueva candidatura
+                    </button>
+                    <button
+                      id="export-selected-pdf-button"
+                      type="button"
+                      class="warm-button"
+                    >
+                      Exportar selección PDF
+                    </button>
+                    <button id="export-csv-button" type="button" class="warm-button">
+                      Exportar CSV
+                    </button>
+                  </div>
+                </div>
+
+                <form id="filters-form" class="filters-grid">
+                  <label class="filter-field">
+                    Buscar texto
+                    <div class="filter-control-row">
+                      <input
+                        id="filter-search"
+                        name="search"
+                        type="search"
+                        placeholder="Nombre, correo, telefono, notas..."
+                      />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-candidate-filter="search"
+                        aria-label="Restablecer busqueda"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Puesto
+                    <div class="filter-control-row">
+                      <select id="filter-role" name="role">
+                        <option value="">Todos los puestos</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-candidate-filter="role"
+                        aria-label="Restablecer puesto"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Etiqueta
+                    <div class="filter-control-row">
+                      <select id="filter-tag" name="tag">
+                        <option value="">Todas las etiquetas</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-candidate-filter="tag"
+                        aria-label="Restablecer etiqueta"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Estado
+                    <div class="filter-control-row">
+                      <select id="filter-status" name="status">
+                        <option value="">Todos los estados</option>
+                        <option value="Pendiente">Pendiente</option>
+                        <option value="Preseleccionado">Preseleccionado</option>
+                        <option value="Descartado">Descartado</option>
+                        <option value="Contratado">Contratado</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-candidate-filter="status"
+                        aria-label="Restablecer estado"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Fecha desde
+                    <div class="filter-control-row">
+                      <input id="filter-date-from" name="date_from" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-candidate-filter="date_from"
+                        aria-label="Restablecer fecha desde"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Fecha hasta
+                    <div class="filter-control-row">
+                      <input id="filter-date-to" name="date_to" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-candidate-filter="date_to"
+                        aria-label="Restablecer fecha hasta"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="checkbox-item with-label">
+                    <input id="filter-has-cv" name="has_cv" type="checkbox" />
+                    <span>Solo con CV adjunto</span>
+                  </label>
+                </form>
+
+                <div class="table-wrapper">
+                  <table id="candidates-table">
+                    <thead>
+                      <tr>
+                        <th class="select-column">
+                          <input id="select-all-candidates" type="checkbox" />
+                        </th>
+                        <th>Acciones</th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="registration_date">
+                            Fecha
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="candidate_status">
+                            Estado
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="full_name">
+                            Nombre
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="phone">
+                            Teléfono
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="email">
+                            Correo
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-sort-field="job_roles">
+                            Puestos
+                          </button>
+                        </th>
+                        <th>Etiquetas</th>
+                        <th>CV</th>
+                        <th>Notas</th>
+                        <th>Observaciones</th>
+                      </tr>
+                    </thead>
+                    <tbody id="candidates-table-body">
+                      <tr>
+                        <td colspan="12" class="empty-state">
+                          No hay datos cargados todavia.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="pagination-bar">
+                  <div class="pagination-summary">
+                    <span id="pagination-summary">Mostrando 0-0 de 0</span>
+                  </div>
+
+                  <div class="pagination-controls">
+                    <label class="pagination-size">
+                      <span>Por página</span>
+                      <select id="page-size-select">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                      </select>
+                    </label>
+
+                    <button
+                      id="previous-page-button"
+                      type="button"
+                      class="secondary-button"
+                    >
+                      Anterior
+                    </button>
+                    <span id="pagination-page-indicator">Página 1 de 1</span>
+                    <button id="next-page-button" type="button" class="secondary-button">
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </section>
+
+            <section id="private-tab-panel-control" class="private-tab-panel hidden">
+              <section class="card">
+                <div class="card-header">
+                  <p class="eyebrow">Control personal</p>
+                  <h3>Gestión de los partes de horas</h3>
+                </div>
+
+                <div class="control-actions-panel">
+                  <div class="results-toolbar section-summary-toolbar control-results-toolbar">
+                    <div class="results-summary control-results-summary">
+                      <article class="summary-chip">
+                        <span class="summary-label">Registros encontrados</span>
+                        <strong id="control-total-count">0</strong>
+                      </article>
+                      <article class="summary-chip">
+                        <span class="summary-label">Registros mostrados</span>
+                        <strong id="control-page-count">0</strong>
+                      </article>
+                      <article class="summary-chip">
+                        <span class="summary-label">Total horas filtradas</span>
+                        <strong id="control-total-hours">00:00</strong>
+                      </article>
+                    </div>
+
+                    <div class="control-primary-actions">
+                      <button
+                        id="control-import-csv-button"
+                        type="button"
+                      >
+                        Cargar datos
+                      </button>
+                      <button
+                        id="control-export-csv-button"
+                        type="button"
+                        class="warm-button"
+                      >
+                        Exportar CSV
+                      </button>
+                      <button
+                        id="control-export-pdf-button"
+                        type="button"
+                        class="warm-button"
+                      >
+                        Exportar PDF
+                      </button>
+                      <button
+                        id="control-totals-button"
+                        type="button"
+                        class="secondary-button"
+                      >
+                        Informe por personal
+                      </button>
+                    </div>
+                  </div>
+
+                  <details class="control-danger-zone">
+                    <summary>Opciones de borrado</summary>
+                    <div class="control-danger-actions">
+                      <button
+                        id="control-enable-selective-delete-button"
+                        type="button"
+                        class="secondary-button"
+                      >
+                        Seleccionar registros
+                      </button>
+                      <button
+                        id="control-delete-selected-button"
+                        type="button"
+                        class="danger-button"
+                        disabled
+                      >
+                        Borrar seleccionados
+                      </button>
+                      <button
+                        id="control-cancel-selective-delete-button"
+                        type="button"
+                        class="secondary-button hidden"
+                      >
+                        Cancelar selección
+                      </button>
+                      <span id="control-selected-delete-count" class="control-selected-delete-count">
+                        0 seleccionados
+                      </span>
+                    </div>
+                    <button
+                      id="control-delete-range-button"
+                      type="button"
+                      class="danger-button"
+                    >
+                      Borrar registros filtrados
+                    </button>
+                  </details>
+                </div>
+
+                <form
+                  id="control-filters-form"
+                  class="filters-grid control-filters-grid"
+                  autocomplete="off"
+                >
+                  <label class="filter-field">
+                    Fecha inicial
+                    <div class="filter-control-row">
+                      <input id="control-date-from" name="date_from" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="date_from"
+                        aria-label="Restablecer fecha inicial"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Fecha final
+                    <div class="filter-control-row">
+                      <input id="control-date-to" name="date_to" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="date_to"
+                        aria-label="Restablecer fecha final"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Personal
+                    <div class="filter-field-stack">
+                      <div class="filter-control-row">
+                        <input
+                          id="control-personal"
+                          name="personal"
+                          type="text"
+                          autocomplete="off"
+                          placeholder="Buscar personal"
+                        />
+                        <button
+                          type="button"
+                          class="filter-reset-button"
+                          data-reset-filter="personal"
+                          aria-label="Restablecer personal"
+                          title="Restablecer"
+                        >
+                          x
+                        </button>
+                      </div>
+                      <div
+                        id="control-personal-suggestions"
+                        class="filter-suggestions hidden"
+                      ></div>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Centro
+                    <div class="filter-control-row">
+                      <select id="control-centro" name="centro">
+                        <option value="">Todos los centros</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="centro"
+                        aria-label="Restablecer centro"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Puesto
+                    <div class="filter-control-row">
+                      <select id="control-puesto" name="puesto">
+                        <option value="">Todos los puestos</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="puesto"
+                        aria-label="Restablecer puesto"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+                </form>
+
+                <div class="table-wrapper">
+                  <table id="control-records-table">
+                    <thead>
+                      <tr>
+                        <th id="control-select-header" class="hidden">
+                          <input
+                            id="control-select-page-checkbox"
+                            type="checkbox"
+                            aria-label="Seleccionar registros visibles"
+                          />
+                        </th>
+                        <th>Acciones</th>
+                        <th>Día</th>
+                        <th>
+                          <button type="button" class="sort-button" data-control-sort-field="personal">
+                            Personal
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-control-sort-field="centro">
+                            Centro
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-control-sort-field="puesto">
+                            Puesto
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-control-sort-field="fecha">
+                            Fecha
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-control-sort-field="hora_inicio">
+                            Hora inicio
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-control-sort-field="hora_fin">
+                            Hora fin
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-control-sort-field="worked_hours">
+                            Horas
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-control-sort-field="tipo_jornada">
+                            Tipo jornada
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-control-sort-field="observacion">
+                            Observación
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody id="control-records-table-body">
+                      <tr>
+                        <td colspan="11" class="empty-state">
+                          No hay registros cargados todavia.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="pagination-bar">
+                  <div class="pagination-summary">
+                    <span id="control-pagination-summary">Mostrando 0-0 de 0</span>
+                  </div>
+
+                  <div class="pagination-controls">
+                    <label class="pagination-size">
+                      <span>Por página</span>
+                      <select id="control-page-size-select">
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="250">250</option>
+                      </select>
+                    </label>
+
+                    <button
+                      id="control-previous-page-button"
+                      type="button"
+                      class="secondary-button"
+                    >
+                      Anterior
+                    </button>
+                    <span id="control-pagination-page-indicator">Página 1 de 1</span>
+                    <button
+                      id="control-next-page-button"
+                      type="button"
+                      class="secondary-button"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+
+                <div class="inline-panel">
+                  <div class="card-header">
+                  <p class="eyebrow">Resumen</p>
+                  <h3>Horas por persona</h3>
+                  </div>
+
+                  <div class="table-wrapper">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Personal</th>
+                          <th>Total horas</th>
+                        </tr>
+                      </thead>
+                      <tbody id="control-summary-table-body">
+                        <tr>
+                          <td colspan="2" class="empty-state">
+                            No hay resumen disponible todavia.
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            </section>
+
+            <section id="private-tab-panel-events" class="private-tab-panel hidden">
+              <section class="card">
+                <div class="results-toolbar">
+                  <div>
+                    <p class="eyebrow">Eventos registrados</p>
+                    <h3>Eventos deportivos</h3>
+                  </div>
+                  <div class="results-actions">
+                    <button
+                      id="open-event-panel-button"
+                      class="tooltip-button"
+                      type="button"
+                      aria-label="Nuevo evento"
+                    >
+                      <svg class="button-icon" aria-hidden="true">
+                        <use href="./icons.svg#icon-new"></use>
+                      </svg>
+                    </button>
+                    <button
+                      id="open-event-settings-button"
+                      class="secondary-button icon-button"
+                      type="button"
+                      aria-label="Configuración de eventos"
+                      title="Configuración"
+                    >
+                      <svg class="button-icon" aria-hidden="true">
+                        <use href="./icons.svg#icon-settings"></use>
+                      </svg>
+                    </button>
+                    <button id="events-refresh-button" class="secondary-button" type="button">
+                      Actualizar
+                    </button>
+                  </div>
+                </div>
+
+                <form id="events-filters-form" class="filters-grid event-filters-grid">
+                  <label class="filter-field">
+                    Evento
+                    <div class="filter-control-row">
+                      <input id="event-filter-name" type="search" placeholder="Buscar evento" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-event-filter="name"
+                        aria-label="Restablecer evento"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+                  <label class="filter-field">
+                    Instalación
+                    <div class="filter-control-row">
+                      <select id="event-filter-installation">
+                        <option value="">Todas</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-event-filter="installation"
+                        aria-label="Restablecer instalación"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+                  <label class="filter-field">
+                    Fecha de inicio
+                    <div class="filter-control-row">
+                      <input id="event-filter-start-date" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-event-filter="start_date"
+                        aria-label="Restablecer fecha de inicio"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+                  <label class="checkbox-label">
+                    <input id="event-filter-include-archived" type="checkbox" />
+                    <span>Mostrar archivados</span>
+                  </label>
+                </form>
+
+                <div class="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Acciones</th>
+                        <th>
+                          <button type="button" class="sort-button" data-event-sort-field="nombre">
+                            Evento
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-event-sort-field="instalacion">
+                            Instalación
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-event-sort-field="fecha_inicio">
+                            Inicio
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-event-sort-field="fecha_fin">
+                            Fin
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody id="events-table-body">
+                      <tr>
+                        <td colspan="5" class="empty-state">No hay eventos cargados.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section id="event-panel" class="detail-panel hidden">
+                <div id="event-panel-backdrop" class="detail-overlay"></div>
+                <aside class="detail-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Evento deportivo</p>
+                      <h3 id="event-panel-title">Nuevo evento</h3>
+                    </div>
+                    <button id="close-event-panel-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+
+                  <form id="event-form" class="form-grid">
+                    <input id="event-id" type="hidden" />
+                    <label>
+                      Nombre del evento
+                      <input id="event-name" type="text" required />
+                    </label>
+                    <label>
+                      Instalación
+                      <select id="event-installation" required>
+                        <option value="">Selecciona instalación</option>
+                      </select>
+                    </label>
+                    <label>
+                      Fecha de inicio
+                      <input id="event-start-date" type="date" required />
+                    </label>
+                    <label>
+                      Fecha de fin
+                      <input id="event-end-date" type="date" required />
+                    </label>
+                    <label class="full-width">
+                      Observaciones
+                      <textarea id="event-observations" rows="3"></textarea>
+                    </label>
+                    <label id="event-archived-field" class="checkbox-item full-width hidden">
+                      <input id="event-archived" type="checkbox" />
+                      <span>Evento archivado</span>
+                    </label>
+                    <div class="detail-actions full-width">
+                      <button
+                        id="event-delete-button"
+                        type="button"
+                        class="danger-button tooltip-button hidden"
+                        aria-label="Borrar evento"
+                      >
+                        <svg class="button-icon" aria-hidden="true">
+                          <use href="./icons.svg#icon-delete"></use>
+                        </svg>
+                      </button>
+                      <button id="event-save-button" type="submit">Guardar evento</button>
+                      <button id="event-clear-button" class="secondary-button" type="button">
+                        Limpiar
+                      </button>
+                    </div>
+                  </form>
+                </aside>
+              </section>
+
+              <section id="event-settings-panel" class="detail-panel hidden">
+                <div id="event-settings-panel-backdrop" class="detail-overlay"></div>
+                <aside class="detail-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Configuración</p>
+                      <h3>Ajustes de eventos</h3>
+                    </div>
+                    <button id="close-event-settings-panel-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+
+                  <details class="settings-section" open>
+                    <summary>Personal disponible para montajes</summary>
+                    <p class="muted-text">
+                      Solo el personal marcado aquí aparecerá al asignar personal a los pasos del cronograma.
+                    </p>
+                    <label>
+                      Filtrar personal
+                      <input
+                        id="event-assembly-personnel-filter"
+                        type="search"
+                        placeholder="Nombre del personal"
+                      />
+                    </label>
+                    <div class="dual-list">
+                      <section>
+                        <h5>Disponible</h5>
+                        <select id="event-assembly-available-select" multiple size="14"></select>
+                      </section>
+                      <div class="dual-list-actions" aria-label="Cambiar estado del personal">
+                        <button id="event-assembly-add-button" type="button">&gt;</button>
+                        <button id="event-assembly-remove-button" type="button" class="secondary-button">
+                          &lt;
+                        </button>
+                      </div>
+                      <section>
+                        <h5>Seleccionado para montajes</h5>
+                        <select id="event-assembly-selected-select" multiple size="14"></select>
+                      </section>
+                    </div>
+                  </details>
+
+                  <details class="settings-section">
+                    <summary>Instalaciones asignadas a eventos</summary>
+                    <p class="muted-text">
+                      Solo las instalaciones marcadas aquí aparecerán al crear o editar eventos.
+                    </p>
+                    <label>
+                      Filtrar instalación
+                      <input
+                        id="event-installation-settings-filter"
+                        type="search"
+                        placeholder="Nombre de instalación"
+                      />
+                    </label>
+                    <div class="dual-list">
+                      <section>
+                        <h5>Disponible</h5>
+                        <select id="event-installation-available-select" multiple size="14"></select>
+                      </section>
+                      <div class="dual-list-actions" aria-label="Cambiar instalaciones de eventos">
+                        <button id="event-installation-add-button" type="button">&gt;</button>
+                        <button id="event-installation-remove-button" type="button" class="secondary-button">
+                          &lt;
+                        </button>
+                      </div>
+                      <section>
+                        <h5>Asignadas</h5>
+                        <select id="event-installation-selected-select" multiple size="14"></select>
+                      </section>
+                    </div>
+                  </details>
+                </aside>
+              </section>
+
+              <section id="event-schedule-panel" class="detail-panel hidden">
+                <div id="event-schedule-panel-backdrop" class="detail-overlay"></div>
+                <aside class="detail-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Paso del evento</p>
+                      <h3 id="event-schedule-title">Nuevo paso</h3>
+                    </div>
+                    <button id="close-event-schedule-panel-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+
+                  <form id="event-schedule-form" class="form-grid">
+                    <input id="event-schedule-id" type="hidden" />
+                    <input id="event-schedule-event" type="hidden" />
+                    <label>
+                      Fecha
+                      <input id="event-schedule-date" type="date" required />
+                    </label>
+                    <label>
+                      Hora inicio
+                      <input id="event-schedule-start" type="time" required />
+                    </label>
+                    <label>
+                      Hora fin
+                      <input id="event-schedule-end" type="time" required />
+                    </label>
+                    <label class="full-width">
+                      Acción o actividad
+                      <textarea id="event-schedule-activity" rows="4" required></textarea>
+                    </label>
+                    <label class="checkbox-item full-width">
+                      <input id="event-schedule-needs-transport" type="checkbox" />
+                      <span>Necesita transporte</span>
+                    </label>
+                    <label id="event-schedule-transport-detail-field" class="full-width hidden">
+                      Detalle del transporte
+                      <textarea
+                        id="event-schedule-transport-detail"
+                        rows="3"
+                        placeholder="Vehículo, material a transportar, punto de recogida o indicaciones."
+                      ></textarea>
+                    </label>
+                    <section class="full-width">
+                      <p class="field-label">Personal implicado</p>
+                      <div class="dual-list">
+                        <section>
+                          <h5>Disponible para montajes</h5>
+                          <select id="event-schedule-available-personnel" multiple size="10"></select>
+                        </section>
+                        <div class="dual-list-actions" aria-label="Cambiar personal del paso">
+                          <button id="event-schedule-add-personnel-button" type="button">&gt;</button>
+                          <button
+                            id="event-schedule-remove-personnel-button"
+                            type="button"
+                            class="secondary-button"
+                          >
+                            &lt;
+                          </button>
+                        </div>
+                        <section>
+                          <h5>Seleccionado para este paso</h5>
+                          <select id="event-schedule-selected-personnel" multiple size="10"></select>
+                        </section>
+                      </div>
+                    </section>
+                    <div class="detail-actions full-width">
+                      <button
+                        id="event-schedule-delete-button"
+                        type="button"
+                        class="danger-button tooltip-button hidden"
+                        aria-label="Borrar paso"
+                      >
+                        <svg class="button-icon" aria-hidden="true">
+                          <use href="./icons.svg#icon-delete"></use>
+                        </svg>
+                      </button>
+                      <button type="submit">Guardar paso</button>
+                    </div>
+                  </form>
+                </aside>
+              </section>
+            </section>
+
+            <section id="private-tab-panel-programming" class="private-tab-panel">
+              <section class="card">
+                <div class="card-header">
+                  <div>
+                    <p id="programming-panel-eyebrow" class="eyebrow">Programación</p>
+                    <h3 id="programming-panel-title">Gestión de la programación</h3>
+                  </div>
+                </div>
+
+                <div class="results-toolbar section-summary-toolbar programming-results-toolbar">
+                  <div class="results-summary control-results-summary programming-results-summary">
+                    <article class="summary-chip">
+                      <span class="summary-label">Registros</span>
+                      <strong id="programming-total-count">0</strong>
+                    </article>
+                    <article class="summary-chip">
+                      <span class="summary-label">Instalaciones</span>
+                      <strong id="programming-installation-count">0</strong>
+                    </article>
+                    <article class="summary-chip">
+                      <span class="summary-label">Personal</span>
+                      <strong id="programming-person-count">0</strong>
+                    </article>
+                    <article class="summary-chip">
+                      <span class="summary-label">Primera fecha</span>
+                      <strong id="programming-date-from">-</strong>
+                    </article>
+                    <article class="summary-chip">
+                      <span class="summary-label">Última fecha</span>
+                      <strong id="programming-date-to">-</strong>
+                    </article>
+                    <article class="summary-chip">
+                      <span class="summary-label">Archivados visibles</span>
+                      <strong id="programming-archived-count">0</strong>
+                    </article>
+                  </div>
+
+                  <div class="results-actions programming-results-actions" aria-label="Acciones de programación">
+                    <a
+                      class="secondary-button action-link"
+                      href="https://programacion.edpsl.es/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Abrir web
+                    </a>
+                    <button
+                      id="programming-create-button"
+                      type="button"
+                      class="tooltip-button"
+                      aria-label="Nuevo registro"
+                    >
+                      <svg class="button-icon" aria-hidden="true">
+                        <use href="./icons.svg#icon-new"></use>
+                      </svg>
+                    </button>
+                    <button id="programming-import-button" type="button">
+                      Cargar datos
+                    </button>
+                    <button
+                      id="open-programming-settings-button"
+                      type="button"
+                      class="secondary-button tooltip-button"
+                      aria-label="Configuración de programación"
+                    >
+                      <svg class="button-icon" aria-hidden="true">
+                        <use href="./icons.svg#icon-settings"></use>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="programming-type-switch" id="programming-type-switch" aria-label="Tipo de programación">
+                  <button type="button" class="active" data-programming-type-filter="fin_semana">
+                    Fin de semana
+                  </button>
+                  <button type="button" data-programming-type-filter="semanal">
+                    Semanal
+                  </button>
+                  <button type="button" data-programming-type-filter="all">
+                    Ambas
+                  </button>
+                </div>
+
+                <div class="toolbar">
+                  <div class="toolbar-actions">
+                    <button
+                      id="programming-upload-supabase-button"
+                      type="button"
+                      class="hidden"
+                    >
+                      Añadir vista previa
+                    </button>
+                    <details class="programming-panel-zone">
+                      <summary>Asignación masiva</summary>
+                      <div class="programming-bulk-assignment-panel">
+                        <label>
+                          Personal
+                          <select id="programming-bulk-personal">
+                            <option value="">Selecciona personal</option>
+                          </select>
+                        </label>
+                        <button
+                          id="programming-bulk-clear-personal-button"
+                          type="button"
+                          class="secondary-button compact-button"
+                          aria-label="Limpiar personal"
+                          title="Limpiar personal"
+                        >
+                          ×
+                        </button>
+                        <button
+                          id="programming-bulk-assign-button"
+                          type="button"
+                        >
+                          Aplicar
+                        </button>
+                        <button
+                          id="programming-open-unmatched-personnel-button"
+                          type="button"
+                          class="secondary-button"
+                        >
+                          Revisar personal
+                        </button>
+                        <label>
+                          Instalación
+                          <input
+                            id="programming-bulk-installation"
+                            type="text"
+                            list="programming-installation-options"
+                            placeholder="Nombre normalizado"
+                          />
+                        </label>
+                        <datalist id="programming-installation-options"></datalist>
+                        <button
+                          id="programming-bulk-clear-installation-button"
+                          type="button"
+                          class="secondary-button compact-button"
+                          aria-label="Limpiar instalación"
+                          title="Limpiar instalación"
+                        >
+                          ×
+                        </button>
+                        <button
+                          id="programming-bulk-installation-button"
+                          type="button"
+                        >
+                          Aplicar
+                        </button>
+                        <button
+                          id="programming-open-unmatched-installation-button"
+                          type="button"
+                          class="secondary-button"
+                        >
+                          Revisar instalaciones
+                        </button>
+                        <span id="programming-bulk-assign-count" class="control-selected-delete-count">
+                          0 filtrados
+                        </span>
+                      </div>
+                    </details>
+                    <details class="programming-report-zone">
+                      <summary>Descargas</summary>
+                      <div class="programming-report-actions">
+                        <label>
+                          Fecha inicial
+                          <input id="programming-report-date-from" type="date" />
+                        </label>
+                        <label>
+                          Fecha final
+                          <input id="programming-report-date-to" type="date" />
+                        </label>
+                        <button
+                          id="programming-report-pdf-button"
+                          type="button"
+                          class="warm-button"
+                        >
+                          Generar PDF
+                        </button>
+                        <button
+                          id="programming-download-csv-button"
+                          type="button"
+                          class="warm-button"
+                        >
+                          Descargar CSV
+                        </button>
+                        <button
+                          id="programming-download-images-button"
+                          type="button"
+                          class="warm-button"
+                        >
+                          Descargar imágenes
+                        </button>
+                      </div>
+                    </details>
+                    <details class="control-danger-zone programming-archive-zone">
+                      <summary>Opciones de archivado</summary>
+                      <div class="control-danger-actions">
+                        <button
+                          id="programming-enable-selective-archive-button"
+                          type="button"
+                          class="secondary-button"
+                        >
+                          Seleccionar registros
+                        </button>
+                        <button
+                          id="programming-archive-selected-button"
+                          type="button"
+                          disabled
+                        >
+                          Archivar seleccionados
+                        </button>
+                        <button
+                          id="programming-unarchive-selected-button"
+                          type="button"
+                          disabled
+                        >
+                          Desarchivar seleccionados
+                        </button>
+                        <button
+                          id="programming-cancel-selective-archive-button"
+                          type="button"
+                          class="secondary-button hidden"
+                        >
+                          Cancelar selección
+                        </button>
+                        <span
+                          id="programming-selected-archive-count"
+                          class="control-selected-delete-count hidden"
+                        >
+                          0 seleccionados
+                        </span>
+                      </div>
+                    </details>
+                    <details class="control-danger-zone programming-danger-zone">
+                      <summary>Opciones de borrado</summary>
+                      <div class="control-danger-actions">
+                        <button
+                          id="programming-enable-selective-delete-button"
+                          type="button"
+                          class="secondary-button"
+                        >
+                          Seleccionar registros
+                        </button>
+                        <button
+                          id="programming-delete-selected-button"
+                          type="button"
+                          class="danger-button"
+                          disabled
+                        >
+                          Borrar seleccionados
+                        </button>
+                        <button
+                          id="programming-cancel-selective-delete-button"
+                          type="button"
+                          class="secondary-button hidden"
+                        >
+                          Cancelar selección
+                        </button>
+                        <span
+                          id="programming-selected-delete-count"
+                          class="control-selected-delete-count"
+                        >
+                          0 seleccionados
+                        </span>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+
+                <form
+                  id="programming-filters-form"
+                  class="filters-grid programming-filters-grid"
+                  autocomplete="off"
+                >
+                  <label class="filter-field">
+                    Fecha
+                    <div class="filter-control-row">
+                      <select id="programming-filter-date">
+                        <option value="">Todas las fechas</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-programming-filter="date"
+                        aria-label="Restablecer fecha"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Instalación
+                    <div class="filter-control-row">
+                      <select id="programming-filter-installation">
+                        <option value="">Todas las instalaciones</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-programming-filter="installation"
+                        aria-label="Restablecer instalación"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Personal
+                    <div class="filter-control-row">
+                      <select id="programming-filter-personal">
+                        <option value="">Todo el personal</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-programming-filter="personal"
+                        aria-label="Restablecer personal"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Deporte
+                    <div class="filter-control-row">
+                      <select id="programming-filter-sport">
+                        <option value="">Todos los deportes</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-programming-filter="sport"
+                        aria-label="Restablecer deporte"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field programming-activity-filter">
+                    Buscar actividad
+                    <div class="filter-control-row">
+                      <input
+                        id="programming-filter-activity"
+                        type="search"
+                        placeholder="Buscar texto dentro de la actividad"
+                      />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-programming-filter="activity"
+                        aria-label="Restablecer actividad"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+
+                  <label class="checkbox-item">
+                    <input id="programming-filter-include-archived" type="checkbox" />
+                    <span>Mostrar archivados</span>
+                  </label>
+                </form>
+
+                <div class="table-wrapper">
+                  <table class="programming-table">
+                    <thead>
+                      <tr>
+                        <th id="programming-select-header" class="hidden">
+                          <input
+                            id="programming-select-page-checkbox"
+                            type="checkbox"
+                            aria-label="Seleccionar registros visibles de programación"
+                          />
+                        </th>
+                        <th>Acciones</th>
+                        <th>
+                          <button type="button" class="sort-button" data-programming-sort-field="tipoProgramacion">
+                            Tipo
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-programming-sort-field="personal">
+                            Personal
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-programming-sort-field="instalacion">
+                            Instalación
+                          </button>
+                        </th>
+                        <th>Día</th>
+                        <th>
+                          <button type="button" class="sort-button" data-programming-sort-field="fecha">
+                            Fecha
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-programming-sort-field="inicio">
+                            Inicio
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-programming-sort-field="fin">
+                            Fin
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-programming-sort-field="hora">
+                            Hora
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-programming-sort-field="deporte">
+                            Deporte
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-programming-sort-field="actividad">
+                            Actividad
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" class="sort-button" data-programming-sort-field="archived">
+                            Estado
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody id="programming-preview-table-body">
+                      <tr>
+                        <td colspan="12" class="empty-state">
+                          Carga los datos actuales o importa un Word o CSV para previsualizar la programación.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="pagination-bar">
+                  <div class="pagination-summary">
+                    <span id="programming-pagination-summary">Mostrando 0-0 de 0</span>
+                  </div>
+
+                  <div class="pagination-controls">
+                    <label class="pagination-size">
+                      <span>Por página</span>
+                      <select id="programming-page-size-select">
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="250">250</option>
+                      </select>
+                    </label>
+
+                    <button
+                      id="programming-previous-page-button"
+                      type="button"
+                      class="secondary-button"
+                    >
+                      Anterior
+                    </button>
+                    <span id="programming-pagination-page-indicator">Página 1 de 1</span>
+                    <button
+                      id="programming-next-page-button"
+                      type="button"
+                      class="secondary-button"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </section>
+          </section>
+        </section>
+
+        <section class="card status-card">
+          <p id="status-message" class="status-message"></p>
+        </section>
+
+        <section id="control-import-panel" class="detail-panel hidden">
+          <div class="detail-overlay" id="control-import-overlay"></div>
+          <aside class="detail-drawer programming-import-drawer">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Control personal</p>
+                <h3>Cargar datos desde CSV</h3>
+              </div>
+              <div class="detail-header-actions">
+                <button
+                  id="close-control-import-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <form id="control-import-form" class="detail-form">
+              <label>
+                Archivo CSV
+                <input
+                  id="control-import-csv-input"
+                  type="file"
+                  accept=".csv,text/csv"
+                  required
+                />
+              </label>
+
+              <p class="inline-note">
+                Puedes cargar un CSV exportado de registros o un CSV de control horario con
+                columnas de personal, DNI, centro, puesto, fecha, hora de inicio y hora de fin.
+              </p>
+
+              <div class="detail-actions">
+                <button
+                  id="control-import-cancel-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Cancelar
+                </button>
+                <button id="control-import-process-button" type="submit">
+                  Procesar archivo
+                </button>
+              </div>
+            </form>
+
+            <section id="control-import-preview-card" class="programming-import-preview hidden">
+              <div class="programming-import-preview-header">
+                <div>
+                  <p class="eyebrow">Vista previa</p>
+                  <h4 id="control-import-preview-title">Registros detectados</h4>
+                </div>
+                <strong id="control-import-preview-count">0 filtrados</strong>
+              </div>
+
+              <div class="metrics-grid preview-metrics-grid">
+                <article class="metric">
+                  <span>Archivo</span>
+                  <strong id="control-import-preview-file">-</strong>
+                </article>
+                <article class="metric">
+                  <span>Primer día</span>
+                  <strong id="control-import-preview-date-from">-</strong>
+                </article>
+                <article class="metric">
+                  <span>Último día</span>
+                  <strong id="control-import-preview-date-to">-</strong>
+                </article>
+              </div>
+
+              <form id="control-import-preview-filters" class="programming-import-preview-filters">
+                <label>
+                  Fecha
+                  <select id="control-import-preview-date">
+                    <option value="">Todas las fechas</option>
+                  </select>
+                </label>
+                <label>
+                  Centro
+                  <select id="control-import-preview-centro">
+                    <option value="">Todos los centros</option>
+                  </select>
+                </label>
+              </form>
+
+              <div class="table-wrapper programming-import-preview-table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Personal</th>
+                      <th>Centro</th>
+                      <th>Puesto</th>
+                      <th>Fecha</th>
+                      <th>Hora inicio</th>
+                      <th>Hora fin</th>
+                    </tr>
+                  </thead>
+                  <tbody id="control-import-preview-table-body">
+                    <tr>
+                      <td colspan="6" class="empty-state">
+                        Procesa un CSV para revisar los registros.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="detail-actions">
+                <button
+                  id="control-import-preview-cancel-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Limpiar vista previa
+                </button>
+                <button id="control-import-preview-confirm-button" type="button">
+                  Insertar registros filtrados
+                </button>
+              </div>
+            </section>
+          </aside>
+        </section>
+
+        <section id="programming-import-panel" class="detail-panel hidden">
+          <div class="detail-overlay" id="programming-import-overlay"></div>
+          <aside class="detail-drawer programming-import-drawer">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Programación</p>
+                <h3>Cargar datos desde Word o CSV</h3>
+              </div>
+              <div class="detail-header-actions">
+                <button
+                  id="close-programming-import-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <form id="programming-import-form" class="detail-form">
+              <label>
+                Archivo Word o CSV
+                <input
+                  id="programming-import-file"
+                  type="file"
+                  accept=".docx,.csv,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv"
+                  required
+                />
+              </label>
+
+              <div class="form-grid compact-form-grid">
+                <label>
+                  Mes
+                  <select id="programming-import-month" required>
+                    <option value="1">Enero</option>
+                    <option value="2">Febrero</option>
+                    <option value="3">Marzo</option>
+                    <option value="4">Abril</option>
+                    <option value="5">Mayo</option>
+                    <option value="6">Junio</option>
+                    <option value="7">Julio</option>
+                    <option value="8">Agosto</option>
+                    <option value="9">Septiembre</option>
+                    <option value="10">Octubre</option>
+                    <option value="11">Noviembre</option>
+                    <option value="12">Diciembre</option>
+                  </select>
+                </label>
+
+                <label>
+                  Año
+                  <input id="programming-import-year" type="number" min="2020" max="2100" required />
+                </label>
+
+                <label>
+                  Cargar como
+                  <select id="programming-import-type" required>
+                    <option value="fin_semana">Fin de semana</option>
+                    <option value="semanal">Semanal</option>
+                  </select>
+                </label>
+              </div>
+
+              <p class="inline-note">
+                En Word se tomará el nombre de instalación del texto situado encima de cada tabla.
+                En CSV se esperan las columnas PERSONAL, INSTALACIÓN, FECHA, INICI., FIN, HORA,
+                DEPORTE y ACTIVIDAD.
+              </p>
+
+              <div class="detail-actions">
+                <button
+                  id="programming-import-cancel-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Cancelar
+                </button>
+                <button id="programming-import-process-button" type="submit">
+                  Procesar archivo
+                </button>
+              </div>
+            </form>
+
+            <section id="programming-import-preview" class="programming-import-preview hidden">
+              <div class="programming-import-preview-header">
+                <div>
+                  <p class="eyebrow">Vista previa</p>
+                  <h4>Registros detectados</h4>
+                </div>
+                <strong id="programming-import-preview-count">0 filtrados</strong>
+              </div>
+
+              <form id="programming-import-preview-filters" class="programming-import-preview-filters">
+                <label>
+                  Fecha
+                  <select id="programming-import-preview-date">
+                    <option value="">Todas las fechas</option>
+                  </select>
+                </label>
+                <label>
+                  Instalación
+                  <select id="programming-import-preview-installation">
+                    <option value="">Todas las instalaciones</option>
+                  </select>
+                </label>
+              </form>
+
+              <div class="table-wrapper programming-import-preview-table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Personal</th>
+                      <th>Instalación</th>
+                      <th>Fecha</th>
+                      <th>Inicio</th>
+                      <th>Fin</th>
+                      <th>Hora</th>
+                      <th>Deporte</th>
+                      <th>Actividad</th>
+                    </tr>
+                  </thead>
+                  <tbody id="programming-import-preview-table-body">
+                    <tr>
+                      <td colspan="8" class="empty-state">Procesa un Word o CSV para revisar los registros.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="detail-actions">
+                <button
+                  id="programming-import-clear-preview-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Limpiar vista previa
+                </button>
+                <button id="programming-import-insert-button" type="button">
+                  Insertar registros filtrados
+                </button>
+              </div>
+            </section>
+          </aside>
+        </section>
+
+        <section id="control-totals-panel" class="detail-panel hidden">
+          <div class="detail-overlay" id="control-totals-overlay"></div>
+          <aside class="detail-drawer control-totals-drawer" aria-labelledby="control-totals-title">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Control personal</p>
+                <h3 id="control-totals-title">Informe por personal</h3>
+              </div>
+              <div class="detail-header-actions">
+                <button id="close-control-totals-button" type="button" class="secondary-button">
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <div class="control-totals-metrics">
+              <article class="summary-chip">
+                <span class="summary-label">Personas incluidas</span>
+                <strong id="control-totals-person-count">0</strong>
+              </article>
+              <article class="summary-chip">
+                <span class="summary-label">Registros filtrados</span>
+                <strong id="control-totals-record-count">0</strong>
+              </article>
+              <article class="summary-chip">
+                <span class="summary-label">Total horas</span>
+                <strong id="control-totals-hours">00:00</strong>
+              </article>
+            </div>
+
+            <p id="control-totals-filter-summary" class="control-totals-filter-summary"></p>
+
+            <div id="control-totals-report-content" class="control-person-report">
+              <p class="empty-state">No hay datos filtrados.</p>
+            </div>
+          </aside>
+        </section>
+
+        <section id="control-detail-panel" class="detail-panel hidden">
+          <div class="detail-overlay" id="control-detail-overlay"></div>
+          <aside class="detail-drawer control-detail-drawer">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Control personal</p>
+                <h3 id="control-detail-title">Editar registro</h3>
+              </div>
+              <div class="detail-header-actions">
+                <button id="close-control-detail-button" type="button" class="secondary-button">
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <form id="control-detail-form" class="detail-form">
+              <input id="control-detail-id" type="hidden" />
+
+              <label>
+                Personal
+                <select id="control-detail-personal" required></select>
+              </label>
+
+              <label>
+                DNI
+                <input id="control-detail-dni" type="text" required />
+              </label>
+
+              <label>
+                Centro
+                <select id="control-detail-centro" required></select>
+              </label>
+
+              <label>
+                Puesto
+                <select id="control-detail-puesto" required></select>
+              </label>
+
+              <label>
+                Fecha
+                <input id="control-detail-fecha" type="date" required />
+              </label>
+
+              <label>
+                Hora inicio
+                <input id="control-detail-hora-inicio" type="time" required />
+              </label>
+
+              <label>
+                Hora fin
+                <input id="control-detail-hora-fin" type="time" />
+              </label>
+
+              <label>
+                Tipo jornada
+                <input id="control-detail-tipo-jornada" type="text" />
+              </label>
+
+              <label class="full-width">
+                Observación
+                <textarea id="control-detail-observacion" rows="4"></textarea>
+              </label>
+
+              <div class="detail-actions">
+                <button
+                  id="control-detail-delete-button"
+                  type="button"
+                  class="danger-button tooltip-button"
+                  aria-label="Borrar registro"
+                >
+                  <svg class="button-icon" aria-hidden="true">
+                    <use href="./icons.svg#icon-delete"></use>
+                  </svg>
+                </button>
+                <button id="control-detail-save-button" type="submit">
+                  Guardar cambios
+                </button>
+              </div>
+            </form>
+          </aside>
+        </section>
+
+        <section id="programming-detail-panel" class="detail-panel hidden">
+          <div class="detail-overlay" id="programming-detail-overlay"></div>
+          <aside class="detail-drawer">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Programación</p>
+                <h3 id="programming-detail-title">Editar registro</h3>
+              </div>
+              <div class="detail-header-actions">
+                <button
+                  id="close-programming-detail-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <form id="programming-detail-form" class="detail-form">
+              <input id="programming-detail-mode" type="hidden" value="edit" />
+              <input id="programming-detail-id" type="hidden" />
+
+              <label>
+                Personal
+                <select id="programming-detail-personal"></select>
+              </label>
+
+              <label>
+                Tipo de programación
+                <select id="programming-detail-type">
+                  <option value="fin_semana">Programación FS</option>
+                  <option value="semanal">Programación semanal</option>
+                </select>
+              </label>
+
+              <label>
+                Instalación
+                <input
+                  id="programming-detail-installation"
+                  type="text"
+                  list="programming-installation-options"
+                  required
+                />
+              </label>
+
+              <label>
+                Fecha
+                <input id="programming-detail-date" type="date" required />
+              </label>
+
+              <label>
+                Hora inicio
+                <input id="programming-detail-start" type="time" required />
+              </label>
+
+              <label>
+                Hora fin
+                <input id="programming-detail-end" type="time" />
+              </label>
+
+              <label>
+                Hora evento
+                <input id="programming-detail-event-time" type="time" />
+              </label>
+
+              <label>
+                Deporte
+                <input id="programming-detail-sport" type="text" />
+              </label>
+
+              <label class="full-width">
+                Actividad
+                <textarea id="programming-detail-activity" rows="4"></textarea>
+              </label>
+
+              <label class="checkbox-item">
+                <input id="programming-detail-archived" type="checkbox" />
+                <span>Registro archivado</span>
+              </label>
+
+              <div class="detail-actions">
+                <button
+                  id="programming-detail-archive-button"
+                  type="button"
+                >
+                  Archivar
+                </button>
+                <button
+                  id="programming-detail-delete-button"
+                  type="button"
+                  class="danger-button tooltip-button"
+                  aria-label="Borrar registro"
+                >
+                  <svg class="button-icon" aria-hidden="true">
+                    <use href="./icons.svg#icon-delete"></use>
+                  </svg>
+                </button>
+                <button id="programming-detail-save-button" type="submit">
+                  Guardar cambios
+                </button>
+              </div>
+            </form>
+          </aside>
+        </section>
+
+        <section id="programming-unmatched-personnel-panel" class="detail-panel hidden">
+          <div class="detail-overlay" id="programming-unmatched-personnel-overlay"></div>
+          <aside class="detail-drawer">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Asignación masiva</p>
+                <h3>Personal sin asignación</h3>
+              </div>
+              <div class="detail-header-actions">
+                <button
+                  id="close-programming-unmatched-personnel-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <p class="muted-text">
+              Se revisan todos los registros cargados de programación, sin tener en cuenta los filtros de la lista.
+            </p>
+
+            <div class="programming-unmatched-summary">
+              <span id="programming-unmatched-personnel-count">0 nombres pendientes</span>
+            </div>
+
+            <div class="programming-unmatched-table">
+              <div class="programming-unmatched-table-header">
+                <span>Personal sin asignación</span>
+                <span>Acción</span>
+                <span>Propuesta automática</span>
+              </div>
+              <div id="programming-unmatched-personnel-list" class="programming-unmatched-list"></div>
+            </div>
+
+            <div class="form-actions full-width">
+              <button id="programming-apply-unmatched-personnel-button" type="button">
+                Aplicar cambios
+              </button>
+              <button
+                id="programming-refresh-unmatched-personnel-button"
+                type="button"
+                class="secondary-button"
+              >
+                Recalcular
+              </button>
+            </div>
+          </aside>
+        </section>
+
+        <section id="programming-unmatched-installation-panel" class="detail-panel hidden">
+          <div class="detail-overlay" id="programming-unmatched-installation-overlay"></div>
+          <aside class="detail-drawer">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Asignación masiva</p>
+                <h3>Instalaciones sin asignación</h3>
+              </div>
+              <div class="detail-header-actions">
+                <button
+                  id="close-programming-unmatched-installation-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <p class="muted-text">
+              Se revisan todas las instalaciones cargadas en programación, sin tener en cuenta los filtros de la lista.
+            </p>
+
+            <div class="programming-unmatched-summary">
+              <span id="programming-unmatched-installation-count">0 instalaciones pendientes</span>
+            </div>
+
+            <div class="programming-unmatched-table">
+              <div class="programming-unmatched-table-header">
+                <span>Instalación sin asignación</span>
+                <span>Acción</span>
+                <span>Propuesta automática</span>
+              </div>
+              <div id="programming-unmatched-installation-list" class="programming-unmatched-list"></div>
+            </div>
+
+            <div class="form-actions full-width">
+              <button id="programming-apply-unmatched-installation-button" type="button">
+                Aplicar cambios
+              </button>
+              <button
+                id="programming-refresh-unmatched-installation-button"
+                type="button"
+                class="secondary-button"
+              >
+                Recalcular
+              </button>
+            </div>
+          </aside>
+        </section>
+
+        <section id="programming-settings-panel" class="detail-panel hidden">
+          <div class="detail-overlay" id="programming-settings-overlay"></div>
+          <aside class="detail-drawer">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Configuración</p>
+                <h3>Ajustes de programación</h3>
+              </div>
+              <div class="detail-header-actions">
+                <button
+                  id="close-programming-settings-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <details class="settings-section" open>
+              <summary>Personal asignado a programación</summary>
+              <p class="muted-text">
+                El personal seleccionado aparecerá en los desplegables de programación con su nombre y DNI.
+              </p>
+              <label>
+                Filtrar personal
+                <input
+                  id="programming-personnel-filter"
+                  type="search"
+                  placeholder="Nombre o DNI"
+                />
+              </label>
+              <div class="dual-list">
+                <section>
+                  <h5>Disponible</h5>
+                  <select id="programming-personnel-available-select" multiple size="14"></select>
+                </section>
+                <div class="dual-list-actions" aria-label="Cambiar personal de programación">
+                  <button id="programming-personnel-add-selected-button" type="button">&gt;</button>
+                  <button
+                    id="programming-personnel-remove-selected-button"
+                    type="button"
+                    class="secondary-button"
+                  >
+                    &lt;
+                  </button>
+                </div>
+                <section>
+                  <h5>Asignado al servicio</h5>
+                  <select id="programming-personnel-selected-select" multiple size="14"></select>
+                </section>
+              </div>
+            </details>
+
+            <details class="settings-section">
+              <summary>Instalaciones asignadas</summary>
+              <p class="muted-text">
+                Las instalaciones seleccionadas aparecerán en los desplegables de programación.
+              </p>
+              <label>
+                Filtrar instalación
+                <input
+                  id="programming-installation-filter"
+                  type="search"
+                  placeholder="Nombre de instalación"
+                />
+              </label>
+              <div class="dual-list">
+                <section>
+                  <h5>Disponible</h5>
+                  <select id="programming-installation-available-select" multiple size="14"></select>
+                </section>
+                <div class="dual-list-actions" aria-label="Cambiar instalaciones de programación">
+                  <button id="programming-installation-add-selected-button" type="button">&gt;</button>
+                  <button
+                    id="programming-installation-remove-selected-button"
+                    type="button"
+                    class="secondary-button"
+                  >
+                    &lt;
+                  </button>
+                </div>
+                <section>
+                  <h5>Asignadas</h5>
+                  <select id="programming-installation-selected-select" multiple size="14"></select>
+                </section>
+              </div>
+            </details>
+          </aside>
+        </section>
+
+        <section id="candidate-detail-panel" class="detail-panel hidden">
+          <div class="detail-overlay" id="detail-overlay"></div>
+          <aside class="detail-drawer">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Ficha de candidatura</p>
+                <h3 id="detail-title">Detalle</h3>
+              </div>
+              <div class="detail-header-actions">
+                <button
+                  id="detail-delete-button"
+                  type="button"
+                  class="danger-button tooltip-button"
+                  aria-label="Borrar registro"
+                >
+                  <svg class="button-icon" aria-hidden="true">
+                    <use href="./icons.svg#icon-delete"></use>
+                  </svg>
+                </button>
+                <button id="close-detail-button" type="button" class="secondary-button">
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <form id="detail-form" class="detail-form">
+              <input id="detail-id" type="hidden" />
+
+              <label>
+                Nombre y apellidos
+                <input id="detail-full-name" type="text" />
+              </label>
+
+              <label>
+                Teléfono
+                <input id="detail-phone" type="tel" />
+              </label>
+
+              <label>
+                Correo electrónico
+                <input id="detail-email" type="email" />
+              </label>
+
+              <label>
+                Fecha de registro
+                <input id="detail-registration-date" type="date" />
+              </label>
+
+              <label>
+                Estado
+                <select id="detail-status">
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="Preseleccionado">Preseleccionado</option>
+                  <option value="Descartado">Descartado</option>
+                  <option value="Contratado">Contratado</option>
+                </select>
+              </label>
+
+              <fieldset>
+                <legend>Puestos</legend>
+                <div class="checkbox-grid detail-checkbox-grid">
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="detail_roles" value="Conserjeria" />
+                    <span>Conserjería</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Monitorado de tiempo libre"
+                    />
+                    <span>Monitorado de tiempo libre</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      id="detail-sport-role"
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Monitorado deportivo"
+                    />
+                    <span>Monitorado deportivo</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Monitorado acuatico"
+                    />
+                    <span>Monitorado acuático</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="detail_roles" value="Socorrismo" />
+                    <span>Socorrismo</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Control biosanitario"
+                    />
+                    <span>Control biosanitario</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Montaje de eventos"
+                    />
+                    <span>Montaje de eventos</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_roles"
+                      value="Tecnico Informatico/imagen y sonido"
+                    />
+                    <span>Técnico Informático/imagen y sonido</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset id="detail-sport-specialties-group" class="hidden-submenu">
+                <legend>Modalidades deportivas</legend>
+                <div class="checkbox-grid detail-checkbox-grid">
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="detail_sport_specialties" value="General" />
+                    <span>General</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_sport_specialties"
+                      value="Sala de musculacion"
+                    />
+                    <span>Sala de musculación</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="detail_sport_specialties" value="Pilates" />
+                    <span>Pilates</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input type="checkbox" name="detail_sport_specialties" value="Yoga" />
+                    <span>Yoga</span>
+                  </label>
+                  <label class="checkbox-item">
+                    <input
+                      type="checkbox"
+                      name="detail_sport_specialties"
+                      value="Tenis y padel"
+                    />
+                    <span>Tenis y pádel</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <label>
+                Etiquetas
+                <input
+                  id="detail-tags"
+                  type="text"
+                  placeholder="Separadas por comas"
+                />
+              </label>
+
+              <label>
+                Notas
+                <textarea id="detail-notes" rows="4"></textarea>
+              </label>
+
+              <label>
+                Observaciones
+                <textarea id="detail-observations" rows="4"></textarea>
+              </label>
+
+              <label>
+                CV adjunto
+                <input id="detail-attachment-name" type="text" readonly />
+              </label>
+
+              <label>
+                Sustituir currículum
+                <input
+                  id="detail-attachment-file"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.odt,.rtf,.txt,image/*"
+                />
+              </label>
+
+              <label class="checkbox-item">
+                <input id="detail-remove-attachment" type="checkbox" />
+                <span>Eliminar el currículum actual al guardar</span>
+              </label>
+
+              <label class="checkbox-item with-label">
+                <input id="detail-vacancy-consent" type="checkbox" />
+                <span>Autorización para posibles vacantes</span>
+              </label>
+
+              <div class="detail-actions">
+                <button
+                  id="detail-edit-button"
+                  type="button"
+                  class="tooltip-button"
+                  aria-label="Editar registro"
+                >
+                  <svg class="button-icon" aria-hidden="true">
+                    <use href="./icons.svg#icon-edit"></use>
+                  </svg>
+                </button>
+                <button id="detail-save-button" type="submit">
+                  Guardar cambios
+                </button>
+              </div>
+            </form>
+          </aside>
+        </section>
+
+        <div id="public-toast" class="toast-message hidden" role="status" aria-live="polite">
+          Candidatura enviada correctamente.
+        </div>
+      </main>
+    </div>
+
+    <script src="./config.js" defer></script>
+    <script src="../shared/supabase-client.js" defer></script>
+    <script src="../shared/auth.js" defer></script>
+    <script src="./app.js?v=20260529-1" defer></script>
+  </body>
+</html>
+

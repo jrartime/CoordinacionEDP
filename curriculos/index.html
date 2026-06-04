@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trabaja con nosotros | Educacion Deportiva del Principado</title>
+    <meta
+      name="description"
+      content="Formulario publico para enviar candidaturas a Educacion Deportiva del Principado."
+    />
+    <link rel="stylesheet" href="./styles.css?v=20260601-2" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <div>
+          <a class="brand-link" href="https://edpsl.es/" target="_blank" rel="noopener noreferrer">
+            <img src="./EDP.jpg" alt="" class="brand-logo" />
+            <span>Educacion Deportiva del Principado</span>
+          </a>
+        </div>
+        <a
+          class="secondary-button icon-link"
+          href="https://coordinacion.edpsl.es/"
+          aria-label="Acceso privado"
+          title="Acceso privado"
+        >
+          <svg class="button-icon" aria-hidden="true" viewBox="0 0 24 24">
+            <path
+              d="M7 11V8a5 5 0 0 1 10 0v3"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            />
+            <path
+              d="M6 11h12v9H6v-9Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M12 15v2"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            />
+          </svg>
+        </a>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <p class="eyebrow">Envio de curriculum</p>
+          <h2>Trabaja con nosotros</h2>
+          <p class="card-header-copy">
+            Completa el formulario para incorporarte a la bolsa de empleo de
+            Educacion Deportiva del Principado.
+          </p>
+        </div>
+
+        <form id="public-candidate-form" class="form-grid">
+          <label>
+            Nombre y apellidos
+            <input
+              name="full_name"
+              type="text"
+              autocomplete="name"
+              placeholder="Nombre Apellidos"
+              required
+            />
+          </label>
+
+          <label>
+            Telefono
+            <input
+              name="phone"
+              type="tel"
+              autocomplete="tel"
+              placeholder="+34 600 000 000"
+              required
+            />
+          </label>
+
+          <label>
+            Correo electronico
+            <input
+              name="email"
+              type="email"
+              autocomplete="email"
+              placeholder="persona@email.com"
+              required
+            />
+          </label>
+
+          <fieldset class="full-width">
+            <legend>Puestos a los que puede optar</legend>
+            <div class="checkbox-grid">
+              <label class="checkbox-item">
+                <input type="checkbox" name="public_roles" value="Conserjeria" />
+                <span>Conserjeria</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="public_roles" value="Monitorado de tiempo libre" />
+                <span>Monitorado de tiempo libre</span>
+              </label>
+              <label class="checkbox-item">
+                <input
+                  id="public-sport-role"
+                  type="checkbox"
+                  name="public_roles"
+                  value="Monitorado deportivo"
+                />
+                <span>Monitorado deportivo</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="public_roles" value="Monitorado acuatico" />
+                <span>Monitorado acuatico</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="public_roles" value="Socorrismo" />
+                <span>Socorrismo</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="public_roles" value="Control biosanitario" />
+                <span>Control biosanitario</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="public_roles" value="Montaje de eventos" />
+                <span>Montaje de eventos</span>
+              </label>
+              <label class="checkbox-item">
+                <input
+                  type="checkbox"
+                  name="public_roles"
+                  value="Tecnico Informatico/imagen y sonido"
+                />
+                <span>Técnico Informático/imagen y sonido</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset id="public-sport-specialties-group" class="full-width hidden-submenu">
+            <legend>Modalidades de monitorado deportivo</legend>
+            <div class="checkbox-grid">
+              <label class="checkbox-item">
+                <input type="checkbox" name="public_sport_specialties" value="General" />
+                <span>General</span>
+              </label>
+              <label class="checkbox-item">
+                <input
+                  type="checkbox"
+                  name="public_sport_specialties"
+                  value="Sala de musculacion"
+                />
+                <span>Sala de musculacion</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="public_sport_specialties" value="Pilates" />
+                <span>Pilates</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="public_sport_specialties" value="Yoga" />
+                <span>Yoga</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="public_sport_specialties" value="Tenis y padel" />
+                <span>Tenis y padel</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <label class="full-width">
+            Notas
+            <textarea
+              name="notes"
+              rows="4"
+              placeholder="Experiencia, disponibilidad, titulaciones o informacion relevante."
+            ></textarea>
+          </label>
+
+          <label class="full-width">
+            Observaciones
+            <textarea
+              name="observations"
+              rows="4"
+              placeholder="Cualquier comentario adicional que quieras hacernos llegar."
+            ></textarea>
+          </label>
+
+          <label class="full-width">
+            Adjuntar curriculum
+            <input
+              name="cv_file"
+              type="file"
+              accept=".pdf,.doc,.docx,.odt,.rtf,.txt,image/*"
+            />
+          </label>
+
+          <section class="full-width consent-box">
+            <details>
+              <summary>Informacion basica de proteccion de datos</summary>
+              <div class="consent-text">
+                <p>
+                  EDUCACION DEPORTIVA DEL PRINCIPADO SL trata los datos enviados
+                  para gestionar candidaturas y posibles procesos de seleccion.
+                </p>
+                <p>
+                  Puedes ejercer tus derechos de acceso, rectificacion,
+                  limitacion, oposicion, portabilidad y supresion escribiendo a
+                  edp@asturias.com. Tambien puedes reclamar ante www.aepd.es.
+                </p>
+                <p>
+                  Al enviar el formulario declaras haber leido y comprendido esta
+                  informacion. La autorizacion para recibir avisos sobre vacantes
+                  es voluntaria.
+                </p>
+              </div>
+            </details>
+
+            <label class="checkbox-item consent-check">
+              <input name="privacy_acceptance" type="checkbox" required />
+              <span>
+                He leido, comprendido y acepto la informacion sobre el
+                tratamiento de mis datos personales.
+              </span>
+            </label>
+
+            <label class="checkbox-item consent-check">
+              <input name="vacancy_consent" type="checkbox" />
+              <span>Autorizo el envio de informacion sobre posibles vacantes.</span>
+            </label>
+          </section>
+
+          <p id="status-message" class="status-message full-width" role="status"></p>
+
+          <button id="submit-candidate-button" class="full-width" type="submit">
+            Enviar candidatura
+          </button>
+        </form>
+      </section>
+
+      <div id="public-toast" class="toast-message hidden" role="status">
+        Candidatura enviada correctamente.
+      </div>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="../shared/supabase-client.js"></script>
+    <script src="../shared/auth.js"></script>
+    <script src="./app.js?v=20260527-1"></script>
+  </body>
+</html>

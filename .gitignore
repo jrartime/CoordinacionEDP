@@ -1,2 +1,17 @@
 .DS_Store
 Thumbs.db
+__pycache__/
+*.py[cod]
+*.log
+
+# Datos exportados y paquetes generados localmente.
+exports/
+*.zip
+publish/**/*.zip
+
+# Configuracion local con claves publicables del proyecto.
+config.js
+**/config.js
+
+# Artefactos temporales de Python.
+.pytest_cache/

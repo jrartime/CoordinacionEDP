@@ -1,167 +1,41 @@
-const JOB_OPTIONS = [
-  "Conserjeria",
-  "Monitorado de tiempo libre",
-  "Monitorado deportivo",
-  "Monitorado acuatico",
-  "Socorrismo",
-  "Control biosanitario",
-  "Montaje de eventos",
-];
+// ============================================================
+// Módulo de Candidaturas
+// ============================================================
 
-const CANDIDATE_STATUS_OPTIONS = [
-  "Pendiente",
-  "Preseleccionado",
-  "Descartado",
-  "Contratado",
-];
-
-const CANDIDATE_SELECT_COLUMNS = [
-  "id",
-  "full_name",
-  "phone",
-  "email",
-  "registration_date",
-  "candidate_status",
-  "job_roles",
-  "sport_specialties",
-  "tags",
-  "notes",
-  "observations",
-  "attachment_name",
-  "attachment_path",
-  "attachment_mime_type",
-  "privacy_accepted",
-  "vacancy_consent",
-  "source",
-  "created_at",
-].join(", ");
-
-const config = window.APP_CONFIG ?? {};
-const supabaseConfig = config.supabase ?? {};
-const hasSupabaseConfig =
-  Boolean(supabaseConfig.url) &&
-  Boolean(supabaseConfig.anonKey) &&
-  Boolean(supabaseConfig.bucket);
-
-const publicPanel = document.querySelector("#public-panel");
-const privatePanel = document.querySelector("#private-panel");
-const showPublicPanelButton = document.querySelector("#show-public-panel");
-const showPrivatePanelButton = document.querySelector("#show-private-panel");
-const loginView = document.querySelector("#login-view");
-const privateView = document.querySelector("#private-view");
-const privateTabNewButton = document.querySelector("#private-tab-new");
-const privateTabSearchButton = document.querySelector("#private-tab-search");
-const privateTabPanelNew = document.querySelector("#private-tab-panel-new");
-const privateTabPanelSearch = document.querySelector("#private-tab-panel-search");
-const loginForm = document.querySelector("#login-form");
-const publicCandidateForm = document.querySelector("#public-candidate-form");
-const candidateForm = document.querySelector("#candidate-form");
-const logoutButton = document.querySelector("#logout-button");
-const candidatesTable = document.querySelector("#candidates-table");
-const tableBody = document.querySelector("#candidates-table-body");
-const sessionEmail = document.querySelector("#session-email");
-const statusMessage = document.querySelector("#status-message");
-const sportRoleCheckbox = document.querySelector("#sport-role");
-const sportSpecialtiesGroup = document.querySelector("#sport-specialties-group");
-const publicSportRoleCheckbox = document.querySelector("#public-sport-role");
-const publicSportSpecialtiesGroup = document.querySelector(
-  "#public-sport-specialties-group"
-);
-const tagSelect = document.querySelector("#tag-select");
-const addSelectedTagButton = document.querySelector("#add-selected-tag");
-const newTagInput = document.querySelector("#new-tag-input");
-const createTagButton = document.querySelector("#create-tag-button");
-const selectedTagsContainer = document.querySelector("#selected-tags");
-const availableTagsContainer = document.querySelector("#available-tags");
-const filtersForm = document.querySelector("#filters-form");
-const filterSearchInput = document.querySelector("#filter-search");
-const filterRoleSelect = document.querySelector("#filter-role");
-const filterTagSelect = document.querySelector("#filter-tag");
-const filterStatusSelect = document.querySelector("#filter-status");
-const filterDateFromInput = document.querySelector("#filter-date-from");
-const filterDateToInput = document.querySelector("#filter-date-to");
-const filterHasCvInput = document.querySelector("#filter-has-cv");
-const totalCandidatesCount = document.querySelector("#total-candidates-count");
-const filteredCandidatesCount = document.querySelector("#filtered-candidates-count");
-const clearFiltersButton = document.querySelector("#clear-filters-button");
-const exportSelectedPdfButton = document.querySelector("#export-selected-pdf-button");
-const exportCsvButton = document.querySelector("#export-csv-button");
-const selectAllCandidatesCheckbox = document.querySelector("#select-all-candidates");
-const paginationSummary = document.querySelector("#pagination-summary");
-const paginationPageIndicator = document.querySelector("#pagination-page-indicator");
-const previousPageButton = document.querySelector("#previous-page-button");
-const nextPageButton = document.querySelector("#next-page-button");
-const pageSizeSelect = document.querySelector("#page-size-select");
-const candidateDetailPanel = document.querySelector("#candidate-detail-panel");
-const detailOverlay = document.querySelector("#detail-overlay");
-const closeDetailButton = document.querySelector("#close-detail-button");
-const detailForm = document.querySelector("#detail-form");
-const detailTitle = document.querySelector("#detail-title");
-const detailIdInput = document.querySelector("#detail-id");
-const detailFullNameInput = document.querySelector("#detail-full-name");
-const detailPhoneInput = document.querySelector("#detail-phone");
-const detailEmailInput = document.querySelector("#detail-email");
-const detailRegistrationDateInput = document.querySelector("#detail-registration-date");
-const detailStatusInput = document.querySelector("#detail-status");
-const detailSportRoleCheckbox = document.querySelector("#detail-sport-role");
-const detailSportSpecialtiesGroup = document.querySelector("#detail-sport-specialties-group");
-const detailTagsInput = document.querySelector("#detail-tags");
-const detailNotesInput = document.querySelector("#detail-notes");
-const detailObservationsInput = document.querySelector("#detail-observations");
-const detailAttachmentNameInput = document.querySelector("#detail-attachment-name");
-const detailVacancyConsentInput = document.querySelector("#detail-vacancy-consent");
-const detailEditButton = document.querySelector("#detail-edit-button");
-const detailSaveButton = document.querySelector("#detail-save-button");
-const detailDeleteButton = document.querySelector("#detail-delete-button");
-const publicToast = document.querySelector("#public-toast");
-
-let selectedCandidateTags = [];
-let currentCandidates = [];
-let filteredCandidates = [];
-let selectedCandidateIds = new Set();
-let currentSession = null;
-let supabaseClient = null;
-let supabaseAuthListenerBound = false;
-let jsPdfModulePromise = null;
-let detailEditMode = false;
-let currentSort = {
-  field: "registration_date",
-  direction: "desc",
-};
-let currentPage = 1;
-let pageSize = Number(pageSizeSelect?.value || 25);
-let publicToastTimeout = null;
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function invalidateCandidateFilterOptions() {
+  candidateFilterOptionsLoaded = false;
+  candidateFilterOptionsPromise = null;
 }
 
-function normalizeTag(tag) {
-  return String(tag ?? "")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-function sortTextValues(values) {
-  return [...values].sort((a, b) => a.localeCompare(b, "es"));
-}
+// --- Normalize / format helpers (candidates-specific) ---
 
 function normalizeSportSpecialties(values) {
   const specialties = Array.isArray(values) ? [...values] : [];
   const hasTennis = specialties.includes("Tenis");
   const hasPadel = specialties.includes("Padel");
-  const filtered = specialties.filter((item) => item !== "Tenis" && item !== "Padel");
+  const filtered = specialties
+    .filter((item) => item !== "Tenis" && item !== "Padel")
+    .map(formatCandidateOptionLabel);
 
   if (hasTennis || hasPadel) {
-    filtered.push("Tenis y padel");
+    filtered.push("Tenis y pádel");
   }
 
   return Array.from(new Set(filtered));
+}
+
+function formatCandidateOptionLabel(value) {
+  if (value === "Tecnico Informatico/imagen y sonido") {
+    return "Técnico Informático/imagen y sonido";
+  }
+
+  const labelMap = {
+    Conserjeria: "Conserjería",
+    "Monitorado acuatico": "Monitorado acuático",
+    "Sala de musculacion": "Sala de musculación",
+    "Tenis y padel": "Tenis y pádel",
+  };
+  return labelMap[value] || value;
 }
 
 function formatRoles(row) {
@@ -173,7 +47,7 @@ function formatRoles(row) {
       return `${role} (${specialties.join(", ")})`;
     }
 
-    return role;
+    return formatCandidateOptionLabel(role);
   });
 }
 
@@ -234,136 +108,10 @@ function syncSortButtons() {
   });
 }
 
-function setStatus(message, tone = "default") {
-  statusMessage.textContent = message;
-  statusMessage.className = "status-message";
-
-  if (tone !== "default") {
-    statusMessage.classList.add(tone);
-  }
-}
-
-function switchPanel(target) {
-  const showPublic = target === "public";
-  publicPanel.classList.toggle("hidden", !showPublic);
-  privatePanel.classList.toggle("hidden", showPublic);
-  document.querySelector(".public-hero")?.classList.toggle("hidden", !showPublic);
-}
-
-function togglePrivateView(isLoggedIn, email = "") {
-  loginView.classList.toggle("hidden", isLoggedIn);
-  privateView.classList.toggle("hidden", !isLoggedIn);
-  sessionEmail.textContent = isLoggedIn ? `Sesion iniciada como ${email}` : "";
-}
-
-function switchPrivateTab(target) {
-  const showNew = target === "new";
-  privateTabPanelNew.classList.toggle("hidden", !showNew);
-  privateTabPanelSearch.classList.toggle("hidden", showNew);
-  privateTabNewButton.classList.toggle("active", showNew);
-  privateTabSearchButton.classList.toggle("active", !showNew);
-  privateTabNewButton.setAttribute("aria-pressed", String(showNew));
-  privateTabSearchButton.setAttribute("aria-pressed", String(!showNew));
-}
-
-function showPublicToastMessage(message) {
-  if (!publicToast) {
-    return;
-  }
-
-  publicToast.textContent = message;
-  publicToast.classList.remove("hidden");
-
-  if (publicToastTimeout) {
-    window.clearTimeout(publicToastTimeout);
-  }
-
-  publicToastTimeout = window.setTimeout(() => {
-    publicToast.classList.add("hidden");
-  }, 3200);
-}
-
-async function getSupabaseClient() {
-  if (!hasSupabaseConfig) {
-    throw new Error("Falta la configuracion de Supabase en config.js.");
-  }
-
-  if (supabaseClient) {
-    return supabaseClient;
-  }
-
-  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-  supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey);
-
-  if (!supabaseAuthListenerBound) {
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
-      currentSession = session;
-    });
-    supabaseAuthListenerBound = true;
-  }
-
-  return supabaseClient;
-}
-
-async function getJsPdfClient() {
-  if (jsPdfModulePromise) {
-    return jsPdfModulePromise;
-  }
-
-  jsPdfModulePromise = import("https://esm.sh/jspdf@2.5.1");
-  return jsPdfModulePromise;
-}
-
-function sanitizeFileName(name) {
-  return String(name ?? "archivo")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9._-]/g, "-");
-}
-
-function triggerDownload(blob, fileName) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = fileName || "curriculum";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-async function downloadAttachment(candidateId) {
-  const row = currentCandidates.find((candidate) => candidate.id === candidateId);
-  if (!row) {
-    setStatus("No se encontro la candidatura asociada al archivo.", "error");
-    return;
-  }
-
-  if (!currentSession) {
-    setStatus("Necesitas iniciar sesion para descargar archivos.", "error");
-    return;
-  }
-
-  if (!row.attachment_path) {
-    setStatus("No se encontro el curriculum adjunto.", "error");
-    return;
-  }
-
-  const supabase = await getSupabaseClient();
-  const { data, error } = await supabase.storage
-    .from(supabaseConfig.bucket)
-    .download(row.attachment_path);
-
-  if (error || !data) {
-    setStatus(`No se pudo descargar el archivo: ${error?.message ?? "error desconocido"}`, "error");
-    return;
-  }
-
-  triggerDownload(data, row.attachment_name);
-}
+// --- Render ---
 
 function getVisibleCandidates() {
-  return getPaginatedCandidates(filteredCandidates);
+  return filteredCandidates;
 }
 
 function getSelectedCandidates() {
@@ -381,6 +129,11 @@ function syncSelectionUi(visibleRows = []) {
     visibleRows.length > 0 && selectedVisibleCount === visibleRows.length;
   selectAllCandidatesCheckbox.indeterminate =
     selectedVisibleCount > 0 && selectedVisibleCount < visibleRows.length;
+}
+
+function renderCandidateClampedCell(value) {
+  const text = String(value ?? "");
+  return `<span class="candidate-cell-clamp" title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
 }
 
 function renderCandidates(rows) {
@@ -401,7 +154,7 @@ function renderCandidates(rows) {
       const status = normalizeCandidateStatus(row.candidate_status);
       const isSelected = selectedCandidateIds.has(row.id);
       const attachmentCell = row.attachment_name
-        ? `<button type="button" class="tag-chip" data-download-id="${escapeHtml(row.id)}">${escapeHtml(
+        ? `<button type="button" class="tag-chip warm-button" data-download-id="${escapeHtml(row.id)}">${escapeHtml(
             row.attachment_name
           )}</button>`
         : "";
@@ -419,20 +172,18 @@ function renderCandidates(rows) {
           <td>
             <div class="action-buttons">
               <button type="button" class="secondary-button table-action" data-view-id="${escapeHtml(row.id)}">Ver</button>
-              <button type="button" class="table-action" data-edit-id="${escapeHtml(row.id)}">Editar</button>
-              <button type="button" class="danger-button table-action" data-delete-id="${escapeHtml(row.id)}">Borrar</button>
             </div>
           </td>
-          <td>${escapeHtml(row.registration_date || "")}</td>
+          <td>${renderCandidateClampedCell(row.registration_date || "")}</td>
           <td><span class="status-badge ${getCandidateStatusClass(status)}">${escapeHtml(status)}</span></td>
-          <td>${escapeHtml(row.full_name)}</td>
-          <td>${escapeHtml(row.phone)}</td>
-          <td>${escapeHtml(row.email)}</td>
-          <td>${escapeHtml(roles)}</td>
-          <td>${escapeHtml(tags)}</td>
+          <td>${renderCandidateClampedCell(row.full_name)}</td>
+          <td>${renderCandidateClampedCell(row.phone)}</td>
+          <td>${renderCandidateClampedCell(row.email)}</td>
+          <td>${renderCandidateClampedCell(roles)}</td>
+          <td>${renderCandidateClampedCell(tags)}</td>
           <td>${attachmentCell}</td>
-          <td>${escapeHtml(row.notes || "")}</td>
-          <td>${escapeHtml(row.observations || "")}</td>
+          <td>${renderCandidateClampedCell(row.notes || "")}</td>
+          <td>${renderCandidateClampedCell(row.observations || "")}</td>
         </tr>
       `;
     })
@@ -461,30 +212,16 @@ function updatePaginationUi(totalItems) {
   const end = hasItems ? Math.min(currentPage * pageSize, totalItems) : 0;
 
   paginationSummary.textContent = `Mostrando ${start}-${end} de ${totalItems}`;
-  paginationPageIndicator.textContent = `Pagina ${currentPage} de ${totalPages}`;
+  paginationPageIndicator.textContent = `Página ${currentPage} de ${totalPages}`;
   previousPageButton.disabled = currentPage <= 1;
   nextPageButton.disabled = currentPage >= totalPages;
 }
 
+// --- Tags UI ---
+
 function renderFilterOptions() {
-  const roles = sortTextValues(
-    Array.from(
-      new Set(
-        currentCandidates.flatMap((candidate) => {
-          return Array.isArray(candidate.job_roles) ? candidate.job_roles : [];
-        })
-      )
-    )
-  );
-  const tags = sortTextValues(
-    Array.from(
-      new Set(
-        currentCandidates.flatMap((candidate) => {
-          return Array.isArray(candidate.tags) ? candidate.tags.map(normalizeTag) : [];
-        })
-      )
-    ).filter(Boolean)
-  );
+  const roles = candidateFilterOptions.roles;
+  const tags = candidateFilterOptions.tags;
   const selectedRole = filterRoleSelect.value;
   const selectedTag = filterTagSelect.value;
   const selectedStatus = filterStatusSelect.value;
@@ -519,15 +256,7 @@ function renderFilterOptions() {
 }
 
 function renderTagSelect() {
-  const tags = sortTextValues(
-    Array.from(
-      new Set(
-        currentCandidates.flatMap((candidate) => {
-          return Array.isArray(candidate.tags) ? candidate.tags.map(normalizeTag) : [];
-        })
-      )
-    ).filter(Boolean)
-  );
+  const tags = candidateFilterOptions.tags;
   const currentValue = tagSelect.value;
   const options = ['<option value="">Selecciona una etiqueta</option>']
     .concat(
@@ -562,15 +291,7 @@ function renderSelectedTags() {
 }
 
 function renderAvailableTags() {
-  const tags = sortTextValues(
-    Array.from(
-      new Set(
-        currentCandidates.flatMap((candidate) => {
-          return Array.isArray(candidate.tags) ? candidate.tags.map(normalizeTag) : [];
-        })
-      )
-    ).filter(Boolean)
-  );
+  const tags = candidateFilterOptions.tags;
 
   if (!tags.length) {
     availableTagsContainer.className = "tag-cloud empty-cloud";
@@ -599,9 +320,11 @@ function syncTagsUi() {
 }
 
 function updateResultsSummary() {
-  totalCandidatesCount.textContent = String(currentCandidates.length);
-  filteredCandidatesCount.textContent = String(filteredCandidates.length);
+  totalCandidatesCount.textContent = String(candidateTotalCount);
+  filteredCandidatesCount.textContent = String(candidateFilteredCount);
 }
+
+// --- Filters ---
 
 function candidateMatchesFilters(candidate, filters) {
   const searchHaystack = [
@@ -656,9 +379,9 @@ function candidateMatchesFilters(candidate, filters) {
   return true;
 }
 
-function applyCandidateFilters() {
-  const filters = {
-    search: filterSearchInput.value.trim().toLowerCase(),
+function buildCandidateFilters() {
+  return {
+    search: filterSearchInput.value.trim(),
     role: filterRoleSelect.value,
     tag: filterTagSelect.value,
     status: filterStatusSelect.value,
@@ -666,15 +389,163 @@ function applyCandidateFilters() {
     dateTo: filterDateToInput.value,
     hasCv: filterHasCvInput.checked,
   };
+}
 
-  filteredCandidates = sortCandidates(
-    currentCandidates.filter((candidate) => candidateMatchesFilters(candidate, filters))
-  );
-  currentPage = Math.min(currentPage, getTotalPages(filteredCandidates.length));
-  renderCandidates(getPaginatedCandidates(filteredCandidates));
-  updateResultsSummary();
-  updatePaginationUi(filteredCandidates.length);
-  syncSortButtons();
+function applyCandidateFiltersToQuery(query, filters) {
+  if (filters.search) {
+    const search = filters.search.replaceAll("%", "\\%").replaceAll("_", "\\_");
+    query = query.or(
+      [
+        `full_name.ilike.%${search}%`,
+        `phone.ilike.%${search}%`,
+        `email.ilike.%${search}%`,
+        `notes.ilike.%${search}%`,
+        `observations.ilike.%${search}%`,
+      ].join(",")
+    );
+  }
+
+  if (filters.role) {
+    query = query.contains("job_roles", [filters.role]);
+  }
+
+  if (filters.tag) {
+    query = query.contains("tags", [filters.tag]);
+  }
+
+  if (filters.status) {
+    query = query.eq("candidate_status", filters.status);
+  }
+
+  if (filters.dateFrom) {
+    query = query.gte("registration_date", filters.dateFrom);
+  }
+
+  if (filters.dateTo) {
+    query = query.lte("registration_date", filters.dateTo);
+  }
+
+  if (filters.hasCv) {
+    query = query.not("attachment_name", "is", null);
+  }
+
+  return query;
+}
+
+function applyCandidateSortToQuery(query) {
+  const columnMap = {
+    registration_date: "registration_date",
+    candidate_status: "candidate_status",
+    full_name: "full_name",
+    phone: "phone",
+    email: "email",
+  };
+  const primaryColumn = columnMap[currentSort.field] || "registration_date";
+  const ascending = currentSort.direction === "asc";
+  query = query.order(primaryColumn, { ascending });
+
+  if (primaryColumn !== "created_at") {
+    query = query.order("created_at", { ascending: false });
+  }
+
+  return query;
+}
+
+async function fetchCandidateFilterOptions(supabase, options = {}) {
+  const { force = false } = options;
+  if (!force && candidateFilterOptionsLoaded) {
+    return candidateFilterOptions;
+  }
+
+  if (!force && candidateFilterOptionsPromise) {
+    return candidateFilterOptionsPromise;
+  }
+
+  candidateFilterOptionsPromise = (async () => {
+    const { data, error } = await supabase.rpc("get_candidate_filter_options");
+
+    if (error) {
+      throw error;
+    }
+
+    candidateFilterOptions = {
+      roles: sortTextValues(
+        (data ?? [])
+          .filter((row) => row.option_type === "role")
+          .map((row) => String(row.option_value ?? "").trim())
+          .filter(Boolean)
+      ),
+      tags: sortTextValues(
+        (data ?? [])
+          .filter((row) => row.option_type === "tag")
+          .map((row) => normalizeTag(row.option_value))
+          .filter(Boolean)
+      ),
+    };
+    candidateFilterOptionsLoaded = true;
+    renderFilterOptions();
+    return candidateFilterOptions;
+  })();
+
+  try {
+    return await candidateFilterOptionsPromise;
+  } finally {
+    candidateFilterOptionsPromise = null;
+  }
+}
+
+async function fetchAllFilteredCandidates() {
+  if (!currentSession) {
+    return [];
+  }
+
+  const supabase = await getSupabaseClient();
+  const filters = buildCandidateFilters();
+  const chunkSize = 1000;
+  const rows = [];
+
+  for (let from = 0; ; from += chunkSize) {
+    let query = supabase
+      .from("candidates")
+      .select(CANDIDATE_SELECT_COLUMNS)
+      .range(from, from + chunkSize - 1);
+    query = applyCandidateFiltersToQuery(query, filters);
+    query = applyCandidateSortToQuery(query);
+
+    const { data, error } = await query;
+    if (error) {
+      throw error;
+    }
+
+    rows.push(...(data ?? []));
+
+    if (!data || data.length < chunkSize) {
+      return currentSort.field === "job_roles" ? sortCandidates(rows) : rows;
+    }
+  }
+}
+
+async function fetchSelectedCandidates() {
+  const ids = [...selectedCandidateIds];
+  if (!ids.length) {
+    return [];
+  }
+
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase
+    .from("candidates")
+    .select(CANDIDATE_SELECT_COLUMNS)
+    .in("id", ids);
+
+  if (error) {
+    throw error;
+  }
+
+  return sortCandidates(data ?? []);
+}
+
+function applyCandidateFilters() {
+  void fetchCandidates();
 }
 
 function clearFilters() {
@@ -683,10 +554,24 @@ function clearFilters() {
   applyCandidateFilters();
 }
 
-function toCsvValue(value) {
-  const normalized = String(value ?? "").replaceAll('"', '""');
-  return `"${normalized}"`;
+function resetSingleCandidateFilter(filterName) {
+  const control = filtersForm?.elements?.[filterName];
+
+  if (!control) {
+    return;
+  }
+
+  if (control.type === "checkbox") {
+    control.checked = false;
+  } else {
+    control.value = "";
+  }
+
+  currentPage = 1;
+  applyCandidateFilters();
 }
+
+// --- Detail panel ---
 
 function getCandidateById(candidateId) {
   return currentCandidates.find((candidate) => candidate.id === candidateId) ?? null;
@@ -704,6 +589,8 @@ function setDetailEditMode(enabled) {
     detailTagsInput,
     detailNotesInput,
     detailObservationsInput,
+    detailAttachmentFileInput,
+    detailRemoveAttachmentInput,
     detailVacancyConsentInput,
     ...detailForm.querySelectorAll('input[name="detail_roles"]'),
     ...detailForm.querySelectorAll('input[name="detail_sport_specialties"]'),
@@ -728,6 +615,8 @@ function populateDetailForm(candidate) {
   detailNotesInput.value = candidate.notes ?? "";
   detailObservationsInput.value = candidate.observations ?? "";
   detailAttachmentNameInput.value = candidate.attachment_name ?? "";
+  detailAttachmentFileInput.value = "";
+  detailRemoveAttachmentInput.checked = false;
   detailVacancyConsentInput.checked = Boolean(candidate.vacancy_consent);
 
   detailForm.querySelectorAll('input[name="detail_roles"]').forEach((checkbox) => {
@@ -753,20 +642,27 @@ function populateDetailForm(candidate) {
 function openCandidateDetail(candidateId, editMode = false) {
   const candidate = getCandidateById(candidateId);
   if (!candidate) {
-    setStatus("No se encontro la candidatura seleccionada.", "error");
+    setStatus("No se encontró la candidatura seleccionada.", "error");
     return;
   }
 
   switchPrivateTab("search");
   populateDetailForm(candidate);
   setDetailEditMode(editMode);
+  markFormPristine(detailForm);
   candidateDetailPanel.classList.remove("hidden");
 }
 
-function closeCandidateDetail() {
+function closeCandidateDetail(options = {}) {
+  if (!options.force && !confirmDiscardFormChanges(detailForm)) {
+    return false;
+  }
+
   candidateDetailPanel.classList.add("hidden");
   detailForm.reset();
   setDetailEditMode(false);
+  markFormPristine(detailForm);
+  return true;
 }
 
 async function saveCandidateDetail(event) {
@@ -777,6 +673,7 @@ async function saveCandidateDetail(event) {
   }
 
   const candidateId = detailIdInput.value;
+  const currentCandidate = getCandidateById(candidateId);
   const selectedRoles = Array.from(
     detailForm.querySelectorAll('input[name="detail_roles"]:checked')
   ).map((checkbox) => checkbox.value);
@@ -799,6 +696,8 @@ async function saveCandidateDetail(event) {
     .split(",")
     .map(normalizeTag)
     .filter(Boolean);
+  const replacementFile = detailAttachmentFileInput.files?.[0];
+  const removeCurrentAttachment = detailRemoveAttachmentInput.checked;
 
   const updatePayload = {
     full_name: detailFullNameInput.value.trim(),
@@ -814,30 +713,81 @@ async function saveCandidateDetail(event) {
     vacancy_consent: detailVacancyConsentInput.checked,
   };
 
-  const supabase = await getSupabaseClient();
-  const { error } = await supabase.from("candidates").update(updatePayload).eq("id", candidateId);
+  let uploadedReplacementPath = "";
+  let previousAttachmentPathToRemove = "";
 
-  if (error) {
-    const policyHint =
-      error.code === "42501"
-        ? " Revisa las policies de update en public.candidates y ejecuta de nuevo supabase/schema.sql."
-        : "";
-    setStatus(
-      `No se pudo actualizar la candidatura: ${error.message}.${policyHint}`,
-      "error"
-    );
-    return;
+  try {
+    if (replacementFile) {
+      uploadedReplacementPath = await uploadFileToSupabase(
+        candidateId,
+        currentCandidate?.source ?? "private",
+        replacementFile
+      );
+      updatePayload.attachment_name = replacementFile.name;
+      updatePayload.attachment_path = uploadedReplacementPath;
+      updatePayload.attachment_mime_type = replacementFile.type ?? "";
+      previousAttachmentPathToRemove = currentCandidate?.attachment_path ?? "";
+    } else if (removeCurrentAttachment && currentCandidate?.attachment_path) {
+      updatePayload.attachment_name = "";
+      updatePayload.attachment_path = "";
+      updatePayload.attachment_mime_type = "";
+      previousAttachmentPathToRemove = currentCandidate.attachment_path;
+    }
+
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.from("candidates").update(updatePayload).eq("id", candidateId);
+
+    if (error) {
+      if (uploadedReplacementPath) {
+        await supabase.storage.from(supabaseConfig.bucket).remove([uploadedReplacementPath]);
+      }
+      const policyHint =
+        error.code === "42501"
+          ? " Revisa las policies de update en public.candidates y ejecuta de nuevo supabase/schema.sql."
+          : "";
+      setStatus(
+        `No se pudo actualizar la candidatura: ${error.message}.${policyHint}`,
+        "error"
+      );
+      return;
+    }
+
+    if (previousAttachmentPathToRemove) {
+      const shouldRemovePrevious =
+        removeCurrentAttachment ||
+        (replacementFile && previousAttachmentPathToRemove !== uploadedReplacementPath);
+
+      if (shouldRemovePrevious) {
+        const { error: storageError } = await supabase.storage
+          .from(supabaseConfig.bucket)
+          .remove([previousAttachmentPathToRemove]);
+
+        if (storageError) {
+          setStatus(
+            `La candidatura se actualizó, pero no se pudo borrar el currículum anterior: ${storageError.message}`,
+            "error"
+          );
+          invalidateCandidateFilterOptions();
+          await fetchCandidates();
+          openCandidateDetail(candidateId, false);
+          return;
+        }
+      }
+    }
+
+    invalidateCandidateFilterOptions();
+    await fetchCandidates();
+    openCandidateDetail(candidateId, false);
+    setStatus("Candidatura actualizada correctamente.", "success");
+  } catch (error) {
+    setStatus(`No se pudo actualizar la candidatura: ${error.message}`, "error");
   }
-
-  await fetchCandidates();
-  openCandidateDetail(candidateId, false);
-  setStatus("Candidatura actualizada correctamente.", "success");
 }
 
 async function deleteCandidate(candidateId) {
   const candidate = getCandidateById(candidateId);
   if (!candidate) {
-    setStatus("No se encontro la candidatura seleccionada.", "error");
+    setStatus("No se encontró la candidatura seleccionada.", "error");
     return;
   }
 
@@ -874,70 +824,115 @@ async function deleteCandidate(candidateId) {
   }
 
   if (detailIdInput.value === candidateId) {
-    closeCandidateDetail();
+    closeCandidateDetail({ force: true });
   }
 
+  invalidateCandidateFilterOptions();
   await fetchCandidates();
   setStatus("Candidatura borrada correctamente.", "success");
 }
 
-function exportFilteredCandidatesToCsv() {
-  if (!filteredCandidates.length) {
-    setStatus("No hay resultados filtrados para exportar.", "error");
+async function downloadAttachment(candidateId) {
+  const row = currentCandidates.find((candidate) => candidate.id === candidateId);
+  if (!row) {
+    setStatus("No se encontró la candidatura asociada al archivo.", "error");
     return;
   }
 
-  const headers = [
-    "Fecha",
-    "Nombre",
-    "Telefono",
-    "Correo",
-    "Estado",
-    "Puestos",
-    "Etiquetas",
-    "CV",
-    "Consentimiento privacidad",
-    "Consentimiento vacantes",
-    "Notas",
-    "Observaciones",
-    "Origen",
-  ];
-  const rows = filteredCandidates.map((candidate) => {
-    return [
-      candidate.registration_date || "",
-      candidate.full_name,
-      candidate.phone,
-      candidate.email,
-      normalizeCandidateStatus(candidate.candidate_status),
-      formatRoles(candidate).join(", "),
-      Array.isArray(candidate.tags) ? candidate.tags.join(", ") : "",
-      candidate.attachment_name || "",
-      candidate.privacy_accepted ? "si" : "no",
-      candidate.vacancy_consent ? "si" : "no",
-      candidate.notes || "",
-      candidate.observations || "",
-      candidate.source || "",
-    ]
-      .map(toCsvValue)
-      .join(",");
-  });
-  const csvContent = [headers.map(toCsvValue).join(","), ...rows].join("\n");
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const dateSuffix = new Date().toISOString().slice(0, 10);
-  triggerDownload(blob, `candidaturas-${dateSuffix}.csv`);
-  setStatus("CSV exportado correctamente.", "success");
+  if (!currentSession) {
+    setStatus("Necesitas iniciar sesión para descargar archivos.", "error");
+    return;
+  }
+
+  if (!row.attachment_path) {
+    setStatus("No se encontró el currículum adjunto.", "error");
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase.storage
+    .from(supabaseConfig.bucket)
+    .download(row.attachment_path);
+
+  if (error || !data) {
+    setStatus(`No se pudo descargar el archivo: ${error?.message ?? "error desconocido"}`, "error");
+    return;
+  }
+
+  triggerDownload(data, row.attachment_name);
+}
+
+// --- Export ---
+
+function exportFilteredCandidatesToCsv() {
+  void (async () => {
+    try {
+      setStatus("Preparando CSV de candidaturas...");
+      const candidates = await fetchAllFilteredCandidates();
+      if (!candidates.length) {
+        setStatus("No hay resultados filtrados para exportar.", "error");
+        return;
+      }
+
+      const headers = [
+        "Fecha",
+        "Nombre",
+        "Teléfono",
+        "Correo",
+        "Estado",
+        "Puestos",
+        "Etiquetas",
+        "CV",
+        "Consentimiento privacidad",
+        "Consentimiento vacantes",
+        "Notas",
+        "Observaciones",
+        "Origen",
+      ];
+      const rows = candidates.map((candidate) => {
+        return [
+          candidate.registration_date || "",
+          candidate.full_name,
+          candidate.phone,
+          candidate.email,
+          normalizeCandidateStatus(candidate.candidate_status),
+          formatRoles(candidate).join(", "),
+          Array.isArray(candidate.tags) ? candidate.tags.join(", ") : "",
+          candidate.attachment_name || "",
+          candidate.privacy_accepted ? "si" : "no",
+          candidate.vacancy_consent ? "si" : "no",
+          candidate.notes || "",
+          candidate.observations || "",
+          candidate.source || "",
+        ]
+          .map(toCsvValue)
+          .join(",");
+      });
+      const csvContent = [headers.map(toCsvValue).join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const dateSuffix = new Date().toISOString().slice(0, 10);
+      triggerDownload(blob, `candidaturas-${dateSuffix}.csv`);
+      setStatus("CSV exportado correctamente.", "success");
+    } catch (error) {
+      setStatus(`No se pudo exportar el CSV: ${error.message}`, "error");
+    }
+  })();
 }
 
 function exportSelectedCandidatesToPdf() {
-  const selectedCandidates = sortCandidates(getSelectedCandidates());
-
-  if (!selectedCandidates.length) {
+  if (!selectedCandidateIds.size) {
     setStatus("Selecciona al menos una candidatura para exportar el PDF.", "error");
     return;
   }
 
   void (async () => {
     try {
+      const selectedCandidates = await fetchSelectedCandidates();
+      if (!selectedCandidates.length) {
+        setStatus("Selecciona al menos una candidatura para exportar el PDF.", "error");
+        return;
+      }
+
       const { jsPDF } = await getJsPdfClient();
       const doc = new jsPDF({
         orientation: "portrait",
@@ -1000,8 +995,8 @@ function exportSelectedCandidatesToPdf() {
 
         doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
-        writeWrappedText("Telefono", candidate.phone);
-        writeWrappedText("Correo electronico", candidate.email);
+        writeWrappedText("Teléfono", candidate.phone);
+        writeWrappedText("Correo electrónico", candidate.email);
         writeWrappedText("Puestos y subpuestos", roles);
         y += 3;
       });
@@ -1017,6 +1012,8 @@ function exportSelectedCandidatesToPdf() {
     }
   })();
 }
+
+// --- Tags ---
 
 function addTagToSelection(tag) {
   const normalizedTag = normalizeTag(tag);
@@ -1037,6 +1034,8 @@ function removeTagFromSelection(tag) {
   selectedCandidateTags = selectedCandidateTags.filter((item) => item !== tag);
   syncTagsUi();
 }
+
+// --- Form helpers ---
 
 function collectRoles(form, roleName, specialtiesName) {
   const selectedRoles = Array.from(
@@ -1104,53 +1103,96 @@ function syncSportSpecialtiesVisibilityFor(form, trigger, group, specialtiesName
   }
 }
 
+// --- Main fetch ---
+
 async function fetchCandidates() {
+  const requestId = ++candidateFetchRequestId;
   if (!currentSession) {
     currentCandidates = [];
+    filteredCandidates = [];
+    candidateTotalCount = 0;
+    candidateFilteredCount = 0;
     renderCandidates([]);
+    updateResultsSummary();
+    updatePaginationUi(0);
     syncTagsUi();
     return [];
   }
 
   const supabase = await getSupabaseClient();
-  const { data, error } = await supabase
+  const filters = buildCandidateFilters();
+  const from = (currentPage - 1) * pageSize;
+  const to = from + pageSize - 1;
+  let query = supabase
     .from("candidates")
-    .select(CANDIDATE_SELECT_COLUMNS)
-    .order("created_at", { ascending: false });
+    .select(CANDIDATE_SELECT_COLUMNS, { count: "exact" })
+    .range(from, to);
+  query = applyCandidateFiltersToQuery(query, filters);
+  query = applyCandidateSortToQuery(query);
+
+  const [{ data, error, count }, totalResult, filterOptionsResult] = await Promise.all([
+    query,
+    supabase.from("candidates").select("id", { count: "exact", head: true }),
+    fetchCandidateFilterOptions(supabase).then(
+      () => ({ ok: true }),
+      (filterError) => ({ ok: false, error: filterError })
+    ),
+  ]);
 
   if (error) {
+    if (requestId !== candidateFetchRequestId) {
+      return currentCandidates;
+    }
     setStatus(`No se pudieron cargar las candidaturas: ${error.message}`, "error");
     return [];
   }
 
-  currentCandidates = data ?? [];
+  if (requestId !== candidateFetchRequestId) {
+    return currentCandidates;
+  }
+
+  if (totalResult.error) {
+    setStatus(`No se pudo calcular el total de candidaturas: ${totalResult.error.message}`, "error");
+  }
+
+  if (!filterOptionsResult.ok) {
+    invalidateCandidateFilterOptions();
+    candidateFilterOptions = {
+      roles: sortTextValues(
+        Array.from(new Set((data ?? []).flatMap((candidate) => candidate.job_roles ?? [])))
+      ),
+      tags: sortTextValues(
+        Array.from(new Set((data ?? []).flatMap((candidate) => candidate.tags ?? []).map(normalizeTag))).filter(Boolean)
+      ),
+    };
+    candidateFilterOptionsLoaded = true;
+    renderFilterOptions();
+  }
+
+  currentCandidates = currentSort.field === "job_roles" ? sortCandidates(data ?? []) : data ?? [];
+  filteredCandidates = currentCandidates;
+  candidateTotalCount = totalResult.count ?? currentCandidates.length;
+  candidateFilteredCount = count ?? currentCandidates.length;
+  const totalPages = getTotalPages(candidateFilteredCount);
+  if (currentPage > totalPages) {
+    currentPage = totalPages;
+    return fetchCandidates();
+  }
   selectedCandidateIds = new Set(
     [...selectedCandidateIds].filter((candidateId) =>
       currentCandidates.some((candidate) => candidate.id === candidateId)
     )
   );
-  renderFilterOptions();
-  applyCandidateFilters();
+  currentPage = Math.min(currentPage, getTotalPages(candidateFilteredCount));
+  renderCandidates(filteredCandidates);
+  updateResultsSummary();
+  updatePaginationUi(candidateFilteredCount);
+  syncSortButtons();
   syncTagsUi();
   return currentCandidates;
 }
 
-async function uploadFileToSupabase(candidateId, source, file) {
-  const supabase = await getSupabaseClient();
-  const safeName = sanitizeFileName(file.name);
-  const path = `${source}/${candidateId}/${Date.now()}-${safeName}`;
-  const { error } = await supabase.storage.from(supabaseConfig.bucket).upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-    contentType: file.type || "application/octet-stream",
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  return path;
-}
+// --- Supabase persistence ---
 
 async function savePublicCandidate(payload, file) {
   let attachmentPath = "";
@@ -1172,14 +1214,27 @@ async function savePublicCandidate(payload, file) {
   }
 }
 
-async function savePrivateCandidate(payload) {
+async function savePrivateCandidate(payload, file) {
+  let attachmentPath = "";
+
+  if (file) {
+    attachmentPath = await uploadFileToSupabase(payload.id, payload.source, file);
+  }
+
   const supabase = await getSupabaseClient();
-  const { error } = await supabase.from("candidates").insert(payload);
+  const { error } = await supabase.from("candidates").insert({
+    ...payload,
+    attachment_name: file?.name ?? "",
+    attachment_path: attachmentPath,
+    attachment_mime_type: file?.type ?? "",
+  });
 
   if (error) {
     throw error;
   }
 }
+
+// --- Handlers ---
 
 async function handlePublicCandidateSubmit(event) {
   event.preventDefault();
@@ -1235,47 +1290,6 @@ async function handlePublicCandidateSubmit(event) {
   setStatus("Candidatura enviada correctamente a Supabase.", "success");
 }
 
-async function handleLogin(event) {
-  event.preventDefault();
-
-  const email = document.querySelector("#login-email").value.trim();
-  const password = document.querySelector("#login-password").value;
-
-  setStatus("Validando acceso...");
-
-  const supabase = await getSupabaseClient();
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error) {
-    setStatus(`No se pudo iniciar sesion: ${error.message}`, "error");
-    return;
-  }
-
-  currentSession = data.session;
-  togglePrivateView(true, data.user?.email ?? email);
-  await fetchCandidates();
-  loginForm.reset();
-  setStatus("Acceso concedido. Panel privado conectado con Supabase.", "success");
-}
-
-async function handleLogout() {
-  const supabase = await getSupabaseClient();
-  const { error } = await supabase.auth.signOut();
-
-  if (error) {
-    setStatus(`No se pudo cerrar sesion: ${error.message}`, "error");
-    return;
-  }
-
-  currentSession = null;
-  togglePrivateView(false);
-  currentCandidates = [];
-  renderFilterOptions();
-  clearFilters();
-  syncTagsUi();
-  setStatus("Sesion cerrada.");
-}
-
 async function handlePrivateCandidateSubmit(event) {
   event.preventDefault();
 
@@ -1284,6 +1298,7 @@ async function handlePrivateCandidateSubmit(event) {
     "roles",
     "sport_specialties"
   );
+  const file = candidateCvFileInput?.files?.[0];
 
   if (!selectedRoles.length) {
     setStatus("Selecciona al menos un puesto para la candidatura.", "error");
@@ -1312,24 +1327,16 @@ async function handlePrivateCandidateSubmit(event) {
   });
 
   try {
-    await savePrivateCandidate(payload);
+    await savePrivateCandidate(payload, file);
   } catch (error) {
     setStatus(`No se pudo guardar la candidatura: ${error.message}`, "error");
     return;
   }
 
-  candidateForm.reset();
-  selectedCandidateTags = [];
-  syncSportSpecialtiesVisibilityFor(
-    candidateForm,
-    sportRoleCheckbox,
-    sportSpecialtiesGroup,
-    "sport_specialties"
-  );
-  document.querySelector("#registration-date").value = new Date()
-    .toISOString()
-    .slice(0, 10);
+  closeCandidateCreatePanel({ force: true });
+  invalidateCandidateFilterOptions();
   await fetchCandidates();
+  switchPrivateTab("search");
   setStatus("Candidatura guardada correctamente en Supabase.", "success");
 }
 
@@ -1345,21 +1352,70 @@ function validateRoleOptions() {
   }
 }
 
-async function restoreSession() {
-  const supabase = await getSupabaseClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+// --- Create panel ---
 
-  currentSession = session;
+function resetCandidateCreateForm() {
+  candidateForm?.reset();
+  selectedCandidateTags = [];
+  syncTagsUi();
+  syncSportSpecialtiesVisibilityFor(
+    candidateForm,
+    sportRoleCheckbox,
+    sportSpecialtiesGroup,
+    "sport_specialties"
+  );
 
-  if (!session) {
-    togglePrivateView(false);
+  const registrationDateInput = document.querySelector("#registration-date");
+  if (registrationDateInput) {
+    registrationDateInput.value = new Date().toISOString().slice(0, 10);
+  }
+}
+
+function openCandidateCreatePanel() {
+  markFormPristine(candidateForm);
+  privateTabPanelNew?.classList.remove("hidden");
+}
+
+function closeCandidateCreatePanel(options = {}) {
+  if (!options.force && !confirmDiscardFormChanges(candidateForm)) {
+    return false;
+  }
+
+  privateTabPanelNew?.classList.add("hidden");
+  resetCandidateCreateForm();
+  markFormPristine(candidateForm);
+  return true;
+}
+
+// --- Pagination + table event handlers ---
+
+function goToPreviousPage() {
+  if (currentPage <= 1) {
     return;
   }
 
-  togglePrivateView(true, session.user.email ?? "");
-  await fetchCandidates();
+  currentPage -= 1;
+  applyCandidateFilters();
+}
+
+function goToNextPage() {
+  if (currentPage >= getTotalPages(candidateFilteredCount)) {
+    return;
+  }
+
+  currentPage += 1;
+  applyCandidateFilters();
+}
+
+function handlePageSizeChange() {
+  const nextPageSize = Number(pageSizeSelect.value);
+  if (!Number.isFinite(nextPageSize) || nextPageSize <= 0) {
+    return;
+  }
+
+  pageSize = nextPageSize;
+  currentPage = 1;
+  applyCandidateFilters();
 }
 
 function handleAddSelectedTag() {
@@ -1455,18 +1511,6 @@ async function handleTableClick(event) {
     return;
   }
 
-  const editId = event.target.closest("[data-edit-id]")?.dataset.editId;
-  if (editId) {
-    openCandidateDetail(editId, true);
-    return;
-  }
-
-  const deleteId = event.target.closest("[data-delete-id]")?.dataset.deleteId;
-  if (deleteId) {
-    await deleteCandidate(deleteId);
-    return;
-  }
-
   const candidateId = event.target.closest("[data-download-id]")?.dataset.downloadId;
   if (!candidateId) {
     return;
@@ -1474,145 +1518,3 @@ async function handleTableClick(event) {
 
   await downloadAttachment(candidateId);
 }
-
-function goToPreviousPage() {
-  if (currentPage <= 1) {
-    return;
-  }
-
-  currentPage -= 1;
-  applyCandidateFilters();
-}
-
-function goToNextPage() {
-  if (currentPage >= getTotalPages(filteredCandidates.length)) {
-    return;
-  }
-
-  currentPage += 1;
-  applyCandidateFilters();
-}
-
-function handlePageSizeChange() {
-  const nextPageSize = Number(pageSizeSelect.value);
-  if (!Number.isFinite(nextPageSize) || nextPageSize <= 0) {
-    return;
-  }
-
-  pageSize = nextPageSize;
-  currentPage = 1;
-  applyCandidateFilters();
-}
-
-function initDates() {
-  document.querySelector("#registration-date").value = new Date()
-    .toISOString()
-    .slice(0, 10);
-}
-
-async function init() {
-  if (!hasSupabaseConfig) {
-    setStatus(
-      "Falta la configuracion de Supabase en config.js. Esta version ya no funciona en modo local.",
-      "error"
-    );
-    return;
-  }
-
-  validateRoleOptions();
-  initDates();
-
-  showPublicPanelButton.addEventListener("click", () => switchPanel("public"));
-  showPrivatePanelButton.addEventListener("click", () => switchPanel("private"));
-  privateTabNewButton.addEventListener("click", () => switchPrivateTab("new"));
-  privateTabSearchButton.addEventListener("click", () => switchPrivateTab("search"));
-  loginForm.addEventListener("submit", (event) => {
-    void handleLogin(event);
-  });
-  publicCandidateForm.addEventListener("submit", (event) => {
-    void handlePublicCandidateSubmit(event);
-  });
-  candidateForm.addEventListener("submit", (event) => {
-    void handlePrivateCandidateSubmit(event);
-  });
-  logoutButton.addEventListener("click", () => {
-    void handleLogout();
-  });
-  sportRoleCheckbox.addEventListener("change", () =>
-    syncSportSpecialtiesVisibilityFor(
-      candidateForm,
-      sportRoleCheckbox,
-      sportSpecialtiesGroup,
-      "sport_specialties"
-    )
-  );
-  publicSportRoleCheckbox.addEventListener("change", () =>
-    syncSportSpecialtiesVisibilityFor(
-      publicCandidateForm,
-      publicSportRoleCheckbox,
-      publicSportSpecialtiesGroup,
-      "public_sport_specialties"
-    )
-  );
-  addSelectedTagButton.addEventListener("click", handleAddSelectedTag);
-  createTagButton.addEventListener("click", handleCreateTag);
-  selectedTagsContainer.addEventListener("click", handleTagsClick);
-  availableTagsContainer.addEventListener("click", handleTagsClick);
-  filtersForm.addEventListener("input", () => {
-    currentPage = 1;
-    applyCandidateFilters();
-  });
-  filtersForm.addEventListener("change", () => {
-    currentPage = 1;
-    applyCandidateFilters();
-  });
-  clearFiltersButton.addEventListener("click", clearFilters);
-  exportCsvButton.addEventListener("click", exportFilteredCandidatesToCsv);
-  exportSelectedPdfButton.addEventListener("click", exportSelectedCandidatesToPdf);
-  previousPageButton.addEventListener("click", goToPreviousPage);
-  nextPageButton.addEventListener("click", goToNextPage);
-  pageSizeSelect.addEventListener("change", handlePageSizeChange);
-  closeDetailButton.addEventListener("click", closeCandidateDetail);
-  detailOverlay.addEventListener("click", closeCandidateDetail);
-  detailEditButton.addEventListener("click", () => setDetailEditMode(true));
-  detailDeleteButton.addEventListener("click", () => {
-    void deleteCandidate(detailIdInput.value);
-  });
-  detailForm.addEventListener("submit", (event) => {
-    void saveCandidateDetail(event);
-  });
-  detailSportRoleCheckbox.addEventListener("change", () =>
-    syncSportSpecialtiesVisibilityFor(
-      detailForm,
-      detailSportRoleCheckbox,
-      detailSportSpecialtiesGroup,
-      "detail_sport_specialties"
-    )
-  );
-  candidatesTable.addEventListener("click", (event) => {
-    void handleTableClick(event);
-  });
-
-  syncSportSpecialtiesVisibilityFor(
-    candidateForm,
-    sportRoleCheckbox,
-    sportSpecialtiesGroup,
-    "sport_specialties"
-  );
-  syncSportSpecialtiesVisibilityFor(
-    publicCandidateForm,
-    publicSportRoleCheckbox,
-    publicSportSpecialtiesGroup,
-    "public_sport_specialties"
-  );
-  syncTagsUi();
-  renderFilterOptions();
-  applyCandidateFilters();
-  await restoreSession();
-  switchPrivateTab("new");
-  switchPanel("public");
-
-  setStatus("");
-}
-
-void init();

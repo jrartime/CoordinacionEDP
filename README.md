@@ -1,17 +1,63 @@
-# Curriculos EDP
+# Coordinacion EDP
 
-Aplicacion web para recibir y gestionar candidaturas conectada directamente con Supabase.
+Aplicacion web estatica conectada a Supabase para:
 
-## Que incluye
+- Gestionar el panel principal privado de coordinacion en `coordinacion.edpsl.es`.
+- Recibir candidaturas publicas en `curriculos.edpsl.es`.
+- Mostrar programacion publica en `programacion.edpsl.es`.
+- Gestionar el acceso privado de `concilia.edpsl.es` con usuarios de Supabase Auth.
 
-- `index.html`: panel publico de envio y panel privado de gestion.
-- `app.js`: login privado, insercion publica, subida opcional de CV y descarga desde el panel privado.
-- `styles.css`: interfaz adaptada al estilo corporativo.
-- `supabase/schema.sql`: tabla `candidates`, policies y bucket de Storage.
+## Carpeta principal
+
+La copia de trabajo recomendada es `D:\Respaldo programacion\CoordinacionEDP`.
+La carpeta `D:\Programación\CoordinacionEDP` queda como referencia anterior y no
+debe usarse para nuevos cambios salvo que se quiera rescatar algo puntual.
+
+## Estructura
+
+- `coordinacion/`: app principal del proyecto. Es el document root de `coordinacion.edpsl.es` y arranca directamente en login.
+- `curriculos/`: formulario publico de candidaturas para `curriculos.edpsl.es`.
+- `programacion/`: panel publico de programacion para `programacion.edpsl.es`.
+- `concilia/`: sitio independiente para `concilia.edpsl.es`.
+- `publish/`: carpetas listas para subir al hosting.
+- `supabase/`: esquema, tablas, policies y seeds.
+- `scripts/`: utilidades de importacion/exportacion.
+
+## Despliegue
+
+Genera primero las carpetas de publicacion desde los archivos fuente:
+
+```powershell
+.\scripts\publish.ps1
+```
+
+Antes de subir, puedes ejecutar las comprobaciones basicas:
+
+```powershell
+.\scripts\check.ps1
+```
+
+Si quieres conservar los `config.js` ya editados dentro de `publish/`, ejecuta:
+
+```powershell
+.\scripts\publish.ps1 -SkipConfig
+```
+
+Sube estas carpetas del directorio `publish/` al document root correspondiente en IONOS:
+
+- `publish/coordinacion/` -> `https://coordinacion.edpsl.es/`
+- `publish/curriculos/` -> `https://curriculos.edpsl.es/`
+- `publish/programacion/` -> `https://programacion.edpsl.es/`
+- `publish/concilia/` -> `https://concilia.edpsl.es/`
+
+Los paneles publicos enlazan el acceso privado a `https://coordinacion.edpsl.es/`.
+
+Cada carpeta generada dentro de `publish/` incluye su propia copia de `shared/`,
+por lo que puede subirse como document root independiente del subdominio.
 
 ## Configuracion
 
-Edita [config.js](./config.js):
+Edita los `config.js` publicados si cambia el proyecto de Supabase:
 
 ```js
 window.APP_CONFIG = {
@@ -23,32 +69,31 @@ window.APP_CONFIG = {
 };
 ```
 
-La aplicacion ya no tiene fallback local. Si falta cualquiera de esos valores, mostrara error y no funcionara.
+El login privado usa usuarios de Supabase Auth. No hay contrasenas locales en el codigo.
 
-## Preparacion de Supabase
+## Supabase Concilia
 
-1. Crea el proyecto en Supabase.
-2. Ejecuta [supabase/schema.sql](./supabase/schema.sql) en SQL Editor.
-3. Crea al menos un usuario interno en `Authentication > Users`.
-4. Copia la `Project URL` y la `anon key` en `config.js`.
+Para crear la tabla inicial de usuarios de Concilia:
 
-Notas de seguridad:
+1. Ejecuta `supabase/tables/concilia_usuarios.sql`.
+2. Importa `exports/concilia_usuarios_import.csv` desde el Table Editor de Supabase.
 
-- La tabla `candidates` permite inserciones anonimas solo para registros con `source = 'public'` y `privacy_accepted = true`.
-- El bucket `candidate-cvs` es privado.
-- Los usuarios autenticados del panel privado pueden leer candidaturas y descargar archivos.
+El CSV limpio se genera desde el CSV original con:
 
-## Como arrancarlo
+```powershell
+python scripts\convert_concilia_usuarios_csv.py "d:\Dropbox\EDP\Coordinación ConciliaOviedo\APERTURA Colegios\0. VERANO 2026\cargar.csv" exports\concilia_usuarios_import.csv --csv
+```
+
+## Desarrollo local
 
 ```powershell
 python -m http.server 8080
 ```
 
-Luego abre `http://localhost:8080`.
+Abre:
 
-## Fuentes oficiales usadas
-
-- Insert con `supabase-js`: https://supabase.com/docs/reference/javascript/insert
-- Login con email y contrasena: https://supabase.com/docs/reference/javascript/auth-signinwithpassword
-- Upload a Storage: https://supabase.com/docs/reference/javascript/storage-from-upload
-- Creacion de buckets y policies: https://supabase.com/docs/guides/storage/buckets/creating-buckets
+- `http://localhost:8080/` redirige a `http://localhost:8080/coordinacion/`
+- `http://localhost:8080/coordinacion/`
+- `http://localhost:8080/curriculos/`
+- `http://localhost:8080/programacion/`
+- `http://localhost:8080/concilia/`

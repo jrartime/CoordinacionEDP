@@ -1,0 +1,183 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Programación | Educación Deportiva del Principado</title>
+    <link rel="stylesheet" href="./styles.css?v=20260601-2" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero-card">
+        <div>
+          <p class="eyebrow">Programación</p>
+          <h1>Programación de Competiciones</h1>
+        </div>
+        <div class="hero-actions">
+          <a class="brand-link" href="https://edpsl.es/" target="_blank" rel="noopener noreferrer">
+            <img src="./EDP.jpg" alt="" class="brand-logo" />
+            <span>Educación Deportiva del Principado</span>
+          </a>
+          <a
+            class="hero-link secondary-button icon-link"
+            href="https://coordinacion.edpsl.es/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Acceso privado"
+            title="Acceso privado"
+          >
+            <svg class="button-icon" aria-hidden="true" viewBox="0 0 24 24">
+              <path
+                d="M7 11V8a5 5 0 0 1 10 0v3"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+              <path
+                d="M6 11h12v9H6v-9Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M12 15v2"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </a>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Programación</p>
+            <h2>Programación Deportiva de Instalaciones deportivas municipales del Ayuntamiento de Oviedo</h2>
+          </div>
+          <button id="refresh-button" type="button">
+            Recargar datos
+          </button>
+        </div>
+
+        <div class="access-panel">
+          <label class="access-field">
+            Código para mostrar personal
+            <div class="access-row">
+              <input
+                id="access-code-input"
+                type="password"
+                inputmode="numeric"
+                autocomplete="off"
+                placeholder="Código general o personal"
+              />
+              <button id="access-code-button" type="button" class="secondary-button">Mostrar personal</button>
+            </div>
+          </label>
+          <p id="access-code-status" class="access-status">
+            El campo personal está oculto hasta introducir el código.
+          </p>
+        </div>
+
+        <div class="summary-grid">
+          <article class="summary-chip">
+            <span>Registros</span>
+            <strong id="summary-total">0</strong>
+          </article>
+          <article class="summary-chip">
+            <span>Instalaciones</span>
+            <strong id="summary-installations">0</strong>
+          </article>
+          <article class="summary-chip">
+            <span>Personal</span>
+            <strong id="summary-people">0</strong>
+          </article>
+          <article class="summary-chip">
+            <span>Rango</span>
+            <strong id="summary-range">-</strong>
+          </article>
+        </div>
+
+        <form id="filters-form" class="filters-grid" autocomplete="off">
+          <label>
+            Fecha
+            <select id="filter-date">
+              <option value="">Todas las fechas</option>
+            </select>
+          </label>
+
+          <label>
+            Instalación
+            <select id="filter-installation">
+              <option value="">Todas las instalaciones</option>
+            </select>
+          </label>
+
+          <label id="filter-personal-field" class="hidden">
+            Personal
+            <select id="filter-personal">
+              <option value="">Todo el personal</option>
+            </select>
+          </label>
+
+          <label>
+            Deporte
+            <select id="filter-sport">
+              <option value="">Todos los deportes</option>
+            </select>
+          </label>
+
+          <label class="full-width">
+            Buscar actividad
+            <input
+              id="filter-activity"
+              type="search"
+              placeholder="Buscar texto dentro de la actividad"
+            />
+          </label>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Listado</p>
+            <h2>Turnos y actividades</h2>
+          </div>
+          <p id="status-message" class="status-message"></p>
+        </div>
+
+        <div class="table-wrapper">
+          <table id="schedule-table">
+            <thead>
+              <tr>
+                <th><button type="button" class="sort-button" data-sort-field="fecha">Fecha</button></th>
+                <th><button type="button" class="sort-button" data-sort-field="instalacion">Instalación</button></th>
+                <th id="schedule-personal-header" class="hidden">
+                  <button type="button" class="sort-button" data-sort-field="personal">Personal</button>
+                </th>
+                <th><button type="button" class="sort-button" data-sort-field="inicio">Inicio</button></th>
+                <th><button type="button" class="sort-button" data-sort-field="fin">Fin</button></th>
+                <th><button type="button" class="sort-button" data-sort-field="hora">Hora</button></th>
+                <th><button type="button" class="sort-button" data-sort-field="deporte">Deporte</button></th>
+                <th>Actividad</th>
+              </tr>
+            </thead>
+            <tbody id="schedule-table-body">
+              <tr>
+                <td colspan="8" class="empty-state">Cargando programación.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="./app.js?v=20260518-1"></script>
+  </body>
+</html>
