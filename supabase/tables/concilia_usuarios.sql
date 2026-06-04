@@ -222,7 +222,8 @@ execute function public.set_concilia_usuarios_updated_at();
 
 alter table public.concilia_usuarios enable row level security;
 
-grant select, update on public.concilia_usuarios to authenticated;
+grant select, insert, update on public.concilia_usuarios to authenticated;
+grant usage, select on sequence public.concilia_usuarios_id_seq to authenticated;
 
 drop policy if exists "authenticated_can_read_concilia_usuarios" on public.concilia_usuarios;
 create policy "authenticated_can_read_concilia_usuarios"
@@ -234,6 +235,12 @@ using (true);
 drop policy if exists "authenticated_can_insert_concilia_usuarios" on public.concilia_usuarios;
 drop policy if exists "authenticated_can_update_concilia_usuarios" on public.concilia_usuarios;
 drop policy if exists "authenticated_can_delete_concilia_usuarios" on public.concilia_usuarios;
+
+create policy "authenticated_can_insert_concilia_usuarios"
+on public.concilia_usuarios
+for insert
+to authenticated
+with check (true);
 
 create policy "authenticated_can_update_concilia_usuarios"
 on public.concilia_usuarios

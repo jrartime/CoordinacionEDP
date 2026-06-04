@@ -183,9 +183,14 @@
             <div class="results-summary">
               <p id="students-summary" class="summary-chip">Cargando datos...</p>
             </div>
-            <button id="students-refresh-button" type="button">
-              Actualizar
-            </button>
+            <div class="header-actions">
+              <button id="open-student-panel-button" class="warm-button" type="button">
+                Nuevo alumno
+              </button>
+              <button id="students-refresh-button" type="button">
+                Actualizar
+              </button>
+            </div>
           </div>
 
           <form id="students-filters-form" class="filters-grid">
@@ -279,11 +284,12 @@
                       Telefono
                     </button>
                   </th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody id="students-table-body">
                 <tr>
-                  <td colspan="4" class="empty-state">Cargando alumnado...</td>
+                  <td colspan="5" class="empty-state">Cargando alumnado...</td>
                 </tr>
               </tbody>
             </table>
@@ -309,6 +315,119 @@
               </button>
             </div>
           </div>
+
+          <div id="student-panel-backdrop" class="panel-backdrop hidden"></div>
+          <aside
+            id="student-panel"
+            class="side-panel hidden"
+            aria-labelledby="student-panel-title"
+          >
+            <div class="side-panel-header">
+              <div class="section-heading">
+                <p class="eyebrow">Alumnado</p>
+                <h2 id="student-panel-title">Nuevo alumno</h2>
+                <p id="student-panel-summary">Completa los datos del alumno.</p>
+              </div>
+              <button
+                id="close-student-panel-button"
+                class="secondary-button compact-button"
+                type="button"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <form id="student-form" class="activity-form side-panel-form">
+              <input id="student-id" name="id" type="hidden" />
+
+              <label>
+                Codigo clase
+                <input id="student-codigo-clase" name="codigo_clase" type="text" required />
+              </label>
+
+              <label>
+                Clase
+                <input id="student-clase" name="clase" type="text" />
+              </label>
+
+              <label>
+                Fecha inicial
+                <input id="student-fecha-inicial" name="fecha_inicial" type="date" />
+              </label>
+
+              <label>
+                Estado
+                <input id="student-estado" name="estado" type="text" />
+              </label>
+
+              <label>
+                Codigo persona
+                <input id="student-codigo-persona" name="codigo_persona" type="number" min="1" step="1" required />
+              </label>
+
+              <label>
+                Nombre
+                <input id="student-nombre" name="nombre" type="text" />
+              </label>
+
+              <label>
+                Apellidos
+                <input id="student-apellidos" name="apellidos" type="text" />
+              </label>
+
+              <label>
+                Alumnado
+                <input id="student-alumnado" name="alumnado" type="text" required />
+              </label>
+
+              <label>
+                Documento
+                <input id="student-documento" name="documento" type="text" />
+              </label>
+
+              <label>
+                Fecha nacimiento
+                <input id="student-fecha-nacimiento" name="fecha_nacimiento" type="date" />
+              </label>
+
+              <label>
+                Edad
+                <input id="student-edad" name="edad" type="text" />
+              </label>
+
+              <label>
+                Movil
+                <input id="student-movil" name="movil" type="tel" />
+              </label>
+
+              <label>
+                Email
+                <input id="student-mail" name="mail" type="email" />
+              </label>
+
+              <label>
+                Centro
+                <input id="student-centro" name="centro" type="text" required />
+              </label>
+
+              <label>
+                Semana
+                <input id="student-semana" name="semana" type="text" required />
+              </label>
+
+              <label class="checkbox-field">
+                <input id="student-nee" name="nee" type="checkbox" />
+                NEE
+              </label>
+
+              <div class="activity-actions">
+                <button id="clear-student-form-button" class="secondary-button" type="button">
+                  Limpiar
+                </button>
+                <button type="submit">Guardar alumno</button>
+              </div>
+            </form>
+          </aside>
         </section>
 
         <section

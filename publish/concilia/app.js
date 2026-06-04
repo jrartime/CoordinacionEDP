@@ -28,6 +28,31 @@
   const studentsPageSize = document.querySelector("#students-page-size");
   const studentsPreviousPage = document.querySelector("#students-previous-page");
   const studentsNextPage = document.querySelector("#students-next-page");
+  const openStudentPanelButton = document.querySelector("#open-student-panel-button");
+  const studentPanelBackdrop = document.querySelector("#student-panel-backdrop");
+  const studentPanel = document.querySelector("#student-panel");
+  const closeStudentPanelButton = document.querySelector("#close-student-panel-button");
+  const studentPanelTitle = document.querySelector("#student-panel-title");
+  const studentPanelSummary = document.querySelector("#student-panel-summary");
+  const studentForm = document.querySelector("#student-form");
+  const clearStudentFormButton = document.querySelector("#clear-student-form-button");
+  const studentId = document.querySelector("#student-id");
+  const studentCodigoClase = document.querySelector("#student-codigo-clase");
+  const studentClase = document.querySelector("#student-clase");
+  const studentFechaInicial = document.querySelector("#student-fecha-inicial");
+  const studentEstado = document.querySelector("#student-estado");
+  const studentCodigoPersona = document.querySelector("#student-codigo-persona");
+  const studentNombre = document.querySelector("#student-nombre");
+  const studentApellidos = document.querySelector("#student-apellidos");
+  const studentAlumnado = document.querySelector("#student-alumnado");
+  const studentDocumento = document.querySelector("#student-documento");
+  const studentFechaNacimiento = document.querySelector("#student-fecha-nacimiento");
+  const studentEdad = document.querySelector("#student-edad");
+  const studentMovil = document.querySelector("#student-movil");
+  const studentMail = document.querySelector("#student-mail");
+  const studentCentro = document.querySelector("#student-centro");
+  const studentSemana = document.querySelector("#student-semana");
+  const studentNee = document.querySelector("#student-nee");
   const weeklySummary = document.querySelector("#weekly-summary");
   const weeklySummaryTableBody = document.querySelector("#weekly-summary-table-body");
   const attendanceSummary = document.querySelector("#attendance-summary");
@@ -201,6 +226,8 @@
     String(index + 1).padStart(2, "0")
   );
   const CURRENT_YEAR = new Date().getFullYear();
+  const STUDENT_SELECT_COLUMNS =
+    "id,codigo_clase,clase,fecha_inicial,estado,codigo_persona,apellidos,nombre,nee,documento,fecha_nacimiento,edad,movil,mail,centro,semana,alumnado";
   const ASSIGNMENT_WEEK_FIELDS = SUMMARY_WEEKS.map((week) => `semana_${week}`);
   const ACTIVITY_REPORT_WEEKS = [
     { label: "22/06-28/06", start: "2026-06-22", end: "2026-06-28" },
@@ -318,7 +345,7 @@
 
     if (!rows.length) {
       studentsTableBody.innerHTML =
-        '<tr><td colspan="4" class="empty-state">No hay alumnado con esos filtros.</td></tr>';
+        '<tr><td colspan="5" class="empty-state">No hay alumnado con esos filtros.</td></tr>';
       return;
     }
 
@@ -330,6 +357,11 @@
             <td>${escapeHtml(row.semana)}</td>
             <td>${escapeHtml(row.alumnado)}</td>
             <td>${escapeHtml(row.movil)}</td>
+            <td>
+              <button class="compact-button tooltip-button" type="button" aria-label="Editar alumno" data-edit-student="${escapeHtml(row.id)}">
+                ${renderIcon("edit")}
+              </button>
+            </td>
           </tr>
         `
       )
@@ -2809,7 +2841,7 @@
     } catch (error) {
       studentsSummary.textContent = "No se pudieron cargar los datos.";
       studentsTableBody.innerHTML =
-        '<tr><td colspan="4" class="empty-state">Error cargando alumnado.</td></tr>';
+        '<tr><td colspan="5" class="empty-state">Error cargando alumnado.</td></tr>';
       setStatus(`No se pudo cargar alumnado: ${error.message}`, "error");
     }
   }
@@ -2820,6 +2852,128 @@
       semana: String(filterSemana.value || "").trim(),
       alumnado: String(filterAlumnado.value || "").trim(),
     };
+  }
+
+  function trimInputValue(input) {
+    return String(input?.value || "").trim();
+  }
+
+  function nullableInputValue(input) {
+    return trimInputValue(input) || null;
+  }
+
+  function setStudentFormDefaults() {
+    const filters = getStudentFilters();
+    studentForm.reset();
+    studentId.value = "";
+    studentCentro.value = filters.centro;
+    studentSemana.value = filters.semana;
+    studentPanelTitle.textContent = "Nuevo alumno";
+    studentPanelSummary.textContent = "Completa los datos del alumno.";
+  }
+
+  function fillStudentForm(row) {
+    studentForm.reset();
+    studentId.value = row.id ?? "";
+    studentCodigoClase.value = row.codigo_clase ?? "";
+    studentClase.value = row.clase ?? "";
+    studentFechaInicial.value = row.fecha_inicial ?? "";
+    studentEstado.value = row.estado ?? "";
+    studentCodigoPersona.value = row.codigo_persona ?? "";
+    studentNombre.value = row.nombre ?? "";
+    studentApellidos.value = row.apellidos ?? "";
+    studentAlumnado.value = row.alumnado ?? "";
+    studentDocumento.value = row.documento ?? "";
+    studentFechaNacimiento.value = row.fecha_nacimiento ?? "";
+    studentEdad.value = row.edad ?? "";
+    studentMovil.value = row.movil ?? "";
+    studentMail.value = row.mail ?? "";
+    studentCentro.value = row.centro ?? "";
+    studentSemana.value = row.semana ?? "";
+    studentNee.checked = Boolean(String(row.nee ?? "").trim());
+    studentPanelTitle.textContent = `Editar ${row.alumnado || "alumno"}`;
+    studentPanelSummary.textContent = "Actualiza los datos y guarda los cambios.";
+  }
+
+  function openStudentPanel() {
+    studentPanelBackdrop.classList.remove("hidden");
+    studentPanel.classList.remove("hidden");
+    studentAlumnado.focus();
+  }
+
+  function closeStudentPanel() {
+    studentPanelBackdrop.classList.add("hidden");
+    studentPanel.classList.add("hidden");
+  }
+
+  function openStudentCreatePanel() {
+    setStudentFormDefaults();
+    openStudentPanel();
+  }
+
+  function openStudentEditPanel(id) {
+    const row = studentRows.find((student) => String(student.id) === String(id));
+    if (!row) {
+      setStatus("No se encontro el alumno en la pagina actual.", "error");
+      return;
+    }
+
+    fillStudentForm(row);
+    openStudentPanel();
+  }
+
+  function buildStudentPayload() {
+    const nombre = trimInputValue(studentNombre);
+    const apellidos = trimInputValue(studentApellidos);
+    const alumnado = trimInputValue(studentAlumnado) || [nombre, apellidos].filter(Boolean).join(" ");
+
+    return {
+      codigo_clase: trimInputValue(studentCodigoClase),
+      clase: nullableInputValue(studentClase),
+      fecha_inicial: nullableInputValue(studentFechaInicial),
+      estado: nullableInputValue(studentEstado),
+      codigo_persona: Number(trimInputValue(studentCodigoPersona)),
+      apellidos: apellidos || null,
+      nombre: nombre || null,
+      nee: studentNee.checked ? "SI" : null,
+      documento: nullableInputValue(studentDocumento),
+      fecha_nacimiento: nullableInputValue(studentFechaNacimiento),
+      edad: nullableInputValue(studentEdad),
+      movil: nullableInputValue(studentMovil),
+      mail: nullableInputValue(studentMail),
+      centro: nullableInputValue(studentCentro),
+      semana: nullableInputValue(studentSemana),
+      alumnado,
+    };
+  }
+
+  async function handleStudentSubmit(event) {
+    event.preventDefault();
+    const payload = buildStudentPayload();
+
+    if (!Number.isInteger(payload.codigo_persona) || payload.codigo_persona <= 0) {
+      setStatus("Codigo persona debe ser un numero valido.", "error");
+      return;
+    }
+
+    try {
+      const supabase = await getSupabaseClient();
+      const id = trimInputValue(studentId);
+      const request = id
+        ? supabase.from("concilia_usuarios").update(payload).eq("id", id)
+        : supabase.from("concilia_usuarios").insert(payload);
+      const { error } = await request;
+
+      if (error) {
+        throw error;
+      }
+
+      closeStudentPanel();
+      setStatus(id ? "Alumno actualizado." : "Alumno creado.", "success");
+      await loadStudents();
+    } catch (error) {
+      setStatus(`No se pudo guardar el alumno: ${error.message}`, "error");
+    }
   }
 
   function applyStudentFiltersToQuery(query, filters) {
@@ -2863,7 +3017,7 @@
     const to = from + studentsRowsPerPage - 1;
     let query = supabase
       .from("concilia_usuarios")
-      .select("codigo_persona,centro,semana,alumnado,movil,nee,fecha_nacimiento", { count: "exact" })
+      .select(STUDENT_SELECT_COLUMNS, { count: "exact" })
       .range(from, to);
     query = applyStudentFiltersToQuery(query, filters);
     query = applyStudentSortToQuery(query);
@@ -2933,7 +3087,7 @@
       const to = from + pageSize - 1;
       const { data, error } = await supabase
         .from("concilia_usuarios")
-        .select("codigo_persona,centro,semana,alumnado,movil,nee,fecha_nacimiento")
+        .select(STUDENT_SELECT_COLUMNS)
         .order("centro", { ascending: true })
         .order("semana", { ascending: true })
         .order("alumnado", { ascending: true })
@@ -3016,7 +3170,7 @@
   async function loadStudents() {
     studentsSummary.textContent = "Cargando datos...";
     studentsTableBody.innerHTML =
-      '<tr><td colspan="4" class="empty-state">Cargando alumnado...</td></tr>';
+      '<tr><td colspan="5" class="empty-state">Cargando alumnado...</td></tr>';
 
     try {
       const supabase = await getSupabaseClient();
@@ -3030,7 +3184,7 @@
     } catch (error) {
       studentsSummary.textContent = "No se pudieron cargar los datos.";
       studentsTableBody.innerHTML =
-        '<tr><td colspan="4" class="empty-state">Error cargando alumnado.</td></tr>';
+        '<tr><td colspan="5" class="empty-state">Error cargando alumnado.</td></tr>';
       setStatus(`No se pudo cargar alumnado: ${error.message}`, "error");
       return;
     }
@@ -3244,6 +3398,31 @@
     });
     studentsRefreshButton.addEventListener("click", () => {
       void loadStudents();
+    });
+    openStudentPanelButton.addEventListener("click", openStudentCreatePanel);
+    closeStudentPanelButton.addEventListener("click", closeStudentPanel);
+    studentPanelBackdrop.addEventListener("click", closeStudentPanel);
+    clearStudentFormButton.addEventListener("click", () => {
+      if (studentId.value) {
+        const row = studentRows.find((student) => String(student.id) === String(studentId.value));
+        if (row) {
+          fillStudentForm(row);
+          return;
+        }
+      }
+
+      setStudentFormDefaults();
+    });
+    studentForm.addEventListener("submit", (event) => {
+      void handleStudentSubmit(event);
+    });
+    studentsTableBody.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-edit-student]");
+      if (!button) {
+        return;
+      }
+
+      openStudentEditPanel(button.dataset.editStudent);
     });
     studentsPageSize.addEventListener("change", () => {
       studentsRowsPerPage = Number(studentsPageSize.value);
