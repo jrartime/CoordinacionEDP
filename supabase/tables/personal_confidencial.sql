@@ -105,6 +105,7 @@ end $$;
 create or replace function public.set_personal_confidencial_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();
@@ -316,6 +317,8 @@ left join public.historiales_laborales_tipos_contratacion tc
   on tc.id = h.tipo_contratacion_id
 left join public.historiales_laborales_motivos_baja mb
   on mb.id = h.motivo_baja_id;
+
+alter view public.historiales_laborales_detalle set (security_invoker = true);
 
 grant select on public.historiales_laborales_detalle to authenticated;
 

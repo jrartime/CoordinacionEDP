@@ -471,6 +471,8 @@ left join public.historiales_laborales_tipos_contratacion tc
 left join public.historiales_laborales_motivos_baja mb
   on mb.id = h.motivo_baja_id;
 
+alter view public.historiales_laborales_detalle set (security_invoker = true);
+
 grant select on public.historiales_laborales_detalle to authenticated;
 
 insert into public.puestos (id, puesto)
