@@ -343,17 +343,17 @@ const PERSONAL_FIELDS = [
   { key: "genero", label: "Genero", type: "text" },
   { key: "antiguedad", label: "Antiguedad", type: "date" },
   { key: "dni", label: "DNI", type: "text" },
-  { key: "fecha_nacimiento", label: "Fecha nacimiento", type: "date" },
-  { key: "ss", label: "SS", type: "text" },
+  { key: "fecha_nacimiento", label: "Fecha nacimiento", type: "date", confidential: true },
+  { key: "ss", label: "SS", type: "text", confidential: true },
   { key: "email", label: "Email", type: "email" },
   { key: "movil", label: "Movil", type: "text" },
   { key: "telefono", label: "Telefono", type: "text" },
-  { key: "direccion", label: "Direccion", type: "text" },
-  { key: "codigo_postal", label: "Codigo postal", type: "integer" },
+  { key: "direccion", label: "Direccion", type: "text", confidential: true },
+  { key: "codigo_postal", label: "Codigo postal", type: "integer", confidential: true },
   { key: "localidad", label: "Localidad", type: "text" },
   { key: "municipio", label: "Municipio", type: "text" },
   { key: "provincia", label: "Provincia", type: "text" },
-  { key: "cuenta_corriente", label: "Cuenta corriente", type: "text" },
+  { key: "cuenta_corriente", label: "Cuenta corriente", type: "text", confidential: true },
   { key: "observacion", label: "Observacion", type: "textarea" },
   { key: "carpeta", label: "Carpeta", type: "text" },
   { key: "cv", label: "CV", type: "boolean" },
@@ -366,13 +366,13 @@ const PERSONAL_FIELDS = [
   { key: "uniforme", label: "Uniforme", type: "boolean" },
   { key: "med_emerg", label: "Med. emerg", type: "boolean" },
   { key: "ens", label: "ENS", type: "boolean" },
-  { key: "com_antiguedad_04", label: "Complemento antiguedad 04", type: "numeric" },
-  { key: "com_absorbible_18", label: "Complemento absorbible 18", type: "numeric" },
-  { key: "porcent_complemento_18", label: "Porcentaje complemento 18", type: "numeric" },
-  { key: "prorrateo_pagas", label: "Prorrateo pagas", type: "boolean" },
-  { key: "num_pagas_extra", label: "Num. pagas extra", type: "integer" },
+  { key: "com_antiguedad_04", label: "Complemento antiguedad 04", type: "numeric", confidential: true },
+  { key: "com_absorbible_18", label: "Complemento absorbible 18", type: "numeric", confidential: true },
+  { key: "porcent_complemento_18", label: "Porcentaje complemento 18", type: "numeric", confidential: true },
+  { key: "prorrateo_pagas", label: "Prorrateo pagas", type: "boolean", confidential: true },
+  { key: "num_pagas_extra", label: "Num. pagas extra", type: "integer", confidential: true },
   { key: "persona", label: "Persona", type: "boolean" },
-  { key: "irpf", label: "IRPF", type: "numeric" },
+  { key: "irpf", label: "IRPF", type: "numeric", confidential: true },
   { key: "nombre", label: "Nombre", type: "text" },
   { key: "apellido", label: "Apellido", type: "text" },
 ];
@@ -9234,6 +9234,11 @@ async function handlePasswordRecovery(event) {
 
 async function loadPrivateDataAfterAuth() {
   await loadCurrentAccessRole();
+  // El formulario de personal se renderiza al inicio (antes de conocer el rol),
+  // asi que se vuelve a pintar ahora para mostrar/ocultar los campos
+  // confidenciales segun el usuario sea admin o no.
+  renderPersonalFormFields();
+  setPersonalFormEditing(false);
   syncAccessTabVisibility();
   await refreshPrivateTabData(currentPrivateTabTarget);
 }
@@ -9254,6 +9259,12 @@ function renderPersonalFormFields() {
   let documentationGroupRendered = false;
   personalFormFields.innerHTML = PERSONAL_FIELDS
     .map((field) => {
+      // Los campos confidenciales solo se muestran al rol admin. El resto de
+      // usuarios ni los ve ni los envia (la vista los devuelve NULL y la
+      // funcion de guardado ignora la escritura confidencial para no-admin).
+      if (field.confidential && !currentUserIsAccessAdmin) {
+        return "";
+      }
       if (PERSONAL_DOCUMENTATION_FIELD_KEYS.has(field.key)) {
         if (documentationGroupRendered) {
           return "";
@@ -9826,7 +9837,7 @@ function getPersonalImportChangedColumnsForInsert(importRow) {
 async function fetchPersonalImportExistingRows() {
   const supabase = await getSupabaseClient();
   const { data, error } = await supabase
-    .from("personal")
+    .from("personal_completo")
     .select(PERSONAL_IMPORT_SELECT_COLUMNS)
     .limit(10000);
 
@@ -10137,7 +10148,7 @@ async function loadPersonalManagement(preferredPersonalId = currentSelectedPerso
   setPersonalStatus("Cargando personal...");
   const supabase = await getSupabaseClient();
   const { data, error } = await supabase
-    .from("personal")
+    .from("personal_completo")
     .select(PERSONAL_SELECT_COLUMNS)
     .order("personal", { ascending: true });
 

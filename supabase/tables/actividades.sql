@@ -205,8 +205,8 @@ select
   a.personal_id,
   p.personal,
   p.dni,
-  p.fecha_nacimiento,
-  p.ss,
+  case when public.is_coordinacion_admin() then pc.fecha_nacimiento end as fecha_nacimiento,
+  case when public.is_coordinacion_admin() then pc.ss end as ss,
   a.contrato_id,
   c.contrato,
   a.servicio_id,
@@ -262,6 +262,8 @@ select
 from public.actividades a
 join public.personal p
   on p.id = a.personal_id
+left join public.personal_confidencial pc
+  on pc.personal_id = p.id
 join public.contratos c
   on c.id = a.contrato_id
 left join public.servicios se

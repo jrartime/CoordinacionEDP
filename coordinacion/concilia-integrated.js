@@ -2524,7 +2524,7 @@
 
       if (personalIds.length) {
         const { data: personalDetails, error: personalDetailsError } = await supabase
-          .from("personal")
+          .from("personal_completo")
           .select("id,dni,fecha_nacimiento,ss,cuenta_corriente")
           .in("id", personalIds);
 

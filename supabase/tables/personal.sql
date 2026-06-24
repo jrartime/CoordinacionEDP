@@ -35,17 +35,12 @@ create table if not exists public.personal (
   genero text,
   antiguedad date,
   dni text,
-  fecha_nacimiento date,
-  ss text,
   email text,
   movil text,
   telefono text,
-  direccion text,
-  codigo_postal integer,
   localidad text,
   municipio text,
   provincia text,
-  cuenta_corriente text,
   foto text,
   contrato_id text,
   observacion text,
@@ -63,19 +58,16 @@ create table if not exists public.personal (
   uniforme boolean not null default false,
   med_emerg boolean not null default false,
   ens boolean not null default false,
-  com_antiguedad_04 numeric(12, 2),
-  com_absorbible_18 numeric(12, 2),
-  porcent_complemento_18 numeric(12, 2),
-  prorrateo_pagas boolean not null default false,
-  num_pagas_extra integer,
   tipo_contrato integer,
   grupo integer,
   nivel integer,
   grupo_cotizacion text,
-  contacto_urgencia text,
-  telefono_urgencia text,
   persona boolean not null default false,
-  irpf numeric(7, 4),
   nombre text,
   apellido text
 );
+
+-- Los campos confidenciales (cuenta_corriente, ss, irpf, complementos
+-- salariales, direccion, codigo_postal, fecha_nacimiento y contactos de
+-- urgencia) viven en public.personal_confidencial con RLS admin-only.
+-- Ver supabase/tables/personal_confidencial.sql.

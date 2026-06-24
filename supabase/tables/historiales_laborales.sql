@@ -409,7 +409,7 @@ select
   h.personal_id,
   p.personal,
   p.dni,
-  p.ss,
+  case when public.is_coordinacion_admin() then pc.ss end as ss,
   h.empresa_id,
   e.empresa,
   h.jornada,
@@ -456,6 +456,8 @@ select
 from public.historiales_laborales h
 left join public.personal p
   on p.id = h.personal_id
+left join public.personal_confidencial pc
+  on pc.personal_id = p.id
 left join public.empresas e
   on e.id = h.empresa_id
 left join public.historiales_laborales_contratos cl

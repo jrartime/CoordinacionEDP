@@ -31,10 +31,13 @@ set search_path = public
 as $$
 declare
   payload_id integer;
+  is_admin boolean;
 begin
   if not public.can_manage_coordinacion_personal(auth.uid()) then
     raise exception 'No tienes permisos para guardar personal.';
   end if;
+
+  is_admin := coalesce(public.is_coordinacion_admin(auth.uid()), false);
 
   payload_id := nullif(p_personal->>'id', '')::integer;
 
@@ -57,17 +60,12 @@ begin
     genero,
     antiguedad,
     dni,
-    fecha_nacimiento,
-    ss,
     email,
     movil,
     telefono,
-    direccion,
-    codigo_postal,
     localidad,
     municipio,
     provincia,
-    cuenta_corriente,
     observacion,
     carpeta,
     cv,
@@ -80,13 +78,7 @@ begin
     uniforme,
     med_emerg,
     ens,
-    com_antiguedad_04,
-    com_absorbible_18,
-    porcent_complemento_18,
-    prorrateo_pagas,
-    num_pagas_extra,
     persona,
-    irpf,
     nombre,
     apellido
   )
@@ -99,17 +91,12 @@ begin
     nullif(btrim(coalesce(p_personal->>'genero', '')), ''),
     nullif(p_personal->>'antiguedad', '')::date,
     nullif(btrim(coalesce(p_personal->>'dni', '')), ''),
-    nullif(p_personal->>'fecha_nacimiento', '')::date,
-    nullif(btrim(coalesce(p_personal->>'ss', '')), ''),
     nullif(btrim(coalesce(p_personal->>'email', '')), ''),
     nullif(btrim(coalesce(p_personal->>'movil', '')), ''),
     nullif(btrim(coalesce(p_personal->>'telefono', '')), ''),
-    nullif(btrim(coalesce(p_personal->>'direccion', '')), ''),
-    nullif(p_personal->>'codigo_postal', '')::integer,
     nullif(btrim(coalesce(p_personal->>'localidad', '')), ''),
     nullif(btrim(coalesce(p_personal->>'municipio', '')), ''),
     nullif(btrim(coalesce(p_personal->>'provincia', '')), ''),
-    nullif(btrim(coalesce(p_personal->>'cuenta_corriente', '')), ''),
     nullif(btrim(coalesce(p_personal->>'observacion', '')), ''),
     nullif(btrim(coalesce(p_personal->>'carpeta', '')), ''),
     coalesce((p_personal->>'cv')::boolean, false),
@@ -122,13 +109,7 @@ begin
     coalesce((p_personal->>'uniforme')::boolean, false),
     coalesce((p_personal->>'med_emerg')::boolean, false),
     coalesce((p_personal->>'ens')::boolean, false),
-    nullif(p_personal->>'com_antiguedad_04', '')::numeric,
-    nullif(p_personal->>'com_absorbible_18', '')::numeric,
-    nullif(p_personal->>'porcent_complemento_18', '')::numeric,
-    coalesce((p_personal->>'prorrateo_pagas')::boolean, false),
-    nullif(p_personal->>'num_pagas_extra', '')::integer,
     coalesce((p_personal->>'persona')::boolean, false),
-    nullif(p_personal->>'irpf', '')::numeric,
     nullif(btrim(coalesce(p_personal->>'nombre', '')), ''),
     nullif(btrim(coalesce(p_personal->>'apellido', '')), '')
   )
@@ -140,17 +121,12 @@ begin
     genero = excluded.genero,
     antiguedad = excluded.antiguedad,
     dni = excluded.dni,
-    fecha_nacimiento = excluded.fecha_nacimiento,
-    ss = excluded.ss,
     email = excluded.email,
     movil = excluded.movil,
     telefono = excluded.telefono,
-    direccion = excluded.direccion,
-    codigo_postal = excluded.codigo_postal,
     localidad = excluded.localidad,
     municipio = excluded.municipio,
     provincia = excluded.provincia,
-    cuenta_corriente = excluded.cuenta_corriente,
     observacion = excluded.observacion,
     carpeta = excluded.carpeta,
     cv = excluded.cv,
@@ -163,15 +139,53 @@ begin
     uniforme = excluded.uniforme,
     med_emerg = excluded.med_emerg,
     ens = excluded.ens,
-    com_antiguedad_04 = excluded.com_antiguedad_04,
-    com_absorbible_18 = excluded.com_absorbible_18,
-    porcent_complemento_18 = excluded.porcent_complemento_18,
-    prorrateo_pagas = excluded.prorrateo_pagas,
-    num_pagas_extra = excluded.num_pagas_extra,
     persona = excluded.persona,
-    irpf = excluded.irpf,
     nombre = excluded.nombre,
     apellido = excluded.apellido;
+
+  -- Datos confidenciales: solo el rol admin puede crearlos o modificarlos.
+  if is_admin then
+    insert into public.personal_confidencial (
+      personal_id,
+      cuenta_corriente,
+      ss,
+      irpf,
+      com_antiguedad_04,
+      com_absorbible_18,
+      porcent_complemento_18,
+      num_pagas_extra,
+      prorrateo_pagas,
+      direccion,
+      codigo_postal,
+      fecha_nacimiento
+    )
+    values (
+      payload_id,
+      nullif(btrim(coalesce(p_personal->>'cuenta_corriente', '')), ''),
+      nullif(btrim(coalesce(p_personal->>'ss', '')), ''),
+      nullif(p_personal->>'irpf', '')::numeric,
+      nullif(p_personal->>'com_antiguedad_04', '')::numeric,
+      nullif(p_personal->>'com_absorbible_18', '')::numeric,
+      nullif(p_personal->>'porcent_complemento_18', '')::numeric,
+      nullif(p_personal->>'num_pagas_extra', '')::integer,
+      coalesce((p_personal->>'prorrateo_pagas')::boolean, false),
+      nullif(btrim(coalesce(p_personal->>'direccion', '')), ''),
+      nullif(p_personal->>'codigo_postal', '')::integer,
+      nullif(p_personal->>'fecha_nacimiento', '')::date
+    )
+    on conflict (personal_id) do update set
+      cuenta_corriente = excluded.cuenta_corriente,
+      ss = excluded.ss,
+      irpf = excluded.irpf,
+      com_antiguedad_04 = excluded.com_antiguedad_04,
+      com_absorbible_18 = excluded.com_absorbible_18,
+      porcent_complemento_18 = excluded.porcent_complemento_18,
+      num_pagas_extra = excluded.num_pagas_extra,
+      prorrateo_pagas = excluded.prorrateo_pagas,
+      direccion = excluded.direccion,
+      codigo_postal = excluded.codigo_postal,
+      fecha_nacimiento = excluded.fecha_nacimiento;
+  end if;
 
   return query select payload_id as personal_id;
 end;
@@ -205,10 +219,13 @@ declare
   inserted_count integer := 0;
   conflict_updated_count integer := 0;
   ambiguous_count integer := 0;
+  is_admin boolean := false;
 begin
   if not public.can_manage_coordinacion_personal(auth.uid()) then
     raise exception 'No tienes permisos para importar personal.';
   end if;
+
+  is_admin := coalesce(public.is_coordinacion_admin(auth.uid()), false);
 
   if p_rows is null or jsonb_typeof(p_rows) <> 'array' then
     raise exception 'El payload de importacion debe ser un array JSON.';
@@ -491,33 +508,21 @@ begin
       genero = case when nullif(btrim(p.genero), '') is null then s.genero else p.genero end,
       antiguedad = coalesce(p.antiguedad, s.antiguedad),
       dni = case when nullif(btrim(p.dni), '') is null then s.dni else p.dni end,
-      fecha_nacimiento = coalesce(p.fecha_nacimiento, s.fecha_nacimiento),
-      ss = case when nullif(btrim(p.ss), '') is null then s.ss else p.ss end,
       email = case when nullif(btrim(p.email), '') is null then s.email else p.email end,
       movil = case when nullif(btrim(p.movil), '') is null then s.movil else p.movil end,
       telefono = case when nullif(btrim(p.telefono), '') is null then s.telefono else p.telefono end,
-      direccion = case when nullif(btrim(p.direccion), '') is null then s.direccion else p.direccion end,
-      codigo_postal = coalesce(p.codigo_postal, s.codigo_postal),
       localidad = case when nullif(btrim(p.localidad), '') is null then s.localidad else p.localidad end,
       municipio = case when nullif(btrim(p.municipio), '') is null then s.municipio else p.municipio end,
       provincia = case when nullif(btrim(p.provincia), '') is null then s.provincia else p.provincia end,
-      cuenta_corriente = case when nullif(btrim(p.cuenta_corriente), '') is null then s.cuenta_corriente else p.cuenta_corriente end,
       foto = case when nullif(btrim(p.foto), '') is null then s.foto else p.foto end,
       contrato_id = case when nullif(btrim(p.contrato_id), '') is null then s.contrato_id else p.contrato_id end,
       observacion = case when nullif(btrim(p.observacion), '') is null then s.observacion else p.observacion end,
       carpeta = case when nullif(btrim(p.carpeta), '') is null then s.carpeta else p.carpeta end,
       prev_riesgos = coalesce(p.prev_riesgos, s.prev_riesgos),
-      com_antiguedad_04 = coalesce(p.com_antiguedad_04, s.com_antiguedad_04),
-      com_absorbible_18 = coalesce(p.com_absorbible_18, s.com_absorbible_18),
-      porcent_complemento_18 = coalesce(p.porcent_complemento_18, s.porcent_complemento_18),
-      num_pagas_extra = coalesce(p.num_pagas_extra, s.num_pagas_extra),
       tipo_contrato = coalesce(p.tipo_contrato, s.tipo_contrato),
       grupo = coalesce(p.grupo, s.grupo),
       nivel = coalesce(p.nivel, s.nivel),
       grupo_cotizacion = case when nullif(btrim(p.grupo_cotizacion), '') is null then s.grupo_cotizacion else p.grupo_cotizacion end,
-      contacto_urgencia = case when nullif(btrim(p.contacto_urgencia), '') is null then s.contacto_urgencia else p.contacto_urgencia end,
-      telefono_urgencia = case when nullif(btrim(p.telefono_urgencia), '') is null then s.telefono_urgencia else p.telefono_urgencia end,
-      irpf = coalesce(p.irpf, s.irpf),
       nombre = case when nullif(btrim(p.nombre), '') is null then s.nombre else p.nombre end,
       apellido = case when nullif(btrim(p.apellido), '') is null then s.apellido else p.apellido end
     from import_personal_matches s
@@ -536,17 +541,12 @@ begin
       genero,
       antiguedad,
       dni,
-      fecha_nacimiento,
-      ss,
       email,
       movil,
       telefono,
-      direccion,
-      codigo_postal,
       localidad,
       municipio,
       provincia,
-      cuenta_corriente,
       foto,
       contrato_id,
       observacion,
@@ -564,19 +564,11 @@ begin
       uniforme,
       med_emerg,
       ens,
-      com_antiguedad_04,
-      com_absorbible_18,
-      porcent_complemento_18,
-      prorrateo_pagas,
-      num_pagas_extra,
       tipo_contrato,
       grupo,
       nivel,
       grupo_cotizacion,
-      contacto_urgencia,
-      telefono_urgencia,
       persona,
-      irpf,
       nombre,
       apellido
     )
@@ -589,17 +581,12 @@ begin
       s.genero,
       s.antiguedad,
       s.dni,
-      s.fecha_nacimiento,
-      s.ss,
       s.email,
       s.movil,
       s.telefono,
-      s.direccion,
-      s.codigo_postal,
       s.localidad,
       s.municipio,
       s.provincia,
-      s.cuenta_corriente,
       s.foto,
       s.contrato_id,
       s.observacion,
@@ -617,19 +604,11 @@ begin
       coalesce(s.uniforme, false),
       coalesce(s.med_emerg, false),
       coalesce(s.ens, false),
-      s.com_antiguedad_04,
-      s.com_absorbible_18,
-      s.porcent_complemento_18,
-      coalesce(s.prorrateo_pagas, false),
-      s.num_pagas_extra,
       s.tipo_contrato,
       s.grupo,
       s.nivel,
       s.grupo_cotizacion,
-      s.contacto_urgencia,
-      s.telefono_urgencia,
       coalesce(s.persona, false),
-      s.irpf,
       s.nombre,
       s.apellido
     from import_personal_matches s
@@ -641,33 +620,21 @@ begin
       genero = case when nullif(btrim(personal.genero), '') is null then excluded.genero else personal.genero end,
       antiguedad = coalesce(personal.antiguedad, excluded.antiguedad),
       dni = case when nullif(btrim(personal.dni), '') is null then excluded.dni else personal.dni end,
-      fecha_nacimiento = coalesce(personal.fecha_nacimiento, excluded.fecha_nacimiento),
-      ss = case when nullif(btrim(personal.ss), '') is null then excluded.ss else personal.ss end,
       email = case when nullif(btrim(personal.email), '') is null then excluded.email else personal.email end,
       movil = case when nullif(btrim(personal.movil), '') is null then excluded.movil else personal.movil end,
       telefono = case when nullif(btrim(personal.telefono), '') is null then excluded.telefono else personal.telefono end,
-      direccion = case when nullif(btrim(personal.direccion), '') is null then excluded.direccion else personal.direccion end,
-      codigo_postal = coalesce(personal.codigo_postal, excluded.codigo_postal),
       localidad = case when nullif(btrim(personal.localidad), '') is null then excluded.localidad else personal.localidad end,
       municipio = case when nullif(btrim(personal.municipio), '') is null then excluded.municipio else personal.municipio end,
       provincia = case when nullif(btrim(personal.provincia), '') is null then excluded.provincia else personal.provincia end,
-      cuenta_corriente = case when nullif(btrim(personal.cuenta_corriente), '') is null then excluded.cuenta_corriente else personal.cuenta_corriente end,
       foto = case when nullif(btrim(personal.foto), '') is null then excluded.foto else personal.foto end,
       contrato_id = case when nullif(btrim(personal.contrato_id), '') is null then excluded.contrato_id else personal.contrato_id end,
       observacion = case when nullif(btrim(personal.observacion), '') is null then excluded.observacion else personal.observacion end,
       carpeta = case when nullif(btrim(personal.carpeta), '') is null then excluded.carpeta else personal.carpeta end,
       prev_riesgos = coalesce(personal.prev_riesgos, excluded.prev_riesgos),
-      com_antiguedad_04 = coalesce(personal.com_antiguedad_04, excluded.com_antiguedad_04),
-      com_absorbible_18 = coalesce(personal.com_absorbible_18, excluded.com_absorbible_18),
-      porcent_complemento_18 = coalesce(personal.porcent_complemento_18, excluded.porcent_complemento_18),
-      num_pagas_extra = coalesce(personal.num_pagas_extra, excluded.num_pagas_extra),
       tipo_contrato = coalesce(personal.tipo_contrato, excluded.tipo_contrato),
       grupo = coalesce(personal.grupo, excluded.grupo),
       nivel = coalesce(personal.nivel, excluded.nivel),
       grupo_cotizacion = case when nullif(btrim(personal.grupo_cotizacion), '') is null then excluded.grupo_cotizacion else personal.grupo_cotizacion end,
-      contacto_urgencia = case when nullif(btrim(personal.contacto_urgencia), '') is null then excluded.contacto_urgencia else personal.contacto_urgencia end,
-      telefono_urgencia = case when nullif(btrim(personal.telefono_urgencia), '') is null then excluded.telefono_urgencia else personal.telefono_urgencia end,
-      irpf = coalesce(personal.irpf, excluded.irpf),
       nombre = case when nullif(btrim(personal.nombre), '') is null then excluded.nombre else personal.nombre end,
       apellido = case when nullif(btrim(personal.apellido), '') is null then excluded.apellido else personal.apellido end
     returning (xmax = 0) as inserted
@@ -679,6 +646,59 @@ begin
   from upserted;
 
   updated_count := updated_count + conflict_updated_count;
+
+  -- Datos confidenciales: solo el rol admin los rellena. Se aplica el mismo
+  -- criterio de "rellenar huecos" sobre las filas no ambiguas (insertadas o
+  -- emparejadas por id/dni).
+  if is_admin then
+    insert into public.personal_confidencial (
+      personal_id,
+      cuenta_corriente,
+      ss,
+      irpf,
+      com_antiguedad_04,
+      com_absorbible_18,
+      porcent_complemento_18,
+      num_pagas_extra,
+      prorrateo_pagas,
+      direccion,
+      codigo_postal,
+      fecha_nacimiento,
+      contacto_urgencia,
+      telefono_urgencia
+    )
+    select
+      coalesce(s.match_id, s.id),
+      s.cuenta_corriente,
+      s.ss,
+      s.irpf,
+      s.com_antiguedad_04,
+      s.com_absorbible_18,
+      s.porcent_complemento_18,
+      s.num_pagas_extra,
+      coalesce(s.prorrateo_pagas, false),
+      s.direccion,
+      s.codigo_postal,
+      s.fecha_nacimiento,
+      s.contacto_urgencia,
+      s.telefono_urgencia
+    from import_personal_matches s
+    where not s.ambiguous_dni
+      and coalesce(s.match_id, s.id) is not null
+    on conflict (personal_id) do update set
+      cuenta_corriente = case when nullif(btrim(personal_confidencial.cuenta_corriente), '') is null then excluded.cuenta_corriente else personal_confidencial.cuenta_corriente end,
+      ss = case when nullif(btrim(personal_confidencial.ss), '') is null then excluded.ss else personal_confidencial.ss end,
+      irpf = coalesce(personal_confidencial.irpf, excluded.irpf),
+      com_antiguedad_04 = coalesce(personal_confidencial.com_antiguedad_04, excluded.com_antiguedad_04),
+      com_absorbible_18 = coalesce(personal_confidencial.com_absorbible_18, excluded.com_absorbible_18),
+      porcent_complemento_18 = coalesce(personal_confidencial.porcent_complemento_18, excluded.porcent_complemento_18),
+      num_pagas_extra = coalesce(personal_confidencial.num_pagas_extra, excluded.num_pagas_extra),
+      direccion = case when nullif(btrim(personal_confidencial.direccion), '') is null then excluded.direccion else personal_confidencial.direccion end,
+      codigo_postal = coalesce(personal_confidencial.codigo_postal, excluded.codigo_postal),
+      fecha_nacimiento = coalesce(personal_confidencial.fecha_nacimiento, excluded.fecha_nacimiento),
+      contacto_urgencia = case when nullif(btrim(personal_confidencial.contacto_urgencia), '') is null then excluded.contacto_urgencia else personal_confidencial.contacto_urgencia end,
+      telefono_urgencia = case when nullif(btrim(personal_confidencial.telefono_urgencia), '') is null then excluded.telefono_urgencia else personal_confidencial.telefono_urgencia end;
+  end if;
 
   if source_count > 0
      and inserted_count = 0
