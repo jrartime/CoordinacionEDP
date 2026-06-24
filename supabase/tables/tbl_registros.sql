@@ -1,4 +1,4 @@
-create table if not exists public.tbl_registros (
+﻿create table if not exists public.registros_horarios (
   id integer primary key,
   personal text not null,
   dni text not null,
@@ -19,18 +19,19 @@ begin
     select 1
     from information_schema.columns
     where table_schema = 'public'
-      and table_name = 'tbl_registros'
+      and table_name = 'registros_horarios'
       and column_name = 'contriol'
   ) and not exists (
     select 1
     from information_schema.columns
     where table_schema = 'public'
-      and table_name = 'tbl_registros'
+      and table_name = 'registros_horarios'
       and column_name = 'control'
   ) then
-    alter table public.tbl_registros rename column contriol to control;
+    alter table public.registros_horarios rename column contriol to control;
   end if;
 end $$;
 
-alter table public.tbl_registros
+alter table public.registros_horarios
   add column if not exists control timestamp;
+

@@ -26,7 +26,38 @@ const PROGRAMMING_TYPE_OPTIONS = [
   { value: PROGRAMMING_TYPE_WEEKLY, label: "Programación semanal" },
 ];
 const PRIVATE_TAB_STORAGE_KEY = "curriculos_private_tab";
-const PRIVATE_TAB_TARGETS = new Set(["search", "control", "events", "programming"]);
+const CONCILIA_CLONED_TABS = [
+  { key: "concilia_alumnado", label: "Concilia Alumnado" },
+  { key: "concilia_asistencia", label: "Concilia Asistencia" },
+  { key: "concilia_nee", label: "Concilia NEE" },
+  { key: "concilia_disponibilidad", label: "Concilia Disponibilidad" },
+  { key: "concilia_asignaciones", label: "Concilia Asignaciones" },
+];
+const CONCILIA_TAB_KEY = "concilia";
+const CONCILIA_LEGACY_TAB_KEYS = new Set(CONCILIA_CLONED_TABS.map((tab) => tab.key));
+const COORDINATION_LEGACY_TAB_ALIASES = {
+  concilia_actividades: "actividades",
+};
+const CONCILIA_MODULE_BY_TAB_KEY = {
+  concilia: "alumnado",
+  concilia_alumnado: "alumnado",
+  concilia_asistencia: "asistencia",
+  concilia_nee: "nee",
+  concilia_disponibilidad: "disponibilidad",
+  concilia_asignaciones: "asignaciones",
+  actividades: "actividades",
+};
+const PRIVATE_TAB_TARGETS = new Set([
+  "programming",
+  "control",
+  "events",
+  "concilia",
+  "search",
+  "personal",
+  "contracts",
+  "actividades",
+  "access",
+]);
 const COORDINATION_HOST = "coordinacion.edpsl.es";
 const INITIAL_AUTH_URL_TYPE = (() => {
   const searchParams = new URLSearchParams(window.location.search);

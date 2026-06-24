@@ -340,9 +340,9 @@ function candidateMatchesFilters(candidate, filters) {
   ]
     .filter(Boolean)
     .join(" ")
-    .toLowerCase();
+    .trim();
 
-  if (filters.search && !searchHaystack.includes(filters.search)) {
+  if (filters.search && !normalizeSearchText(searchHaystack).includes(normalizeSearchText(filters.search))) {
     return false;
   }
 
@@ -391,8 +391,10 @@ function buildCandidateFilters() {
   };
 }
 
-function applyCandidateFiltersToQuery(query, filters) {
-  if (filters.search) {
+function applyCandidateFiltersToQuery(query, filters, options = {}) {
+  const includeTextFilter = options.includeTextFilter !== false;
+
+  if (filters.search && includeTextFilter) {
     const search = filters.search.replaceAll("%", "\\%").replaceAll("_", "\\_");
     query = query.or(
       [
@@ -509,7 +511,7 @@ async function fetchAllFilteredCandidates() {
       .from("candidates")
       .select(CANDIDATE_SELECT_COLUMNS)
       .range(from, from + chunkSize - 1);
-    query = applyCandidateFiltersToQuery(query, filters);
+    query = applyCandidateFiltersToQuery(query, filters, { includeTextFilter: false });
     query = applyCandidateSortToQuery(query);
 
     const { data, error } = await query;
@@ -517,7 +519,7 @@ async function fetchAllFilteredCandidates() {
       throw error;
     }
 
-    rows.push(...(data ?? []));
+    rows.push(...(data ?? []).filter((candidate) => candidateMatchesFilters(candidate, filters)));
 
     if (!data || data.length < chunkSize) {
       return currentSort.field === "job_roles" ? sortCandidates(rows) : rows;
@@ -1123,12 +1125,69 @@ async function fetchCandidates() {
   const filters = buildCandidateFilters();
   const from = (currentPage - 1) * pageSize;
   const to = from + pageSize - 1;
+
+  if (filters.search) {
+    const [rows, totalResult, filterOptionsResult] = await Promise.all([
+      fetchAllFilteredCandidates(),
+      supabase.from("candidates").select("id", { count: "exact", head: true }),
+      fetchCandidateFilterOptions(supabase).then(
+        () => ({ ok: true }),
+        (filterError) => ({ ok: false, error: filterError })
+      ),
+    ]);
+
+    if (requestId !== candidateFetchRequestId) {
+      return currentCandidates;
+    }
+
+    if (totalResult.error) {
+      setStatus(`No se pudo calcular el total de candidaturas: ${totalResult.error.message}`, "error");
+    }
+
+    if (!filterOptionsResult.ok) {
+      invalidateCandidateFilterOptions();
+      candidateFilterOptions = {
+        roles: sortTextValues(
+          Array.from(new Set(rows.flatMap((candidate) => candidate.job_roles ?? [])))
+        ),
+        tags: sortTextValues(
+          Array.from(new Set(rows.flatMap((candidate) => candidate.tags ?? []).map(normalizeTag))).filter(Boolean)
+        ),
+      };
+      candidateFilterOptionsLoaded = true;
+      renderFilterOptions();
+    }
+
+    currentCandidates = rows.slice(from, to + 1);
+    filteredCandidates = currentCandidates;
+    candidateTotalCount = totalResult.count ?? rows.length;
+    candidateFilteredCount = rows.length;
+    const totalPages = getTotalPages(candidateFilteredCount);
+    if (currentPage > totalPages) {
+      currentPage = totalPages;
+      return fetchCandidates();
+    }
+    selectedCandidateIds = new Set(
+      [...selectedCandidateIds].filter((candidateId) =>
+        currentCandidates.some((candidate) => candidate.id === candidateId)
+      )
+    );
+    currentPage = Math.min(currentPage, getTotalPages(candidateFilteredCount));
+    renderCandidates(filteredCandidates);
+    updateResultsSummary();
+    updatePaginationUi(candidateFilteredCount);
+    syncSortButtons();
+    syncTagsUi();
+    return currentCandidates;
+  }
+
   let query = supabase
     .from("candidates")
-    .select(CANDIDATE_SELECT_COLUMNS, { count: "exact" })
-    .range(from, to);
-  query = applyCandidateFiltersToQuery(query, filters);
+    .select(CANDIDATE_SELECT_COLUMNS, { count: "exact" });
+  query = applyCandidateFiltersToQuery(query, filters, { includeTextFilter: false });
   query = applyCandidateSortToQuery(query);
+
+  query = query.range(from, to);
 
   const [{ data, error, count }, totalResult, filterOptionsResult] = await Promise.all([
     query,

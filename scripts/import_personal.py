@@ -287,7 +287,7 @@ def upsert_rows(supabase_url: str, service_role_key: str, rows: list[dict[str, o
     return len(json.loads(body)) if body else 0
 
 
-def build_sql(rows: list[dict[str, object]]) -> str:
+def build_sql(rows: list[dict[str, object]], *, fill_missing: bool = False) -> str:
     columns = list(dict.fromkeys(HEADER_MAP.values()))
     type_map = {
         **{column: "integer" for column in INTEGER_FIELDS},
@@ -298,10 +298,107 @@ def build_sql(rows: list[dict[str, object]]) -> str:
     }
     select_columns = ", ".join(columns)
     record_columns = ",\n  ".join(f"{column} {type_map[column]}" for column in columns)
+    payload = json.dumps(rows, ensure_ascii=False, indent=2)
+
+    if fill_missing:
+        fillable_columns = [
+            column
+            for column in columns
+            if column != "id" and column not in BOOLEAN_FIELDS
+        ]
+        assignments = []
+        for column in fillable_columns:
+            if column in TEXT_FIELDS:
+                assignments.append(
+                    f"{column} = case when nullif(btrim(p.{column}), '') is null then s.{column} else p.{column} end"
+                )
+            else:
+                assignments.append(f"{column} = coalesce(p.{column}, s.{column})")
+
+        update_clause = ",\n  ".join(assignments)
+        insert_values = ", ".join(f"s.{column}" for column in columns)
+
+        return f"""begin;
+
+create temporary table import_personal_source (
+  {record_columns}
+) on commit drop;
+
+insert into import_personal_source ({select_columns})
+select {select_columns}
+from jsonb_to_recordset($personal$
+{payload}
+$personal$::jsonb) as source (
+  {record_columns}
+);
+
+create temporary table import_personal_matches on commit drop as
+with existing_dni as (
+  select upper(btrim(dni)) as dni_key, min(id) as id, count(*) as total
+  from public.personal
+  where nullif(btrim(dni), '') is not null
+  group by upper(btrim(dni))
+)
+select
+  s.*,
+  coalesce(p_by_id.id, case when existing_dni.total = 1 then existing_dni.id end) as match_id,
+  p_by_id.id is not null as matched_by_id,
+  p_by_id.id is null and existing_dni.total = 1 as matched_by_dni,
+  p_by_id.id is null and existing_dni.total > 1 as ambiguous_dni
+from import_personal_source s
+left join public.personal p_by_id
+  on p_by_id.id = s.id
+left join existing_dni
+  on existing_dni.dni_key = upper(btrim(s.dni));
+
+create temporary table import_personal_updated (id integer) on commit drop;
+
+with updated as (
+update public.personal p
+set
+  {update_clause}
+from import_personal_matches s
+where p.id = s.match_id
+returning p.id
+)
+insert into import_personal_updated (id)
+select id
+from updated;
+
+create temporary table import_personal_inserted (id integer) on commit drop;
+
+with inserted as (
+insert into public.personal ({select_columns})
+select {insert_values}
+from import_personal_matches s
+where s.match_id is null
+  and not s.ambiguous_dni
+on conflict (id) do nothing
+returning id
+)
+insert into import_personal_inserted (id)
+select id
+from inserted;
+
+select
+  (select count(*) from import_personal_source) as filas_origen,
+  (select count(*) from import_personal_matches where matched_by_id) as existentes_por_id,
+  (select count(*) from import_personal_matches where matched_by_dni) as existentes_por_dni,
+  (select count(*) from import_personal_updated) as filas_revisadas_para_rellenar,
+  (select count(*) from import_personal_inserted) as filas_insertadas,
+  (select count(*) from import_personal_matches where ambiguous_dni) as dni_ambiguos_no_insertados;
+
+select id, personal, dni
+from import_personal_matches
+where ambiguous_dni
+order by personal;
+
+commit;
+"""
+
     update_clause = ",\n  ".join(
         f"{column} = excluded.{column}" for column in columns if column != "id"
     )
-    payload = json.dumps(rows, ensure_ascii=False, indent=2)
 
     return f"""insert into public.personal ({select_columns})
 select {select_columns}
@@ -325,12 +422,17 @@ def main() -> None:
     parser.add_argument("--service-role-key", default=os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
     parser.add_argument("--output", type=Path)
     parser.add_argument("--print-sql", action="store_true")
+    parser.add_argument(
+        "--fill-missing",
+        action="store_true",
+        help="Genera SQL conservador: inserta nuevos y solo rellena campos nulos/vacios en existentes.",
+    )
     args = parser.parse_args()
 
     rows = load_rows(args.source)
 
     if args.print_sql or args.output:
-        sql = build_sql(rows)
+        sql = build_sql(rows, fill_missing=args.fill_missing)
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(sql, encoding="utf-8")
@@ -338,6 +440,9 @@ def main() -> None:
         else:
             print(sql)
         return
+
+    if args.fill_missing:
+        raise SystemExit("--fill-missing solo esta disponible con --print-sql o --output.")
 
     if not args.service_role_key:
         raise SystemExit("Falta SUPABASE_SERVICE_ROLE_KEY o --service-role-key para escribir en Supabase.")

@@ -15,3 +15,6 @@ config.js
 
 # Artefactos temporales de Python.
 .pytest_cache/
+
+# Configuracion local de Claude Code (especifica del equipo).
+.claude/settings.local.json

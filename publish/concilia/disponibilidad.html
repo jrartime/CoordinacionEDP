@@ -1,0 +1,59 @@
+﻿<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Disponibilidad Concilia EDP</title>
+    <link rel="stylesheet" href="./disponibilidad.css?v=20260605-1" />
+  </head>
+  <body>
+    <main class="availability-shell">
+      <header class="availability-header">
+        <img src="./EDP.jpg" alt="EDP" />
+        <div>
+          <p>Concilia EDP</p>
+          <h1>Disponibilidad</h1>
+        </div>
+      </header>
+
+      <section class="availability-card">
+        <form id="availability-form" class="availability-form">
+          <label class="field">
+            Nombre y apellidos
+            <input
+              id="availability-name"
+              name="nombre"
+              type="text"
+              autocomplete="name"
+              maxlength="160"
+              required
+            />
+          </label>
+
+          <fieldset class="weeks-fieldset">
+            <legend>Semanas disponibles</legend>
+            <div id="availability-weeks" class="weeks-grid"></div>
+          </fieldset>
+
+          <label class="field">
+            Observaciones
+            <textarea
+              id="availability-notes"
+              name="observaciones"
+              rows="3"
+              maxlength="500"
+            ></textarea>
+          </label>
+
+          <button id="availability-submit" type="submit">Guardar disponibilidad</button>
+        </form>
+
+        <p id="availability-status" class="availability-status" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="./shared/supabase-client.js"></script>
+    <script src="./disponibilidad.js?v=20260605-1"></script>
+  </body>
+</html>

@@ -69,4 +69,61 @@ on public.programacion_conserjes (personal);
 create index if not exists idx_programacion_conserjes_archived_at
 on public.programacion_conserjes (archived_at);
 
+alter table public.programacion_conserjes enable row level security;
+
+grant select on public.programacion_conserjes to anon;
+grant select, insert, update, delete on public.programacion_conserjes to authenticated;
+
+do $$
+declare
+  id_sequence regclass;
+begin
+  id_sequence := pg_get_serial_sequence('public.programacion_conserjes', 'id')::regclass;
+
+  if id_sequence is not null then
+    execute format('grant usage, select on sequence %s to authenticated', id_sequence);
+  end if;
+end $$;
+
+drop policy if exists "authenticated_can_read_programacion_conserjes"
+on public.programacion_conserjes;
+create policy "authenticated_can_read_programacion_conserjes"
+on public.programacion_conserjes
+for select
+to authenticated
+using (true);
+
+drop policy if exists "anon_can_read_programacion_conserjes"
+on public.programacion_conserjes;
+create policy "anon_can_read_programacion_conserjes"
+on public.programacion_conserjes
+for select
+to anon
+using (true);
+
+drop policy if exists "authenticated_can_insert_programacion_conserjes"
+on public.programacion_conserjes;
+create policy "authenticated_can_insert_programacion_conserjes"
+on public.programacion_conserjes
+for insert
+to authenticated
+with check (true);
+
+drop policy if exists "authenticated_can_update_programacion_conserjes"
+on public.programacion_conserjes;
+create policy "authenticated_can_update_programacion_conserjes"
+on public.programacion_conserjes
+for update
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "authenticated_can_delete_programacion_conserjes"
+on public.programacion_conserjes;
+create policy "authenticated_can_delete_programacion_conserjes"
+on public.programacion_conserjes
+for delete
+to authenticated
+using (true);
+
 notify pgrst, 'reload schema';

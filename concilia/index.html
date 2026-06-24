@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Concilia EDP</title>
-    <link rel="stylesheet" href="./styles.css?v=20260601-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-3" />
   </head>
   <body>
     <main class="app-shell">
@@ -50,6 +50,7 @@
             </label>
 
             <button type="submit">Entrar</button>
+            <a class="secondary-link" href="./disponibilidad.html">Disponibilidad</a>
           </form>
 
           <form id="password-setup-form" class="auth-form hidden">
@@ -109,6 +110,12 @@
             </a>
             <a
               class="secondary-link"
+              href="https://concilia.edpsl.es/carnes"
+            >
+              Ir a Carnes
+            </a>
+            <a
+              class="secondary-link"
               href="https://oviedo.i2a.es/ConciliaOviedo/Login"
               target="_blank"
               rel="noopener"
@@ -121,30 +128,57 @@
           </div>
         </header>
 
+        <div class="mobile-module-bar">
+          <button
+            id="mobile-module-menu-toggle"
+            class="mobile-menu-button"
+            type="button"
+            aria-label="Cambiar pestana"
+            aria-expanded="false"
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <span id="mobile-module-title">Asistencia</span>
+          <button
+            id="mobile-logout-button"
+            class="mobile-logout-button"
+            type="button"
+            aria-label="Cerrar sesion"
+            title="Cerrar sesion"
+          >
+            Salir
+          </button>
+          <div id="mobile-module-menu" class="mobile-module-menu hidden">
+            <button class="module-tab-button active" type="button" data-module-tab="asistencia">
+              Asistencia
+            </button>
+            <button class="module-tab-button" type="button" data-module-tab="alumnado">
+              Alumnado
+            </button>
+            <button class="module-tab-button" type="button" data-module-tab="nee">
+              NEE
+            </button>
+          </div>
+        </div>
+
         <nav class="module-tabs" aria-label="Paneles de Concilia">
           <button
             class="module-tab-button active"
             type="button"
-            data-module-tab="alumnado"
+            data-module-tab="asistencia"
             aria-pressed="true"
           >
-            Alumnado
-          </button>
-          <button
-            class="module-tab-button"
-            type="button"
-            data-module-tab="resumen"
-            aria-pressed="false"
-          >
-            Resumen
-          </button>
-          <button
-            class="module-tab-button"
-            type="button"
-            data-module-tab="asistencia"
-            aria-pressed="false"
-          >
             Asistencia
+          </button>
+          <button
+            class="module-tab-button"
+            type="button"
+            data-module-tab="alumnado"
+            aria-pressed="false"
+          >
+            Alumnado
           </button>
           <button
             class="module-tab-button"
@@ -154,25 +188,9 @@
           >
             NEE
           </button>
-          <button
-            class="module-tab-button"
-            type="button"
-            data-module-tab="actividades"
-            aria-pressed="false"
-          >
-            Actividades
-          </button>
-          <button
-            class="module-tab-button"
-            type="button"
-            data-module-tab="asignaciones"
-            aria-pressed="false"
-          >
-            Asignaciones
-          </button>
         </nav>
 
-        <section id="module-panel-alumnado" class="module-card" data-module-panel="alumnado">
+        <section id="module-panel-alumnado" class="module-card hidden" data-module-panel="alumnado">
           <div class="module-header">
             <div class="section-heading">
               <p class="eyebrow">Alumnado</p>
@@ -184,6 +202,12 @@
               <p id="students-summary" class="summary-chip">Cargando datos...</p>
             </div>
             <div class="header-actions">
+              <button id="open-summary-panel-button" class="secondary-button" type="button">
+                Resumen
+              </button>
+              <button id="download-students-age-report-pdf-button" class="secondary-button" type="button">
+                Informe edades PDF
+              </button>
               <button id="open-student-panel-button" class="warm-button" type="button">
                 Nuevo alumno
               </button>
@@ -258,38 +282,63 @@
               </div>
             </label>
 
+            <label class="filter-field">
+              Edad
+              <div class="filter-control-row">
+                <select
+                  id="filter-edad"
+                  name="edad"
+                  multiple
+                  data-multi-check-selected-label="edades seleccionadas"
+                ></select>
+                <button
+                  type="button"
+                  class="filter-reset-button"
+                  data-reset-filter="edad"
+                  aria-label="Restablecer edad"
+                  title="Restablecer"
+                >
+                  x
+                </button>
+              </div>
+            </label>
+
           </form>
 
+          <details class="programming-panel-zone students-bulk-zone">
+            <summary>Asignación masiva</summary>
+            <div class="students-bulk-assignment-panel">
+              <label>
+                Campo
+                <select id="students-bulk-field">
+                  <option value="centro">Centro</option>
+                  <option value="semana">Semana</option>
+                  <option value="grupo">Grupo</option>
+                </select>
+              </label>
+              <label>
+                Valor actual
+                <select id="students-bulk-current-select"></select>
+              </label>
+              <label>
+                Nuevo valor
+                <select id="students-bulk-new-select"></select>
+              </label>
+              <button id="students-bulk-apply-button" type="button">
+                Aplicar
+              </button>
+              <span id="students-bulk-match-count" class="control-selected-delete-count">
+                0 coincidencias
+              </span>
+            </div>
+          </details>
+
           <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    <button class="sort-button" type="button" data-sort-field="centro">
-                      Centro
-                    </button>
-                  </th>
-                  <th>
-                    <button class="sort-button" type="button" data-sort-field="semana">
-                      Semana
-                    </button>
-                  </th>
-                  <th>
-                    <button class="sort-button" type="button" data-sort-field="alumnado">
-                      Alumnado
-                    </button>
-                  </th>
-                  <th>
-                    <button class="sort-button" type="button" data-sort-field="movil">
-                      Telefono
-                    </button>
-                  </th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
+            <table class="student-list-table">
+              <thead id="students-table-head"></thead>
               <tbody id="students-table-body">
                 <tr>
-                  <td colspan="5" class="empty-state">Cargando alumnado...</td>
+                  <td colspan="8" class="empty-state">Cargando alumnado...</td>
                 </tr>
               </tbody>
             </table>
@@ -317,6 +366,58 @@
           </div>
 
           <div id="student-panel-backdrop" class="panel-backdrop hidden"></div>
+          <div id="summary-panel-backdrop" class="panel-backdrop hidden"></div>
+          <aside
+            id="summary-panel"
+            class="summary-panel hidden"
+            aria-labelledby="summary-panel-title"
+          >
+            <div class="side-panel-header">
+              <div class="section-heading">
+                <p class="eyebrow">Resumen</p>
+                <h2 id="summary-panel-title">Alumnado por centro y semana</h2>
+              </div>
+              <button
+                id="close-summary-panel-button"
+                class="secondary-button compact-button"
+                type="button"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div class="results-toolbar section-summary-toolbar">
+              <div class="results-summary">
+                <p id="weekly-summary" class="summary-chip">Cargando resumen...</p>
+              </div>
+            </div>
+
+            <div class="table-wrap weekly-table-wrap">
+              <table class="weekly-summary-table">
+                <thead>
+                  <tr>
+                    <th>Centro</th>
+                    <th>01</th>
+                    <th>02</th>
+                    <th>03</th>
+                    <th>04</th>
+                    <th>05</th>
+                    <th>06</th>
+                    <th>07</th>
+                    <th>08</th>
+                    <th>09</th>
+                    <th>10</th>
+                    <th>11</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="weekly-summary-table-body">
+                  <tr>
+                    <td colspan="13" class="empty-state">Cargando resumen...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </aside>
           <aside
             id="student-panel"
             class="side-panel hidden"
@@ -340,85 +441,136 @@
             <form id="student-form" class="activity-form side-panel-form">
               <input id="student-id" name="id" type="hidden" />
 
-              <label>
-                Codigo clase
-                <input id="student-codigo-clase" name="codigo_clase" type="text" required />
-              </label>
+              <div class="side-field-row cols-2">
+                <label>
+                  Codigo clase
+                  <input id="student-codigo-clase" name="codigo_clase" type="text" required />
+                </label>
 
-              <label>
-                Clase
-                <input id="student-clase" name="clase" type="text" />
-              </label>
+                <label>
+                  Clase
+                  <input id="student-clase" name="clase" type="text" />
+                </label>
+              </div>
 
-              <label>
-                Fecha inicial
-                <input id="student-fecha-inicial" name="fecha_inicial" type="date" />
-              </label>
+              <div class="side-field-row cols-3">
+                <label>
+                  Fecha inicial
+                  <input id="student-fecha-inicial" name="fecha_inicial" type="date" />
+                </label>
 
-              <label>
-                Estado
-                <input id="student-estado" name="estado" type="text" />
-              </label>
+                <label>
+                  Estado
+                  <input id="student-estado" name="estado" type="text" />
+                </label>
 
-              <label>
-                Codigo persona
-                <input id="student-codigo-persona" name="codigo_persona" type="number" min="1" step="1" required />
-              </label>
+                <label>
+                  Codigo persona
+                  <input id="student-codigo-persona" name="codigo_persona" type="number" min="1" step="1" required />
+                </label>
+              </div>
 
-              <label>
-                Nombre
-                <input id="student-nombre" name="nombre" type="text" />
-              </label>
+              <div class="side-field-row cols-2">
+                <label>
+                  Nombre
+                  <input id="student-nombre" name="nombre" type="text" />
+                </label>
 
-              <label>
-                Apellidos
-                <input id="student-apellidos" name="apellidos" type="text" />
-              </label>
+                <label>
+                  Apellidos
+                  <input id="student-apellidos" name="apellidos" type="text" />
+                </label>
+              </div>
 
-              <label>
-                Alumnado
-                <input id="student-alumnado" name="alumnado" type="text" required />
-              </label>
+              <div class="side-field-row cols-2">
+                <label>
+                  Alumnado
+                  <input id="student-alumnado" name="alumnado" type="text" required />
+                </label>
 
-              <label>
-                Documento
-                <input id="student-documento" name="documento" type="text" />
-              </label>
+                <label>
+                  Documento
+                  <input id="student-documento" name="documento" type="text" />
+                </label>
+              </div>
 
-              <label>
-                Fecha nacimiento
-                <input id="student-fecha-nacimiento" name="fecha_nacimiento" type="date" />
-              </label>
+              <div class="side-field-row cols-2">
+                <label>
+                  Fecha nacimiento
+                  <input id="student-fecha-nacimiento" name="fecha_nacimiento" type="date" />
+                </label>
 
-              <label>
-                Edad
-                <input id="student-edad" name="edad" type="text" />
-              </label>
+                <label>
+                  Edad
+                  <input id="student-edad" name="edad" type="text" />
+                </label>
+              </div>
 
-              <label>
-                Movil
-                <input id="student-movil" name="movil" type="tel" />
-              </label>
+              <div class="side-field-row cols-2">
+                <label>
+                  Movil
+                  <input id="student-movil" name="movil" type="tel" />
+                </label>
 
-              <label>
-                Email
-                <input id="student-mail" name="mail" type="email" />
-              </label>
+                <label>
+                  Email
+                  <input id="student-mail" name="mail" type="email" />
+                </label>
+              </div>
 
-              <label>
-                Centro
-                <input id="student-centro" name="centro" type="text" required />
-              </label>
+              <div class="side-field-row cols-3">
+                <label>
+                  Centro
+                  <input id="student-centro" name="centro" type="text" required />
+                </label>
 
-              <label>
-                Semana
-                <input id="student-semana" name="semana" type="text" required />
-              </label>
+                <label>
+                  Semana
+                  <input id="student-semana" name="semana" type="text" required />
+                </label>
 
-              <label class="checkbox-field">
-                <input id="student-nee" name="nee" type="checkbox" />
-                NEE
-              </label>
+                <label class="checkbox-field">
+                  <input id="student-nee" name="nee" type="checkbox" />
+                  NEE
+                </label>
+              </div>
+
+              <div class="side-field-row cols-2">
+                <label class="checkbox-field">
+                  <input id="student-comedor" name="comedor" type="checkbox" />
+                  Comedor
+                </label>
+
+                <label>
+                  Grupo
+                  <select id="student-grupo" name="grupo">
+                    <option value="">Sin grupo</option>
+                    <option value="EI01">EI01</option>
+                    <option value="EI02">EI02</option>
+                    <option value="EI03">EI03</option>
+                    <option value="EI04">EI04</option>
+                    <option value="EI05">EI05</option>
+                    <option value="EI06">EI06</option>
+                    <option value="EI07">EI07</option>
+                    <option value="EI08">EI08</option>
+                    <option value="PR01">PR01</option>
+                    <option value="PR02">PR02</option>
+                    <option value="PR03">PR03</option>
+                    <option value="PR04">PR04</option>
+                    <option value="PR05">PR05</option>
+                    <option value="PR06">PR06</option>
+                    <option value="PR07">PR07</option>
+                    <option value="PR08">PR08</option>
+                    <option value="PR09">PR09</option>
+                    <option value="PR10">PR10</option>
+                    <option value="PR11">PR11</option>
+                    <option value="PR12">PR12</option>
+                    <option value="PR13">PR13</option>
+                    <option value="PR14">PR14</option>
+                    <option value="PR15">PR15</option>
+                  </select>
+                </label>
+              </div>
 
               <div class="activity-actions">
                 <button id="clear-student-form-button" class="secondary-button" type="button">
@@ -431,66 +583,24 @@
         </section>
 
         <section
-          id="module-panel-resumen"
-          class="module-card hidden"
-          data-module-panel="resumen"
-        >
-          <div class="module-header">
-            <div class="section-heading">
-              <p class="eyebrow">Resumen</p>
-              <h2>Alumnado por centro y semana</h2>
-            </div>
-          </div>
-          <div class="results-toolbar section-summary-toolbar">
-            <div class="results-summary">
-              <p id="weekly-summary" class="summary-chip">Cargando resumen...</p>
-            </div>
-          </div>
-
-          <div class="table-wrap weekly-table-wrap">
-            <table class="weekly-summary-table">
-              <thead>
-                <tr>
-                  <th>Centro</th>
-                  <th>01</th>
-                  <th>02</th>
-                  <th>03</th>
-                  <th>04</th>
-                  <th>05</th>
-                  <th>06</th>
-                  <th>07</th>
-                  <th>08</th>
-                  <th>09</th>
-                  <th>10</th>
-                  <th>11</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody id="weekly-summary-table-body">
-                <tr>
-                  <td colspan="13" class="empty-state">Cargando resumen...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section
           id="module-panel-asistencia"
-          class="module-card hidden"
+          class="module-card"
           data-module-panel="asistencia"
         >
           <div class="module-header">
             <div class="section-heading">
               <p class="eyebrow">Asistencia</p>
-              <h2>Semanas por alumnado</h2>
+              <h2>Pasar lista por semana</h2>
             </div>
           </div>
           <div class="results-toolbar section-summary-toolbar">
             <div class="results-summary">
               <p id="attendance-summary" class="summary-chip">Cargando asistencia...</p>
             </div>
-            <label class="compact-filter filter-field">
+          </div>
+
+          <form id="attendance-filters-form" class="filters-grid attendance-filters-grid">
+            <label class="filter-field">
               Centro
               <div class="filter-control-row">
                 <select id="attendance-center-filter">
@@ -507,29 +617,173 @@
                 </button>
               </div>
             </label>
+
+            <label class="filter-field">
+              Semana
+              <div class="filter-control-row">
+                <select id="attendance-week-filter">
+                  <option value="">Todas las semanas</option>
+                </select>
+                <button
+                  type="button"
+                  class="filter-reset-button"
+                  data-reset-control="attendance-week-filter"
+                  aria-label="Restablecer semana"
+                  title="Restablecer"
+                >
+                  x
+                </button>
+              </div>
+            </label>
+
+            <label class="filter-field">
+              Alumnado
+              <div class="filter-control-row">
+                <input
+                  id="attendance-name-filter"
+                  type="search"
+                  autocomplete="off"
+                  placeholder="Nombre o apellidos"
+                />
+                <button
+                  type="button"
+                  class="filter-reset-button"
+                  data-reset-control="attendance-name-filter"
+                  aria-label="Restablecer alumnado"
+                  title="Restablecer"
+                >
+                  x
+                </button>
+              </div>
+            </label>
+          </form>
+
+          <div id="attendance-mobile-start" class="attendance-mobile-start">
+            <label class="filter-field">
+              Centro
+              <select id="attendance-mobile-center-filter">
+                <option value="">Todos los centros</option>
+              </select>
+            </label>
+            <label class="filter-field">
+              Semana
+              <select id="attendance-mobile-week-filter">
+                <option value="">Todas las semanas</option>
+              </select>
+            </label>
+            <label class="filter-field">
+              Grupo
+              <select id="attendance-mobile-group-filter">
+                <option value="">Todos los grupos</option>
+              </select>
+            </label>
+            <button id="attendance-mobile-start-button" type="button">
+              Ver asistencia
+            </button>
+          </div>
+
+          <div id="attendance-mobile-list" class="attendance-mobile-list hidden">
+            <div class="attendance-mobile-toolbar">
+              <button
+                id="attendance-mobile-back-button"
+                class="secondary-button compact-button"
+                type="button"
+              >
+                Cambiar centro
+              </button>
+              <p id="attendance-mobile-context"></p>
+              <div class="attendance-mobile-actions" aria-label="Vista de asistencia">
+                <button id="attendance-mobile-comedor-button" type="button">
+                  Comedor
+                </button>
+              </div>
+            </div>
+
+            <div id="attendance-mobile-attendance-view" class="attendance-mobile-attendance-view">
+              <div class="attendance-day-tabs" aria-label="Dia de asistencia">
+                <button class="active" type="button" data-attendance-day="asistencia_lunes">
+                  Lunes
+                </button>
+                <button type="button" data-attendance-day="asistencia_martes">
+                  Martes
+                </button>
+                <button type="button" data-attendance-day="asistencia_miercoles">
+                  Miércoles
+                </button>
+                <button type="button" data-attendance-day="asistencia_jueves">
+                  Jueves
+                </button>
+                <button type="button" data-attendance-day="asistencia_viernes">
+                  Viernes
+                </button>
+              </div>
+
+              <div class="attendance-presence-filters" aria-label="Filtro rapido">
+                <button class="active" type="button" data-attendance-presence-filter="all">
+                  Todos
+                </button>
+                <button type="button" data-attendance-presence-filter="missing">
+                  Sin marcar
+                </button>
+                <button type="button" data-attendance-presence-filter="present">
+                  Presentes
+                </button>
+              </div>
+
+              <div id="attendance-mobile-rows" class="attendance-mobile-rows">
+                <p class="empty-state">Selecciona centro y semana.</p>
+              </div>
+            </div>
+
+            <div id="attendance-mobile-comedor-backdrop" class="attendance-mobile-comedor-backdrop hidden"></div>
+            <div id="attendance-mobile-comedor-view" class="attendance-mobile-comedor-view hidden">
+              <div class="attendance-mobile-comedor-panel">
+                <div class="attendance-mobile-comedor-header">
+                  <div>
+                    <p class="eyebrow">Comedor</p>
+                    <p id="attendance-mobile-comedor-summary" class="summary-chip">
+                      Cargando comedor...
+                    </p>
+                  </div>
+                  <button
+                    id="attendance-mobile-comedor-close-button"
+                    class="secondary-button compact-button"
+                    type="button"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+                <div id="attendance-mobile-comedor-rows" class="attendance-mobile-rows">
+                  <p class="empty-state">Abre el listado de comedor.</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="table-wrap attendance-table-wrap">
             <table class="attendance-table">
               <thead>
                 <tr>
-                  <th>Alumnado</th>
-                  <th>01</th>
-                  <th>02</th>
-                  <th>03</th>
-                  <th>04</th>
-                  <th>05</th>
-                  <th>06</th>
-                  <th>07</th>
-                  <th>08</th>
-                  <th>09</th>
-                  <th>10</th>
-                  <th>11</th>
+                  <th>L</th>
+                  <th>M</th>
+                  <th>X</th>
+                  <th>J</th>
+                  <th>V</th>
+                  <th>
+                    <button class="sort-button" type="button" data-attendance-sort-field="alumnado">
+                      Alumnado
+                    </button>
+                  </th>
+                  <th>
+                    <button class="sort-button" type="button" data-attendance-sort-field="edad">
+                      Edad
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody id="attendance-table-body">
                 <tr>
-                  <td colspan="12" class="empty-state">Cargando asistencia...</td>
+                  <td colspan="7" class="empty-state">Cargando asistencia...</td>
                 </tr>
               </tbody>
             </table>
@@ -542,9 +796,10 @@
                 Filas
                 <select id="attendance-page-size">
                   <option value="25">25</option>
-                  <option value="50" selected>50</option>
+                  <option value="50">50</option>
                   <option value="100">100</option>
                   <option value="200">200</option>
+                  <option value="250" selected>250</option>
                 </select>
               </label>
               <button id="attendance-previous-page" class="secondary-button" type="button">
@@ -636,812 +891,6 @@
           </div>
         </section>
 
-        <section
-          id="module-panel-actividades"
-          class="module-card hidden"
-          data-module-panel="actividades"
-        >
-          <div class="module-header">
-            <div class="section-heading">
-              <p class="eyebrow">Actividades</p>
-              <h2>Listado de actividades</h2>
-            </div>
-          </div>
-          <div class="results-toolbar section-summary-toolbar">
-            <div class="results-summary">
-              <p id="activities-list-summary" class="summary-chip">Cargando actividades...</p>
-            </div>
-            <div class="header-actions">
-              <button
-                id="open-activity-panel-button"
-                class="tooltip-button"
-                type="button"
-                aria-label="Nueva actividad"
-              >
-                <svg class="button-icon" aria-hidden="true">
-                  <use href="./icons.svg#icon-new"></use>
-                </svg>
-              </button>
-              <button
-                id="open-activities-settings-button"
-                class="secondary-button tooltip-button"
-                type="button"
-                aria-label="Configuración"
-              >
-                <svg class="button-icon" aria-hidden="true">
-                  <use href="./icons.svg#icon-settings"></use>
-                </svg>
-              </button>
-              <button id="refresh-activities-button" type="button">
-                Actualizar
-              </button>
-              <button id="open-activities-report-button" class="secondary-button" type="button">
-                Informe
-              </button>
-              <button
-                id="open-activities-personal-report-button"
-                class="secondary-button"
-                type="button"
-              >
-                Informe personal
-              </button>
-            </div>
-          </div>
-
-          <div id="activity-panel-backdrop" class="panel-backdrop hidden"></div>
-          <div id="activities-settings-backdrop" class="panel-backdrop hidden"></div>
-          <div id="activities-report-backdrop" class="panel-backdrop hidden"></div>
-          <aside
-            id="activities-settings-panel"
-            class="side-panel hidden"
-            aria-labelledby="activities-settings-title"
-          >
-            <div class="side-panel-header">
-              <div class="section-heading">
-                <p class="eyebrow">Configuración</p>
-                <h2 id="activities-settings-title">Ajustes de actividades</h2>
-              </div>
-              <button
-                id="close-activities-settings-button"
-                class="secondary-button compact-button"
-                type="button"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <details class="settings-section" open>
-              <summary>Personal asignado a actividades</summary>
-              <p class="muted-text">
-                Solo el personal seleccionado aparecerá al crear o editar actividades.
-              </p>
-              <label>
-                Filtrar personal
-                <input
-                  id="activity-settings-personal-filter"
-                  type="search"
-                  placeholder="Buscar personal"
-                />
-              </label>
-              <div class="assignment-dual-list">
-                <section>
-                  <h3>Disponible</h3>
-                  <select id="activity-personal-available-select" multiple size="14"></select>
-                </section>
-                <div class="assignment-move-actions" aria-label="Cambiar personal de actividades">
-                  <button id="activity-personal-add-button" type="button">&gt;</button>
-                  <button id="activity-personal-remove-button" class="secondary-button" type="button">
-                    &lt;
-                  </button>
-                </div>
-                <section>
-                  <h3>Asignado</h3>
-                  <select id="activity-personal-selected-select" multiple size="14"></select>
-                </section>
-              </div>
-            </details>
-
-            <details class="settings-section">
-              <summary>Instalaciones asignadas a actividades</summary>
-              <p class="muted-text">
-                Solo las instalaciones seleccionadas aparecerán al crear o editar actividades.
-              </p>
-              <label>
-                Filtrar instalación
-                <input
-                  id="activity-settings-installation-filter"
-                  type="search"
-                  placeholder="Buscar instalación"
-                />
-              </label>
-              <div class="assignment-dual-list">
-                <section>
-                  <h3>Disponible</h3>
-                  <select id="activity-installation-available-select" multiple size="14"></select>
-                </section>
-                <div class="assignment-move-actions" aria-label="Cambiar instalaciones de actividades">
-                  <button id="activity-installation-add-button" type="button">&gt;</button>
-                  <button id="activity-installation-remove-button" class="secondary-button" type="button">
-                    &lt;
-                  </button>
-                </div>
-                <section>
-                  <h3>Asignadas</h3>
-                  <select id="activity-installation-selected-select" multiple size="14"></select>
-                </section>
-              </div>
-            </details>
-          </aside>
-          <aside
-            id="activities-report-panel"
-            class="report-panel hidden"
-            aria-labelledby="activities-report-title"
-          >
-            <div class="side-panel-header">
-              <div class="section-heading">
-                <p class="eyebrow">Informe</p>
-                <h2 id="activities-report-title">Actividades por instalacion y semana</h2>
-                <p id="activities-report-summary">Usa los filtros del listado actual.</p>
-              </div>
-              <div class="header-actions">
-                <button
-                  id="download-activities-report-pdf-button"
-                  class="warm-button compact-button"
-                  type="button"
-                >
-                  Descargar PDF
-                </button>
-                <button
-                  id="download-activities-report-excel-button"
-                  class="warm-button compact-button"
-                  type="button"
-                >
-                  Descargar Excel
-                </button>
-                <button
-                  id="close-activities-report-button"
-                  class="secondary-button compact-button"
-                  type="button"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-            <div id="activities-report-content" class="activities-report-content"></div>
-          </aside>
-          <aside
-            id="activity-create-panel"
-            class="side-panel hidden"
-            aria-labelledby="activity-create-title"
-          >
-            <div class="side-panel-header">
-              <div class="section-heading">
-                <p class="eyebrow">Nueva actividad</p>
-                <h2 id="activity-create-title">Crear actividad</h2>
-                <p id="activities-summary">Completa los campos para crear una actividad.</p>
-              </div>
-              <button
-                id="close-activity-panel-button"
-                class="secondary-button compact-button"
-                type="button"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <form id="activity-form" class="activity-form side-panel-form">
-              <label>
-                Personal
-                <select id="activity-personal" name="personal_id" required>
-                  <option value="">Seleccionar personal</option>
-                </select>
-              </label>
-
-              <label>
-                Contrato
-                <select id="activity-contrato" name="contrato_id" required>
-                  <option value="">Seleccionar contrato</option>
-                </select>
-              </label>
-
-              <label>
-                Empresa
-                <select id="activity-empresa" name="empresa_id" required>
-                  <option value="">Seleccionar empresa</option>
-                </select>
-              </label>
-
-              <label>
-                Instalacion
-                <select id="activity-instalacion" name="instalacion_id" required>
-                  <option value="">Seleccionar instalacion</option>
-                </select>
-              </label>
-
-              <label>
-                Puesto
-                <select id="activity-puesto" name="puesto_id" required>
-                  <option value="">Seleccionar puesto</option>
-                </select>
-              </label>
-
-              <label>
-                Situacion
-                <select id="activity-situacion" name="situacion_id" required>
-                  <option value="">Seleccionar situacion</option>
-                </select>
-              </label>
-
-              <label>
-                Tipo de hora
-                <select id="activity-tipo-hora" name="tipo_hora_id" required>
-                  <option value="">Seleccionar tipo de hora</option>
-                </select>
-              </label>
-
-              <fieldset class="weekday-fieldset">
-                <legend>Dias de la semana</legend>
-                <label><input type="checkbox" name="dias_semana" value="1" /> Lunes</label>
-                <label><input type="checkbox" name="dias_semana" value="2" /> Martes</label>
-                <label><input type="checkbox" name="dias_semana" value="3" /> Miercoles</label>
-                <label><input type="checkbox" name="dias_semana" value="4" /> Jueves</label>
-                <label><input type="checkbox" name="dias_semana" value="5" /> Viernes</label>
-                <label><input type="checkbox" name="dias_semana" value="6" /> Sabado</label>
-                <label><input type="checkbox" name="dias_semana" value="7" /> Domingo</label>
-              </fieldset>
-
-              <label>
-                Fecha inicio
-                <input id="activity-fecha-inicio" name="fecha_inicio" type="date" required />
-              </label>
-
-              <label>
-                Fecha fin
-                <input id="activity-fecha-fin" name="fecha_fin" type="date" required />
-              </label>
-
-              <label>
-                Hora inicio
-                <input id="activity-hora-inicio" name="hora_inicio" type="time" required />
-              </label>
-
-              <label>
-                Hora fin
-                <input id="activity-hora-fin" name="hora_fin" type="time" required />
-              </label>
-
-              <label class="checkbox-field">
-                <input
-                  id="activity-llamamiento-enviado"
-                  name="llamamiento_enviado"
-                  type="checkbox"
-                  value="true"
-                />
-                Llamamiento enviado
-              </label>
-
-              <label>
-                Respuesta llamamiento
-                <select id="activity-respuesta-llamamiento" name="respuesta_llamamiento">
-                  <option value="">Pendiente</option>
-                  <option value="aceptado">Aceptado</option>
-                  <option value="rechazado">Rechazado</option>
-                </select>
-              </label>
-
-              <label class="activity-notes-field">
-                Observaciones
-                <textarea
-                  id="activity-observaciones"
-                  name="observaciones"
-                  rows="4"
-                  placeholder="Observaciones de la actividad"
-                ></textarea>
-              </label>
-
-              <div class="activity-actions">
-                <button type="submit">Guardar actividad</button>
-                <button id="clear-activity-form-button" class="secondary-button" type="button">
-                  Limpiar
-                </button>
-              </div>
-            </form>
-          </aside>
-
-          <div class="activities-list-section">
-            <form id="activities-filters-form" class="filters-grid activities-filters-grid">
-              <label class="filter-field">
-                Contrato
-                <div class="filter-control-row">
-                  <select id="filter-activity-contrato" name="contrato_id">
-                    <option value="">Todos los contratos</option>
-                  </select>
-                  <button
-                    type="button"
-                    class="filter-reset-button"
-                    data-reset-filter="contrato_id"
-                    aria-label="Restablecer contrato"
-                    title="Restablecer"
-                  >
-                    x
-                  </button>
-                </div>
-              </label>
-
-              <label class="filter-field">
-                Personal
-                <div class="filter-control-row">
-                  <select id="filter-activity-personal" name="personal_id">
-                    <option value="">Todo el personal</option>
-                  </select>
-                  <button
-                    type="button"
-                    class="filter-reset-button"
-                    data-reset-filter="personal_id"
-                    aria-label="Restablecer personal"
-                    title="Restablecer"
-                  >
-                    x
-                  </button>
-                </div>
-              </label>
-
-              <label class="filter-field">
-                Instalacion
-                <div class="filter-control-row">
-                  <select id="filter-activity-instalacion" name="instalacion_id">
-                    <option value="">Todas las instalaciones</option>
-                  </select>
-                  <button
-                    type="button"
-                    class="filter-reset-button"
-                    data-reset-filter="instalacion_id"
-                    aria-label="Restablecer instalacion"
-                    title="Restablecer"
-                  >
-                    x
-                  </button>
-                </div>
-              </label>
-
-            </form>
-
-            <div class="table-wrap activities-table-wrap">
-              <table class="activities-table">
-                <thead>
-                  <tr>
-                    <th>
-                      <button class="sort-button" type="button" data-activity-sort-field="personal">
-                        Personal
-                      </button>
-                    </th>
-                    <th>
-                      <button class="sort-button" type="button" data-activity-sort-field="instalacion">
-                        Instalacion
-                      </button>
-                    </th>
-                    <th>
-                      <button class="sort-button" type="button" data-activity-sort-field="puesto">
-                        Puesto
-                      </button>
-                    </th>
-                    <th>
-                      <button class="sort-button" type="button" data-activity-sort-field="fechas">
-                        Fechas
-                      </button>
-                    </th>
-                    <th>
-                      <button class="sort-button" type="button" data-activity-sort-field="horario">
-                        Horario
-                      </button>
-                    </th>
-                    <th>
-                      <button class="sort-button" type="button" data-activity-sort-field="llamamiento">
-                        Llam.
-                      </button>
-                    </th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="activities-table-body">
-                  <tr>
-                    <td colspan="7" class="empty-state">Cargando actividades...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div id="activity-edit-panel-backdrop" class="panel-backdrop hidden"></div>
-          <aside
-            id="activity-edit-panel"
-            class="side-panel hidden"
-            aria-labelledby="activity-edit-title"
-          >
-            <div class="side-panel-header">
-              <div class="section-heading">
-                <p class="eyebrow">Editar actividad</p>
-                <h2 id="activity-edit-title">Actividad seleccionada</h2>
-                <p>Modifica los campos y guarda los cambios.</p>
-              </div>
-              <button
-                id="cancel-activity-edit-button"
-                class="secondary-button compact-button"
-                type="button"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <form id="activity-edit-form" class="activity-form side-panel-form">
-              <input id="edit-activity-id" name="id" type="hidden" />
-
-              <label>
-                Personal
-                <select id="edit-activity-personal" name="personal_id" required>
-                  <option value="">Seleccionar personal</option>
-                </select>
-              </label>
-
-              <label>
-                Contrato
-                <select id="edit-activity-contrato" name="contrato_id" required>
-                  <option value="">Seleccionar contrato</option>
-                </select>
-              </label>
-
-              <label>
-                Empresa
-                <select id="edit-activity-empresa" name="empresa_id" required>
-                  <option value="">Seleccionar empresa</option>
-                </select>
-              </label>
-
-              <label>
-                Instalacion
-                <select id="edit-activity-instalacion" name="instalacion_id" required>
-                  <option value="">Seleccionar instalacion</option>
-                </select>
-              </label>
-
-              <label>
-                Puesto
-                <select id="edit-activity-puesto" name="puesto_id" required>
-                  <option value="">Seleccionar puesto</option>
-                </select>
-              </label>
-
-              <label>
-                Situacion
-                <select id="edit-activity-situacion" name="situacion_id" required>
-                  <option value="">Seleccionar situacion</option>
-                </select>
-              </label>
-
-              <label>
-                Tipo de hora
-                <select id="edit-activity-tipo-hora" name="tipo_hora_id" required>
-                  <option value="">Seleccionar tipo de hora</option>
-                </select>
-              </label>
-
-              <fieldset class="weekday-fieldset">
-                <legend>Dias de la semana</legend>
-                <label><input type="checkbox" name="dias_semana" value="1" /> Lunes</label>
-                <label><input type="checkbox" name="dias_semana" value="2" /> Martes</label>
-                <label><input type="checkbox" name="dias_semana" value="3" /> Miercoles</label>
-                <label><input type="checkbox" name="dias_semana" value="4" /> Jueves</label>
-                <label><input type="checkbox" name="dias_semana" value="5" /> Viernes</label>
-                <label><input type="checkbox" name="dias_semana" value="6" /> Sabado</label>
-                <label><input type="checkbox" name="dias_semana" value="7" /> Domingo</label>
-              </fieldset>
-
-              <label>
-                Fecha inicio
-                <input id="edit-activity-fecha-inicio" name="fecha_inicio" type="date" required />
-              </label>
-
-              <label>
-                Fecha fin
-                <input id="edit-activity-fecha-fin" name="fecha_fin" type="date" required />
-              </label>
-
-              <label>
-                Hora inicio
-                <input id="edit-activity-hora-inicio" name="hora_inicio" type="time" required />
-              </label>
-
-              <label>
-                Hora fin
-                <input id="edit-activity-hora-fin" name="hora_fin" type="time" required />
-              </label>
-
-              <label class="checkbox-field">
-                <input
-                  id="edit-activity-llamamiento-enviado"
-                  name="llamamiento_enviado"
-                  type="checkbox"
-                  value="true"
-                />
-                Llamamiento enviado
-              </label>
-
-              <label>
-                Respuesta llamamiento
-                <select id="edit-activity-respuesta-llamamiento" name="respuesta_llamamiento">
-                  <option value="">Pendiente</option>
-                  <option value="aceptado">Aceptado</option>
-                  <option value="rechazado">Rechazado</option>
-                </select>
-              </label>
-
-              <label class="activity-notes-field">
-                Observaciones
-                <textarea
-                  id="edit-activity-observaciones"
-                  name="observaciones"
-                  rows="4"
-                  placeholder="Observaciones de la actividad"
-                ></textarea>
-              </label>
-
-              <div class="activity-actions">
-                <button type="submit">Guardar cambios</button>
-                <button
-                  id="duplicate-activity-button"
-                  class="tooltip-button"
-                  type="button"
-                  aria-label="Duplicar actividad"
-                >
-                  <svg class="button-icon" aria-hidden="true">
-                    <use href="./icons.svg#icon-duplicate"></use>
-                  </svg>
-                </button>
-                <button
-                  id="delete-activity-button"
-                  class="danger-button tooltip-button"
-                  type="button"
-                  aria-label="Borrar actividad"
-                >
-                  <svg class="button-icon" aria-hidden="true">
-                    <use href="./icons.svg#icon-delete"></use>
-                  </svg>
-                </button>
-              </div>
-            </form>
-          </aside>
-        </section>
-
-        <section
-          id="module-panel-asignaciones"
-          class="module-card hidden"
-          data-module-panel="asignaciones"
-        >
-          <div class="module-header">
-            <div class="section-heading">
-              <p class="eyebrow">Asignaciones</p>
-              <h2>Personal por instalacion y semana</h2>
-            </div>
-          </div>
-          <div class="results-toolbar section-summary-toolbar">
-            <div class="results-summary">
-              <p id="assignments-summary" class="summary-chip">Cargando asignaciones...</p>
-            </div>
-            <div class="header-actions">
-              <button
-                id="open-assignment-record-panel-button"
-                class="tooltip-button"
-                type="button"
-                aria-label="Nuevo registro"
-              >
-                <svg class="button-icon" aria-hidden="true">
-                  <use href="./icons.svg#icon-new"></use>
-                </svg>
-              </button>
-              <button
-                id="open-assignment-delete-panel-button"
-                class="danger-button tooltip-button"
-                type="button"
-                aria-label="Borrar registros"
-              >
-                <svg class="button-icon" aria-hidden="true">
-                  <use href="./icons.svg#icon-delete"></use>
-                </svg>
-              </button>
-              <button id="refresh-assignments-button" type="button">
-                Actualizar
-              </button>
-            </div>
-          </div>
-
-          <div class="table-wrap assignments-table-wrap">
-            <table class="assignments-table">
-              <thead>
-                <tr>
-                  <th>Instalacion</th>
-                  <th>01</th>
-                  <th>02</th>
-                  <th>03</th>
-                  <th>04</th>
-                  <th>05</th>
-                  <th>06</th>
-                  <th>07</th>
-                  <th>08</th>
-                  <th>09</th>
-                  <th>10</th>
-                  <th>11</th>
-                </tr>
-              </thead>
-              <tbody id="assignments-table-body">
-                <tr>
-                  <td colspan="12" class="empty-state">Cargando asignaciones...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div id="assignment-record-panel-backdrop" class="panel-backdrop hidden"></div>
-          <aside
-            id="assignment-record-panel"
-            class="side-panel hidden"
-            aria-labelledby="assignment-record-title"
-          >
-            <div class="side-panel-header">
-              <div class="section-heading">
-                <p class="eyebrow">Asignaciones</p>
-                <h2 id="assignment-record-title">Nuevo registro</h2>
-              </div>
-              <button
-                id="close-assignment-record-panel-button"
-                class="secondary-button compact-button"
-                type="button"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <form id="assignment-record-form" class="assignment-edit-form">
-              <label>
-                Instalacion
-                <select id="assignment-record-instalacion" name="instalacion_id" required>
-                  <option value="">Seleccionar instalacion</option>
-                </select>
-              </label>
-
-              <div class="activity-actions">
-                <button type="submit">Crear registro</button>
-              </div>
-            </form>
-          </aside>
-
-          <div id="assignment-delete-panel-backdrop" class="panel-backdrop hidden"></div>
-          <aside
-            id="assignment-delete-panel"
-            class="side-panel hidden"
-            aria-labelledby="assignment-delete-title"
-          >
-            <div class="side-panel-header">
-              <div class="section-heading">
-                <p class="eyebrow">Asignaciones</p>
-                <h2 id="assignment-delete-title">Borrar registros</h2>
-                <p>Marca los registros que quieres eliminar.</p>
-              </div>
-              <button
-                id="close-assignment-delete-panel-button"
-                class="secondary-button compact-button"
-                type="button"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <form id="assignment-delete-form" class="assignment-edit-form">
-              <div id="assignment-delete-list" class="assignment-delete-list">
-                <p class="empty-state">No hay registros para borrar.</p>
-              </div>
-
-              <div class="activity-actions">
-                <button class="danger-button" type="submit">Borrar seleccionados</button>
-              </div>
-            </form>
-          </aside>
-
-          <div id="assignment-panel-backdrop" class="panel-backdrop hidden"></div>
-          <aside
-            id="assignment-edit-panel"
-            class="side-panel hidden"
-            aria-labelledby="assignment-edit-title"
-          >
-            <div class="side-panel-header">
-              <div class="section-heading">
-                <p class="eyebrow">Asignacion</p>
-                <h2 id="assignment-edit-title">Editar semana</h2>
-                <p id="assignment-edit-summary"></p>
-              </div>
-              <button
-                id="close-assignment-panel-button"
-                class="secondary-button compact-button"
-                type="button"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <form id="assignment-edit-form" class="assignment-edit-form">
-              <input id="assignment-edit-instalacion-id" name="instalacion_id" type="hidden" />
-              <input id="assignment-edit-week" name="week" type="hidden" />
-
-              <div class="assignment-navigation" aria-label="Navegacion de asignaciones">
-                <button id="assignment-previous-installation-button" class="secondary-button compact-button" type="button">
-                  Instalacion anterior
-                </button>
-                <button id="assignment-next-installation-button" class="secondary-button compact-button" type="button">
-                  Instalacion siguiente
-                </button>
-                <button id="assignment-previous-week-button" class="secondary-button compact-button" type="button">
-                  Semana anterior
-                </button>
-                <button id="assignment-next-week-button" class="secondary-button compact-button" type="button">
-                  Semana siguiente
-                </button>
-                <button id="assignment-copy-next-week-button" class="secondary-button compact-button" type="button">
-                  Copiar a semana siguiente
-                </button>
-              </div>
-
-              <label>
-                Filtrar personal
-                <input
-                  id="assignment-personal-filter"
-                  type="search"
-                  autocomplete="off"
-                  placeholder="Buscar personal"
-                />
-              </label>
-
-              <div class="assignment-dual-list">
-                <label>
-                  Personal disponible
-                  <select
-                    id="assignment-available-select"
-                    multiple
-                    size="14"
-                    aria-label="Personal disponible"
-                  ></select>
-                </label>
-
-                <div class="assignment-move-actions">
-                  <button id="assign-selected-button" class="compact-button" type="button">
-                    Anadir
-                  </button>
-                  <button id="unassign-selected-button" class="compact-button" type="button">
-                    Quitar
-                  </button>
-                </div>
-
-                <label>
-                  Personal asignado
-                  <select
-                    id="assignment-selected-select"
-                    multiple
-                    size="14"
-                    aria-label="Personal asignado"
-                  ></select>
-                </label>
-              </div>
-
-              <p class="muted-text">Puedes seleccionar hasta 20 personas.</p>
-
-              <div class="activity-actions">
-                <button type="submit">Guardar asignacion</button>
-                <button id="clear-assignment-button" class="danger-button" type="button">
-                  Vaciar semana
-                </button>
-              </div>
-            </form>
-          </aside>
-        </section>
-
       </section>
 
       <p id="status-message" class="status-message" role="status" aria-live="polite"></p>
@@ -1450,6 +899,6 @@
     <script src="./config.js"></script>
     <script src="../shared/supabase-client.js"></script>
     <script src="../shared/auth.js"></script>
-    <script src="./app.js?v=20260601-1"></script>
+    <script src="./app.js?v=20260619-5"></script>
   </body>
 </html>

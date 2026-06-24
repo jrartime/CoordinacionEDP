@@ -36,6 +36,13 @@ add column if not exists necesita_transporte boolean not null default false;
 alter table public.eventos_cronograma
 add column if not exists transporte_detalle text;
 
+alter table public.eventos_cronograma
+drop constraint if exists eventos_cronograma_horas_validas;
+
+alter table public.eventos_cronograma
+add constraint eventos_cronograma_horas_validas
+check (hora_fin <> hora_inicio);
+
 create table if not exists public.eventos_cronograma_personal (
   id bigserial primary key,
   cronograma_id bigint not null references public.eventos_cronograma (id) on delete cascade,
@@ -50,6 +57,13 @@ create table if not exists public.eventos_cronograma_personal (
   constraint eventos_cronograma_personal_unico
     unique (cronograma_id, personal_id)
 );
+
+alter table public.eventos_cronograma_personal
+drop constraint if exists eventos_cronograma_personal_horas_validas;
+
+alter table public.eventos_cronograma_personal
+add constraint eventos_cronograma_personal_horas_validas
+check (hora_fin <> hora_inicio);
 
 create table if not exists public.eventos_montaje_personal (
   personal_id integer primary key references public.personal (id) on delete cascade,

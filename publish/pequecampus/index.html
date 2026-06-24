@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Carnés Pequecampus</title>
+    <link rel="stylesheet" href="./styles.css?v=20260618-2" />
+  </head>
+  <body>
+    <main class="cards-app">
+      <header class="app-header">
+        <div class="brand-copy">
+          <p class="eyebrow">Pequecampus deportivo 2026</p>
+          <h1>Carnés de alumnado</h1>
+        </div>
+        <div class="brand-logos" aria-label="Oviedo Deportes">
+          <img
+            class="brand-logo brand-logo-round"
+            src="./logo-ciudad-europea-deporte.png"
+            alt="Oviedo Ciudad Europea del Deporte 2026"
+          />
+          <img
+            class="brand-logo brand-logo-wide"
+            src="./logo-oviedo-deportes.png"
+            alt="Oviedo Deportes"
+          />
+        </div>
+      </header>
+
+      <section class="search-panel" aria-labelledby="search-title">
+        <form id="email-form" class="email-form">
+          <label for="email-input" id="search-title">Correo electrónico</label>
+          <div class="search-row">
+            <input
+              id="email-input"
+              name="email"
+              type="email"
+              autocomplete="email"
+              placeholder="familia@correo.com"
+              required
+            />
+            <button type="button" class="secondary-button" id="clear-button">Limpiar</button>
+            <button type="submit">Buscar carnés</button>
+          </div>
+        </form>
+        <p id="status-message" class="status-message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section id="results-section" class="results-section hidden" aria-labelledby="results-title">
+        <div class="results-header">
+          <h2 id="results-title">Carnés encontrados</h2>
+          <p id="results-summary"></p>
+        </div>
+        <div id="cards-grid" class="cards-grid"></div>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="./shared/supabase-client.js"></script>
+    <script src="./app.js?v=20260618-1"></script>
+  </body>
+</html>

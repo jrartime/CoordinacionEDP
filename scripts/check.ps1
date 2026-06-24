@@ -21,9 +21,11 @@ Invoke-Step "JavaScript syntax" {
 
   $files = @(
     "coordinacion/app.js",
+    "coordinacion/concilia-integrated.js",
     "curriculos/app.js",
     "programacion/app.js",
     "concilia/app.js",
+    "concilia/disponibilidad.js",
     "shared/supabase-client.js",
     "shared/auth.js"
   )
@@ -84,12 +86,13 @@ if (-not $SkipPublish) {
         throw "Falta shared/ en publish/$site"
       }
 
-      $index = Join-Path $siteRoot "index.html"
-      if ((Test-Path -LiteralPath $index) -and
-          [System.IO.File]::ReadAllText($index).Contains("../shared/")) {
-        throw "Ruta ../shared/ encontrada en publish/$site/index.html"
+      Get-ChildItem -LiteralPath $siteRoot -Filter "*.html" |
+        ForEach-Object {
+          if ([System.IO.File]::ReadAllText($_.FullName).Contains("../shared/")) {
+            throw "Ruta ../shared/ encontrada en publish/$site/$($_.Name)"
+          }
+        }
       }
-    }
   }
 }
 

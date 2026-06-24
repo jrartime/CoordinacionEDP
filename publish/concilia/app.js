@@ -8,6 +8,18 @@
   const config = window.APP_CONFIG ?? {};
   const supabaseConfig = config.supabase ?? {};
   const hasSupabaseConfig = Boolean(supabaseConfig.url) && Boolean(supabaseConfig.anonKey);
+  const MODULE_TAB_TARGETS = new Set([
+    "asistencia",
+    "alumnado",
+    "nee",
+  ]);
+  const ATTENDANCE_ONLY_EMAILS = new Set(["colegio@conciliaoviedo.es"]);
+  let allowedModuleTabTargets = MODULE_TAB_TARGETS;
+  const EMBED_MODE = new URLSearchParams(window.location.search).get("embed") === "1";
+  const INITIAL_MODULE_TAB = (() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    return MODULE_TAB_TARGETS.has(tab) ? tab : "asistencia";
+  })();
 
   const authView = document.querySelector("#auth-view");
   const appView = document.querySelector("#app-view");
@@ -20,14 +32,24 @@
   const filterCentro = document.querySelector("#filter-centro");
   const filterSemana = document.querySelector("#filter-semana");
   const filterAlumnado = document.querySelector("#filter-alumnado");
+  const filterEdad = document.querySelector("#filter-edad");
   const clearStudentsFiltersButton = document.querySelector("#clear-students-filters-button");
   const studentsRefreshButton = document.querySelector("#students-refresh-button");
+  const downloadStudentsAgeReportPdfButton = document.querySelector(
+    "#download-students-age-report-pdf-button"
+  );
   const studentsSummary = document.querySelector("#students-summary");
+  const studentsTableHead = document.querySelector("#students-table-head");
   const studentsTableBody = document.querySelector("#students-table-body");
   const studentsPaginationSummary = document.querySelector("#students-pagination-summary");
   const studentsPageSize = document.querySelector("#students-page-size");
   const studentsPreviousPage = document.querySelector("#students-previous-page");
   const studentsNextPage = document.querySelector("#students-next-page");
+  const studentsBulkFieldSelect = document.querySelector("#students-bulk-field");
+  const studentsBulkCurrentSelect = document.querySelector("#students-bulk-current-select");
+  const studentsBulkNewSelect = document.querySelector("#students-bulk-new-select");
+  const studentsBulkApplyButton = document.querySelector("#students-bulk-apply-button");
+  const studentsBulkMatchCount = document.querySelector("#students-bulk-match-count");
   const openStudentPanelButton = document.querySelector("#open-student-panel-button");
   const studentPanelBackdrop = document.querySelector("#student-panel-backdrop");
   const studentPanel = document.querySelector("#student-panel");
@@ -53,10 +75,44 @@
   const studentCentro = document.querySelector("#student-centro");
   const studentSemana = document.querySelector("#student-semana");
   const studentNee = document.querySelector("#student-nee");
+  const studentComedor = document.querySelector("#student-comedor");
+  const studentGrupo = document.querySelector("#student-grupo");
+  const openSummaryPanelButton = document.querySelector("#open-summary-panel-button");
+  const closeSummaryPanelButton = document.querySelector("#close-summary-panel-button");
+  const summaryPanelBackdrop = document.querySelector("#summary-panel-backdrop");
+  const summaryPanel = document.querySelector("#summary-panel");
   const weeklySummary = document.querySelector("#weekly-summary");
   const weeklySummaryTableBody = document.querySelector("#weekly-summary-table-body");
+  const attendanceFiltersForm = document.querySelector("#attendance-filters-form");
   const attendanceSummary = document.querySelector("#attendance-summary");
   const attendanceCenterFilter = document.querySelector("#attendance-center-filter");
+  const attendanceWeekFilter = document.querySelector("#attendance-week-filter");
+  const attendanceNameFilter = document.querySelector("#attendance-name-filter");
+  const attendanceMobileStart = document.querySelector("#attendance-mobile-start");
+  const attendanceMobileList = document.querySelector("#attendance-mobile-list");
+  const attendanceMobileCenterFilter = document.querySelector("#attendance-mobile-center-filter");
+  const attendanceMobileWeekFilter = document.querySelector("#attendance-mobile-week-filter");
+  const attendanceMobileGroupFilter = document.querySelector("#attendance-mobile-group-filter");
+  const attendanceMobileStartButton = document.querySelector("#attendance-mobile-start-button");
+  const attendanceMobileBackButton = document.querySelector("#attendance-mobile-back-button");
+  const attendanceMobileContext = document.querySelector("#attendance-mobile-context");
+  const attendanceMobileComedorButton = document.querySelector("#attendance-mobile-comedor-button");
+  const attendanceMobileComedorBackdrop = document.querySelector(
+    "#attendance-mobile-comedor-backdrop"
+  );
+  const attendanceMobileComedorView = document.querySelector("#attendance-mobile-comedor-view");
+  const attendanceMobileComedorCloseButton = document.querySelector(
+    "#attendance-mobile-comedor-close-button"
+  );
+  const attendanceMobileComedorSummary = document.querySelector(
+    "#attendance-mobile-comedor-summary"
+  );
+  const attendanceMobileRows = document.querySelector("#attendance-mobile-rows");
+  const attendanceMobileComedorRows = document.querySelector("#attendance-mobile-comedor-rows");
+  const attendanceDayTabButtons = Array.from(document.querySelectorAll("[data-attendance-day]"));
+  const attendancePresenceFilterButtons = Array.from(
+    document.querySelectorAll("[data-attendance-presence-filter]")
+  );
   const attendanceTableBody = document.querySelector("#attendance-table-body");
   const attendancePaginationSummary = document.querySelector("#attendance-pagination-summary");
   const attendancePageSize = document.querySelector("#attendance-page-size");
@@ -71,6 +127,24 @@
   const neePageSize = document.querySelector("#nee-page-size");
   const neePreviousPage = document.querySelector("#nee-previous-page");
   const neeNextPage = document.querySelector("#nee-next-page");
+  const comedorFiltersForm = document.querySelector("#comedor-filters-form");
+  const filterComedorCentro = document.querySelector("#filter-comedor-centro");
+  const filterComedorAlumnado = document.querySelector("#filter-comedor-alumnado");
+  const comedorSummary = document.querySelector("#comedor-summary");
+  const comedorTableBody = document.querySelector("#comedor-table-body");
+  const comedorPaginationSummary = document.querySelector("#comedor-pagination-summary");
+  const comedorPageSize = document.querySelector("#comedor-page-size");
+  const comedorPreviousPage = document.querySelector("#comedor-previous-page");
+  const comedorNextPage = document.querySelector("#comedor-next-page");
+  const availabilityFiltersForm = document.querySelector("#availability-filters-form");
+  const availabilityNameFilter = document.querySelector("#availability-name-filter");
+  const availabilitySummary = document.querySelector("#availability-summary");
+  const availabilityTableBody = document.querySelector("#availability-table-body");
+  const availabilityRefreshButton = document.querySelector("#availability-refresh-button");
+  const availabilityPaginationSummary = document.querySelector("#availability-pagination-summary");
+  const availabilityPageSize = document.querySelector("#availability-page-size");
+  const availabilityPreviousPage = document.querySelector("#availability-previous-page");
+  const availabilityNextPage = document.querySelector("#availability-next-page");
   const activitiesSummary = document.querySelector("#activities-summary");
   const activityForm = document.querySelector("#activity-form");
   const activityPersonal = document.querySelector("#activity-personal");
@@ -78,6 +152,8 @@
   const activityEmpresa = document.querySelector("#activity-empresa");
   const activityInstalacion = document.querySelector("#activity-instalacion");
   const activityPuesto = document.querySelector("#activity-puesto");
+  const activityFuncion = document.querySelector("#activity-funcion");
+  const activityModalidad = document.querySelector("#activity-modalidad");
   const activitySituacion = document.querySelector("#activity-situacion");
   const activityTipoHora = document.querySelector("#activity-tipo-hora");
   const clearActivityFormButton = document.querySelector("#clear-activity-form-button");
@@ -85,28 +161,6 @@
   const closeActivityPanelButton = document.querySelector("#close-activity-panel-button");
   const activityCreatePanel = document.querySelector("#activity-create-panel");
   const activityPanelBackdrop = document.querySelector("#activity-panel-backdrop");
-  const openActivitiesSettingsButton = document.querySelector("#open-activities-settings-button");
-  const closeActivitiesSettingsButton = document.querySelector("#close-activities-settings-button");
-  const activitiesSettingsPanel = document.querySelector("#activities-settings-panel");
-  const activitiesSettingsBackdrop = document.querySelector("#activities-settings-backdrop");
-  const activitySettingsPersonalFilter = document.querySelector("#activity-settings-personal-filter");
-  const activityPersonalAvailableSelect = document.querySelector("#activity-personal-available-select");
-  const activityPersonalSelectedSelect = document.querySelector("#activity-personal-selected-select");
-  const activityPersonalAddButton = document.querySelector("#activity-personal-add-button");
-  const activityPersonalRemoveButton = document.querySelector("#activity-personal-remove-button");
-  const activitySettingsInstallationFilter = document.querySelector(
-    "#activity-settings-installation-filter"
-  );
-  const activityInstallationAvailableSelect = document.querySelector(
-    "#activity-installation-available-select"
-  );
-  const activityInstallationSelectedSelect = document.querySelector(
-    "#activity-installation-selected-select"
-  );
-  const activityInstallationAddButton = document.querySelector("#activity-installation-add-button");
-  const activityInstallationRemoveButton = document.querySelector(
-    "#activity-installation-remove-button"
-  );
   const activitiesListSummary = document.querySelector("#activities-list-summary");
   const activitiesTableBody = document.querySelector("#activities-table-body");
   const refreshActivitiesButton = document.querySelector("#refresh-activities-button");
@@ -141,6 +195,8 @@
   const editActivityEmpresa = document.querySelector("#edit-activity-empresa");
   const editActivityInstalacion = document.querySelector("#edit-activity-instalacion");
   const editActivityPuesto = document.querySelector("#edit-activity-puesto");
+  const editActivityFuncion = document.querySelector("#edit-activity-funcion");
+  const editActivityModalidad = document.querySelector("#edit-activity-modalidad");
   const editActivitySituacion = document.querySelector("#edit-activity-situacion");
   const editActivityTipoHora = document.querySelector("#edit-activity-tipo-hora");
   const cancelActivityEditButton = document.querySelector("#cancel-activity-edit-button");
@@ -182,9 +238,83 @@
   const clearAssignmentButton = document.querySelector("#clear-assignment-button");
   const moduleTabButtons = Array.from(document.querySelectorAll("[data-module-tab]"));
   const modulePanels = Array.from(document.querySelectorAll("[data-module-panel]"));
+  const mobileModuleMenuToggle = document.querySelector("#mobile-module-menu-toggle");
+  const mobileModuleMenu = document.querySelector("#mobile-module-menu");
+  const mobileModuleTitle = document.querySelector("#mobile-module-title");
+  const mobileLogoutButton = document.querySelector("#mobile-logout-button");
 
   function renderIcon(name) {
-    return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg#icon-${name}"></use></svg>`;
+    return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260608-1#icon-${name}"></use></svg>`;
+  }
+
+  function escapeButtonLabel(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  }
+
+  function decorateActionButton(button, icon, mode = "icon-only") {
+    if (!button || button.dataset.iconDecorated === `${icon}:${mode}`) {
+      return;
+    }
+
+    const label = (button.getAttribute("aria-label") || button.textContent || "").trim();
+    if (!label) {
+      return;
+    }
+
+    button.setAttribute("aria-label", label);
+    button.dataset.iconDecorated = `${icon}:${mode}`;
+    if (mode === "icon-only") {
+      button.classList.add("tooltip-button", "icon-only-button");
+      button.classList.remove("icon-text-button");
+      button.innerHTML = renderIcon(icon);
+      return;
+    }
+
+    button.classList.add("icon-text-button");
+    button.classList.remove("icon-only-button");
+    button.innerHTML = `${renderIcon(icon)}<span>${escapeButtonLabel(label)}</span>`;
+  }
+
+  function decorateStaticActionButtons() {
+    document.querySelectorAll("button").forEach((button) => {
+      const label = (button.textContent || "").trim().replace(/\s+/g, " ");
+      if (!label) {
+        return;
+      }
+
+      if (label === "Cerrar") {
+        decorateActionButton(button, "close", "icon-only");
+        return;
+      }
+
+      if (button.type === "button" && /^(Nuevo|Nueva)\b/.test(label)) {
+        decorateActionButton(button, "new", "icon-only");
+        return;
+      }
+
+      if (/^(Borrar|Eliminar)\b/.test(label)) {
+        decorateActionButton(button, "delete", "icon-only");
+        return;
+      }
+
+      if (/^Guardar\b/.test(label)) {
+        decorateActionButton(button, "save", "icon-text");
+        return;
+      }
+
+      if (/^(Exportar|Descargar)\b/.test(label)) {
+        decorateActionButton(button, "download", "icon-text");
+        return;
+      }
+
+      if (/^(Resumen|Informe)\b/.test(label)) {
+        decorateActionButton(button, "file", "icon-text");
+      }
+    });
   }
 
   // supabaseClient y currentSession gestionados por shared/supabase-client.js
@@ -192,23 +322,40 @@
   let studentRows = [];
   let filteredStudentRows = [];
   let studentsTotalCount = 0;
-  let studentsSort = { field: "centro", direction: "asc" };
+  let studentSort = [{ field: "centro", direction: "asc" }];
   let studentsCurrentPage = 1;
   let studentsRowsPerPage = Number(studentsPageSize?.value || 50);
+  let studentBulkOptions = { centros: [], semanas: [], grupos: [] };
+  let studentBulkMatchRequestId = 0;
   let attendanceTotalCount = 0;
   let attendanceCurrentPage = 1;
   let attendanceRowsPerPage = Number(attendancePageSize?.value || 50);
+  let attendanceSort = { field: "alumnado", direction: "asc" };
+  let attendanceRows = [];
+  let mobileAttendanceListOpen = false;
+  let mobileComedorPanelOpen = false;
+  let mobileAttendanceDay = "asistencia_lunes";
+  let mobileAttendancePresenceFilter = "all";
   let neeRows = [];
   let neeTotalCount = 0;
   let neeCurrentPage = 1;
   let neeRowsPerPage = Number(neePageSize?.value || 50);
+  let comedorRows = [];
+  let comedorTotalCount = 0;
+  let comedorCurrentPage = 1;
+  let comedorRowsPerPage = Number(comedorPageSize?.value || 50);
+  let availabilityRows = [];
+  let availabilityTotalCount = 0;
+  let availabilityCurrentPage = 1;
+  let availabilityRowsPerPage = Number(availabilityPageSize?.value || 50);
   let activityCatalogsLoaded = false;
   let activityAllPersonalRows = [];
   let activityPersonalRows = [];
   let activityAllInstallationRows = [];
   let activityInstallationRows = [];
-  let activityAssignedPersonalIds = new Set();
-  let activityAssignedInstallationIds = new Set();
+  let activityContractPersonalRows = [];
+  let activityContractInstallationRows = [];
+  let activityUsesContractAssignments = false;
   let activitiesRows = [];
   let filteredActivitiesRows = [];
   let lastActivitiesReportGroups = [];
@@ -227,8 +374,54 @@
   );
   const CURRENT_YEAR = new Date().getFullYear();
   const STUDENT_SELECT_COLUMNS =
-    "id,codigo_clase,clase,fecha_inicial,estado,codigo_persona,apellidos,nombre,nee,documento,fecha_nacimiento,edad,movil,mail,centro,semana,alumnado";
+    "id,codigo_clase,clase,fecha_inicial,estado,codigo_persona,apellidos,nombre,nee,documento,fecha_nacimiento,edad,movil,mail,centro,semana,alumnado,comedor,grupo";
+  const STUDENT_GROUP_OPTIONS = [
+    "EI01",
+    "EI02",
+    "EI03",
+    "EI04",
+    "EI05",
+    "EI06",
+    "EI07",
+    "EI08",
+    "PR01",
+    "PR02",
+    "PR03",
+    "PR04",
+    "PR05",
+    "PR06",
+    "PR07",
+    "PR08",
+    "PR09",
+    "PR10",
+    "PR11",
+    "PR12",
+    "PR13",
+    "PR14",
+    "PR15",
+  ];
+  const ATTENDANCE_DAYS = [
+    { field: "asistencia_lunes", label: "lunes", shortLabel: "L" },
+    { field: "asistencia_martes", label: "martes", shortLabel: "M" },
+    { field: "asistencia_miercoles", label: "miércoles", shortLabel: "X" },
+    { field: "asistencia_jueves", label: "jueves", shortLabel: "J" },
+    { field: "asistencia_viernes", label: "viernes", shortLabel: "V" },
+  ];
+  const MODULE_TAB_LABELS = {
+    asistencia: "Asistencia",
+    alumnado: "Alumnado",
+    nee: "NEE",
+  };
+  const AVAILABILITY_WEEKS = SUMMARY_WEEKS.map((week) => `semana_${week}`);
   const ASSIGNMENT_WEEK_FIELDS = SUMMARY_WEEKS.map((week) => `semana_${week}`);
+  const MOBILE_ATTENDANCE_FILTERS_STORAGE_KEY = "concilia.mobileAttendanceFilters";
+  const STUDENTS_BULK_ANY_VALUE = "__students_bulk_any__";
+  const STUDENTS_BULK_UNSET_VALUE = "__students_bulk_unset__";
+  const STUDENTS_BULK_FIELDS = {
+    centro: { column: "centro", optionKey: "centros", emptyLabel: "Sin centro" },
+    semana: { column: "semana", optionKey: "semanas", emptyLabel: "Sin semana" },
+    grupo: { column: "grupo", optionKey: "grupos", emptyLabel: "Sin grupo" },
+  };
   const ACTIVITY_REPORT_WEEKS = [
     { label: "22/06-28/06", start: "2026-06-22", end: "2026-06-28" },
     { label: "29/06-05/07", start: "2026-06-29", end: "2026-07-05" },
@@ -272,8 +465,73 @@
       return false;
     }
 
+    if (control instanceof HTMLSelectElement && control.multiple) {
+      Array.from(control.options).forEach((option) => {
+        option.selected = false;
+      });
+      return true;
+    }
+
     control.value = "";
     return true;
+  }
+
+  function getStoredMobileAttendanceFilters() {
+    try {
+      return JSON.parse(localStorage.getItem(MOBILE_ATTENDANCE_FILTERS_STORAGE_KEY) || "{}");
+    } catch (_error) {
+      return {};
+    }
+  }
+
+  function storeMobileAttendanceFilters() {
+    try {
+      localStorage.setItem(
+        MOBILE_ATTENDANCE_FILTERS_STORAGE_KEY,
+        JSON.stringify({
+          centro: attendanceMobileCenterFilter?.value || "",
+          semana: attendanceMobileWeekFilter?.value || "",
+          grupo: attendanceMobileGroupFilter?.value || "",
+        })
+      );
+    } catch (_error) {
+      // localStorage can be unavailable in private or restricted browser modes.
+    }
+  }
+
+  function selectOptionIfAvailable(select, value) {
+    if (!select || !value) {
+      return false;
+    }
+
+    if (!Array.from(select.options || []).some((option) => option.value === value)) {
+      return false;
+    }
+
+    select.value = value;
+    return true;
+  }
+
+  function applyStoredMobileAttendanceFilters() {
+    if (!window.matchMedia("(max-width: 780px)").matches) {
+      return;
+    }
+
+    const storedFilters = getStoredMobileAttendanceFilters();
+    const centerApplied = selectOptionIfAvailable(
+      attendanceMobileCenterFilter,
+      storedFilters.centro
+    );
+    const weekApplied = selectOptionIfAvailable(attendanceMobileWeekFilter, storedFilters.semana);
+    selectOptionIfAvailable(attendanceMobileGroupFilter, storedFilters.grupo);
+
+    if (centerApplied) {
+      selectOptionIfAvailable(attendanceCenterFilter, storedFilters.centro);
+    }
+
+    if (weekApplied) {
+      selectOptionIfAvailable(attendanceWeekFilter, storedFilters.semana);
+    }
   }
 
   function normalizeText(value) {
@@ -282,6 +540,11 @@
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
+  }
+
+  function matchesNormalizedStudentSearch(row, search) {
+    const normalizedSearch = normalizeText(search);
+    return !normalizedSearch || normalizeText(row?.alumnado).includes(normalizedSearch);
   }
 
   function escapeHtml(value) {
@@ -293,16 +556,94 @@
       .replaceAll("'", "&#39;");
   }
 
-  function switchModuleTab(target) {
+  function getInitialModuleTab() {
+    return allowedModuleTabTargets.has(INITIAL_MODULE_TAB) ? INITIAL_MODULE_TAB : "asistencia";
+  }
+
+  function isAttendanceOnlyUser(email) {
+    return ATTENDANCE_ONLY_EMAILS.has(normalizeText(email));
+  }
+
+  function applyModuleAccess(email) {
+    allowedModuleTabTargets = isAttendanceOnlyUser(email)
+      ? new Set(["asistencia"])
+      : MODULE_TAB_TARGETS;
+
     moduleTabButtons.forEach((button) => {
-      const isActive = button.dataset.moduleTab === target;
+      const isAllowed = allowedModuleTabTargets.has(button.dataset.moduleTab);
+      button.classList.toggle("hidden", !isAllowed);
+      button.disabled = !isAllowed;
+    });
+
+    document.querySelectorAll(".topbar-actions .secondary-link").forEach((link) => {
+      link.classList.toggle("hidden", allowedModuleTabTargets.size === 1);
+    });
+  }
+
+  async function loadModuleTabData(target) {
+    if (!allowedModuleTabTargets.has(target)) {
+      return;
+    }
+
+    const supabase = await getSupabaseClient();
+
+    if (target === "alumnado") {
+      await loadStudents();
+      return;
+    }
+
+    if (target === "asistencia") {
+      await loadAttendanceMatrix(supabase);
+      return;
+    }
+
+    if (target === "nee") {
+      await loadNeeRows(supabase);
+      return;
+    }
+
+    if (target === "comedor") {
+      await loadComedorPanel(supabase);
+      return;
+    }
+
+    if (target === "disponibilidad") {
+      await loadAvailabilityRows();
+      return;
+    }
+
+    if (target === "actividades") {
+      await loadActivityCatalogs();
+      await loadActivities();
+      return;
+    }
+
+    if (target === "asignaciones") {
+      await loadAssignments();
+    }
+  }
+
+  function switchModuleTab(target) {
+    const normalizedTarget =
+      MODULE_TAB_TARGETS.has(target) && allowedModuleTabTargets.has(target)
+        ? target
+        : "asistencia";
+    moduleTabButtons.forEach((button) => {
+      const isActive = button.dataset.moduleTab === normalizedTarget;
       button.classList.toggle("active", isActive);
       button.setAttribute("aria-pressed", String(isActive));
     });
 
     modulePanels.forEach((panel) => {
-      panel.classList.toggle("hidden", panel.dataset.modulePanel !== target);
+      panel.classList.toggle("hidden", panel.dataset.modulePanel !== normalizedTarget);
     });
+
+    if (mobileModuleTitle) {
+      mobileModuleTitle.textContent = MODULE_TAB_LABELS[normalizedTarget] || "Concilia";
+    }
+
+    mobileModuleMenu?.classList.add("hidden");
+    mobileModuleMenuToggle?.setAttribute("aria-expanded", "false");
   }
 
   function getSortValue(row, field) {
@@ -337,15 +678,210 @@
     neePaginationSummary.textContent = `Pagina ${neeCurrentPage} de ${totalPages}`;
   }
 
+  function updateComedorPagination() {
+    const totalPages = Math.max(1, Math.ceil(comedorTotalCount / comedorRowsPerPage));
+    comedorCurrentPage = Math.min(Math.max(1, comedorCurrentPage), totalPages);
+    comedorPreviousPage.disabled = comedorCurrentPage <= 1;
+    comedorNextPage.disabled = comedorCurrentPage >= totalPages;
+    comedorPaginationSummary.textContent = `Pagina ${comedorCurrentPage} de ${totalPages}`;
+  }
+
+  function updateAvailabilityPagination() {
+    const totalPages = Math.max(1, Math.ceil(availabilityTotalCount / availabilityRowsPerPage));
+    availabilityCurrentPage = Math.min(Math.max(1, availabilityCurrentPage), totalPages);
+    availabilityPreviousPage.disabled = availabilityCurrentPage <= 1;
+    availabilityNextPage.disabled = availabilityCurrentPage >= totalPages;
+    availabilityPaginationSummary.textContent = `Pagina ${availabilityCurrentPage} de ${totalPages}`;
+  }
+
+  function renderStudentGroupOptions(selectedValue = "") {
+    return [`<option value="">Sin grupo</option>`]
+      .concat(
+        STUDENT_GROUP_OPTIONS.map(
+          (option) =>
+            `<option value="${escapeHtml(option)}"${option === selectedValue ? " selected" : ""}>${escapeHtml(option)}</option>`
+        )
+      )
+      .join("");
+  }
+
+  function getStudentAgeValue(row) {
+    const birthYear = Number(String(row.fecha_nacimiento ?? "").slice(0, 4));
+    if (Number.isInteger(birthYear) && birthYear > 1900) {
+      return CURRENT_YEAR - birthYear;
+    }
+
+    const storedAge = Number(String(row.edad ?? "").replace(/[^0-9]/g, ""));
+    return Number.isInteger(storedAge) && storedAge >= 0 ? storedAge : null;
+  }
+
+  function formatStudentAge(row) {
+    const age = getStudentAgeValue(row);
+    return age === null ? "" : String(age);
+  }
+
+  function getStudentSortValues(row, field) {
+    if (field === "edad") {
+      const age = getStudentAgeValue(row);
+      return [age === null ? "" : String(age).padStart(3, "0")];
+    }
+
+    if (field === "comedor") {
+      return [row.comedor ? "1" : "0"];
+    }
+
+    return [row[field]];
+  }
+
+  function compareStudentRows(leftRow, rightRow) {
+    for (const sort of studentSort) {
+      const leftValues = getStudentSortValues(leftRow, sort.field);
+      const rightValues = getStudentSortValues(rightRow, sort.field);
+
+      for (let index = 0; index < leftValues.length; index += 1) {
+        const left = String(leftValues[index] ?? "");
+        const right = String(rightValues[index] ?? "");
+        const result = left.localeCompare(right, "es", { numeric: true, sensitivity: "base" });
+
+        if (result !== 0) {
+          return sort.direction === "asc" ? result : -result;
+        }
+      }
+    }
+
+    return String(leftRow.id ?? "").localeCompare(String(rightRow.id ?? ""), "es", {
+      numeric: true,
+      sensitivity: "base",
+    });
+  }
+
+  function updateStudentSortButtons() {
+    document.querySelectorAll("[data-student-sort-field]").forEach((button) => {
+      const sortIndex = studentSort.findIndex(
+        (sort) => sort.field === button.dataset.studentSortField
+      );
+      const sort = studentSort[sortIndex];
+
+      button.classList.toggle("active", Boolean(sort));
+      button.dataset.direction = sort?.direction || "";
+      button.dataset.priority = sort ? String(sortIndex + 1) : "";
+    });
+  }
+
   function renderStudentsTable() {
     studentsSummary.textContent = `${studentsTotalCount} registros filtrados`;
     updateStudentsPagination();
 
     const rows = filteredStudentRows;
+    const filters = getStudentFilters();
+    const columns = [
+      !filters.centro
+        ? {
+            field: "centro",
+            label: "Centro",
+            render: (row) => escapeHtml(row.centro),
+          }
+        : null,
+      !filters.semana
+        ? {
+            field: "semana",
+            label: "Semana",
+            render: (row) => escapeHtml(row.semana),
+          }
+        : null,
+      {
+        field: "edad",
+        label: "Edad",
+        render: (row) => escapeHtml(formatStudentAge(row)),
+      },
+      {
+        field: "grupo",
+        label: "Grupo",
+        render: (row) => `
+          <select
+            class="student-inline-select"
+            data-student-inline-id="${escapeHtml(row.id)}"
+            data-student-inline-field="grupo"
+            aria-label="Grupo para ${escapeHtml(row.alumnado)}"
+          >
+            ${renderStudentGroupOptions(row.grupo || "")}
+          </select>
+        `,
+      },
+      {
+        field: "alumnado",
+        label: "Alumnado",
+        render: (row) => {
+          const age = formatStudentAge(row);
+          const hasNee = Boolean(String(row.nee ?? "").trim());
+          const phone = String(row.movil ?? "").trim();
+          const details = [
+            age ? `Edad: ${escapeHtml(age)}` : "",
+            phone ? `Tel: ${escapeHtml(phone)}` : "",
+            hasNee ? '<span class="student-nee-badge">NEE</span>' : "",
+          ].filter(Boolean);
+
+          return `
+            <div class="student-name-cell">
+              <span class="student-name-main">${escapeHtml(row.alumnado)}</span>
+              ${
+                details.length
+                  ? `<span class="student-name-details">${details.join(" ")}</span>`
+                  : ""
+              }
+            </div>
+          `;
+        },
+      },
+      {
+        field: "comedor",
+        label: "Comedor",
+        render: (row) => `
+          <input
+            class="student-inline-checkbox"
+            type="checkbox"
+            data-student-inline-id="${escapeHtml(row.id)}"
+            data-student-inline-field="comedor"
+            ${row.comedor ? "checked" : ""}
+            aria-label="Comedor para ${escapeHtml(row.alumnado)}"
+          />
+        `,
+      },
+      {
+        field: null,
+        label: "Acciones",
+        render: (row) => `
+          <button class="compact-button tooltip-button" type="button" aria-label="Editar alumno" data-edit-student="${escapeHtml(row.id)}">
+            ${renderIcon("edit")}
+          </button>
+        `,
+      },
+    ].filter(Boolean);
+
+    studentsTableHead.innerHTML = `
+      <tr>
+        ${columns
+          .map((column) => {
+            if (!column.field) {
+              return `<th>${escapeHtml(column.label)}</th>`;
+            }
+
+            return `
+              <th>
+                <button class="sort-button" type="button" data-student-sort-field="${escapeHtml(column.field)}">
+                  ${escapeHtml(column.label)}
+                </button>
+              </th>
+            `;
+          })
+          .join("")}
+      </tr>
+    `;
+    updateStudentSortButtons();
 
     if (!rows.length) {
       studentsTableBody.innerHTML =
-        '<tr><td colspan="5" class="empty-state">No hay alumnado con esos filtros.</td></tr>';
+        `<tr><td colspan="${columns.length}" class="empty-state">No hay alumnado con esos filtros.</td></tr>`;
       return;
     }
 
@@ -353,15 +889,7 @@
       .map(
         (row) => `
           <tr>
-            <td>${escapeHtml(row.centro)}</td>
-            <td>${escapeHtml(row.semana)}</td>
-            <td>${escapeHtml(row.alumnado)}</td>
-            <td>${escapeHtml(row.movil)}</td>
-            <td>
-              <button class="compact-button tooltip-button" type="button" aria-label="Editar alumno" data-edit-student="${escapeHtml(row.id)}">
-                ${renderIcon("edit")}
-              </button>
-            </td>
+            ${columns.map((column) => `<td>${column.render(row)}</td>`).join("")}
           </tr>
         `
       )
@@ -595,12 +1123,45 @@
   }
 
   function renderSelectOptions(select, values, emptyLabel) {
+    if (!select) {
+      return;
+    }
+
     const currentValue = select.value;
     const options = [`<option value="">${escapeHtml(emptyLabel)}</option>`].concat(
       values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
     );
     select.innerHTML = options.join("");
     select.value = values.includes(currentValue) ? currentValue : "";
+  }
+
+  function renderMultiSelectOptions(select, values, emptyLabel) {
+    if (!select) {
+      return;
+    }
+
+    const currentValues = new Set(getSelectValues(select));
+    select.innerHTML = values
+      .map((value) => {
+        const isSelected = currentValues.has(value);
+        return `<option value="${escapeHtml(value)}" ${isSelected ? "selected" : ""}>${escapeHtml(value)}</option>`;
+      })
+      .join("");
+    syncMultiCheckDropdown(select, emptyLabel);
+  }
+
+  function sortAgeValues(first, second) {
+    const firstNumber = Number(String(first).replace(",", "."));
+    const secondNumber = Number(String(second).replace(",", "."));
+
+    if (Number.isFinite(firstNumber) && Number.isFinite(secondNumber)) {
+      return firstNumber - secondNumber;
+    }
+
+    return String(first).localeCompare(String(second), "es", {
+      numeric: true,
+      sensitivity: "base",
+    });
   }
 
   function renderStudentFilterOptions() {
@@ -613,10 +1174,9 @@
 
     renderSelectOptions(filterCentro, centros, "Todos los centros");
     renderSelectOptions(filterSemana, semanas, "Todas las semanas");
-    renderSelectOptions(attendanceCenterFilter, centros, "Todos los centros");
   }
 
-  function renderStudentFilterOptionRows(optionRows) {
+  function renderStudentFilterOptionRows(optionRows, ageValues = []) {
     const centros = optionRows
       .filter((row) => row.option_type === "centro")
       .map((row) => String(row.option_value ?? "").trim())
@@ -630,19 +1190,353 @@
 
     renderSelectOptions(filterCentro, centros, "Todos los centros");
     renderSelectOptions(filterSemana, semanas, "Todas las semanas");
+    renderMultiSelectOptions(filterEdad, ageValues, "Todas las edades");
+  }
+
+  function renderComedorFilterOptionRows(optionRows) {
+    const centros = optionRows
+      .filter((row) => row.option_type === "centro")
+      .map((row) => String(row.option_value ?? "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+
+    renderSelectOptions(filterComedorCentro, centros, "Todos los centros");
+  }
+
+  function renderStudentBulkOptionRows(optionRows) {
+    studentBulkOptions = {
+      centros: optionRows
+        .filter((row) => row.option_type === "centro")
+        .map((row) => String(row.option_value ?? "").trim())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" })),
+      semanas: optionRows
+        .filter((row) => row.option_type === "semana")
+        .map((row) => String(row.option_value ?? "").trim())
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, "es", { numeric: true, sensitivity: "base" })),
+      grupos: STUDENT_GROUP_OPTIONS,
+    };
+    syncStudentsBulkAssignmentUi();
+  }
+
+  function getStudentsBulkFieldDefinition() {
+    return STUDENTS_BULK_FIELDS[studentsBulkFieldSelect?.value] || STUDENTS_BULK_FIELDS.centro;
+  }
+
+  function renderStudentsBulkSelectOptions(select, values, { includeAny = false, emptyLabel }) {
+    if (!select) {
+      return;
+    }
+
+    const currentValue = select.value;
+    const options = [];
+
+    if (includeAny) {
+      options.push(`<option value="${STUDENTS_BULK_ANY_VALUE}">Cualquier valor</option>`);
+    }
+
+    options.push(`<option value="${STUDENTS_BULK_UNSET_VALUE}">${escapeHtml(emptyLabel)}</option>`);
+    values.forEach((value) => {
+      options.push(`<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`);
+    });
+
+    select.innerHTML = options.join("");
+    select.value = Array.from(select.options).some((option) => option.value === currentValue)
+      ? currentValue
+      : includeAny
+        ? STUDENTS_BULK_ANY_VALUE
+        : values[0] || STUDENTS_BULK_UNSET_VALUE;
+  }
+
+  function getStudentsBulkPayloadValue(rawValue) {
+    return rawValue === STUDENTS_BULK_UNSET_VALUE ? null : rawValue;
+  }
+
+  function applyStudentsBulkCurrentValueToQuery(query) {
+    const definition = getStudentsBulkFieldDefinition();
+    const currentValue = studentsBulkCurrentSelect?.value || STUDENTS_BULK_ANY_VALUE;
+
+    if (currentValue === STUDENTS_BULK_ANY_VALUE) {
+      return query;
+    }
+
+    if (currentValue === STUDENTS_BULK_UNSET_VALUE) {
+      return query.is(definition.column, null);
+    }
+
+    return query.eq(definition.column, currentValue);
+  }
+
+  function syncStudentsBulkAssignmentUi() {
+    const definition = getStudentsBulkFieldDefinition();
+    const values = studentBulkOptions[definition.optionKey] || [];
+
+    renderStudentsBulkSelectOptions(studentsBulkCurrentSelect, values, {
+      includeAny: true,
+      emptyLabel: definition.emptyLabel,
+    });
+    renderStudentsBulkSelectOptions(studentsBulkNewSelect, values, {
+      includeAny: false,
+      emptyLabel: definition.emptyLabel,
+    });
+
+    void updateStudentsBulkMatchCount();
+  }
+
+  async function updateStudentsBulkMatchCount() {
+    if (!studentsBulkMatchCount) {
+      return;
+    }
+
+    const requestId = ++studentBulkMatchRequestId;
+    studentsBulkMatchCount.textContent = "Calculando...";
+
+    try {
+      const supabase = await getSupabaseClient();
+      let query = supabase
+        .from("concilia_usuarios")
+        .select("id", { count: "exact", head: true });
+      query = applyStudentFiltersToQuery(query, getStudentFilters());
+      query = applyStudentsBulkCurrentValueToQuery(query);
+      const { count, error } = await query;
+
+      if (requestId !== studentBulkMatchRequestId) {
+        return;
+      }
+
+      if (error) {
+        throw error;
+      }
+
+      const total = count ?? 0;
+      studentsBulkMatchCount.textContent = `${total} coincidencia${total === 1 ? "" : "s"}`;
+      if (studentsBulkApplyButton) {
+        studentsBulkApplyButton.disabled = total === 0;
+      }
+    } catch (_error) {
+      if (requestId === studentBulkMatchRequestId) {
+        studentsBulkMatchCount.textContent = "No se pudo calcular";
+        if (studentsBulkApplyButton) {
+          studentsBulkApplyButton.disabled = true;
+        }
+      }
+    }
+  }
+
+  async function applyStudentsBulkAssignment() {
+    const definition = getStudentsBulkFieldDefinition();
+    const newValue = studentsBulkNewSelect?.value || STUDENTS_BULK_UNSET_VALUE;
+    const payload = {
+      [definition.column]: getStudentsBulkPayloadValue(newValue),
+    };
+
+    try {
+      const supabase = await getSupabaseClient();
+      let countQuery = supabase
+        .from("concilia_usuarios")
+        .select("id", { count: "exact", head: true });
+      countQuery = applyStudentFiltersToQuery(countQuery, getStudentFilters());
+      countQuery = applyStudentsBulkCurrentValueToQuery(countQuery);
+      const { count, error: countError } = await countQuery;
+
+      if (countError) {
+        throw countError;
+      }
+
+      const total = count ?? 0;
+      if (!total) {
+        setStatus("No hay alumnos que coincidan con la asignacion masiva.", "error");
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Vas a actualizar ${total} alumno${total === 1 ? "" : "s"}.`
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      let updateQuery = supabase.from("concilia_usuarios").update(payload);
+      updateQuery = applyStudentFiltersToQuery(updateQuery, getStudentFilters());
+      updateQuery = applyStudentsBulkCurrentValueToQuery(updateQuery);
+      const { error } = await updateQuery;
+
+      if (error) {
+        throw error;
+      }
+
+      setStatus(`Asignacion masiva aplicada a ${total} alumno${total === 1 ? "" : "s"}.`, "success");
+      await loadStudents();
+    } catch (error) {
+      setStatus(`No se pudo aplicar la asignacion masiva: ${error.message}`, "error");
+    }
+  }
+
+  function renderAttendanceFilterOptionRows(optionRows) {
+    const centros = optionRows
+      .filter((row) => row.option_type === "centro")
+      .map((row) => String(row.option_value ?? "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+    const semanas = optionRows
+      .filter((row) => row.option_type === "semana")
+      .map((row) => String(row.option_value ?? "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "es", { numeric: true, sensitivity: "base" }));
+
     renderSelectOptions(attendanceCenterFilter, centros, "Todos los centros");
+    renderSelectOptions(attendanceWeekFilter, semanas, "Todas las semanas");
+    renderSelectOptions(attendanceMobileCenterFilter, centros, "Selecciona centro");
+    renderSelectOptions(attendanceMobileWeekFilter, semanas, "Selecciona semana");
+    renderSelectOptions(attendanceMobileGroupFilter, STUDENT_GROUP_OPTIONS, "Todos los grupos");
+    applyStoredMobileAttendanceFilters();
+  }
+
+  function getSelectValues(select) {
+    return Array.from(select?.selectedOptions || [])
+      .map((option) => String(option.value || ""))
+      .filter(Boolean);
+  }
+
+  function getMultiCheckDropdown(select, emptyLabel) {
+    if (!select?.multiple) {
+      return null;
+    }
+
+    select.classList.add("multi-check-select-hidden");
+    let dropdown = select.nextElementSibling;
+    if (!dropdown?.classList?.contains("multi-check-dropdown")) {
+      dropdown = document.createElement("div");
+      dropdown.className = "multi-check-dropdown";
+      dropdown.innerHTML = `
+        <button type="button" class="multi-check-toggle" aria-haspopup="listbox" aria-expanded="false">
+          <span></span>
+        </button>
+        <div class="multi-check-menu hidden" role="listbox" aria-multiselectable="true"></div>
+      `;
+      select.insertAdjacentElement("afterend", dropdown);
+
+      dropdown.querySelector(".multi-check-toggle")?.addEventListener("click", () => {
+        const menu = dropdown.querySelector(".multi-check-menu");
+        const isOpen = !menu.classList.contains("hidden");
+        menu.classList.toggle("hidden", isOpen);
+        dropdown.querySelector(".multi-check-toggle").setAttribute("aria-expanded", String(!isOpen));
+      });
+
+      dropdown.addEventListener("change", (event) => {
+        const allCheckbox = event.target.closest("[data-multi-check-all]");
+        if (allCheckbox) {
+          Array.from(select.options).forEach((option) => {
+            option.selected = false;
+          });
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          return;
+        }
+
+        const checkbox = event.target.closest("[data-multi-check-value]");
+        if (!checkbox) {
+          return;
+        }
+
+        const option = Array.from(select.options).find(
+          (item) => String(item.value) === checkbox.dataset.multiCheckValue
+        );
+        if (!option) {
+          return;
+        }
+
+        option.selected = checkbox.checked;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+
+      document.addEventListener("click", (event) => {
+        if (dropdown.contains(event.target)) {
+          return;
+        }
+
+        dropdown.querySelector(".multi-check-menu")?.classList.add("hidden");
+        dropdown.querySelector(".multi-check-toggle")?.setAttribute("aria-expanded", "false");
+      });
+    }
+
+    dropdown.dataset.emptyLabel = emptyLabel;
+    return dropdown;
+  }
+
+  function syncMultiCheckDropdown(select, emptyLabel) {
+    const dropdown = getMultiCheckDropdown(select, emptyLabel);
+    if (!dropdown) {
+      return;
+    }
+
+    const selectedOptions = Array.from(select.selectedOptions);
+    const selectedCount = selectedOptions.length;
+    const label =
+      selectedCount === 0
+        ? emptyLabel
+        : selectedCount === 1
+          ? selectedOptions[0].textContent
+          : `${selectedCount} ${select.dataset.multiCheckSelectedLabel || "opciones seleccionadas"}`;
+
+    dropdown.querySelector(".multi-check-toggle span").textContent = label;
+    dropdown.querySelector(".multi-check-menu").innerHTML = `
+      <label class="multi-check-option" role="option" aria-selected="${selectedCount === 0}">
+        <input
+          type="checkbox"
+          data-multi-check-all="true"
+          ${selectedCount === 0 ? "checked" : ""}
+        />
+        <span>${escapeHtml(emptyLabel)}</span>
+      </label>
+      ${Array.from(select.options)
+        .map(
+          (option) => `
+          <label class="multi-check-option" role="option" aria-selected="${option.selected}">
+            <input
+              type="checkbox"
+              data-multi-check-value="${escapeHtml(option.value)}"
+              ${option.selected ? "checked" : ""}
+            />
+            <span>${escapeHtml(option.textContent)}</span>
+          </label>
+        `
+        )
+        .join("")}
+    `;
   }
 
   function renderCatalogOptions(select, rows, valueField, labelField, emptyLabel) {
-    const currentValue = select.value;
-    const options = [`<option value="">${escapeHtml(emptyLabel)}</option>`].concat(
-      rows.map((row) => {
-        const value = row[valueField];
-        const label = row[labelField] || `ID ${value}`;
-        return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
-      })
-    );
+    if (!select) {
+      return false;
+    }
+
+    const isMultiple = Boolean(select.multiple);
+    const currentValues = isMultiple ? getSelectValues(select) : [String(select.value || "")];
+    const currentValueSet = new Set(currentValues);
+    const optionRows = rows.map((row) => {
+      const value = row[valueField];
+      const label = row[labelField] || `ID ${value}`;
+      return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
+    });
+    const options = isMultiple
+      ? optionRows
+      : [`<option value="">${escapeHtml(emptyLabel)}</option>`].concat(optionRows);
     select.innerHTML = options.join("");
+
+    if (isMultiple) {
+      Array.from(select.options).forEach((option) => {
+        option.selected = currentValueSet.has(String(option.value));
+      });
+      const nextValues = getSelectValues(select);
+      syncMultiCheckDropdown(select, emptyLabel);
+      return (
+        nextValues.length !== currentValues.length ||
+        nextValues.some((value, index) => value !== currentValues[index])
+      );
+    }
+
+    const currentValue = currentValues[0] || "";
     select.value = rows.some((row) => String(row[valueField]) === currentValue) ? currentValue : "";
     return select.value !== currentValue;
   }
@@ -658,62 +1552,87 @@
     );
   }
 
-  function renderActivitySettings() {
-    if (
-      !activityPersonalAvailableSelect ||
-      !activityPersonalSelectedSelect ||
-      !activityInstallationAvailableSelect ||
-      !activityInstallationSelectedSelect
-    ) {
-      return;
+  function isCurrentContractAssignment(row) {
+    return Boolean(row?.activo) && !row?.removed_at;
+  }
+
+  function getActivityPersonalRowsForContract(contratoId, selectedPersonalId = "") {
+    const normalizedContratoId = Number(contratoId);
+    if (!activityUsesContractAssignments) {
+      return activityPersonalRows;
+    }
+    if (!normalizedContratoId) {
+      const selectedId = Number(selectedPersonalId);
+      return activityAllPersonalRows.filter((row) => Number(row.id) === selectedId);
     }
 
-    const personalFilter = normalizeText(activitySettingsPersonalFilter?.value || "");
-    const filteredPersonalRows = activityAllPersonalRows.filter(
-      (row) => !personalFilter || normalizeText(row.personal).includes(personalFilter)
+    const assignedIds = new Set(
+      activityContractPersonalRows
+        .filter((row) => Number(row.contrato_id) === normalizedContratoId && isCurrentContractAssignment(row))
+        .map((row) => Number(row.personal_id))
     );
-    const availablePersonalRows = filteredPersonalRows.filter(
-      (row) => !activityAssignedPersonalIds.has(Number(row.id))
-    );
-    const selectedPersonalRows = filteredPersonalRows.filter((row) =>
-      activityAssignedPersonalIds.has(Number(row.id))
-    );
+    const rows = activityAllPersonalRows.filter((row) => assignedIds.has(Number(row.id)));
+    const selectedId = Number(selectedPersonalId);
+    const selectedRow = activityAllPersonalRows.find((row) => Number(row.id) === selectedId);
 
-    activityPersonalAvailableSelect.innerHTML = availablePersonalRows
-      .map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.personal)}</option>`)
-      .join("");
-    activityPersonalSelectedSelect.innerHTML = selectedPersonalRows
-      .map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.personal)}</option>`)
-      .join("");
+    if (selectedRow && !rows.some((row) => Number(row.id) === selectedId)) {
+      rows.push(selectedRow);
+    }
 
-    const installationFilter = normalizeText(activitySettingsInstallationFilter?.value || "");
-    const filteredInstallationRows = activityAllInstallationRows.filter(
-      (row) => !installationFilter || normalizeText(row.instalacion).includes(installationFilter)
-    );
-    const availableInstallationRows = filteredInstallationRows.filter(
-      (row) => !activityAssignedInstallationIds.has(Number(row.id))
-    );
-    const selectedInstallationRows = filteredInstallationRows.filter((row) =>
-      activityAssignedInstallationIds.has(Number(row.id))
-    );
+    return rows;
+  }
 
-    activityInstallationAvailableSelect.innerHTML = availableInstallationRows
-      .map(
-        (row) =>
-          `<option value="${escapeHtml(row.id)}">${escapeHtml(row.instalacion)}</option>`
-      )
-      .join("");
-    activityInstallationSelectedSelect.innerHTML = selectedInstallationRows
-      .map(
-        (row) =>
-          `<option value="${escapeHtml(row.id)}">${escapeHtml(row.instalacion)}</option>`
-      )
-      .join("");
+  function getActivityInstallationRowsForContract(contratoId, selectedInstallationId = "") {
+    const normalizedContratoId = Number(contratoId);
+    if (!activityUsesContractAssignments) {
+      return activityInstallationRows;
+    }
+    if (!normalizedContratoId) {
+      const selectedId = Number(selectedInstallationId);
+      return activityAllInstallationRows.filter((row) => Number(row.id) === selectedId);
+    }
+
+    const assignedIds = new Set(
+      activityContractInstallationRows
+        .filter((row) => Number(row.contrato_id) === normalizedContratoId && isCurrentContractAssignment(row))
+        .map((row) => Number(row.instalacion_id))
+    );
+    const rows = activityAllInstallationRows.filter((row) => assignedIds.has(Number(row.id)));
+    const selectedId = Number(selectedInstallationId);
+    const selectedRow = activityAllInstallationRows.find((row) => Number(row.id) === selectedId);
+
+    if (selectedRow && !rows.some((row) => Number(row.id) === selectedId)) {
+      rows.push(selectedRow);
+    }
+
+    return rows;
+  }
+
+  function renderActivityContractScopedOptions(form, selectedPersonalId = "", selectedInstallationId = "") {
+    const contractSelect = form === activityEditForm ? editActivityContrato : activityContrato;
+    const personalSelect = form === activityEditForm ? editActivityPersonal : activityPersonal;
+    const installationSelect = form === activityEditForm ? editActivityInstalacion : activityInstalacion;
+    const contratoId = contractSelect?.value || "";
+
+    renderCatalogOptions(
+      personalSelect,
+      getActivityPersonalRowsForContract(contratoId, selectedPersonalId || personalSelect?.value),
+      "id",
+      "personal",
+      "Seleccionar personal"
+    );
+    renderCatalogOptions(
+      installationSelect,
+      getActivityInstallationRowsForContract(contratoId, selectedInstallationId || installationSelect?.value),
+      "id",
+      "instalacion",
+      "Seleccionar instalacion"
+    );
   }
 
   function getActivityFilterValues() {
     return {
-      contrato: String(filterActivityContrato.value || ""),
+      contrato: getSelectValues(filterActivityContrato),
       personal: String(filterActivityPersonal.value || ""),
       instalacion: String(filterActivityInstalacion.value || ""),
     };
@@ -722,8 +1641,8 @@
   function activityMatchesFilterValues(activity, filters, excludedFilter = "") {
     const matchesContrato =
       excludedFilter === "contrato" ||
-      !filters.contrato ||
-      String(activity.contrato_id) === filters.contrato;
+      !filters.contrato.length ||
+      filters.contrato.includes(String(activity.contrato_id));
     const matchesPersonal =
       excludedFilter === "personal" ||
       !filters.personal ||
@@ -909,98 +1828,469 @@
     return person?.personal || `ID ${personalId}`;
   }
 
-  function renderAttendanceMatrix() {
-    if (!studentRows.length) {
-      attendanceSummary.textContent = "Sin datos cargados.";
-      attendanceTableBody.innerHTML =
-        '<tr><td colspan="12" class="empty-state">No hay datos para mostrar.</td></tr>';
-      return;
-    }
+  function getAttendanceAgeSortValue(row) {
+    const match = String(row?.edad ?? "").match(/\d+/);
+    return match ? Number(match[0]) : null;
+  }
 
-    const centerFilter = normalizeText(attendanceCenterFilter.value);
-    const rowsForCenter = studentRows.filter(
-      (row) => !centerFilter || normalizeText(row.centro) === centerFilter
-    );
-    const byStudent = new Map();
+  function compareTextValues(first, second) {
+    return String(first ?? "").localeCompare(String(second ?? ""), "es", {
+      numeric: true,
+      sensitivity: "base",
+    });
+  }
 
-    rowsForCenter.forEach((row) => {
-      const center = String(row.centro ?? "").trim();
-      const studentName = String(row.alumnado ?? "").trim() || "Sin nombre";
-      const personCode = String(row.codigo_persona ?? "").trim();
-      const key = `${center}::${personCode || studentName}`;
-      const week = String(row.semana ?? "").trim().padStart(2, "0");
+  function sortAttendanceRows(rows) {
+    const direction = attendanceSort.direction === "desc" ? -1 : 1;
 
-      if (!SUMMARY_WEEKS.includes(week)) {
-        return;
+    return [...rows].sort((first, second) => {
+      if (attendanceSort.field === "edad") {
+        const firstAge = getAttendanceAgeSortValue(first);
+        const secondAge = getAttendanceAgeSortValue(second);
+
+        if (firstAge === null && secondAge !== null) {
+          return 1;
+        }
+
+        if (firstAge !== null && secondAge === null) {
+          return -1;
+        }
+
+        if (firstAge !== null && secondAge !== null && firstAge !== secondAge) {
+          return (firstAge - secondAge) * direction;
+        }
       }
 
-      if (!byStudent.has(key)) {
-        byStudent.set(key, {
-          center,
-          name: studentName,
-          weeks: new Set(),
-        });
+      const nameComparison = compareTextValues(first?.alumnado, second?.alumnado);
+      if (nameComparison !== 0) {
+        return nameComparison * direction;
       }
 
-      byStudent.get(key).weeks.add(week);
+      return Number(first?.id ?? 0) - Number(second?.id ?? 0);
+    });
+  }
+
+  function getAttendanceDay(field) {
+    return ATTENDANCE_DAYS.find((day) => day.field === field) || ATTENDANCE_DAYS[0];
+  }
+
+  function updateMobileAttendanceControls() {
+    attendanceDayTabButtons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.attendanceDay === mobileAttendanceDay);
     });
 
-    const rows = Array.from(byStudent.values()).sort((a, b) =>
-      a.name.localeCompare(b.name, "es", { sensitivity: "base" })
-    );
+    attendancePresenceFilterButtons.forEach((button) => {
+      button.classList.toggle(
+        "active",
+        button.dataset.attendancePresenceFilter === mobileAttendancePresenceFilter
+      );
+    });
+  }
 
-    if (!rows.length) {
-      attendanceSummary.textContent = "No hay alumnado para ese centro.";
-      attendanceTableBody.innerHTML =
-        '<tr><td colspan="12" class="empty-state">No hay alumnado para ese centro.</td></tr>';
+  function setMobileAttendanceScreen(isListOpen) {
+    mobileAttendanceListOpen = isListOpen;
+    if (!isListOpen) {
+      mobileComedorPanelOpen = false;
+    }
+    attendanceMobileStart?.classList.toggle("hidden", isListOpen);
+    attendanceMobileList?.classList.toggle("hidden", !isListOpen);
+    syncMobileComedorPanel();
+  }
+
+  function syncMobileComedorPanel() {
+    attendanceMobileComedorButton?.classList.toggle("active", mobileComedorPanelOpen);
+    attendanceMobileComedorBackdrop?.classList.toggle("hidden", !mobileComedorPanelOpen);
+    attendanceMobileComedorView?.classList.toggle("hidden", !mobileComedorPanelOpen);
+  }
+
+  function closeMobileComedorPanel() {
+    mobileComedorPanelOpen = false;
+    syncMobileComedorPanel();
+  }
+
+  async function openMobileComedorPanel() {
+    mobileComedorPanelOpen = true;
+    syncMobileComedorPanel();
+    await loadMobileComedorRows();
+  }
+
+  function renderMobileComedorRows(rows) {
+    if (!attendanceMobileComedorRows || !attendanceMobileComedorSummary) {
       return;
     }
 
-    attendanceSummary.textContent = `${rows.length} alumnos mostrados`;
-    attendanceTableBody.innerHTML = rows
+    const center = attendanceCenterFilter.value || "Todos los centros";
+    const week = attendanceWeekFilter.value || "Todas las semanas";
+    const group = attendanceMobileGroupFilter?.value || "Todos los grupos";
+    attendanceMobileComedorSummary.textContent = `${rows.length} con comedor · ${center} · ${week} · ${group}`;
+
+    if (!rows.length) {
+      attendanceMobileComedorRows.innerHTML =
+        '<p class="empty-state">No hay alumnado apuntado al comedor para este filtro.</p>';
+      return;
+    }
+
+    attendanceMobileComedorRows.innerHTML = rows
       .map(
         (row) => `
-          <tr>
-            <th scope="row">${escapeHtml(row.name)}</th>
-            ${SUMMARY_WEEKS.map((week) => {
-              const attends = row.weeks.has(week);
-              return `<td class="${attends ? "attendance-cell active" : "attendance-cell"}">${attends ? "Si" : ""}</td>`;
-            }).join("")}
-          </tr>
+          <div class="mobile-attendance-row mobile-comedor-row">
+            <span class="mobile-attendance-name">${escapeHtml(row.alumnado)}</span>
+            <span class="mobile-attendance-age">Edad: ${escapeHtml(row.edad || "-")}</span>
+          </div>
         `
       )
       .join("");
   }
 
+  async function loadMobileComedorRows() {
+    if (!attendanceMobileComedorRows || !attendanceMobileComedorSummary) {
+      return;
+    }
+
+    const centro = String(attendanceCenterFilter.value || "").trim();
+    const semana = String(attendanceWeekFilter.value || "").trim();
+    const grupo = String(attendanceMobileGroupFilter?.value || "").trim();
+
+    if (!centro || !semana) {
+      renderMobileComedorRows([]);
+      return;
+    }
+
+    attendanceMobileComedorSummary.textContent = "Cargando comedor...";
+    attendanceMobileComedorRows.innerHTML = '<p class="empty-state">Cargando comedor...</p>';
+
+    try {
+      const supabase = await getSupabaseClient();
+      let query = supabase
+        .from("concilia_usuarios")
+        .select("id,alumnado,edad,grupo")
+        .eq("centro", centro)
+        .eq("semana", semana)
+        .eq("comedor", true)
+        .order("alumnado", { ascending: true });
+
+      if (grupo) {
+        query = query.eq("grupo", grupo);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      renderMobileComedorRows(data ?? []);
+    } catch (error) {
+      attendanceMobileComedorSummary.textContent = "No se pudo cargar comedor.";
+      attendanceMobileComedorRows.innerHTML =
+        '<p class="empty-state">Error cargando alumnado de comedor.</p>';
+      setStatus(`No se pudo cargar comedor: ${error.message}`, "error");
+    }
+  }
+
+  function renderMobileAttendanceRows() {
+    if (!attendanceMobileRows) {
+      return;
+    }
+
+    updateMobileAttendanceControls();
+
+    if (!mobileAttendanceListOpen) {
+      attendanceMobileRows.innerHTML = '<p class="empty-state">Selecciona centro y semana.</p>';
+      return;
+    }
+
+    const day = getAttendanceDay(mobileAttendanceDay);
+    const rows = attendanceRows.filter((row) => {
+      const isPresent = Boolean(row[day.field]);
+
+      if (mobileAttendancePresenceFilter === "present") {
+        return isPresent;
+      }
+
+      if (mobileAttendancePresenceFilter === "missing") {
+        return !isPresent;
+      }
+
+      return true;
+    });
+
+    if (attendanceMobileContext) {
+      const center = attendanceCenterFilter.value || "Todos los centros";
+      const week = attendanceWeekFilter.value || "Todas las semanas";
+      const group = attendanceMobileGroupFilter?.value || "Todos los grupos";
+      attendanceMobileContext.textContent = `${center} · ${week} · ${group} · ${day.label}`;
+    }
+
+    if (!rows.length) {
+      attendanceMobileRows.innerHTML =
+        '<p class="empty-state">No hay alumnado para este filtro.</p>';
+      return;
+    }
+
+    attendanceMobileRows.innerHTML = rows
+      .map((row) => {
+        const isPresent = Boolean(row[day.field]);
+        return `
+          <button
+            class="mobile-attendance-row ${isPresent ? "present" : ""}"
+            type="button"
+            data-attendance-mobile-id="${escapeHtml(row.id)}"
+            aria-pressed="${String(isPresent)}"
+          >
+            <span class="mobile-attendance-name">${escapeHtml(row.alumnado)}</span>
+            <span class="mobile-attendance-age">Edad: ${escapeHtml(row.edad)}</span>
+          </button>
+        `;
+      })
+      .join("");
+  }
+
   function renderAttendanceRows(rows) {
+    attendanceRows = rows;
+
     if (!rows.length) {
       attendanceTotalCount = 0;
-      attendanceSummary.textContent = attendanceCenterFilter.value
-        ? "No hay alumnado para ese centro."
-        : "Sin datos cargados.";
+      attendanceSummary.textContent = "No hay alumnado para esos filtros.";
       attendanceTableBody.innerHTML =
-        '<tr><td colspan="12" class="empty-state">No hay alumnado para mostrar.</td></tr>';
+        '<tr><td colspan="7" class="empty-state">No hay alumnado para mostrar.</td></tr>';
+      renderMobileAttendanceRows();
       updateAttendancePagination();
       return;
     }
 
     attendanceTotalCount = Number(rows[0]?.total_count) || rows.length;
-    attendanceSummary.textContent = `${rows.length} alumnos mostrados de ${attendanceTotalCount}`;
+    const checkedCount = rows.reduce(
+      (total, row) => total + ATTENDANCE_DAYS.filter((day) => row[day.field]).length,
+      0
+    );
+    attendanceSummary.textContent = `${rows.length} alumnos mostrados de ${attendanceTotalCount}. ${checkedCount} asistencias marcadas en esta pagina.`;
     attendanceTableBody.innerHTML = rows
-      .map((row) => {
-        const weeks = new Set(Array.isArray(row.semanas) ? row.semanas.map(String) : []);
-        return `
+      .map(
+        (row) => `
           <tr>
-            <th scope="row">${escapeHtml(row.alumnado)}</th>
-            ${SUMMARY_WEEKS.map((week) => {
-              const attends = weeks.has(week);
-              return `<td class="${attends ? "attendance-cell active" : "attendance-cell"}">${attends ? "Si" : ""}</td>`;
-            }).join("")}
+            ${ATTENDANCE_DAYS.map(
+              (day) => `
+                <td class="attendance-check-cell">
+                  <span class="attendance-day-label">${escapeHtml(day.shortLabel)}</span>
+                  <input
+                    class="attendance-checkbox"
+                    type="checkbox"
+                    data-attendance-id="${escapeHtml(row.id)}"
+                    data-attendance-field="${escapeHtml(day.field)}"
+                    ${row[day.field] ? "checked" : ""}
+                    aria-label="Marcar ${escapeHtml(day.label)} para ${escapeHtml(row.alumnado)}"
+                  />
+                </td>
+              `
+            ).join("")}
+            <th scope="row">
+              <span class="attendance-student-name">${escapeHtml(row.alumnado)}</span>
+              <span class="attendance-student-age">Edad: ${escapeHtml(row.edad)}</span>
+            </th>
+            <td class="attendance-age-cell">${escapeHtml(row.edad)}</td>
           </tr>
-        `;
-      })
+        `
+      )
       .join("");
+    renderMobileAttendanceRows();
     updateAttendancePagination();
+  }
+
+  async function updateStudentAttendance(id, field, isPresent, options = {}) {
+    if (!id) {
+      setStatus("No se pudo actualizar asistencia: falta el registro.", "error");
+      return false;
+    }
+
+    if (!ATTENDANCE_DAYS.some((day) => day.field === field)) {
+      setStatus("No se pudo actualizar asistencia: dia no valido.", "error");
+      return false;
+    }
+
+    try {
+      const supabase = await getSupabaseClient();
+      const { data, error } = await supabase
+        .from("concilia_usuarios")
+        .update({ [field]: isPresent })
+        .eq("id", id)
+        .select("id");
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.length) {
+        throw new Error("Supabase no devolvio ningun registro actualizado.");
+      }
+
+      if (options.reload !== false) {
+        await loadAttendanceMatrix(supabase);
+      }
+
+      if (!options.silent) {
+        setStatus(isPresent ? "Asistencia marcada." : "Asistencia retirada.", "success");
+      }
+
+      return true;
+    } catch (error) {
+      setStatus(`No se pudo actualizar asistencia: ${error.message}`, "error");
+      return false;
+    }
+  }
+
+  async function toggleMobileAttendance(rowId) {
+    const day = getAttendanceDay(mobileAttendanceDay);
+    const row = attendanceRows.find((item) => String(item.id) === String(rowId));
+
+    if (!row) {
+      setStatus("No se encontro el alumno seleccionado.", "error");
+      return;
+    }
+
+    const nextValue = !Boolean(row[day.field]);
+    row[day.field] = nextValue;
+    renderMobileAttendanceRows();
+
+    const saved = await updateStudentAttendance(row.id, day.field, nextValue, {
+      reload: false,
+      silent: true,
+    });
+
+    if (!saved) {
+      row[day.field] = !nextValue;
+      renderMobileAttendanceRows();
+      return;
+    }
+
+    setStatus("Asistencia guardada automaticamente.", "success");
+  }
+
+  function formatDateTime(value) {
+    if (!value) {
+      return "-";
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "-";
+    }
+
+    return new Intl.DateTimeFormat("es-ES", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(date);
+  }
+
+  function renderAvailabilityRows(rows) {
+    availabilityRows = rows;
+
+    if (!rows.length) {
+      availabilityTotalCount = 0;
+      availabilitySummary.textContent = availabilityNameFilter.value
+        ? "No hay personas con esa busqueda."
+        : "No hay disponibilidades registradas.";
+      availabilityTableBody.innerHTML =
+        '<tr><td colspan="15" class="empty-state">No hay disponibilidad para mostrar.</td></tr>';
+      updateAvailabilityPagination();
+      return;
+    }
+
+    availabilityTotalCount = Number(rows[0]?.total_count) || rows.length;
+    const availabilityMarks = rows.reduce(
+      (total, row) => total + AVAILABILITY_WEEKS.filter((week) => row[week]).length,
+      0
+    );
+    availabilitySummary.textContent = `${rows.length} personas mostradas de ${availabilityTotalCount}. ${availabilityMarks} semanas marcadas en esta pagina.`;
+    availabilityTableBody.innerHTML = rows
+      .map(
+        (row) => `
+          <tr>
+            <th scope="row">${escapeHtml(row.nombre)}</th>
+            ${AVAILABILITY_WEEKS.map((week, index) => {
+              const selected = Boolean(row[week]);
+              return `<td class="${selected ? "availability-week-cell active" : "availability-week-cell"}" data-week-label="${String(index + 1).padStart(2, "0")}">${selected ? "Si" : ""}</td>`;
+            }).join("")}
+            <td>${escapeHtml(row.observaciones || "-")}</td>
+            <td>${escapeHtml(formatDateTime(row.updated_at))}</td>
+            <td>
+              <button
+                class="compact-button danger-button"
+                type="button"
+                data-delete-availability="${escapeHtml(row.id)}"
+              >
+                Borrar
+              </button>
+            </td>
+          </tr>
+        `
+      )
+      .join("");
+    updateAvailabilityPagination();
+  }
+
+  async function loadAvailabilityRows() {
+    availabilitySummary.textContent = "Cargando disponibilidad...";
+    availabilityTableBody.innerHTML =
+      '<tr><td colspan="15" class="empty-state">Cargando disponibilidad...</td></tr>';
+
+    try {
+      const supabase = await getSupabaseClient();
+      const from = (availabilityCurrentPage - 1) * availabilityRowsPerPage;
+      const to = from + availabilityRowsPerPage - 1;
+      let query = supabase
+        .from("concilia_disponibilidad")
+        .select(
+          "id,nombre,observaciones,semana_01,semana_02,semana_03,semana_04,semana_05,semana_06,semana_07,semana_08,semana_09,semana_10,semana_11,updated_at",
+          { count: "exact" }
+        )
+        .order("updated_at", { ascending: false })
+        .order("nombre", { ascending: true })
+        .range(from, to);
+
+      const search = String(availabilityNameFilter.value || "").trim();
+      if (search) {
+        query = query.ilike("nombre", `%${search}%`);
+      }
+
+      const { data, error, count } = await query;
+      if (error) {
+        throw error;
+      }
+
+      const rows = (data ?? []).map((row) => ({
+        ...row,
+        total_count: count ?? data?.length ?? 0,
+      }));
+      renderAvailabilityRows(rows);
+    } catch (error) {
+      availabilitySummary.textContent = "No se pudo cargar la disponibilidad.";
+      availabilityTableBody.innerHTML =
+        '<tr><td colspan="15" class="empty-state">Error cargando disponibilidad.</td></tr>';
+      setStatus(`No se pudo cargar disponibilidad: ${error.message}`, "error");
+    }
+  }
+
+  async function deleteAvailabilityRow(id) {
+    const row = availabilityRows.find((item) => String(item.id) === String(id));
+    const name = row?.nombre || "esta persona";
+    const confirmed = window.confirm(`Vas a borrar la disponibilidad de ${name}.`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const supabase = await getSupabaseClient();
+      const { error } = await supabase.from("concilia_disponibilidad").delete().eq("id", id);
+      if (error) {
+        throw error;
+      }
+
+      setStatus("Disponibilidad borrada correctamente.", "success");
+      await loadAvailabilityRows();
+    } catch (error) {
+      setStatus(`No se pudo borrar disponibilidad: ${error.message}`, "error");
+    }
   }
 
   function buildNeeRows() {
@@ -1169,6 +2459,97 @@
     }
   }
 
+  function renderComedorRows(rows) {
+    comedorRows = rows.map((row) => ({
+      codigoPersona: String(row.codigo_persona ?? "").trim(),
+      centro: String(row.centro ?? "").trim() || "Sin centro",
+      alumnado: String(row.alumnado ?? "").trim() || "Sin nombre",
+      comedor: Boolean(row.comedor),
+    }));
+
+    comedorTotalCount = Number(rows[0]?.total_count) || comedorRows.length;
+    const comedorTotal = comedorRows.filter((row) => row.comedor).length;
+    comedorSummary.textContent = `${comedorRows.length} alumnos mostrados de ${comedorTotalCount}. ${comedorTotal} con comedor en esta pagina.`;
+
+    if (!comedorRows.length) {
+      comedorTotalCount = 0;
+      comedorTableBody.innerHTML =
+        '<tr><td colspan="3" class="empty-state">No hay alumnado con esos filtros.</td></tr>';
+      updateComedorPagination();
+      return;
+    }
+
+    comedorTableBody.innerHTML = comedorRows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.centro)}</td>
+            <td>${escapeHtml(row.alumnado)}</td>
+            <td class="nee-check-cell">
+              <input
+                class="comedor-checkbox"
+                type="checkbox"
+                data-comedor-codigo-persona="${escapeHtml(row.codigoPersona)}"
+                data-comedor-centro="${escapeHtml(row.centro)}"
+                ${row.comedor ? "checked" : ""}
+                aria-label="Marcar comedor para ${escapeHtml(row.alumnado)}"
+              />
+            </td>
+          </tr>
+        `
+      )
+      .join("");
+    updateComedorPagination();
+  }
+
+  async function updateStudentComedor(codigoPersona, centro, comedor) {
+    if (!codigoPersona) {
+      setStatus("No se pudo actualizar comedor: falta el codigo de persona.", "error");
+      return false;
+    }
+
+    try {
+      const supabase = await getSupabaseClient();
+      const { data, error } = await supabase.rpc("set_concilia_comedor", {
+        p_codigo_persona: codigoPersona,
+        p_centro: centro || null,
+        p_comedor: comedor,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!Number(data)) {
+        throw new Error("no se encontraron registros visibles para ese alumno.");
+      }
+
+      studentRows.forEach((row) => {
+        const samePerson = String(row.codigo_persona ?? "").trim() === String(codigoPersona).trim();
+        const rowCentro = String(row.centro ?? "").trim() || "Sin centro";
+        const sameCentro = !centro || rowCentro === centro;
+        if (samePerson && sameCentro) {
+          row.comedor = Boolean(comedor);
+        }
+      });
+
+      await Promise.all([
+        applyStudentFilters(),
+        loadComedorRows(supabase),
+      ]);
+      setStatus(
+        comedor
+          ? "Alumno marcado con comedor en todas sus semanas."
+          : "Comedor retirado en todas sus semanas.",
+        "success"
+      );
+      return true;
+    } catch (error) {
+      setStatus(`No se pudo actualizar comedor: ${error.message}`, "error");
+      return false;
+    }
+  }
+
   async function fetchCatalog(supabase, table, columns, orderColumn, filters = []) {
     let query = supabase.from(table).select(columns).order(orderColumn, { ascending: true });
 
@@ -1205,10 +2586,12 @@
         empresaRows,
         instalacionRows,
         puestoRows,
+        funcionRows,
+        modalidadRows,
         situacionRows,
         tipoHoraRows,
-        activityPersonalSettingsRows,
-        activityInstallationSettingsRows,
+        contractPersonalRows,
+        contractInstallationRows,
       ] = await Promise.all([
         fetchCatalog(supabase, "personal", "id,personal", "personal", [
           { column: "vinculacion_id", operator: "in", value: [1, 2] },
@@ -1221,49 +2604,37 @@
           { column: "activo", value: true },
         ]),
         fetchCatalog(supabase, "puestos", "id,puesto", "puesto"),
+        fetchCatalog(supabase, "funciones", "id,funcion", "funcion"),
+        fetchCatalog(supabase, "modalidades", "id,modalidad", "modalidad"),
         fetchCatalog(supabase, "situaciones", "id,situacion", "situacion"),
         fetchCatalog(supabase, "tipo_horas", "id,tipo_hora", "tipo_hora"),
-        supabase.from("actividades_personal").select("personal_id"),
-        supabase.from("actividades_instalaciones").select("instalacion_id"),
+        supabase
+          .from("contrato_personal")
+          .select("contrato_id,personal_id,activo,fecha_inicio,fecha_fin,removed_at"),
+        supabase
+          .from("contrato_instalaciones")
+          .select("contrato_id,instalacion_id,activo,fecha_inicio,fecha_fin,removed_at"),
       ]);
 
-      if (activityPersonalSettingsRows.error && !isMissingTableError(activityPersonalSettingsRows.error, "actividades_personal")) {
-        throw activityPersonalSettingsRows.error;
+      if (contractPersonalRows.error && !isMissingTableError(contractPersonalRows.error, "contrato_personal")) {
+        throw contractPersonalRows.error;
       }
       if (
-        activityInstallationSettingsRows.error &&
-        !isMissingTableError(activityInstallationSettingsRows.error, "actividades_instalaciones")
+        contractInstallationRows.error &&
+        !isMissingTableError(contractInstallationRows.error, "contrato_instalaciones")
       ) {
-        throw activityInstallationSettingsRows.error;
+        throw contractInstallationRows.error;
       }
 
       activityAllPersonalRows = personalRows;
       activityAllInstallationRows = instalacionRows;
-      activityAssignedPersonalIds = new Set(
-        activityPersonalSettingsRows.error
-          ? personalRows.map((row) => Number(row.id))
-          : (activityPersonalSettingsRows.data ?? []).map((row) => Number(row.personal_id))
-      );
-      activityAssignedInstallationIds = new Set(
-        activityInstallationSettingsRows.error
-          ? instalacionRows.map((row) => Number(row.id))
-          : (activityInstallationSettingsRows.data ?? []).map((row) => Number(row.instalacion_id))
-      );
-      activityPersonalRows = personalRows.filter((row) =>
-        activityAssignedPersonalIds.has(Number(row.id))
-      );
-      activityInstallationRows = instalacionRows.filter((row) =>
-        activityAssignedInstallationIds.has(Number(row.id))
-      );
-
-      renderCatalogOptions(activityPersonal, activityPersonalRows, "id", "personal", "Seleccionar personal");
-      renderCatalogOptions(
-        editActivityPersonal,
-        activityPersonalRows,
-        "id",
-        "personal",
-        "Seleccionar personal"
-      );
+      activityContractPersonalRows = contractPersonalRows.error ? [] : contractPersonalRows.data ?? [];
+      activityContractInstallationRows = contractInstallationRows.error
+        ? []
+        : contractInstallationRows.data ?? [];
+      activityUsesContractAssignments = !contractPersonalRows.error && !contractInstallationRows.error;
+      activityPersonalRows = personalRows;
+      activityInstallationRows = instalacionRows;
       renderCatalogOptions(
         filterActivityPersonal,
         activityPersonalRows,
@@ -1286,15 +2657,10 @@
         "contrato",
         "Todos los contratos"
       );
+      renderActivityContractScopedOptions(activityForm);
+      renderActivityContractScopedOptions(activityEditForm);
       renderCatalogOptions(activityEmpresa, empresaRows, "id", "empresa", "Seleccionar empresa");
       renderCatalogOptions(editActivityEmpresa, empresaRows, "id", "empresa", "Seleccionar empresa");
-      renderCatalogOptions(
-        activityInstalacion,
-        activityInstallationRows,
-        "id",
-        "instalacion",
-        "Seleccionar instalacion"
-      );
       renderCatalogOptions(
         filterActivityInstalacion,
         activityInstallationRows,
@@ -1302,15 +2668,18 @@
         "instalacion",
         "Todas las instalaciones"
       );
-      renderCatalogOptions(
-        editActivityInstalacion,
-        activityInstallationRows,
-        "id",
-        "instalacion",
-        "Seleccionar instalacion"
-      );
       renderCatalogOptions(activityPuesto, puestoRows, "id", "puesto", "Seleccionar puesto");
       renderCatalogOptions(editActivityPuesto, puestoRows, "id", "puesto", "Seleccionar puesto");
+      renderCatalogOptions(activityFuncion, funcionRows, "id", "funcion", "Seleccionar funcion");
+      renderCatalogOptions(editActivityFuncion, funcionRows, "id", "funcion", "Seleccionar funcion");
+      renderCatalogOptions(activityModalidad, modalidadRows, "id", "modalidad", "Seleccionar modalidad");
+      renderCatalogOptions(
+        editActivityModalidad,
+        modalidadRows,
+        "id",
+        "modalidad",
+        "Seleccionar modalidad"
+      );
       renderCatalogOptions(
         activitySituacion,
         situacionRows,
@@ -1339,80 +2708,12 @@
         "tipo_hora",
         "Seleccionar tipo de hora"
       );
-      renderActivitySettings();
-
       activityCatalogsLoaded = true;
       applyActivityFormDefaults();
       activitiesSummary.textContent = "Completa los campos para crear una actividad.";
     } catch (error) {
       activitiesSummary.textContent = "No se pudieron cargar las listas maestras.";
       setStatus(`No se pudieron cargar las listas de actividades: ${error.message}`, "error");
-    }
-  }
-
-  function openActivitiesSettingsPanel() {
-    renderActivitySettings();
-    activitiesSettingsPanel.classList.remove("hidden");
-    activitiesSettingsBackdrop.classList.remove("hidden");
-    activitySettingsPersonalFilter?.focus();
-  }
-
-  function closeActivitiesSettingsPanel() {
-    activitiesSettingsPanel.classList.add("hidden");
-    activitiesSettingsBackdrop.classList.add("hidden");
-  }
-
-  async function setActivityPersonalBatch(personalIds, isEnabled) {
-    const ids = personalIds.map(Number).filter(Boolean);
-    if (!ids.length) {
-      return;
-    }
-
-    try {
-      const supabase = await getSupabaseClient();
-      const { error } = isEnabled
-        ? await supabase
-            .from("actividades_personal")
-            .upsert(ids.map((personalId) => ({ personal_id: personalId })))
-        : await supabase.from("actividades_personal").delete().in("personal_id", ids);
-
-      if (error) {
-        throw error;
-      }
-
-      activityCatalogsLoaded = false;
-      await loadActivityCatalogs();
-      setStatus("Configuración de personal de actividades actualizada.", "success");
-    } catch (error) {
-      setStatus(`No se pudo actualizar el personal de actividades: ${error.message}`, "error");
-      renderActivitySettings();
-    }
-  }
-
-  async function setActivityInstallationBatch(installationIds, isEnabled) {
-    const ids = installationIds.map(Number).filter(Boolean);
-    if (!ids.length) {
-      return;
-    }
-
-    try {
-      const supabase = await getSupabaseClient();
-      const { error } = isEnabled
-        ? await supabase
-            .from("actividades_instalaciones")
-            .upsert(ids.map((instalacionId) => ({ instalacion_id: instalacionId })))
-        : await supabase.from("actividades_instalaciones").delete().in("instalacion_id", ids);
-
-      if (error) {
-        throw error;
-      }
-
-      activityCatalogsLoaded = false;
-      await loadActivityCatalogs();
-      setStatus("Configuración de instalaciones de actividades actualizada.", "success");
-    } catch (error) {
-      setStatus(`No se pudo actualizar las instalaciones de actividades: ${error.message}`, "error");
-      renderActivitySettings();
     }
   }
 
@@ -1483,6 +2784,8 @@
       empresa_id: Number(formData.get("empresa_id")),
       instalacion_id: Number(formData.get("instalacion_id")),
       puesto_id: Number(formData.get("puesto_id")),
+      funcion_id: formData.get("funcion_id") ? Number(formData.get("funcion_id")) : null,
+      modalidad_id: formData.get("modalidad_id") ? Number(formData.get("modalidad_id")) : null,
       situacion_id: Number(formData.get("situacion_id")),
       tipo_hora_id: Number(formData.get("tipo_hora_id")),
       dias_semana: diasSemana,
@@ -1506,7 +2809,7 @@
       const { data, error } = await supabase
         .from("actividades_detalle")
         .select(
-          "id,personal_id,personal,contrato_id,contrato,empresa_id,empresa,instalacion_id,instalacion,puesto_id,puesto,situacion_id,situacion,tipo_hora_id,tipo_hora,dias_semana,fecha_inicio,fecha_fin,hora_inicio,hora_fin,llamamiento_enviado,respuesta_llamamiento,observaciones,updated_at"
+          "id,personal_id,personal,contrato_id,contrato,empresa_id,empresa,instalacion_id,instalacion,puesto_id,puesto,funcion_id,funcion,modalidad_id,modalidad,situacion_id,situacion,tipo_hora_id,tipo_hora,dias_semana,fecha_inicio,fecha_fin,hora_inicio,hora_fin,llamamiento_enviado,respuesta_llamamiento,observaciones,updated_at"
         )
         .order("fecha_inicio", { ascending: false })
         .order("hora_inicio", { ascending: true });
@@ -1570,7 +2873,11 @@
           <tr>
             <td>${escapeHtml(activity.personal)}</td>
             <td>${escapeHtml(activity.instalacion)}</td>
-            <td>${escapeHtml(activity.puesto)}</td>
+            <td>
+              ${escapeHtml(activity.puesto)}
+              <br />
+              <span class="muted-text">${escapeHtml(activity.funcion || "")}</span>
+            </td>
             <td>
               ${escapeHtml(formatDate(activity.fecha_inicio))}<br />
               <span class="muted-text">${escapeHtml(formatDate(activity.fecha_fin))}</span>
@@ -2193,11 +3500,18 @@
     }
 
     editActivityId.value = activity.id;
-    editActivityPersonal.value = String(activity.personal_id);
     editActivityContrato.value = String(activity.contrato_id);
+    renderActivityContractScopedOptions(
+      activityEditForm,
+      String(activity.personal_id),
+      String(activity.instalacion_id)
+    );
+    editActivityPersonal.value = String(activity.personal_id);
     editActivityEmpresa.value = String(activity.empresa_id);
     editActivityInstalacion.value = String(activity.instalacion_id);
     editActivityPuesto.value = String(activity.puesto_id);
+    editActivityFuncion.value = activity.funcion_id ? String(activity.funcion_id) : "";
+    editActivityModalidad.value = activity.modalidad_id ? String(activity.modalidad_id) : "";
     editActivitySituacion.value = String(activity.situacion_id);
     editActivityTipoHora.value = String(activity.tipo_hora_id);
     activityEditForm.elements.fecha_inicio.value = activity.fecha_inicio || "";
@@ -2239,11 +3553,14 @@
     }
 
     activityForm.reset();
-    activityPersonal.value = "";
     activityContrato.value = editActivityContrato.value;
+    renderActivityContractScopedOptions(activityForm, "", editActivityInstalacion.value);
+    activityPersonal.value = "";
     activityEmpresa.value = editActivityEmpresa.value;
     activityInstalacion.value = editActivityInstalacion.value;
     activityPuesto.value = editActivityPuesto.value;
+    activityFuncion.value = editActivityFuncion.value;
+    activityModalidad.value = editActivityModalidad.value;
     activitySituacion.value = editActivitySituacion.value;
     activityTipoHora.value = editActivityTipoHora.value;
     activityForm.elements.fecha_inicio.value = activityEditForm.elements.fecha_inicio.value;
@@ -2371,27 +3688,17 @@
 
     try {
       const supabase = await getSupabaseClient();
-      const [installationRows, personalRows, assignmentPersonalSettingsRows] = await Promise.all([
+      const [installationRows, personalRows] = await Promise.all([
         fetchCatalog(supabase, "instalaciones", "id,instalacion", "instalacion", [
           { column: "activo", value: true },
         ]),
         fetchCatalog(supabase, "personal", "id,personal", "personal", [
           { column: "vinculacion_id", operator: "in", value: [1, 2] },
         ]),
-        supabase.from("actividades_personal").select("personal_id"),
       ]);
 
       assignmentInstallationRows = installationRows;
-      if (assignmentPersonalSettingsRows.error) {
-        throw assignmentPersonalSettingsRows.error;
-      }
-
-      const assignedPersonalIds = new Set(
-        (assignmentPersonalSettingsRows.data ?? []).map((row) => Number(row.personal_id))
-      );
-      assignmentPersonalRows = personalRows.filter((row) =>
-        assignedPersonalIds.has(Number(row.id))
-      );
+      assignmentPersonalRows = personalRows;
       renderAssignmentRecordOptions();
       renderAssignmentDualLists();
       assignmentCatalogsLoaded = true;
@@ -2821,11 +4128,11 @@
     }
   }
 
-  function updateSortButtons() {
-    document.querySelectorAll("[data-sort-field]").forEach((button) => {
-      const isActive = button.dataset.sortField === studentsSort.field;
+  function updateAttendanceSortButtons() {
+    document.querySelectorAll("[data-attendance-sort-field]").forEach((button) => {
+      const isActive = button.dataset.attendanceSortField === attendanceSort.field;
       button.classList.toggle("active", isActive);
-      button.dataset.direction = isActive ? studentsSort.direction : "";
+      button.dataset.direction = isActive ? attendanceSort.direction : "";
     });
   }
 
@@ -2836,12 +4143,13 @@
         fetchStudentsPage(supabase),
         loadStudentFilterOptions(supabase),
       ]);
-      updateSortButtons();
+      updateStudentSortButtons();
+      syncStudentsBulkAssignmentUi();
       renderStudentsTable();
     } catch (error) {
       studentsSummary.textContent = "No se pudieron cargar los datos.";
       studentsTableBody.innerHTML =
-        '<tr><td colspan="5" class="empty-state">Error cargando alumnado.</td></tr>';
+        '<tr><td colspan="8" class="empty-state">Error cargando alumnado.</td></tr>';
       setStatus(`No se pudo cargar alumnado: ${error.message}`, "error");
     }
   }
@@ -2851,6 +4159,7 @@
       centro: String(filterCentro.value || "").trim(),
       semana: String(filterSemana.value || "").trim(),
       alumnado: String(filterAlumnado.value || "").trim(),
+      edades: getSelectValues(filterEdad),
     };
   }
 
@@ -2868,6 +4177,8 @@
     studentId.value = "";
     studentCentro.value = filters.centro;
     studentSemana.value = filters.semana;
+    studentComedor.checked = false;
+    studentGrupo.value = "";
     studentPanelTitle.textContent = "Nuevo alumno";
     studentPanelSummary.textContent = "Completa los datos del alumno.";
   }
@@ -2891,6 +4202,8 @@
     studentCentro.value = row.centro ?? "";
     studentSemana.value = row.semana ?? "";
     studentNee.checked = Boolean(String(row.nee ?? "").trim());
+    studentComedor.checked = Boolean(row.comedor);
+    studentGrupo.value = STUDENT_GROUP_OPTIONS.includes(row.grupo) ? row.grupo : "";
     studentPanelTitle.textContent = `Editar ${row.alumnado || "alumno"}`;
     studentPanelSummary.textContent = "Actualiza los datos y guarda los cambios.";
   }
@@ -2904,6 +4217,16 @@
   function closeStudentPanel() {
     studentPanelBackdrop.classList.add("hidden");
     studentPanel.classList.add("hidden");
+  }
+
+  function openSummaryPanel() {
+    summaryPanelBackdrop.classList.remove("hidden");
+    summaryPanel.classList.remove("hidden");
+  }
+
+  function closeSummaryPanel() {
+    summaryPanelBackdrop.classList.add("hidden");
+    summaryPanel.classList.add("hidden");
   }
 
   function openStudentCreatePanel() {
@@ -2944,6 +4267,8 @@
       centro: nullableInputValue(studentCentro),
       semana: nullableInputValue(studentSemana),
       alumnado,
+      comedor: Boolean(studentComedor.checked),
+      grupo: nullableInputValue(studentGrupo),
     };
   }
 
@@ -2976,7 +4301,43 @@
     }
   }
 
-  function applyStudentFiltersToQuery(query, filters) {
+  async function updateStudentInlineField(studentIdValue, field, value) {
+    if (!studentIdValue || !["comedor", "grupo"].includes(field)) {
+      setStatus("No se pudo actualizar el alumno: campo no valido.", "error");
+      return false;
+    }
+
+    try {
+      const supabase = await getSupabaseClient();
+
+      const { error } = await supabase
+        .from("concilia_usuarios")
+        .update({ [field]: value })
+        .eq("id", studentIdValue);
+
+      if (error) {
+        throw error;
+      }
+
+      const row = studentRows.find((student) => String(student.id) === String(studentIdValue));
+      if (row) {
+        row[field] = value;
+      }
+
+      setStatus(
+        field === "comedor" ? "Comedor actualizado para esta semana." : "Alumno actualizado.",
+        "success"
+      );
+      return true;
+    } catch (error) {
+      setStatus(`No se pudo actualizar el alumno: ${error.message}`, "error");
+      return false;
+    }
+  }
+
+  function applyStudentFiltersToQuery(query, filters, options = {}) {
+    const includeTextFilter = options.includeTextFilter !== false;
+
     if (filters.centro) {
       query = query.eq("centro", filters.centro);
     }
@@ -2985,29 +4346,14 @@
       query = query.eq("semana", filters.semana);
     }
 
-    if (filters.alumnado) {
+    if (filters.alumnado && includeTextFilter) {
       query = query.ilike("alumnado", `%${filters.alumnado}%`);
     }
 
-    return query;
-  }
+    if (filters.edades?.length) {
+      query = query.in("edad", filters.edades);
+    }
 
-  function applyStudentSortToQuery(query) {
-    const columnMap = {
-      centro: "centro",
-      semana: "semana",
-      alumnado: "alumnado",
-      movil: "movil",
-    };
-    const primaryColumn = columnMap[studentsSort.field] || "centro";
-    const ascending = studentsSort.direction !== "desc";
-    const fallback = ["centro", "semana", "alumnado"];
-    query = query.order(primaryColumn, { ascending });
-    fallback.forEach((column) => {
-      if (column !== primaryColumn) {
-        query = query.order(column, { ascending: true });
-      }
-    });
     return query;
   }
 
@@ -3015,36 +4361,292 @@
     const filters = getStudentFilters();
     const from = (studentsCurrentPage - 1) * studentsRowsPerPage;
     const to = from + studentsRowsPerPage - 1;
-    let query = supabase
-      .from("concilia_usuarios")
-      .select(STUDENT_SELECT_COLUMNS, { count: "exact" })
-      .range(from, to);
-    query = applyStudentFiltersToQuery(query, filters);
-    query = applyStudentSortToQuery(query);
+    const pageSize = 1000;
+    const rows = [];
 
-    const { data, error, count } = await query;
-    if (error) {
-      throw error;
+    for (let pageFrom = 0; ; pageFrom += pageSize) {
+      const pageTo = pageFrom + pageSize - 1;
+      let query = supabase
+        .from("concilia_usuarios")
+        .select(STUDENT_SELECT_COLUMNS, { count: "exact" })
+        .order("centro", { ascending: true })
+        .order("semana", { ascending: true })
+        .order("alumnado", { ascending: true })
+        .range(pageFrom, pageTo);
+      query = applyStudentFiltersToQuery(query, filters, { includeTextFilter: false });
+
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+
+      rows.push(...(data ?? []));
+
+      if (!data || data.length < pageSize) {
+        break;
+      }
     }
 
-    studentRows = data ?? [];
-    filteredStudentRows = studentRows;
-    studentsTotalCount = count ?? studentRows.length;
+    studentRows = rows.filter((row) => matchesNormalizedStudentSearch(row, filters.alumnado));
+    studentRows.sort(compareStudentRows);
+    studentsTotalCount = studentRows.length;
+    filteredStudentRows = studentRows.slice(from, to + 1);
+  }
+
+  async function fetchStudentAgeFilterValues(supabase, filters) {
+    const pageSize = 1000;
+    const ages = new Set();
+
+    for (let pageFrom = 0; ; pageFrom += pageSize) {
+      const pageTo = pageFrom + pageSize - 1;
+      let query = supabase
+        .from("concilia_usuarios")
+        .select("edad")
+        .range(pageFrom, pageTo);
+      query = applyStudentFiltersToQuery(query, { ...filters, edades: [] }, { includeTextFilter: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      (data ?? [])
+        .filter((row) => matchesNormalizedStudentSearch(row, filters.alumnado))
+        .forEach((row) => {
+          const age = String(row.edad ?? "").trim();
+          if (age) {
+            ages.add(age);
+          }
+        });
+
+      if (!data || data.length < pageSize) {
+        break;
+      }
+    }
+
+    return Array.from(ages).sort(sortAgeValues);
+  }
+
+  async function fetchAllFilteredStudentsForReport(supabase) {
+    const filters = getStudentFilters();
+    const pageSize = 1000;
+    const rows = [];
+
+    for (let pageFrom = 0; ; pageFrom += pageSize) {
+      const pageTo = pageFrom + pageSize - 1;
+      let query = supabase
+        .from("concilia_usuarios")
+        .select("centro,semana,alumnado,edad")
+        .order("centro", { ascending: true })
+        .order("semana", { ascending: true })
+        .range(pageFrom, pageTo);
+      query = applyStudentFiltersToQuery(query, filters, { includeTextFilter: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      rows.push(...(data ?? []).filter((row) => matchesNormalizedStudentSearch(row, filters.alumnado)));
+
+      if (!data || data.length < pageSize) {
+        break;
+      }
+    }
+
+    return rows;
+  }
+
+  const STUDENT_AGE_REPORT_COLUMNS = [
+    { key: "lt4", label: "< 4 años" },
+    { key: "4", label: "4 años" },
+    { key: "5", label: "5 años" },
+    { key: "6", label: "6 años" },
+    { key: "7", label: "7 años" },
+    { key: "8", label: "8 años" },
+    { key: "9", label: "9 años" },
+    { key: "10", label: "10 años" },
+    { key: "11", label: "11 años" },
+    { key: "12", label: "12 años" },
+    { key: "13", label: "13 años" },
+    { key: "14", label: "14 años" },
+    { key: "gt14", label: "> 14 años" },
+  ];
+
+  function parseStudentAgeNumber(value) {
+    const match = String(value ?? "").replace(",", ".").match(/\d+(?:\.\d+)?/);
+    return match ? Number(match[0]) : null;
+  }
+
+  function getStudentAgeReportKey(value) {
+    const age = parseStudentAgeNumber(value);
+
+    if (!Number.isFinite(age)) {
+      return null;
+    }
+
+    if (age < 4) {
+      return "lt4";
+    }
+
+    if (age > 14) {
+      return "gt14";
+    }
+
+    const roundedAge = Math.floor(age);
+    return roundedAge >= 4 && roundedAge <= 14 ? String(roundedAge) : null;
+  }
+
+  function buildStudentsAgeReportRows(rows) {
+    const groupedRows = new Map();
+
+    rows.forEach((row) => {
+      const centro = String(row.centro ?? "").trim() || "Sin centro";
+      const semana = String(row.semana ?? "").trim() || "Sin semana";
+      const groupKey = `${centro}\u0000${semana}`;
+
+      if (!groupedRows.has(groupKey)) {
+        groupedRows.set(groupKey, {
+          centro,
+          semana,
+          counts: Object.fromEntries(STUDENT_AGE_REPORT_COLUMNS.map((column) => [column.key, 0])),
+        });
+      }
+
+      const ageKey = getStudentAgeReportKey(row.edad);
+      if (ageKey) {
+        groupedRows.get(groupKey).counts[ageKey] += 1;
+      }
+    });
+
+    return Array.from(groupedRows.values()).sort((left, right) => {
+      const centerCompare = left.centro.localeCompare(right.centro, "es", { sensitivity: "base" });
+      if (centerCompare !== 0) {
+        return centerCompare;
+      }
+
+      return left.semana.localeCompare(right.semana, "es", {
+        numeric: true,
+        sensitivity: "base",
+      });
+    });
+  }
+
+  async function downloadStudentsAgeReportPdf() {
+    try {
+      const supabase = await getSupabaseClient();
+      const rows = buildStudentsAgeReportRows(await fetchAllFilteredStudentsForReport(supabase));
+
+      if (!rows.length) {
+        setStatus("No hay alumnado filtrado para generar el informe.", "error");
+        return;
+      }
+
+      const { jsPDF } = await getJsPdfClient();
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 8;
+      const rowHeight = 7;
+      const centerWidth = 58;
+      const weekWidth = 18;
+      const ageWidth = (pageWidth - margin * 2 - centerWidth - weekWidth) / STUDENT_AGE_REPORT_COLUMNS.length;
+      let y = margin;
+
+      const drawTitle = () => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("Informe de alumnado por edad", margin, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text(`${rows.length} centro/semana según filtros del listado de alumnado.`, margin, y);
+        y += 8;
+      };
+
+      const drawHeader = () => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.2);
+        doc.setFillColor(235, 239, 245);
+        doc.rect(margin, y - 4.5, pageWidth - margin * 2, rowHeight, "F");
+        doc.text("Centro", margin + 1, y);
+        doc.text("Semana", margin + centerWidth + 1, y);
+        STUDENT_AGE_REPORT_COLUMNS.forEach((column, index) => {
+          doc.text(column.label, margin + centerWidth + weekWidth + ageWidth * index + 1, y, {
+            maxWidth: ageWidth - 1,
+          });
+        });
+        y += rowHeight;
+      };
+
+      const ensureSpace = () => {
+        if (y + rowHeight <= pageHeight - margin) {
+          return;
+        }
+
+        doc.addPage();
+        y = margin;
+        drawHeader();
+      };
+
+      drawTitle();
+      drawHeader();
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      rows.forEach((row) => {
+        ensureSpace();
+        doc.text(row.centro, margin + 1, y, { maxWidth: centerWidth - 2 });
+        doc.text(row.semana, margin + centerWidth + 1, y, { maxWidth: weekWidth - 2 });
+        STUDENT_AGE_REPORT_COLUMNS.forEach((column, index) => {
+          const value = row.counts[column.key] || 0;
+          doc.text(String(value), margin + centerWidth + weekWidth + ageWidth * index + 1, y, {
+            maxWidth: ageWidth - 1,
+          });
+        });
+        y += rowHeight;
+      });
+
+      const today = new Date().toISOString().slice(0, 10);
+      doc.save(`informe-alumnado-edades-${today}.pdf`);
+      setStatus("PDF de alumnado por edad generado correctamente.", "success");
+    } catch (error) {
+      setStatus(`No se pudo generar el informe de edades: ${error.message}`, "error");
+    }
   }
 
   async function loadStudentFilterOptions(supabase) {
     const filters = getStudentFilters();
+    const [optionResult, ageResult] = await Promise.all([
+      supabase.rpc("get_concilia_filter_options", {
+        p_centro: filters.centro || null,
+        p_semana: filters.semana || null,
+        p_alumnado: filters.alumnado || null,
+      }),
+      fetchStudentAgeFilterValues(supabase, filters),
+    ]);
+
+    if (optionResult.error) {
+      throw optionResult.error;
+    }
+
+    renderStudentFilterOptionRows(optionResult.data ?? [], ageResult);
+  }
+
+  async function loadStudentBulkOptions(supabase) {
     const { data, error } = await supabase.rpc("get_concilia_filter_options", {
-      p_centro: filters.centro || null,
-      p_semana: filters.semana || null,
-      p_alumnado: filters.alumnado || null,
+      p_centro: null,
+      p_semana: null,
+      p_alumnado: null,
     });
 
     if (error) {
       throw error;
     }
 
-    renderStudentFilterOptionRows(data ?? []);
+    renderStudentBulkOptionRows(data ?? []);
   }
 
   async function loadWeeklySummary(supabase) {
@@ -3056,15 +4658,92 @@
   }
 
   async function loadAttendanceMatrix(supabase) {
-    const { data, error } = await supabase.rpc("get_concilia_attendance_matrix", {
+    const filters = {
+      centro: String(attendanceCenterFilter.value || "").trim(),
+      semana: String(attendanceWeekFilter.value || "").trim(),
+      alumnado: String(attendanceNameFilter.value || "").trim(),
+    };
+    const { data: optionRows, error: optionsError } = await supabase.rpc(
+      "get_concilia_filter_options",
+      {
+        p_centro: filters.centro || null,
+        p_semana: filters.semana || null,
+        p_alumnado: filters.alumnado || null,
+      }
+    );
+
+    if (optionsError) {
+      throw optionsError;
+    }
+
+    renderAttendanceFilterOptionRows(optionRows ?? []);
+
+    const attendanceParams = {
       p_centro: String(attendanceCenterFilter.value || "").trim() || null,
-      p_limit: attendanceRowsPerPage,
-      p_offset: (attendanceCurrentPage - 1) * attendanceRowsPerPage,
-    });
+      p_semana: String(attendanceWeekFilter.value || "").trim() || null,
+      p_grupo: mobileAttendanceListOpen
+        ? String(attendanceMobileGroupFilter?.value || "").trim() || null
+        : null,
+      p_alumnado: String(attendanceNameFilter.value || "").trim() || null,
+      p_limit: mobileAttendanceListOpen ? 5000 : attendanceRowsPerPage,
+      p_offset: mobileAttendanceListOpen ? 0 : (attendanceCurrentPage - 1) * attendanceRowsPerPage,
+      p_sort_field: attendanceSort.field,
+      p_sort_direction: attendanceSort.direction,
+    };
+
+    let { data, error } = await supabase.rpc("get_concilia_attendance_rows", attendanceParams);
+    if (error && String(error.message || "").includes("p_grupo")) {
+      data = await fetchAttendanceRowsDirect(supabase, attendanceParams);
+      error = null;
+    }
+
     if (error) {
       throw error;
     }
-    renderAttendanceRows(data ?? []);
+    renderAttendanceRows(sortAttendanceRows(data ?? []));
+    updateAttendanceSortButtons();
+  }
+
+  async function fetchAttendanceRowsDirect(supabase, params) {
+    let query = supabase
+      .from("concilia_usuarios")
+      .select(
+        "id,centro,semana,alumnado,edad,asistencia_lunes,asistencia_martes,asistencia_miercoles,asistencia_jueves,asistencia_viernes",
+        { count: "exact" }
+      );
+
+    if (params.p_centro) {
+      query = query.eq("centro", params.p_centro);
+    }
+
+    if (params.p_semana) {
+      query = query.eq("semana", params.p_semana);
+    }
+
+    if (params.p_grupo) {
+      query = query.eq("grupo", params.p_grupo);
+    }
+
+    query = query
+      .order(params.p_sort_field === "edad" ? "edad" : "alumnado", {
+        ascending: params.p_sort_direction !== "desc",
+      })
+      .range(params.p_offset, params.p_offset + params.p_limit - 1);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).filter((row) => matchesNormalizedStudentSearch(row, params.p_alumnado)).map((row) => ({
+      ...row,
+      centro: String(row.centro ?? "").trim() || "Sin centro",
+      semana: String(row.semana ?? "").trim() || "Sin semana",
+      alumnado: String(row.alumnado ?? "").trim() || "Sin nombre",
+      edad: String(row.edad ?? "").trim() || "-",
+      total_count: count ?? data?.length ?? 0,
+    }));
   }
 
   async function loadNeeRows(supabase) {
@@ -3077,6 +4756,38 @@
       throw error;
     }
     renderNeeRows(data ?? []);
+  }
+
+  async function loadComedorFilterOptions(supabase) {
+    const { data, error } = await supabase.rpc("get_concilia_filter_options", {
+      p_centro: null,
+      p_semana: null,
+      p_alumnado: null,
+    });
+    if (error) {
+      throw error;
+    }
+    renderComedorFilterOptionRows(data ?? []);
+  }
+
+  async function loadComedorRows(supabase) {
+    const { data, error } = await supabase.rpc("get_concilia_comedor_rows", {
+      p_centro: String(filterComedorCentro?.value || "").trim() || null,
+      p_alumnado: String(filterComedorAlumnado?.value || "").trim() || null,
+      p_limit: comedorRowsPerPage,
+      p_offset: (comedorCurrentPage - 1) * comedorRowsPerPage,
+    });
+    if (error) {
+      throw error;
+    }
+    renderComedorRows(data ?? []);
+  }
+
+  async function loadComedorPanel(supabase) {
+    await Promise.all([
+      loadComedorFilterOptions(supabase),
+      loadComedorRows(supabase),
+    ]);
   }
 
   async function fetchAllStudents(supabase) {
@@ -3165,37 +4876,89 @@
     authView.classList.add("hidden");
     appView.classList.remove("hidden");
     sessionSummary.textContent = `Sesion iniciada${email ? `: ${email}` : ""}`;
+    applyModuleAccess(email);
   }
 
   async function loadStudents() {
     studentsSummary.textContent = "Cargando datos...";
+    studentsTableHead.innerHTML = "";
     studentsTableBody.innerHTML =
-      '<tr><td colspan="5" class="empty-state">Cargando alumnado...</td></tr>';
+      '<tr><td colspan="6" class="empty-state">Cargando alumnado...</td></tr>';
 
     try {
       const supabase = await getSupabaseClient();
       await Promise.all([
         fetchStudentsPage(supabase),
         loadStudentFilterOptions(supabase),
+        loadStudentBulkOptions(supabase),
         loadWeeklySummary(supabase),
         loadAttendanceMatrix(supabase),
         loadNeeRows(supabase),
       ]);
     } catch (error) {
       studentsSummary.textContent = "No se pudieron cargar los datos.";
+      studentsTableHead.innerHTML = "";
       studentsTableBody.innerHTML =
-        '<tr><td colspan="5" class="empty-state">Error cargando alumnado.</td></tr>';
+        '<tr><td colspan="6" class="empty-state">Error cargando alumnado.</td></tr>';
       setStatus(`No se pudo cargar alumnado: ${error.message}`, "error");
       return;
     }
 
-    updateSortButtons();
+    syncStudentsBulkAssignmentUi();
     renderStudentsTable();
   }
 
   async function enterApp(session) {
     showApp(session.user.email ?? "");
-    await loadStudents();
+    const initialModuleTab = getInitialModuleTab();
+    switchModuleTab(initialModuleTab);
+    await loadModuleTabData(initialModuleTab);
+  }
+
+  function clearAppDataState() {
+    studentRows = [];
+    filteredStudentRows = [];
+    studentsTotalCount = 0;
+    attendanceRows = [];
+    attendanceTotalCount = 0;
+    neeRows = [];
+    neeTotalCount = 0;
+    comedorRows = [];
+    comedorTotalCount = 0;
+    availabilityRows = [];
+    availabilityTotalCount = 0;
+    activitiesRows = [];
+    filteredActivitiesRows = [];
+    assignmentRows = [];
+    studentsCurrentPage = 1;
+    attendanceCurrentPage = 1;
+    neeCurrentPage = 1;
+    comedorCurrentPage = 1;
+    availabilityCurrentPage = 1;
+  }
+
+  function showLoggedOutView() {
+    clearAppDataState();
+    loginForm.reset();
+    passwordSetupForm.reset();
+    mobileModuleMenu?.classList.add("hidden");
+    mobileModuleMenuToggle?.setAttribute("aria-expanded", "false");
+    studentsTableHead.innerHTML = "";
+    studentsTableBody.innerHTML =
+      '<tr><td colspan="6" class="empty-state">Cargando alumnado...</td></tr>';
+    studentsSummary.textContent = "Cargando datos...";
+    attendanceRows = [];
+    attendanceTableBody.innerHTML =
+      '<tr><td colspan="7" class="empty-state">Cargando asistencia...</td></tr>';
+    attendanceMobileRows.innerHTML = '<p class="empty-state">Selecciona centro y semana.</p>';
+    attendanceSummary.textContent = "Cargando asistencia...";
+    weeklySummary.textContent = "Cargando resumen...";
+    weeklySummaryTableBody.innerHTML =
+      '<tr><td colspan="13" class="empty-state">Cargando resumen...</td></tr>';
+    neeTableBody.innerHTML =
+      '<tr><td colspan="2" class="empty-state">Cargando alumnado...</td></tr>';
+    neeSummary.textContent = "Cargando alumnado...";
+    showLogin();
   }
 
   // -----------------------------------------------
@@ -3212,20 +4975,7 @@
     },
     onLogoutSuccess: async () => {
       window.SupabaseApp?.setSession(null);
-      studentRows = [];
-      filteredStudentRows = [];
-      studentsTotalCount = 0;
-      attendanceTotalCount = 0;
-      neeTotalCount = 0;
-      studentsCurrentPage = 1;
-      attendanceCurrentPage = 1;
-      neeCurrentPage = 1;
-      renderStudentsTable();
-      renderWeeklySummary();
-      renderAttendanceMatrix();
-      buildNeeRows();
-      renderNeeTable();
-      showLogin();
+      showLoggedOutView();
     },
     onInviteSuccess: async (email) => {
       const session = await getCurrentSession();
@@ -3296,7 +5046,9 @@
 
   async function handleLogout() {
     if (_authHandlers) {
-      return _authHandlers.handleLogout();
+      await _authHandlers.handleLogout();
+      showLoggedOutView();
+      return;
     }
 
     // Fallback local
@@ -3304,20 +5056,7 @@
       const supabase = await getSupabaseClient();
       const { error } = await supabase.auth.signOut();
       if (error) { setStatus(`No se pudo cerrar sesion: ${error.message}`, "error"); return; }
-      studentRows = [];
-      filteredStudentRows = [];
-      studentsTotalCount = 0;
-      attendanceTotalCount = 0;
-      neeTotalCount = 0;
-      studentsCurrentPage = 1;
-      attendanceCurrentPage = 1;
-      neeCurrentPage = 1;
-      renderStudentsTable();
-      renderWeeklySummary();
-      renderAttendanceMatrix();
-      buildNeeRows();
-      renderNeeTable();
-      showLogin();
+      showLoggedOutView();
       setStatus("Sesion cerrada.");
     } catch (error) {
       setStatus(`Error al cerrar sesion: ${error.message}`, "error");
@@ -3349,6 +5088,12 @@
   }
 
   async function init() {
+    decorateStaticActionButtons();
+
+    if (EMBED_MODE) {
+      document.body?.classList.add("embedded-concilia");
+    }
+
     if (!hasSupabaseConfig) {
       setStatus("Falta la configuracion de Supabase en config.js.", "error");
       return;
@@ -3363,18 +5108,27 @@
     logoutButton.addEventListener("click", () => {
       void handleLogout();
     });
+    mobileLogoutButton?.addEventListener("click", () => {
+      void handleLogout();
+    });
+    mobileModuleMenuToggle?.addEventListener("click", () => {
+      const isOpen = !mobileModuleMenu?.classList.contains("hidden");
+      mobileModuleMenu?.classList.toggle("hidden", isOpen);
+      mobileModuleMenuToggle.setAttribute("aria-expanded", String(!isOpen));
+    });
     moduleTabButtons.forEach((button) => {
       button.addEventListener("click", () => {
-        switchModuleTab(button.dataset.moduleTab);
-        if (button.dataset.moduleTab === "actividades") {
-          void loadActivityCatalogs().then(() => loadActivities());
-        }
-        if (button.dataset.moduleTab === "asignaciones") {
-          void loadAssignments();
-        }
+        const target = button.dataset.moduleTab;
+        switchModuleTab(target);
+        void loadModuleTabData(target);
       });
     });
     studentsFiltersForm.addEventListener("input", () => {
+      studentsCurrentPage = 1;
+      void applyStudentFilters();
+    });
+    studentsFiltersForm.addEventListener("submit", (event) => {
+      event.preventDefault();
       studentsCurrentPage = 1;
       void applyStudentFilters();
     });
@@ -3399,6 +5153,32 @@
     studentsRefreshButton.addEventListener("click", () => {
       void loadStudents();
     });
+    downloadStudentsAgeReportPdfButton?.addEventListener("click", () => {
+      void downloadStudentsAgeReportPdf();
+    });
+    studentsTableBody.addEventListener("change", (event) => {
+      const control = event.target.closest("[data-student-inline-id][data-student-inline-field]");
+      if (!control) {
+        return;
+      }
+
+      const field = control.dataset.studentInlineField;
+      const value = field === "comedor" ? Boolean(control.checked) : control.value || null;
+      void updateStudentInlineField(control.dataset.studentInlineId, field, value);
+    });
+    studentsBulkFieldSelect?.addEventListener("change", syncStudentsBulkAssignmentUi);
+    studentsBulkCurrentSelect?.addEventListener("change", () => {
+      void updateStudentsBulkMatchCount();
+    });
+    studentsBulkNewSelect?.addEventListener("change", () => {
+      void updateStudentsBulkMatchCount();
+    });
+    studentsBulkApplyButton?.addEventListener("click", () => {
+      void applyStudentsBulkAssignment();
+    });
+    openSummaryPanelButton.addEventListener("click", openSummaryPanel);
+    closeSummaryPanelButton.addEventListener("click", closeSummaryPanel);
+    summaryPanelBackdrop.addEventListener("click", closeSummaryPanel);
     openStudentPanelButton.addEventListener("click", openStudentCreatePanel);
     closeStudentPanelButton.addEventListener("click", closeStudentPanel);
     studentPanelBackdrop.addEventListener("click", closeStudentPanel);
@@ -3424,6 +5204,26 @@
 
       openStudentEditPanel(button.dataset.editStudent);
     });
+    studentsTableHead.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-student-sort-field]");
+      if (!button) {
+        return;
+      }
+
+      const field = button.dataset.studentSortField;
+      const currentSort = studentSort.find((sort) => sort.field === field);
+      const direction =
+        currentSort?.field === studentSort[0]?.field && currentSort.direction === "asc"
+          ? "desc"
+          : "asc";
+
+      studentSort = [
+        { field, direction },
+        ...studentSort.filter((sort) => sort.field !== field),
+      ];
+      studentsCurrentPage = 1;
+      void applyStudentFilters();
+    });
     studentsPageSize.addEventListener("change", () => {
       studentsRowsPerPage = Number(studentsPageSize.value);
       studentsCurrentPage = 1;
@@ -3437,9 +5237,85 @@
       studentsCurrentPage += 1;
       void applyStudentFilters();
     });
-    attendanceCenterFilter.addEventListener("change", () => {
+    attendanceFiltersForm.addEventListener("input", () => {
       attendanceCurrentPage = 1;
+      setMobileAttendanceScreen(false);
       void getSupabaseClient().then((supabase) => loadAttendanceMatrix(supabase));
+    });
+    attendanceFiltersForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      attendanceCurrentPage = 1;
+      setMobileAttendanceScreen(false);
+      void getSupabaseClient().then((supabase) => loadAttendanceMatrix(supabase));
+    });
+    attendanceFiltersForm.addEventListener("change", () => {
+      attendanceCurrentPage = 1;
+      setMobileAttendanceScreen(false);
+      void getSupabaseClient().then((supabase) => loadAttendanceMatrix(supabase));
+    });
+    attendanceMobileStartButton?.addEventListener("click", () => {
+      if (!attendanceMobileCenterFilter?.value || !attendanceMobileWeekFilter?.value) {
+        setStatus("Selecciona centro y semana para pasar asistencia.", "error");
+        return;
+      }
+
+      storeMobileAttendanceFilters();
+      attendanceCenterFilter.value = attendanceMobileCenterFilter?.value || "";
+      attendanceWeekFilter.value = attendanceMobileWeekFilter?.value || "";
+      attendanceNameFilter.value = "";
+      attendanceCurrentPage = 1;
+      setMobileAttendanceScreen(true);
+      void getSupabaseClient().then((supabase) => loadAttendanceMatrix(supabase));
+    });
+    attendanceMobileBackButton?.addEventListener("click", () => {
+      setMobileAttendanceScreen(false);
+    });
+    attendanceMobileComedorButton?.addEventListener("click", () => {
+      void openMobileComedorPanel();
+    });
+    attendanceMobileComedorCloseButton?.addEventListener("click", closeMobileComedorPanel);
+    attendanceMobileComedorBackdrop?.addEventListener("click", closeMobileComedorPanel);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && mobileComedorPanelOpen) {
+        closeMobileComedorPanel();
+      }
+    });
+    attendanceMobileCenterFilter?.addEventListener("change", () => {
+      storeMobileAttendanceFilters();
+    });
+    attendanceMobileWeekFilter?.addEventListener("change", () => {
+      storeMobileAttendanceFilters();
+    });
+    attendanceMobileGroupFilter?.addEventListener("change", () => {
+      storeMobileAttendanceFilters();
+      if (mobileAttendanceListOpen && mobileComedorPanelOpen) {
+        void loadMobileComedorRows();
+      }
+      if (mobileAttendanceListOpen && !mobileComedorPanelOpen) {
+        attendanceCurrentPage = 1;
+        void getSupabaseClient().then((supabase) => loadAttendanceMatrix(supabase));
+      }
+    });
+    attendanceDayTabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        mobileAttendanceDay = button.dataset.attendanceDay || mobileAttendanceDay;
+        renderMobileAttendanceRows();
+      });
+    });
+    attendancePresenceFilterButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        mobileAttendancePresenceFilter =
+          button.dataset.attendancePresenceFilter || mobileAttendancePresenceFilter;
+        renderMobileAttendanceRows();
+      });
+    });
+    attendanceMobileRows?.addEventListener("click", (event) => {
+      const rowButton = event.target.closest("[data-attendance-mobile-id]");
+      if (!rowButton) {
+        return;
+      }
+
+      void toggleMobileAttendance(rowButton.dataset.attendanceMobileId);
     });
     attendancePageSize?.addEventListener("change", () => {
       attendanceRowsPerPage = Number(attendancePageSize.value);
@@ -3465,7 +5341,30 @@
         control.dispatchEvent(new Event("change", { bubbles: true }));
       });
     });
+    attendanceTableBody.addEventListener("change", (event) => {
+      const checkbox = event.target.closest(".attendance-checkbox");
+      if (!checkbox) {
+        return;
+      }
+
+      checkbox.disabled = true;
+      void updateStudentAttendance(
+        checkbox.dataset.attendanceId,
+        checkbox.dataset.attendanceField,
+        checkbox.checked
+      ).then((success) => {
+          if (!success) {
+            checkbox.checked = !checkbox.checked;
+          }
+          checkbox.disabled = false;
+        });
+    });
     neeFiltersForm.addEventListener("input", () => {
+      neeCurrentPage = 1;
+      void getSupabaseClient().then((supabase) => loadNeeRows(supabase));
+    });
+    neeFiltersForm.addEventListener("submit", (event) => {
+      event.preventDefault();
       neeCurrentPage = 1;
       void getSupabaseClient().then((supabase) => loadNeeRows(supabase));
     });
@@ -3500,36 +5399,129 @@
       neeCurrentPage += 1;
       void getSupabaseClient().then((supabase) => loadNeeRows(supabase));
     });
+    comedorFiltersForm?.addEventListener("input", () => {
+      comedorCurrentPage = 1;
+      void getSupabaseClient().then((supabase) => loadComedorRows(supabase));
+    });
+    comedorFiltersForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      comedorCurrentPage = 1;
+      void getSupabaseClient().then((supabase) => loadComedorRows(supabase));
+    });
+    comedorFiltersForm?.addEventListener("change", () => {
+      comedorCurrentPage = 1;
+      void getSupabaseClient().then((supabase) => loadComedorRows(supabase));
+    });
+    comedorFiltersForm?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-reset-filter]");
+      if (
+        !button ||
+        !resetNamedFormControl(comedorFiltersForm, button.dataset.resetFilter)
+      ) {
+        return;
+      }
+
+      comedorCurrentPage = 1;
+      void getSupabaseClient().then((supabase) => loadComedorRows(supabase));
+    });
+    comedorPageSize?.addEventListener("change", () => {
+      comedorRowsPerPage = Number(comedorPageSize.value);
+      comedorCurrentPage = 1;
+      void getSupabaseClient().then((supabase) => loadComedorRows(supabase));
+    });
+    comedorPreviousPage?.addEventListener("click", () => {
+      comedorCurrentPage -= 1;
+      void getSupabaseClient().then((supabase) => loadComedorRows(supabase));
+    });
+    comedorNextPage?.addEventListener("click", () => {
+      comedorCurrentPage += 1;
+      void getSupabaseClient().then((supabase) => loadComedorRows(supabase));
+    });
+    comedorTableBody?.addEventListener("change", (event) => {
+      const checkbox = event.target.closest(".comedor-checkbox");
+      if (!checkbox) {
+        return;
+      }
+
+      checkbox.disabled = true;
+      void updateStudentComedor(
+        checkbox.dataset.comedorCodigoPersona,
+        checkbox.dataset.comedorCentro,
+        checkbox.checked
+      ).then((success) => {
+        if (!success) {
+          checkbox.checked = !checkbox.checked;
+        }
+        checkbox.disabled = false;
+      });
+    });
+    availabilityFiltersForm?.addEventListener("input", () => {
+      availabilityCurrentPage = 1;
+      void loadAvailabilityRows();
+    });
+    availabilityFiltersForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      availabilityCurrentPage = 1;
+      void loadAvailabilityRows();
+    });
+    availabilityFiltersForm?.addEventListener("change", () => {
+      availabilityCurrentPage = 1;
+      void loadAvailabilityRows();
+    });
+    availabilityFiltersForm?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-reset-filter]");
+      if (
+        !button ||
+        !resetNamedFormControl(availabilityFiltersForm, button.dataset.resetFilter)
+      ) {
+        return;
+      }
+
+      availabilityCurrentPage = 1;
+      void loadAvailabilityRows();
+    });
+    availabilityRefreshButton?.addEventListener("click", () => {
+      void loadAvailabilityRows();
+    });
+    availabilityPageSize?.addEventListener("change", () => {
+      availabilityRowsPerPage = Number(availabilityPageSize.value);
+      availabilityCurrentPage = 1;
+      void loadAvailabilityRows();
+    });
+    availabilityPreviousPage?.addEventListener("click", () => {
+      availabilityCurrentPage -= 1;
+      void loadAvailabilityRows();
+    });
+    availabilityNextPage?.addEventListener("click", () => {
+      availabilityCurrentPage += 1;
+      void loadAvailabilityRows();
+    });
+    availabilityTableBody?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-delete-availability]");
+      if (!button) {
+        return;
+      }
+
+      void deleteAvailabilityRow(button.dataset.deleteAvailability);
+    });
     activityForm.addEventListener("submit", (event) => {
       void handleActivitySubmit(event);
     });
+    activityContrato?.addEventListener("change", () => {
+      renderActivityContractScopedOptions(activityForm);
+    });
+    editActivityContrato?.addEventListener("change", () => {
+      renderActivityContractScopedOptions(activityEditForm);
+    });
     clearActivityFormButton.addEventListener("click", () => {
       activityForm.reset();
+      renderActivityContractScopedOptions(activityForm);
       applyActivityFormDefaults();
       activitiesSummary.textContent = "Completa los campos para crear una actividad.";
     });
     openActivityPanelButton.addEventListener("click", openActivityCreatePanel);
     closeActivityPanelButton.addEventListener("click", closeActivityCreatePanel);
     activityPanelBackdrop.addEventListener("click", closeActivityCreatePanel);
-    openActivitiesSettingsButton.addEventListener("click", () => {
-      void loadActivityCatalogs().then(openActivitiesSettingsPanel);
-    });
-    closeActivitiesSettingsButton.addEventListener("click", closeActivitiesSettingsPanel);
-    activitiesSettingsBackdrop.addEventListener("click", closeActivitiesSettingsPanel);
-    activitySettingsPersonalFilter.addEventListener("input", renderActivitySettings);
-    activityPersonalAddButton.addEventListener("click", () => {
-      void setActivityPersonalBatch(getSelectedOptionValues(activityPersonalAvailableSelect), true);
-    });
-    activityPersonalRemoveButton.addEventListener("click", () => {
-      void setActivityPersonalBatch(getSelectedOptionValues(activityPersonalSelectedSelect), false);
-    });
-    activitySettingsInstallationFilter.addEventListener("input", renderActivitySettings);
-    activityInstallationAddButton.addEventListener("click", () => {
-      void setActivityInstallationBatch(getSelectedOptionValues(activityInstallationAvailableSelect), true);
-    });
-    activityInstallationRemoveButton.addEventListener("click", () => {
-      void setActivityInstallationBatch(getSelectedOptionValues(activityInstallationSelectedSelect), false);
-    });
     refreshActivitiesButton.addEventListener("click", () => {
       void loadActivities();
     });
@@ -3659,16 +5651,16 @@
         }
       });
     });
-    document.querySelectorAll("[data-sort-field]").forEach((button) => {
+    document.querySelectorAll("[data-attendance-sort-field]").forEach((button) => {
       button.addEventListener("click", () => {
-        const field = button.dataset.sortField;
-        if (studentsSort.field === field) {
-          studentsSort.direction = studentsSort.direction === "asc" ? "desc" : "asc";
+        const field = button.dataset.attendanceSortField;
+        if (attendanceSort.field === field) {
+          attendanceSort.direction = attendanceSort.direction === "asc" ? "desc" : "asc";
         } else {
-          studentsSort = { field, direction: "asc" };
+          attendanceSort = { field, direction: "asc" };
         }
-        studentsCurrentPage = 1;
-        void applyStudentFilters();
+        attendanceCurrentPage = 1;
+        void getSupabaseClient().then((supabase) => loadAttendanceMatrix(supabase));
       });
     });
 

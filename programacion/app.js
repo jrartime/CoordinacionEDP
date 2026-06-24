@@ -1,7 +1,7 @@
 (function () {
   const PERSONAL_ACCESS_CODE = "5417";
   const WEEKLY_ACCESS_CODE = "semana5417";
-  const FINDESEMANA_LIMIT = 5000;
+  const PROGRAMMING_FETCH_PAGE_SIZE = 1000;
   const PROGRAMMING_TABLE_NAME = "programacion_conserjes";
   const PROGRAMMING_TYPE_FS = "fin_semana";
   const PROGRAMMING_TYPE_WEEKLY = "semanal";
@@ -329,6 +329,25 @@
     return rows.filter((row) => activeInstallationNames.has(normalizeText(row.instalacion)));
   }
 
+  async function fetchAllProgrammingRows(buildQuery, pageSize = PROGRAMMING_FETCH_PAGE_SIZE) {
+    const rows = [];
+
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await buildQuery().range(offset, offset + pageSize - 1);
+
+      if (error) {
+        return { data: rows, error };
+      }
+
+      const pageRows = data ?? [];
+      rows.push(...pageRows);
+
+      if (pageRows.length < pageSize) {
+        return { data: rows, error: null };
+      }
+    }
+  }
+
   function isMissingArchivedAtColumnError(error) {
     const message = String(error?.message ?? "");
     const details = String(error?.details ?? "");
@@ -350,35 +369,38 @@
 
     const supabase = await getSupabaseClient();
     const activeInstallationNames = await loadActiveInstallationNames(supabase);
-    let { data, error } = await supabase
-      .from(PROGRAMMING_TABLE_NAME)
-      .select(
-        "personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order"
-      )
-      .eq("tipo_programacion", currentProgrammingType)
-      .is("archived_at", null)
-      .order("fecha", { ascending: true })
-      .order("sort_order", { ascending: true })
-      .limit(FINDESEMANA_LIMIT);
-
-    if (error && isMissingArchivedAtColumnError(error)) {
-      ({ data, error } = await supabase
+    let { data, error } = await fetchAllProgrammingRows(() =>
+      supabase
         .from(PROGRAMMING_TABLE_NAME)
-        .select("personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order")
+        .select(
+          "personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order"
+        )
         .eq("tipo_programacion", currentProgrammingType)
-        .order("fecha", { ascending: true })
-        .order("sort_order", { ascending: true })
-        .limit(FINDESEMANA_LIMIT));
-    }
-
-    if (error && isMissingProgrammingTypeColumnError(error)) {
-      ({ data, error } = await supabase
-        .from(PROGRAMMING_TABLE_NAME)
-        .select("personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order")
         .is("archived_at", null)
         .order("fecha", { ascending: true })
         .order("sort_order", { ascending: true })
-        .limit(FINDESEMANA_LIMIT));
+    );
+
+    if (error && isMissingArchivedAtColumnError(error)) {
+      ({ data, error } = await fetchAllProgrammingRows(() =>
+        supabase
+          .from(PROGRAMMING_TABLE_NAME)
+          .select("personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order")
+          .eq("tipo_programacion", currentProgrammingType)
+          .order("fecha", { ascending: true })
+          .order("sort_order", { ascending: true })
+      ));
+    }
+
+    if (error && isMissingProgrammingTypeColumnError(error)) {
+      ({ data, error } = await fetchAllProgrammingRows(() =>
+        supabase
+          .from(PROGRAMMING_TABLE_NAME)
+          .select("personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order")
+          .is("archived_at", null)
+          .order("fecha", { ascending: true })
+          .order("sort_order", { ascending: true })
+      ));
     }
 
     if (error) {

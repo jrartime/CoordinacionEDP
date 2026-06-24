@@ -1,4 +1,4 @@
-﻿const JOB_OPTIONS = [
+const JOB_OPTIONS = [
   "Conserjeria",
   "Monitorado de tiempo libre",
   "Monitorado deportivo",
@@ -21,12 +21,362 @@ const PROGRAMMING_TABLE_NAME = "programacion_conserjes";
 const PROGRAMMING_TYPE_ALL = "all";
 const PROGRAMMING_TYPE_FS = "fin_semana";
 const PROGRAMMING_TYPE_WEEKLY = "semanal";
+const PROGRAMMING_FETCH_PAGE_SIZE = 1000;
 const PROGRAMMING_TYPE_OPTIONS = [
   { value: PROGRAMMING_TYPE_FS, label: "Programación FS" },
   { value: PROGRAMMING_TYPE_WEEKLY, label: "Programación semanal" },
 ];
 const PRIVATE_TAB_STORAGE_KEY = "curriculos_private_tab";
-const PRIVATE_TAB_TARGETS = new Set(["search", "control", "events", "programming"]);
+const CONCILIA_CLONED_TABS = [
+  { key: "concilia_alumnado", label: "Concilia Alumnado" },
+  { key: "concilia_asistencia", label: "Concilia Asistencia" },
+  { key: "concilia_nee", label: "Concilia NEE" },
+  { key: "concilia_disponibilidad", label: "Concilia Disponibilidad" },
+  { key: "concilia_asignaciones", label: "Concilia Asignaciones" },
+];
+const CONCILIA_TAB_KEY = "concilia";
+const CONCILIA_LEGACY_TAB_KEYS = new Set(CONCILIA_CLONED_TABS.map((tab) => tab.key));
+const COORDINATION_LEGACY_TAB_ALIASES = {
+  concilia_actividades: "actividades",
+};
+const CONCILIA_MODULE_BY_TAB_KEY = {
+  concilia: "alumnado",
+  concilia_alumnado: "alumnado",
+  concilia_asistencia: "asistencia",
+  concilia_nee: "nee",
+  concilia_disponibilidad: "disponibilidad",
+  concilia_asignaciones: "asignaciones",
+  actividades: "actividades",
+};
+const PRIVATE_TAB_TARGETS = new Set([
+  "programming",
+  "control",
+  "events",
+  "concilia",
+  "search",
+  "personal",
+  "contracts",
+  "actividades",
+  "registros",
+  "settings",
+  "access",
+]);
+let ACCESS_ASSIGNABLE_TABS = [
+  { key: "programming", label: "Programación" },
+  { key: "control", label: "Control personal" },
+  { key: "events", label: "Eventos" },
+  { key: "concilia", label: "Concilia" },
+  { key: "search", label: "Candidaturas" },
+  { key: "personal", label: "Personal" },
+  { key: "contracts", label: "Contratos" },
+  { key: "actividades", label: "Actividades" },
+  { key: "registros", label: "Registros" },
+  { key: "settings", label: "Configuración" },
+];
+const ACCESS_ASSIGNABLE_TABS_FALLBACK = [...ACCESS_ASSIGNABLE_TABS];
+const RECORD_COLUMNS = [
+  { key: "id", label: "ID", type: "number", readonly: true },
+  { key: "fecha", label: "Fecha", type: "date" },
+  { key: "actividad_id", label: "Actividad ID", type: "number" },
+  { key: "servicio_id", label: "Servicio ID", type: "number", relationLabelKey: "servicio" },
+  { key: "empresa_id", label: "Empresa ID", type: "number", relationLabelKey: "empresa" },
+  { key: "contrato_id", label: "Contrato ID", type: "number", relationLabelKey: "contrato" },
+  { key: "personal_id", label: "Personal ID", type: "number", relationLabelKey: "personal" },
+  { key: "titular_personal_id", label: "Titular ID", type: "number", relationLabelKey: "titular_personal" },
+  { key: "sustituto_personal_id", label: "Sustituto ID", type: "number", relationLabelKey: "sustituto_personal" },
+  { key: "instalacion_id", label: "Instalacion ID", type: "number", relationLabelKey: "instalacion" },
+  { key: "categoria_id", label: "Categoria ID", type: "number" },
+  { key: "puesto_id", label: "Puesto ID", type: "number", relationLabelKey: "puesto" },
+  { key: "funcion_id", label: "Funcion ID", type: "number", relationLabelKey: "funcion" },
+  { key: "modalidad_id", label: "Modalidad ID", type: "number", relationLabelKey: "modalidad" },
+  { key: "nota", label: "Nota", type: "text" },
+  { key: "hora_inicio", label: "Hora inicio", type: "time" },
+  { key: "hora_fin", label: "Hora fin", type: "time" },
+  { key: "horas", label: "Horas", type: "decimal" },
+  { key: "hc", label: "hc", type: "decimal" },
+  { key: "hf", label: "hf", type: "decimal" },
+  { key: "hm", label: "hm", type: "decimal" },
+  { key: "hd", label: "hd", type: "decimal" },
+  { key: "bolsa_horas", label: "bolsa_horas", type: "decimal" },
+  { key: "horas_diurnas", label: "horas_diurnas", type: "decimal" },
+  { key: "horas_nocturnas", label: "horas_nocturnas", type: "decimal" },
+  { key: "clases", label: "clases", type: "decimal" },
+  { key: "horas_2", label: "horas_2", type: "decimal" },
+  { key: "sustitucion", label: "Sustitucion", type: "boolean" },
+  { key: "facturar", label: "Facturar", type: "boolean" },
+  { key: "abonar", label: "Abonar", type: "boolean" },
+  { key: "tipo_hora_id", label: "Tipo hora ID", type: "number", relationLabelKey: "tipo_hora" },
+  { key: "situacion_id", label: "Situacion ID", type: "number", relationLabelKey: "situacion" },
+  { key: "anio", label: "Anio", type: "number" },
+  { key: "observacion", label: "Observacion", type: "textarea" },
+  { key: "control", label: "Control", type: "datetime" },
+  { key: "factura", label: "Factura", type: "text" },
+];
+const RECORD_DETAIL_LABEL_COLUMNS = [
+  "empresa",
+  "servicio",
+  "contrato",
+  "personal",
+  "dni",
+  "titular_personal",
+  "sustituto_personal",
+  "instalacion",
+  "puesto",
+  "funcion",
+  "modalidad",
+  "tipo_hora",
+  "situacion",
+];
+const RECORD_SELECT_COLUMNS = Array.from(
+  new Set([...RECORD_COLUMNS.map((column) => column.key), ...RECORD_DETAIL_LABEL_COLUMNS])
+).join(",");
+const RECORD_NUMERIC_FIELDS = new Set(
+  RECORD_COLUMNS.filter((column) => ["number", "decimal"].includes(column.type)).map(
+    (column) => column.key
+  )
+);
+const SETTINGS_CATALOGS = {
+  puestos: {
+    label: "Puestos",
+    singularLabel: "puesto",
+    table: "puestos",
+    order: "puesto",
+    columns: "id,puesto,detalle_puesto,siglas,convenio_grupo_nivel,categoria_id,dea,rec_medico,epi,clausula_preferencia",
+    fields: [
+      { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
+      { key: "puesto", label: "Puesto", type: "text", required: true },
+      { key: "detalle_puesto", label: "Detalle", type: "textarea" },
+      { key: "siglas", label: "Siglas", type: "text" },
+      { key: "convenio_grupo_nivel", label: "Convenio grupo nivel", type: "number" },
+      { key: "categoria_id", label: "Categoría ID", type: "number" },
+      { key: "rec_medico", label: "Reconocimiento médico", type: "number" },
+      { key: "dea", label: "DEA", type: "checkbox" },
+      { key: "epi", label: "EPI", type: "checkbox" },
+      { key: "clausula_preferencia", label: "Cláusula preferencia", type: "checkbox" },
+    ],
+    listFields: ["id", "puesto", "siglas", "detalle_puesto"],
+    titleField: "puesto",
+    usageReferences: [
+      { table: "actividades", label: "Actividades", column: "puesto_id" },
+      { table: "registros", label: "Registros", column: "puesto_id" },
+      { table: "historiales_laborales", label: "Historiales laborales", column: "puesto_id" },
+    ],
+  },
+  funciones: {
+    label: "Funciones",
+    singularLabel: "función",
+    table: "funciones",
+    order: "funcion",
+    columns: "id,funcion,siglas,grupo,formacion_horario",
+    fields: [
+      { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
+      { key: "funcion", label: "Función", type: "text", required: true },
+      { key: "siglas", label: "Siglas", type: "text" },
+      { key: "grupo", label: "Grupo", type: "text" },
+      { key: "formacion_horario", label: "Formación horario", type: "checkbox" },
+    ],
+    listFields: ["id", "funcion", "siglas", "grupo"],
+    titleField: "funcion",
+    usageReferences: [
+      { table: "actividades", label: "Actividades", column: "funcion_id" },
+      { table: "registros", label: "Registros", column: "funcion_id" },
+    ],
+  },
+  modalidades: {
+    label: "Modalidades",
+    singularLabel: "modalidad",
+    table: "modalidades",
+    order: "modalidad",
+    columns: "id,modalidad,siglas",
+    fields: [
+      { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
+      { key: "modalidad", label: "Modalidad", type: "text", required: true },
+      { key: "siglas", label: "Siglas", type: "text" },
+    ],
+    listFields: ["id", "modalidad", "siglas"],
+    titleField: "modalidad",
+    usageReferences: [
+      { table: "actividades", label: "Actividades", column: "modalidad_id" },
+      { table: "registros", label: "Registros", column: "modalidad_id" },
+    ],
+  },
+};
+const PERSONAL_VINCULACION_OPTIONS = [
+  { value: "1", label: "Activo" },
+  { value: "2", label: "No activo" },
+  { value: "3", label: "Pendiente de desvincular" },
+  { value: "4", label: "No pertenece" },
+];
+const PERSONAL_DOCUMENTATION_FIELD_KEYS = new Set([
+  "cv",
+  "da",
+  "ds",
+  "epi",
+  "titulos",
+  "ig_ac",
+  "uniforme",
+  "med_emerg",
+  "ens",
+]);
+const PERSONAL_IMPORT_HEADER_MAP = {
+  id: "id",
+  id_personal: "id",
+  activo: "activo",
+  pert_empresa: "pert_empresa",
+  vinculacion_id: "vinculacion_id",
+  personal: "personal",
+  genero: "genero",
+  antiguedad: "antiguedad",
+  dni: "dni",
+  fecha_nacimiento: "fecha_nacimiento",
+  ss: "ss",
+  email: "email",
+  movil: "movil",
+  telefono: "telefono",
+  direccion: "direccion",
+  codigo_postal: "codigo_postal",
+  localidad: "localidad",
+  municipio: "municipio",
+  provincia: "provincia",
+  cuenta_corriente: "cuenta_corriente",
+  foto: "foto",
+  contrato_id: "contrato_id",
+  observacion: "observacion",
+  desplazamiento: "desplazamiento",
+  enviar: "enviar",
+  carpeta: "carpeta",
+  pago: "pago",
+  cv: "cv",
+  da: "da",
+  ds: "ds",
+  prev_riesgos: "prev_riesgos",
+  epi: "epi",
+  titulos: "titulos",
+  ig_ac: "ig_ac",
+  uniforme: "uniforme",
+  med_emerg: "med_emerg",
+  ens: "ens",
+  "04_com_antiguedad": "com_antiguedad_04",
+  com_antiguedad_04: "com_antiguedad_04",
+  "18_com_absorbible": "com_absorbible_18",
+  com_absorbible_18: "com_absorbible_18",
+  "18_porcent_complemento": "porcent_complemento_18",
+  porcent_complemento_18: "porcent_complemento_18",
+  prorrateo_pagas: "prorrateo_pagas",
+  num_pagas_extra: "num_pagas_extra",
+  tipo_contrato: "tipo_contrato",
+  grupo: "grupo",
+  nivel: "nivel",
+  grupo_cotizacion: "grupo_cotizacion",
+  contacto_urgencia: "contacto_urgencia",
+  telefono_urgencia: "telefono_urgencia",
+  persona: "persona",
+  irpf: "irpf",
+  nombre: "nombre",
+  apellido: "apellido",
+};
+const PERSONAL_IMPORT_TEXT_FIELDS = new Set([
+  "personal",
+  "genero",
+  "dni",
+  "ss",
+  "email",
+  "movil",
+  "telefono",
+  "direccion",
+  "localidad",
+  "municipio",
+  "provincia",
+  "cuenta_corriente",
+  "foto",
+  "contrato_id",
+  "observacion",
+  "carpeta",
+  "grupo_cotizacion",
+  "contacto_urgencia",
+  "telefono_urgencia",
+  "nombre",
+  "apellido",
+]);
+const PERSONAL_IMPORT_INTEGER_FIELDS = new Set([
+  "id",
+  "vinculacion_id",
+  "codigo_postal",
+  "num_pagas_extra",
+  "tipo_contrato",
+  "grupo",
+  "nivel",
+]);
+const PERSONAL_IMPORT_NUMERIC_FIELDS = new Set([
+  "com_antiguedad_04",
+  "com_absorbible_18",
+  "porcent_complemento_18",
+  "irpf",
+]);
+const PERSONAL_IMPORT_BOOLEAN_FIELDS = new Set([
+  "activo",
+  "pert_empresa",
+  "desplazamiento",
+  "enviar",
+  "pago",
+  "cv",
+  "da",
+  "ds",
+  "epi",
+  "titulos",
+  "ig_ac",
+  "uniforme",
+  "med_emerg",
+  "ens",
+  "prorrateo_pagas",
+  "persona",
+]);
+const PERSONAL_IMPORT_DATE_FIELDS = new Set(["antiguedad", "fecha_nacimiento", "prev_riesgos"]);
+const PERSONAL_IMPORT_COLUMNS = Array.from(new Set(Object.values(PERSONAL_IMPORT_HEADER_MAP)));
+const PERSONAL_IMPORT_SELECT_COLUMNS = PERSONAL_IMPORT_COLUMNS.join(", ");
+const PERSONAL_FIELDS = [
+  { key: "id", label: "ID", type: "integer" },
+  { key: "activo", label: "Activo", type: "boolean" },
+  { key: "pert_empresa", label: "Pertenece a empresa", type: "boolean" },
+  { key: "vinculacion_id", label: "Vinculacion", type: "select", options: PERSONAL_VINCULACION_OPTIONS },
+  { key: "personal", label: "Personal", type: "text", required: true },
+  { key: "genero", label: "Genero", type: "text" },
+  { key: "antiguedad", label: "Antiguedad", type: "date" },
+  { key: "dni", label: "DNI", type: "text" },
+  { key: "fecha_nacimiento", label: "Fecha nacimiento", type: "date" },
+  { key: "ss", label: "SS", type: "text" },
+  { key: "email", label: "Email", type: "email" },
+  { key: "movil", label: "Movil", type: "text" },
+  { key: "telefono", label: "Telefono", type: "text" },
+  { key: "direccion", label: "Direccion", type: "text" },
+  { key: "codigo_postal", label: "Codigo postal", type: "integer" },
+  { key: "localidad", label: "Localidad", type: "text" },
+  { key: "municipio", label: "Municipio", type: "text" },
+  { key: "provincia", label: "Provincia", type: "text" },
+  { key: "cuenta_corriente", label: "Cuenta corriente", type: "text" },
+  { key: "observacion", label: "Observacion", type: "textarea" },
+  { key: "carpeta", label: "Carpeta", type: "text" },
+  { key: "cv", label: "CV", type: "boolean" },
+  { key: "da", label: "DA", type: "boolean" },
+  { key: "ds", label: "DS", type: "boolean" },
+  { key: "prev_riesgos", label: "Prevencion riesgos", type: "date" },
+  { key: "epi", label: "EPI", type: "boolean" },
+  { key: "titulos", label: "Titulos", type: "boolean" },
+  { key: "ig_ac", label: "IG AC", type: "boolean" },
+  { key: "uniforme", label: "Uniforme", type: "boolean" },
+  { key: "med_emerg", label: "Med. emerg", type: "boolean" },
+  { key: "ens", label: "ENS", type: "boolean" },
+  { key: "com_antiguedad_04", label: "Complemento antiguedad 04", type: "numeric" },
+  { key: "com_absorbible_18", label: "Complemento absorbible 18", type: "numeric" },
+  { key: "porcent_complemento_18", label: "Porcentaje complemento 18", type: "numeric" },
+  { key: "prorrateo_pagas", label: "Prorrateo pagas", type: "boolean" },
+  { key: "num_pagas_extra", label: "Num. pagas extra", type: "integer" },
+  { key: "persona", label: "Persona", type: "boolean" },
+  { key: "irpf", label: "IRPF", type: "numeric" },
+  { key: "nombre", label: "Nombre", type: "text" },
+  { key: "apellido", label: "Apellido", type: "text" },
+];
+const PERSONAL_SELECT_COLUMNS = PERSONAL_FIELDS.map((field) => field.key).join(", ");
 const COORDINATION_HOST = "coordinacion.edpsl.es";
 const INITIAL_AUTH_URL_TYPE = (() => {
   const searchParams = new URLSearchParams(window.location.search);
@@ -80,7 +430,82 @@ const isCoordinationPanel =
   window.location.pathname.split("/").filter(Boolean)[0] === "coordinacion";
 
 function renderIcon(name) {
-  return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg#icon-${name}"></use></svg>`;
+  return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260608-1#icon-${name}"></use></svg>`;
+}
+
+function escapeButtonLabel(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function decorateActionButton(button, icon, mode = "icon-only") {
+  if (!button || button.dataset.iconDecorated === `${icon}:${mode}`) {
+    return;
+  }
+
+  const label = (button.getAttribute("aria-label") || button.textContent || "").trim();
+  if (!label) {
+    return;
+  }
+
+  button.setAttribute("aria-label", label);
+  button.dataset.iconDecorated = `${icon}:${mode}`;
+  if (mode === "icon-only") {
+    button.classList.add("tooltip-button", "icon-only-button");
+    button.classList.remove("icon-text-button");
+    button.innerHTML = renderIcon(icon);
+    return;
+  }
+
+  button.classList.add("icon-text-button");
+  button.classList.remove("icon-only-button");
+  button.innerHTML = `${renderIcon(icon)}<span>${escapeButtonLabel(label)}</span>`;
+}
+
+function decorateStaticActionButtons() {
+  document.querySelectorAll("button").forEach((button) => {
+    const label = (button.textContent || "").trim().replace(/\s+/g, " ");
+    if (!label) {
+      return;
+    }
+
+    if (label === "Cerrar") {
+      decorateActionButton(button, "close", "icon-only");
+      return;
+    }
+
+    if (button.type === "button" && /^(Nuevo|Nueva)\b/.test(label)) {
+      decorateActionButton(button, "new", "icon-only");
+      return;
+    }
+
+    if (/^(Borrar|Eliminar)\b/.test(label)) {
+      decorateActionButton(button, "delete", "icon-only");
+      return;
+    }
+
+    if (/^Guardar\b/.test(label)) {
+      decorateActionButton(button, "save", "icon-text");
+      return;
+    }
+
+    if (/^(Exportar|Descargar)\b/.test(label)) {
+      decorateActionButton(button, "download", "icon-text");
+      return;
+    }
+
+    if (/^Cargar\b/.test(label)) {
+      decorateActionButton(button, "file", "icon-text");
+      return;
+    }
+
+    if (/^(Resumen|Informe)\b/.test(label)) {
+      decorateActionButton(button, "file", "icon-text");
+    }
+  });
 }
 
 const publicPanel = document.querySelector("#public-panel");
@@ -92,12 +517,25 @@ const privateView = document.querySelector("#private-view");
 const privateTabSearchButton = document.querySelector("#private-tab-search");
 const privateTabControlButton = document.querySelector("#private-tab-control");
 const privateTabEventsButton = document.querySelector("#private-tab-events");
+const privateTabConciliaButton = document.querySelector("#private-tab-concilia");
+const privateTabActividadesButton = document.querySelector("#private-tab-actividades");
+const privateTabRegistrosButton = document.querySelector("#private-tab-registros");
+const privateTabContractsButton = document.querySelector("#private-tab-contracts");
+const privateTabPersonalButton = document.querySelector("#private-tab-personal");
 const privateTabProgrammingButton = document.querySelector("#private-tab-programming");
+const privateTabSettingsButton = document.querySelector("#private-tab-settings");
+const privateTabAccessButton = document.querySelector("#private-tab-access");
 const privateTabPanelNew = document.querySelector("#private-tab-panel-new");
 const privateTabPanelSearch = document.querySelector("#private-tab-panel-search");
 const privateTabPanelControl = document.querySelector("#private-tab-panel-control");
 const privateTabPanelEvents = document.querySelector("#private-tab-panel-events");
+const privateTabPanelContracts = document.querySelector("#private-tab-panel-contracts");
+const privateTabPanelPersonal = document.querySelector("#private-tab-panel-personal");
 const privateTabPanelProgramming = document.querySelector("#private-tab-panel-programming");
+const privateTabPanelRegistros = document.querySelector("#private-tab-panel-registros");
+const privateTabPanelSettings = document.querySelector("#private-tab-panel-settings");
+const privateTabPanelAccess = document.querySelector("#private-tab-panel-access");
+const privateTabPanelConciliaIntegrated = document.querySelector("#private-tab-panel-concilia-integrated");
 const openCandidateCreateButton = document.querySelector("#open-candidate-create-button");
 const closeCandidateCreateButton = document.querySelector("#close-candidate-create-button");
 const candidateCreateOverlay = document.querySelector("#candidate-create-overlay");
@@ -146,6 +584,20 @@ const paginationPageIndicator = document.querySelector("#pagination-page-indicat
 const previousPageButton = document.querySelector("#previous-page-button");
 const nextPageButton = document.querySelector("#next-page-button");
 const pageSizeSelect = document.querySelector("#page-size-select");
+const recordsFiltersForm = document.querySelector("#records-filters-form");
+const recordsTableHead = document.querySelector("#records-table-head");
+const recordsTableBody = document.querySelector("#records-table-body");
+const recordsSummary = document.querySelector("#records-summary");
+const recordsEditModeInput = document.querySelector("#records-edit-mode");
+const recordsRefreshButton = document.querySelector("#records-refresh-button");
+const recordsClearFiltersButton = document.querySelector("#records-clear-filters-button");
+const recordDetailPanel = document.querySelector("#record-detail-panel");
+const recordDetailOverlay = document.querySelector("#record-detail-overlay");
+const recordDetailForm = document.querySelector("#record-detail-form");
+const recordDetailFields = document.querySelector("#record-detail-fields");
+const recordDetailTitle = document.querySelector("#record-detail-title");
+const recordDetailCloseButton = document.querySelector("#record-detail-close-button");
+const recordDetailCancelButton = document.querySelector("#record-detail-cancel-button");
 const controlFiltersForm = document.querySelector("#control-filters-form");
 const controlDateFromInput = document.querySelector("#control-date-from");
 const controlDateToInput = document.querySelector("#control-date-to");
@@ -238,7 +690,17 @@ const eventsFiltersForm = document.querySelector("#events-filters-form");
 const eventFilterNameInput = document.querySelector("#event-filter-name");
 const eventFilterInstallationSelect = document.querySelector("#event-filter-installation");
 const eventFilterStartDateInput = document.querySelector("#event-filter-start-date");
+const eventFilterEndDateInput = document.querySelector("#event-filter-end-date");
 const eventFilterIncludeArchivedInput = document.querySelector("#event-filter-include-archived");
+const eventPersonnelReportSelect = document.querySelector("#event-personnel-report-select");
+const eventPersonnelReportPdfButton = document.querySelector("#event-personnel-report-pdf-button");
+const eventPersonnelReportImageButton = document.querySelector("#event-personnel-report-image-button");
+const eventReportImagePanel = document.querySelector("#event-report-image-panel");
+const eventReportImageBackdrop = document.querySelector("#event-report-image-backdrop");
+const closeEventReportImageButton = document.querySelector("#close-event-report-image-button");
+const copyEventReportImageButton = document.querySelector("#copy-event-report-image-button");
+const downloadEventReportImageButton = document.querySelector("#download-event-report-image-button");
+const eventReportImagePreview = document.querySelector("#event-report-image-preview");
 const eventsTableBody = document.querySelector("#events-table-body");
 const eventSchedulePanel = document.querySelector("#event-schedule-panel");
 const eventSchedulePanelBackdrop = document.querySelector("#event-schedule-panel-backdrop");
@@ -285,6 +747,7 @@ const programmingImportClearPreviewButton = document.querySelector(
   "#programming-import-clear-preview-button"
 );
 const programmingImportInsertButton = document.querySelector("#programming-import-insert-button");
+const programmingImportStatus = document.querySelector("#programming-import-status");
 const programmingFiltersForm = document.querySelector("#programming-filters-form");
 const programmingFilterDate = document.querySelector("#programming-filter-date");
 const programmingFilterInstallation = document.querySelector("#programming-filter-installation");
@@ -435,6 +898,108 @@ const programmingPreviousPageButton = document.querySelector(
 );
 const programmingNextPageButton = document.querySelector("#programming-next-page-button");
 const programmingPageSizeSelect = document.querySelector("#programming-page-size-select");
+const contractsNewButton = document.querySelector("#contracts-new-button");
+const contractsRefreshButton = document.querySelector("#contracts-refresh-button");
+const contractsShowInactiveInput = document.querySelector("#contracts-show-inactive");
+const contractsStatus = document.querySelector("#contracts-status");
+const contractsTableBody = document.querySelector("#contracts-table-body");
+const contractsBulkFieldSelect = document.querySelector("#contracts-bulk-field");
+const contractsBulkCurrentValueInput = document.querySelector("#contracts-bulk-current-value");
+const contractsBulkNewValueInput = document.querySelector("#contracts-bulk-new-value");
+const contractsBulkCurrentBoolSelect = document.querySelector("#contracts-bulk-current-bool");
+const contractsBulkNewBoolSelect = document.querySelector("#contracts-bulk-new-bool");
+const contractsBulkApplyButton = document.querySelector("#contracts-bulk-apply-button");
+const contractsBulkMatchCount = document.querySelector("#contracts-bulk-match-count");
+const personalImportExcelButton = document.querySelector("#personal-import-excel-button");
+const personalImportExcelInput = document.querySelector("#personal-import-excel-input");
+const personalNewButton = document.querySelector("#personal-new-button");
+const personalRefreshButton = document.querySelector("#personal-refresh-button");
+const personalVinculacionFilter = document.querySelector("#personal-vinculacion-filter");
+const personalTextFilter = document.querySelector("#personal-text-filter");
+const personalList = document.querySelector("#personal-list");
+const personalListSummary = document.querySelector("#personal-list-summary");
+const personalStatus = document.querySelector("#personal-status");
+const personalFormTitle = document.querySelector("#personal-form-title");
+const personalForm = document.querySelector("#personal-form");
+const personalFormFields = document.querySelector("#personal-form-fields");
+const personalEditButton = document.querySelector("#personal-edit-button");
+const personalSaveButton = document.querySelector("#personal-save-button");
+const personalCancelButton = document.querySelector("#personal-cancel-button");
+const personalImportPanel = document.querySelector("#personal-import-panel");
+const personalImportOverlay = document.querySelector("#personal-import-overlay");
+const closePersonalImportPanelButton = document.querySelector("#close-personal-import-panel-button");
+const personalImportFileName = document.querySelector("#personal-import-file-name");
+const personalImportTotalCount = document.querySelector("#personal-import-total-count");
+const personalImportSelectedCount = document.querySelector("#personal-import-selected-count");
+const personalImportSelectAll = document.querySelector("#personal-import-select-all");
+const personalImportApplyButton = document.querySelector("#personal-import-apply-button");
+const personalImportPreviewTableBody = document.querySelector("#personal-import-preview-table-body");
+const contractDetailPanel = document.querySelector("#contract-detail-panel");
+const contractDetailOverlay = document.querySelector("#contract-detail-overlay");
+const closeContractDetailButton = document.querySelector("#close-contract-detail-button");
+const contractDetailTitle = document.querySelector("#contract-detail-title");
+const contractDetailForm = document.querySelector("#contract-detail-form");
+const contractDetailIdInput = document.querySelector("#contract-detail-id");
+const contractDetailNameInput = document.querySelector("#contract-detail-name");
+const contractDetailClientInput = document.querySelector("#contract-detail-client");
+const contractDetailFileInput = document.querySelector("#contract-detail-file");
+const contractDetailStartInput = document.querySelector("#contract-detail-start");
+const contractDetailEndInput = document.querySelector("#contract-detail-end");
+const contractDetailAmountInput = document.querySelector("#contract-detail-amount");
+const contractDetailVatInput = document.querySelector("#contract-detail-vat");
+const contractDetailActiveInput = document.querySelector("#contract-detail-active");
+const contractDetailDeleteButton = document.querySelector("#contract-detail-delete-button");
+const contractServicesSection = document.querySelector("#contract-services-section");
+const contractServiceForm = document.querySelector("#contract-service-form");
+const contractServiceIdInput = document.querySelector("#contract-service-id");
+const contractServiceNameInput = document.querySelector("#contract-service-name");
+const contractServiceDescriptionInput = document.querySelector("#contract-service-description");
+const contractServiceActiveInput = document.querySelector("#contract-service-active");
+const contractServiceClearButton = document.querySelector("#contract-service-clear-button");
+const contractServicesList = document.querySelector("#contract-services-list");
+const contractPersonalSection = document.querySelector("#contract-personal-section");
+const contractPersonalFilter = document.querySelector("#contract-personal-filter");
+const contractPersonalAvailableSelect = document.querySelector("#contract-personal-available-select");
+const contractPersonalSelectedSelect = document.querySelector("#contract-personal-selected-select");
+const contractPersonalAddButton = document.querySelector("#contract-personal-add-button");
+const contractPersonalRemoveButton = document.querySelector("#contract-personal-remove-button");
+const contractInstallationsSection = document.querySelector("#contract-installations-section");
+const contractInstallationFilter = document.querySelector("#contract-installation-filter");
+const contractInstallationAvailableSelect = document.querySelector("#contract-installation-available-select");
+const contractInstallationSelectedSelect = document.querySelector("#contract-installation-selected-select");
+const contractInstallationAddButton = document.querySelector("#contract-installation-add-button");
+const contractInstallationRemoveButton = document.querySelector("#contract-installation-remove-button");
+const accessNewUserButton = document.querySelector("#access-new-user-button");
+const accessRefreshButton = document.querySelector("#access-refresh-button");
+const accessUserPanel = document.querySelector("#access-user-panel");
+const accessUserOverlay = document.querySelector("#access-user-overlay");
+const closeAccessUserPanelButton = document.querySelector("#close-access-user-panel-button");
+const accessUserPanelTitle = document.querySelector("#access-user-panel-title");
+const accessUserForm = document.querySelector("#access-user-form");
+const accessUserIdInput = document.querySelector("#access-user-id");
+const accessUserNameInput = document.querySelector("#access-user-name");
+const accessUserRoleSelect = document.querySelector("#access-user-role");
+const accessUserActiveInput = document.querySelector("#access-user-active");
+const accessUserTabsContainer = document.querySelector("#access-user-tabs");
+const accessUserServicesSelect = document.querySelector("#access-user-services");
+const accessUserSaveButton = document.querySelector("#access-user-save-button");
+const accessUserClearButton = document.querySelector("#access-user-clear-button");
+const accessStatus = document.querySelector("#access-status");
+const accessUsersTableBody = document.querySelector("#access-users-table-body");
+const settingsSubtabButtons = Array.from(document.querySelectorAll("[data-settings-catalog]"));
+const settingsNewButton = document.querySelector("#settings-new-button");
+const settingsRefreshButton = document.querySelector("#settings-refresh-button");
+const settingsStatus = document.querySelector("#settings-status");
+const settingsTableHead = document.querySelector("#settings-table-head");
+const settingsTableBody = document.querySelector("#settings-table-body");
+const settingsDetailPanel = document.querySelector("#settings-detail-panel");
+const settingsDetailOverlay = document.querySelector("#settings-detail-overlay");
+const closeSettingsDetailButton = document.querySelector("#close-settings-detail-button");
+const settingsDetailTitle = document.querySelector("#settings-detail-title");
+const settingsDetailForm = document.querySelector("#settings-detail-form");
+const settingsDetailFields = document.querySelector("#settings-detail-fields");
+const settingsDetailDeleteButton = document.querySelector("#settings-detail-delete-button");
+const settingsDetailClearButton = document.querySelector("#settings-detail-clear-button");
 const controlDetailPanel = document.querySelector("#control-detail-panel");
 const controlDetailOverlay = document.querySelector("#control-detail-overlay");
 const closeControlDetailButton = document.querySelector("#close-control-detail-button");
@@ -521,6 +1086,7 @@ let controlPersonalLookupPromise = null;
 let controlPersonalLookupLoaded = false;
 let jsPdfModulePromise = null;
 let jsZipModulePromise = null;
+let xlsxModulePromise = null;
 let mammothModulePromise = null;
 let detailEditMode = false;
 let currentSort = {
@@ -547,6 +1113,11 @@ let currentControlSort = {
   field: "fecha",
   direction: "desc",
 };
+let recordsRows = [];
+let filteredRecordsRows = [];
+let selectedRecordId = "";
+let recordDetailSnapshot = null;
+let recordsExternalActivityFilter = "";
 let currentControlPersonalOptions = [];
 let pendingControlImport = null;
 let filteredControlImportRecords = [];
@@ -586,6 +1157,48 @@ let currentEventScheduleSelectedPersonnelIds = new Set();
 let currentSelectedEventId = "";
 let expandedEventIds = new Set();
 let eventSortCriteria = [{ field: "fecha_inicio", direction: "desc" }];
+let currentEventReportImageCanvas = null;
+let currentEventReportImageFileName = "";
+const eventAssignmentSaveTimers = new Map();
+let currentContractRows = [];
+let currentContractServiceRows = [];
+let contractPersonalCatalogRows = [];
+let contractInstallationCatalogRows = [];
+let currentContractPersonalRows = [];
+let currentContractInstallationRows = [];
+let currentEditingContractId = "";
+const CONTRACT_BULK_FIELDS = {
+  fecha_inicio: { label: "Fecha inicio", type: "date" },
+  fecha_fin: { label: "Fecha fin", type: "date" },
+  cliente: { label: "Cliente", type: "text" },
+  expediente: { label: "Expediente", type: "text" },
+  importe: { label: "Importe", type: "text" },
+  iva: { label: "IVA", type: "number" },
+  cpv: { label: "CPV", type: "text" },
+  agrupacion_nomina: { label: "Agrupación nómina", type: "text" },
+  descripcion: { label: "Descripción", type: "text" },
+  activo: { label: "Activo", type: "boolean" },
+  seleccionar: { label: "Seleccionar", type: "boolean" },
+  desplazamiento: { label: "Desplazamiento", type: "boolean" },
+};
+let currentPersonalRows = [];
+let filteredPersonalRows = [];
+let currentSelectedPersonalId = "";
+let currentPersonalMode = "view";
+let pendingPersonalImportRows = [];
+let pendingPersonalImportFileName = "";
+let currentAccessUsers = [];
+let currentAccessServices = [];
+let currentAccessAssignments = [];
+let currentAccessTabAssignments = [];
+let currentSettingsCatalog = "puestos";
+let currentSettingsRows = [];
+let currentSettingsMode = "new";
+let currentSettingsEditingId = "";
+let currentSettingsSortField = "puesto";
+let currentSettingsSortDirection = "asc";
+let currentAllowedPrivateTabs = new Set(["programming"]);
+let currentUserIsAccessAdmin = false;
 let currentPanelTarget = getInitialPanelTarget();
 let currentPrivateTabTarget = getInitialPrivateTabTarget();
 let lastSuggestedBulkPersonal = "";
@@ -947,6 +1560,34 @@ function setStatus(message, tone = "default") {
   }
 }
 
+function setPanelStatus(element, message = "", tone = "default") {
+  if (!element) {
+    return;
+  }
+
+  element.textContent = message;
+  element.className = "panel-status-message";
+  if (tone !== "default") {
+    element.classList.add(tone);
+  }
+}
+
+function setProgrammingImportStatus(message = "", tone = "default") {
+  setPanelStatus(programmingImportStatus, message, tone);
+}
+
+function setAccessStatus(message = "", tone = "default") {
+  setPanelStatus(accessStatus, message, tone);
+}
+
+function setPersonalStatus(message = "", tone = "default") {
+  setPanelStatus(personalStatus, message, tone);
+}
+
+function setSettingsStatus(message = "", tone = "default") {
+  setPanelStatus(settingsStatus, message, tone);
+}
+
 function switchPanel(target) {
   currentPanelTarget = target;
   const showPublic = target === "public";
@@ -959,8 +1600,21 @@ function getInitialPanelTarget() {
   return isCoordinationPanel ? "private" : "public";
 }
 
+function normalizeCoordinationTabKey(tabKey) {
+  const normalizedTabKey = String(tabKey ?? "").trim();
+  if (COORDINATION_LEGACY_TAB_ALIASES[normalizedTabKey]) {
+    return COORDINATION_LEGACY_TAB_ALIASES[normalizedTabKey];
+  }
+  return CONCILIA_LEGACY_TAB_KEYS.has(normalizedTabKey) ? CONCILIA_TAB_KEY : normalizedTabKey;
+}
+
 function normalizePrivateTabTarget(target) {
-  return PRIVATE_TAB_TARGETS.has(target) ? target : "programming";
+  const normalizedTarget = normalizeCoordinationTabKey(target);
+  if (PRIVATE_TAB_TARGETS.has(normalizedTarget) && currentAllowedPrivateTabs.has(normalizedTarget)) {
+    return normalizedTarget;
+  }
+
+  return currentAllowedPrivateTabs.values().next().value || "programming";
 }
 
 function getInitialPrivateTabTarget() {
@@ -987,6 +1641,30 @@ function togglePrivateView(isLoggedIn, email = "") {
   sessionEmail.textContent = isLoggedIn
     ? `Sesion iniciada${email ? `: ${email}` : ""}`
     : "";
+}
+
+function syncAccessTabVisibility() {
+  const tabButtons = {
+    search: privateTabSearchButton,
+    control: privateTabControlButton,
+    events: privateTabEventsButton,
+    concilia: privateTabConciliaButton,
+    actividades: privateTabActividadesButton,
+    registros: privateTabRegistrosButton,
+    programming: privateTabProgrammingButton,
+    contracts: privateTabContractsButton,
+    personal: privateTabPersonalButton,
+    settings: privateTabSettingsButton,
+    access: privateTabAccessButton,
+  };
+
+  Object.entries(tabButtons).forEach(([tabKey, button]) => {
+    button?.classList.toggle("hidden", !currentAllowedPrivateTabs.has(tabKey));
+  });
+
+  if (!currentAllowedPrivateTabs.has(currentPrivateTabTarget)) {
+    switchPrivateTab(normalizePrivateTabTarget(currentPrivateTabTarget));
+  }
 }
 
 function showPasswordRecoveryView() {
@@ -1033,6 +1711,32 @@ function clearAuthUrl() {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
+function showIntegratedConciliaPanel(privateTabTarget) {
+  const moduleTarget = CONCILIA_MODULE_BY_TAB_KEY[normalizeCoordinationTabKey(privateTabTarget)] || "alumnado";
+  const normalizedModuleTarget = moduleTarget || "alumnado";
+  const appView = document.querySelector("#concilia-app-view");
+  appView?.classList.remove("hidden");
+  document
+    .querySelectorAll("#private-tab-panel-concilia-integrated .concilia-subtabs")
+    .forEach((tabs) => {
+      tabs.classList.toggle("hidden", normalizedModuleTarget === "actividades");
+    });
+
+  document
+    .querySelectorAll("#private-tab-panel-concilia-integrated [data-module-tab]")
+    .forEach((button) => {
+      const isActive = button.dataset.moduleTab === normalizedModuleTarget;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+
+  document
+    .querySelectorAll("#private-tab-panel-concilia-integrated [data-module-panel]")
+    .forEach((panel) => {
+      panel.classList.toggle("hidden", panel.dataset.modulePanel !== normalizedModuleTarget);
+    });
+}
+
 function switchPrivateTab(target) {
   const normalizedTarget = normalizePrivateTabTarget(target);
   currentPrivateTabTarget = normalizedTarget;
@@ -1046,19 +1750,49 @@ function switchPrivateTab(target) {
   const showControl = normalizedTarget === "control";
   const showEvents = normalizedTarget === "events";
   const showProgramming = normalizedTarget === "programming";
+  const showContracts = normalizedTarget === "contracts";
+  const showPersonal = normalizedTarget === "personal";
+  const showRegistros = normalizedTarget === "registros";
+  const showSettings = normalizedTarget === "settings";
+  const showAccess = normalizedTarget === "access";
+  const showConcilia = normalizedTarget === "concilia" || normalizedTarget === "actividades";
+  const hasAnyAccess = currentAllowedPrivateTabs.size > 0;
 
-  privateTabPanelSearch.classList.toggle("hidden", !showSearch);
-  privateTabPanelControl.classList.toggle("hidden", !showControl);
-  privateTabPanelEvents?.classList.toggle("hidden", !showEvents);
-  privateTabPanelProgramming.classList.toggle("hidden", !showProgramming);
+  privateTabPanelSearch.classList.toggle("hidden", !hasAnyAccess || !showSearch);
+  privateTabPanelControl.classList.toggle("hidden", !hasAnyAccess || !showControl);
+  privateTabPanelEvents?.classList.toggle("hidden", !hasAnyAccess || !showEvents);
+  privateTabPanelProgramming.classList.toggle("hidden", !hasAnyAccess || !showProgramming);
+  privateTabPanelContracts?.classList.toggle("hidden", !hasAnyAccess || !showContracts);
+  privateTabPanelPersonal?.classList.toggle("hidden", !hasAnyAccess || !showPersonal);
+  privateTabPanelRegistros?.classList.toggle("hidden", !hasAnyAccess || !showRegistros);
+  privateTabPanelSettings?.classList.toggle("hidden", !hasAnyAccess || !showSettings);
+  privateTabPanelAccess?.classList.toggle("hidden", !hasAnyAccess || !showAccess);
+  privateTabPanelConciliaIntegrated?.classList.toggle("hidden", !hasAnyAccess || !showConcilia);
+  if (showConcilia) {
+    showIntegratedConciliaPanel(normalizedTarget);
+  }
   privateTabSearchButton.classList.toggle("active", showSearch);
   privateTabControlButton.classList.toggle("active", showControl);
   privateTabEventsButton?.classList.toggle("active", showEvents);
+  privateTabConciliaButton?.classList.toggle("active", normalizedTarget === "concilia");
+  privateTabActividadesButton?.classList.toggle("active", normalizedTarget === "actividades");
   privateTabProgrammingButton.classList.toggle("active", showProgramming);
+  privateTabContractsButton?.classList.toggle("active", showContracts);
+  privateTabPersonalButton?.classList.toggle("active", showPersonal);
+  privateTabRegistrosButton?.classList.toggle("active", showRegistros);
+  privateTabSettingsButton?.classList.toggle("active", showSettings);
+  privateTabAccessButton?.classList.toggle("active", showAccess);
   privateTabSearchButton.setAttribute("aria-pressed", String(showSearch));
   privateTabControlButton.setAttribute("aria-pressed", String(showControl));
   privateTabEventsButton?.setAttribute("aria-pressed", String(showEvents));
+  privateTabConciliaButton?.setAttribute("aria-pressed", String(normalizedTarget === "concilia"));
+  privateTabActividadesButton?.setAttribute("aria-pressed", String(normalizedTarget === "actividades"));
   privateTabProgrammingButton.setAttribute("aria-pressed", String(showProgramming));
+  privateTabContractsButton?.setAttribute("aria-pressed", String(showContracts));
+  privateTabPersonalButton?.setAttribute("aria-pressed", String(showPersonal));
+  privateTabRegistrosButton?.setAttribute("aria-pressed", String(showRegistros));
+  privateTabSettingsButton?.setAttribute("aria-pressed", String(showSettings));
+  privateTabAccessButton?.setAttribute("aria-pressed", String(showAccess));
   syncProgrammingTypeUi();
 }
 
@@ -1160,6 +1894,15 @@ async function getJsZipClient() {
 
   jsZipModulePromise = import("https://esm.sh/jszip@3.10.1");
   return jsZipModulePromise;
+}
+
+async function getXlsxClient() {
+  if (xlsxModulePromise) {
+    return xlsxModulePromise;
+  }
+
+  xlsxModulePromise = import("https://esm.sh/xlsx@0.18.5");
+  return xlsxModulePromise;
 }
 
 async function getMammothClient() {
@@ -1992,13 +2735,12 @@ async function fetchAllFilteredControlRecordsForBulk() {
 
   while (offset < maxRows) {
     let query = supabase
-      .from("registros")
+      .from("registros_horarios")
       .select(
         "id, personal, dni, centro, puesto, fecha, hora_inicio, hora_fin, tipo_jornada, observacion, eliminado, control"
       )
       .range(offset, offset + pageSize - 1);
     query = applyControlFiltersToQuery(query, filters);
-    query = applyControlPersonalFilterToQuery(query, filters);
     query = applyControlSortToQuery(query);
 
     const { data, error } = await query;
@@ -2011,7 +2753,7 @@ async function fetchAllFilteredControlRecordsForBulk() {
       break;
     }
 
-    rows.push(...data.map(enrichControlRecord));
+    rows.push(...data.map(enrichControlRecord).filter((row) => controlRecordMatchesFilters(row, filters)));
     offset += data.length;
 
     if (data.length < pageSize) {
@@ -2249,9 +2991,9 @@ function candidateMatchesFilters(candidate, filters) {
   ]
     .filter(Boolean)
     .join(" ")
-    .toLowerCase();
+    .trim();
 
-  if (filters.search && !searchHaystack.includes(filters.search)) {
+  if (filters.search && !normalizeSearchText(searchHaystack).includes(normalizeSearchText(filters.search))) {
     return false;
   }
 
@@ -2300,8 +3042,10 @@ function buildCandidateFilters() {
   };
 }
 
-function applyCandidateFiltersToQuery(query, filters) {
-  if (filters.search) {
+function applyCandidateFiltersToQuery(query, filters, options = {}) {
+  const includeTextFilter = options.includeTextFilter !== false;
+
+  if (filters.search && includeTextFilter) {
     const search = filters.search.replaceAll("%", "\\%").replaceAll("_", "\\_");
     query = query.or(
       [
@@ -2418,7 +3162,7 @@ async function fetchAllFilteredCandidates() {
       .from("candidates")
       .select(CANDIDATE_SELECT_COLUMNS)
       .range(from, from + chunkSize - 1);
-    query = applyCandidateFiltersToQuery(query, filters);
+    query = applyCandidateFiltersToQuery(query, filters, { includeTextFilter: false });
     query = applyCandidateSortToQuery(query);
 
     const { data, error } = await query;
@@ -2426,7 +3170,7 @@ async function fetchAllFilteredCandidates() {
       throw error;
     }
 
-    rows.push(...(data ?? []));
+    rows.push(...(data ?? []).filter((candidate) => candidateMatchesFilters(candidate, filters)));
 
     if (!data || data.length < chunkSize) {
       return currentSort.field === "job_roles" ? sortCandidates(rows) : rows;
@@ -3640,7 +4384,7 @@ async function importPreparedControlRecords() {
 
   if (pendingControlImport.needsIdAssignment) {
     const { data, error } = await supabase
-      .from("registros")
+      .from("registros_horarios")
       .select("id")
       .order("id", { ascending: false })
       .limit(1);
@@ -3661,7 +4405,7 @@ async function importPreparedControlRecords() {
 
   for (let index = 0; index < records.length; index += batchSize) {
     const chunk = records.slice(index, index + batchSize);
-    const { error } = await supabase.from("registros").upsert(chunk, {
+    const { error } = await supabase.from("registros_horarios").upsert(chunk, {
       onConflict: "id",
     });
 
@@ -3894,6 +4638,7 @@ function openProgrammingImportPanel() {
   if (programmingImportTypeInput) {
     programmingImportTypeInput.value = getDefaultProgrammingTypeForNewRows();
   }
+  setProgrammingImportStatus("");
   programmingImportPanel?.classList.remove("hidden");
 }
 
@@ -3901,6 +4646,7 @@ function closeProgrammingImportPanel() {
   programmingImportPanel?.classList.add("hidden");
   programmingImportForm?.reset();
   resetProgrammingImportPreview();
+  setProgrammingImportStatus("");
 }
 
 function resetProgrammingImportPreview() {
@@ -3928,6 +4674,7 @@ function resetProgrammingImportPreview() {
   if (programmingImportInsertButton) {
     programmingImportInsertButton.disabled = true;
   }
+  setProgrammingImportStatus("");
 }
 
 function renderProgrammingImportPreviewFilters() {
@@ -4171,9 +4918,8 @@ function findClosestProgrammingInstallationCatalogName(sourceName) {
   }
 
   const options = sortTextValues(
-    programmingInstallationCatalogRows
-      .filter((row) => row.activo)
-      .map((row) => normalizeProgrammingCell(row.instalacion))
+    currentProgrammingAssignedInstallations
+      .map((row) => normalizeProgrammingCell(row.name))
       .filter(Boolean)
   );
   if (!options.length) {
@@ -4230,7 +4976,7 @@ function findClosestProgrammingPersonnelCatalogName(sourceName) {
   }
 
   const options = sortTextValues(
-    programmingPersonnelCatalogRows.map((row) => normalizeProgrammingPersonnelName(row.personal)).filter(Boolean)
+    currentProgrammingPersonnel.map((row) => normalizeProgrammingPersonnelName(row.name)).filter(Boolean)
   );
   if (!options.length) {
     return "";
@@ -4344,6 +5090,25 @@ function getProgrammingPersonnelNames() {
   );
 }
 
+function getProgrammingAssignedPersonnelRows() {
+  return [...currentProgrammingPersonnel].sort((left, right) =>
+    normalizeProgrammingPersonnelName(left.name).localeCompare(
+      normalizeProgrammingPersonnelName(right.name),
+      "es",
+      { sensitivity: "base", numeric: true }
+    )
+  );
+}
+
+function getProgrammingAssignedInstallationRows() {
+  return [...currentProgrammingAssignedInstallations].sort((left, right) =>
+    normalizeProgrammingCell(left.name).localeCompare(normalizeProgrammingCell(right.name), "es", {
+      sensitivity: "base",
+      numeric: true,
+    })
+  );
+}
+
 function getProgrammingPersonnelOptionLabel(name) {
   const normalizedName = normalizeProgrammingPersonnelName(name);
   const person = currentProgrammingPersonnel.find(
@@ -4389,7 +5154,9 @@ function renderProgrammingPersonnelOptions(extraNames = []) {
 
   if (programmingBulkPersonalSelect) {
     const currentValue = normalizeProgrammingPersonnelName(programmingBulkPersonalSelect.value);
-    const assignableNames = names.filter((name) => name !== PROGRAMMING_UNASSIGNED_PERSONAL);
+    const assignableNames = getProgrammingPersonnelNames().filter(
+      (name) => name !== PROGRAMMING_UNASSIGNED_PERSONAL
+    );
     programmingBulkPersonalSelect.innerHTML = ['<option value="">Selecciona personal</option>']
       .concat(
         assignableNames.map(
@@ -5380,6 +6147,25 @@ function filterActiveProgrammingInstallationRows(rows, installationCatalog) {
   );
 }
 
+async function fetchAllProgrammingRows(buildQuery, pageSize = PROGRAMMING_FETCH_PAGE_SIZE) {
+  const rows = [];
+
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await buildQuery().range(offset, offset + pageSize - 1);
+
+    if (error) {
+      return { data: rows, error };
+    }
+
+    const pageRows = data ?? [];
+    rows.push(...pageRows);
+
+    if (pageRows.length < pageSize) {
+      return { data: rows, error: null };
+    }
+  }
+}
+
 function validateProgrammingReportRange() {
   const dateFrom = normalizeImportedDate(programmingReportDateFromInput?.value);
   const dateTo = normalizeImportedDate(programmingReportDateToInput?.value);
@@ -5398,29 +6184,33 @@ function validateProgrammingReportRange() {
 async function fetchProgrammingRowsForReport(dateFrom, dateTo) {
   const supabase = await getSupabaseClient();
   const installationCatalog = await loadProgrammingInstallationCatalog(supabase);
-  let reportQuery = supabase
-    .from(PROGRAMMING_TABLE_NAME)
-    .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, archived_at, sort_order");
-  reportQuery = applyProgrammingTypeFilter(reportQuery)
-    .gte("fecha", dateFrom)
-    .lte("fecha", dateTo)
-    .is("archived_at", null)
-    .order("personal", { ascending: true })
-    .order("fecha", { ascending: true })
-    .order("hora_inicio", { ascending: true });
-  let { data, error } = await reportQuery;
-
-  if (error && isMissingArchivedAtColumnError(error)) {
-    let fallbackReportQuery = supabase
+  let { data, error } = await fetchAllProgrammingRows(() => {
+    let reportQuery = supabase
       .from(PROGRAMMING_TABLE_NAME)
-      .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order");
-    fallbackReportQuery = applyProgrammingTypeFilter(fallbackReportQuery)
+      .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, archived_at, sort_order");
+    reportQuery = applyProgrammingTypeFilter(reportQuery)
       .gte("fecha", dateFrom)
       .lte("fecha", dateTo)
+      .is("archived_at", null)
       .order("personal", { ascending: true })
       .order("fecha", { ascending: true })
       .order("hora_inicio", { ascending: true });
-    ({ data, error } = await fallbackReportQuery);
+    return reportQuery;
+  });
+
+  if (error && isMissingArchivedAtColumnError(error)) {
+    ({ data, error } = await fetchAllProgrammingRows(() => {
+      let fallbackReportQuery = supabase
+        .from(PROGRAMMING_TABLE_NAME)
+        .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order");
+      fallbackReportQuery = applyProgrammingTypeFilter(fallbackReportQuery)
+        .gte("fecha", dateFrom)
+        .lte("fecha", dateTo)
+        .order("personal", { ascending: true })
+        .order("fecha", { ascending: true })
+        .order("hora_inicio", { ascending: true });
+      return fallbackReportQuery;
+    }));
   }
 
   if (error) {
@@ -5800,24 +6590,28 @@ async function loadProgrammingFromSupabase() {
   try {
     const supabase = await getSupabaseClient();
     const installationCatalog = await loadProgrammingInstallationCatalog(supabase);
-    let query = supabase
-      .from(PROGRAMMING_TABLE_NAME)
-      .select(
-        "id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, archived_at, sort_order, tipo_programacion"
-      );
-    query = applyProgrammingTypeFilter(query)
-      .order("fecha", { ascending: true })
-      .order("sort_order", { ascending: true });
-    let { data, error } = await query;
-
-    if (error && isMissingArchivedAtColumnError(error)) {
-      let fallbackQuery = supabase
+    let { data, error } = await fetchAllProgrammingRows(() => {
+      let query = supabase
         .from(PROGRAMMING_TABLE_NAME)
-        .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order, tipo_programacion");
-      fallbackQuery = applyProgrammingTypeFilter(fallbackQuery)
+        .select(
+          "id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, archived_at, sort_order, tipo_programacion"
+        );
+      query = applyProgrammingTypeFilter(query)
         .order("fecha", { ascending: true })
         .order("sort_order", { ascending: true });
-      ({ data, error } = await fallbackQuery);
+      return query;
+    });
+
+    if (error && isMissingArchivedAtColumnError(error)) {
+      ({ data, error } = await fetchAllProgrammingRows(() => {
+        let fallbackQuery = supabase
+          .from(PROGRAMMING_TABLE_NAME)
+          .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order, tipo_programacion");
+        fallbackQuery = applyProgrammingTypeFilter(fallbackQuery)
+          .order("fecha", { ascending: true })
+          .order("sort_order", { ascending: true });
+        return fallbackQuery;
+      }));
     }
 
     if (error) {
@@ -5829,10 +6623,6 @@ async function loadProgrammingFromSupabase() {
       installationCatalog
     );
     renderProgrammingPreview(rows, getProgrammingSourceLabel(), { canUpload: false });
-    setStatus(
-      `Datos actuales de ${getProgrammingTypeLabel()} cargados correctamente. Registros detectados: ${rows.length}.`,
-      "success"
-    );
   } catch (error) {
     resetProgrammingPreview();
     setStatus(`No se pudieron cargar los datos actuales de ${getProgrammingTypeLabel()}: ${error.message}`, "error");
@@ -6483,7 +7273,7 @@ async function assignFilteredProgrammingPersonnel() {
 
 function getProgrammingUnmatchedPersonnelProposals() {
   const catalogNames = new Set(
-    programmingPersonnelCatalogRows.map((person) => normalizeProgrammingText(person.personal)).filter(Boolean)
+    currentProgrammingPersonnel.map((person) => normalizeProgrammingText(person.name)).filter(Boolean)
   );
   const unassignedKey = normalizeProgrammingText(PROGRAMMING_UNASSIGNED_PERSONAL);
   const proposalMap = new Map();
@@ -6518,11 +7308,12 @@ function getProgrammingUnmatchedPersonnelProposals() {
 
 function renderProgrammingUnmatchedPersonnelPanel() {
   programmingUnmatchedPersonnelProposals = getProgrammingUnmatchedPersonnelProposals();
+  const assignedPersonnelRows = getProgrammingAssignedPersonnelRows();
   const personnelOptions = [
     '<option value="">Sin asignar</option>',
-    ...programmingPersonnelCatalogRows.map(
+    ...assignedPersonnelRows.map(
       (person) =>
-        `<option value="${escapeHtml(person.personal)}">${escapeHtml(formatProgrammingPersonnelLabel(person))}</option>`
+        `<option value="${escapeHtml(person.name)}">${escapeHtml(formatProgrammingPersonnelLabel(person))}</option>`
     ),
   ].join("");
 
@@ -6735,9 +7526,8 @@ async function acceptProgrammingUnmatchedPersonnelProposal(sourceName) {
 
 function getProgrammingUnmatchedInstallationProposals() {
   const catalogNames = new Set(
-    programmingInstallationCatalogRows
-      .filter((installation) => installation.activo)
-      .map((installation) => normalizeProgrammingText(installation.instalacion))
+    currentProgrammingAssignedInstallations
+      .map((installation) => normalizeProgrammingText(installation.name))
       .filter(Boolean)
   );
   const proposalMap = new Map();
@@ -6766,14 +7556,13 @@ function getProgrammingUnmatchedInstallationProposals() {
 
 function renderProgrammingUnmatchedInstallationPanel() {
   programmingUnmatchedInstallationProposals = getProgrammingUnmatchedInstallationProposals();
+  const assignedInstallationRows = getProgrammingAssignedInstallationRows();
   const installationOptions = [
     '<option value="">Sin asignar</option>',
-    ...programmingInstallationCatalogRows
-      .filter((installation) => installation.activo)
-      .map(
-        (installation) =>
-          `<option value="${escapeHtml(installation.instalacion)}">${escapeHtml(installation.instalacion)}</option>`
-      ),
+    ...assignedInstallationRows.map(
+      (installation) =>
+        `<option value="${escapeHtml(installation.name)}">${escapeHtml(installation.name)}</option>`
+    ),
   ].join("");
 
   if (programmingUnmatchedInstallationCount) {
@@ -7248,6 +8037,27 @@ async function insertProgrammingRowsWithDiagnostics(supabase, rows, batchSize = 
   }
 }
 
+async function countInsertedProgrammingRowsBySource(supabase, sourceName, programmingType) {
+  const { count, error } = await supabase
+    .from(PROGRAMMING_TABLE_NAME)
+    .select("id", { count: "exact", head: true })
+    .eq("source_file", sourceName || "programacion.csv")
+    .eq("tipo_programacion", normalizeProgrammingType(programmingType));
+
+  if (error) {
+    throw error;
+  }
+
+  return count ?? 0;
+}
+
+async function switchProgrammingTypeAndReload(programmingType) {
+  currentProgrammingType = normalizeProgrammingType(programmingType);
+  syncProgrammingTypeUi();
+  await loadProgrammingPersonnel();
+  await loadProgrammingFromSupabase();
+}
+
 async function clearFindeSemanaTable() {
   const session = await ensurePrivateSession({ silent: true });
   if (!session) {
@@ -7339,16 +8149,17 @@ async function uploadProgrammingRowsToSupabase() {
 async function insertFilteredProgrammingImportRows() {
   const session = await ensurePrivateSession({ silent: true });
   if (!session) {
-    setStatus("Necesitas iniciar sesión para cargar la programación en Supabase.", "error");
+    setProgrammingImportStatus("Necesitas iniciar sesión para cargar la programación en Supabase.", "error");
     return;
   }
 
   if (!filteredProgrammingImportRows.length) {
-    setStatus("No hay registros filtrados para insertar.", "error");
+    setProgrammingImportStatus("No hay registros filtrados para insertar.", "error");
     return;
   }
 
   const importType = getProgrammingImportType();
+  const insertButtonPreviousDisabled = programmingImportInsertButton?.disabled ?? false;
   const confirmed = window.confirm(
     `Se insertaran ${filteredProgrammingImportRows.length} registro${
       filteredProgrammingImportRows.length === 1 ? "" : "s"
@@ -7368,7 +8179,7 @@ async function insertFilteredProgrammingImportRows() {
   const validationErrors = validateProgrammingRowsForSupabase(rows);
 
   if (validationErrors.length) {
-    setStatus(
+    setProgrammingImportStatus(
       `No se puede importar el archivo. ${validationErrors.slice(0, 3).join(" ")}${
         validationErrors.length > 3 ? ` Hay ${validationErrors.length} errores en total.` : ""
       }`,
@@ -7378,22 +8189,35 @@ async function insertFilteredProgrammingImportRows() {
   }
 
   try {
+    setProgrammingImportStatus("Insertando registros filtrados...");
     await insertProgrammingRowsWithDiagnostics(supabase, rows);
+    const insertedCount = await countInsertedProgrammingRowsBySource(
+      supabase,
+      pendingProgrammingImportSourceName,
+      importType
+    );
+    await switchProgrammingTypeAndReload(importType);
+    applyProgrammingImportPreviewFilters();
+    setProgrammingImportStatus(
+      `Registros filtrados insertados correctamente: ${rows.length}. La vista se ha cambiado a ${getProgrammingTypeLabel(
+        importType
+      )}. Supabase tiene ${insertedCount} registro${
+        insertedCount === 1 ? "" : "s"
+      } de este archivo en ese tipo.${
+        unassignedCount
+          ? ` ${unassignedCount} filas se importaron con Personal = "${PROGRAMMING_UNASSIGNED_PERSONAL}".`
+          : ""
+      }`,
+      "success"
+    );
   } catch (error) {
-    setStatus(`No se pudieron insertar los registros filtrados: ${error.message}`, "error");
+    setProgrammingImportStatus(`No se pudieron insertar los registros filtrados: ${error.message}`, "error");
     return;
+  } finally {
+    if (programmingImportInsertButton) {
+      programmingImportInsertButton.disabled = insertButtonPreviousDisabled;
+    }
   }
-
-  await loadProgrammingFromSupabase();
-  applyProgrammingImportPreviewFilters();
-  setStatus(
-    `Registros filtrados insertados correctamente: ${rows.length}.${
-      unassignedCount
-        ? ` ${unassignedCount} filas se importaron con Personal = "${PROGRAMMING_UNASSIGNED_PERSONAL}".`
-        : ""
-    }`,
-    "success"
-  );
 }
 
 function syncControlDeleteSelectionUi() {
@@ -7487,7 +8311,7 @@ async function deleteSelectedControlRecords() {
   }
 
   const supabase = await getSupabaseClient();
-  const { error } = await supabase.from("registros").delete().in("id", ids);
+  const { error } = await supabase.from("registros_horarios").delete().in("id", ids);
   if (error) {
     setStatus(`No se pudieron borrar los registros seleccionados: ${error.message}`, "error");
     return;
@@ -7513,12 +8337,12 @@ async function deleteFilteredControlRecords() {
   try {
     const supabase = await getSupabaseClient();
     countQuery = applyControlFiltersToQuery(
-      supabase.from("registros").select("id", { count: "exact", head: true }),
+      supabase.from("registros_horarios").select("id", { count: "exact", head: true }),
       filters,
       { requireDateRange: true }
     );
     deleteQuery = applyControlFiltersToQuery(
-      supabase.from("registros").delete(),
+      supabase.from("registros_horarios").delete(),
       filters,
       { requireDateRange: true }
     );
@@ -7665,7 +8489,7 @@ async function saveControlDetail(event) {
 
   const supabase = await getSupabaseClient();
   const { error } = await supabase
-    .from("registros")
+    .from("registros_horarios")
     .update({
       personal,
       dni,
@@ -7711,7 +8535,7 @@ async function deleteControlRecord(recordId) {
   }
 
   const supabase = await getSupabaseClient();
-  const { error } = await supabase.from("registros").delete().eq("id", row.id);
+  const { error } = await supabase.from("registros_horarios").delete().eq("id", row.id);
 
   if (error) {
     setStatus(`No se pudo borrar el registro: ${error.message}`, "error");
@@ -7828,12 +8652,69 @@ async function fetchCandidates() {
   const filters = buildCandidateFilters();
   const from = (currentPage - 1) * pageSize;
   const to = from + pageSize - 1;
+
+  if (filters.search) {
+    const [rows, totalResult, filterOptionsResult] = await Promise.all([
+      fetchAllFilteredCandidates(),
+      supabase.from("candidates").select("id", { count: "exact", head: true }),
+      fetchCandidateFilterOptions(supabase).then(
+        () => ({ ok: true }),
+        (filterError) => ({ ok: false, error: filterError })
+      ),
+    ]);
+
+    if (requestId !== candidateFetchRequestId) {
+      return currentCandidates;
+    }
+
+    if (totalResult.error) {
+      setStatus(`No se pudo calcular el total de candidaturas: ${totalResult.error.message}`, "error");
+    }
+
+    if (!filterOptionsResult.ok) {
+      invalidateCandidateFilterOptions();
+      candidateFilterOptions = {
+        roles: sortTextValues(
+          Array.from(new Set(rows.flatMap((candidate) => candidate.job_roles ?? [])))
+        ),
+        tags: sortTextValues(
+          Array.from(new Set(rows.flatMap((candidate) => candidate.tags ?? []).map(normalizeTag))).filter(Boolean)
+        ),
+      };
+      candidateFilterOptionsLoaded = true;
+      renderFilterOptions();
+    }
+
+    currentCandidates = rows.slice(from, to + 1);
+    filteredCandidates = currentCandidates;
+    candidateTotalCount = totalResult.count ?? rows.length;
+    candidateFilteredCount = rows.length;
+    const totalPages = getTotalPages(candidateFilteredCount);
+    if (currentPage > totalPages) {
+      currentPage = totalPages;
+      return fetchCandidates();
+    }
+    selectedCandidateIds = new Set(
+      [...selectedCandidateIds].filter((candidateId) =>
+        currentCandidates.some((candidate) => candidate.id === candidateId)
+      )
+    );
+    currentPage = Math.min(currentPage, getTotalPages(candidateFilteredCount));
+    renderCandidates(filteredCandidates);
+    updateResultsSummary();
+    updatePaginationUi(candidateFilteredCount);
+    syncSortButtons();
+    syncTagsUi();
+    return currentCandidates;
+  }
+
   let query = supabase
     .from("candidates")
-    .select(CANDIDATE_SELECT_COLUMNS, { count: "exact" })
-    .range(from, to);
-  query = applyCandidateFiltersToQuery(query, filters);
+    .select(CANDIDATE_SELECT_COLUMNS, { count: "exact" });
+  query = applyCandidateFiltersToQuery(query, filters, { includeTextFilter: false });
   query = applyCandidateSortToQuery(query);
+
+  query = query.range(from, to);
 
   const [{ data, error, count }, totalResult, filterOptionsResult] = await Promise.all([
     query,
@@ -7917,8 +8798,58 @@ async function fetchControlRecords() {
   const supabase = await getSupabaseClient();
   const from = (controlCurrentPage - 1) * controlPageSize;
   const to = from + controlPageSize - 1;
+
+  if (filters.personal) {
+    const [records, summaryResult] = await Promise.all([
+      fetchAllFilteredControlRecordsForBulk(),
+      fetchControlSummary(filters).then(
+        () => ({ ok: true }),
+        (summaryError) => ({ ok: false, error: summaryError })
+      ),
+    ]);
+
+    if (requestId !== controlRecordsFetchRequestId) {
+      return currentControlRecords;
+    }
+
+    currentControlRecords = records.slice(from, to + 1);
+    filteredControlRecords = currentControlRecords;
+    if (controlSelectiveDeleteMode) {
+      const filteredIds = new Set(currentControlRecords.map((row) => String(row.id)));
+      selectedControlDeleteIds = new Set(
+        [...selectedControlDeleteIds].filter((id) => filteredIds.has(id))
+      );
+    }
+    controlRecordsTotalCount = records.length;
+    controlResultsTruncated = !summaryResult.ok;
+    controlCurrentPage = Math.min(
+      Math.max(controlCurrentPage, 1),
+      Math.max(1, Math.ceil(controlRecordsTotalCount / controlPageSize))
+    );
+    if (!summaryResult.ok) {
+      controlRecordsTotalMinutes = records.reduce((total, row) => {
+        return total + calculateWorkedMinutes(row.hora_inicio, row.hora_fin);
+      }, 0);
+    }
+    renderControlRecords(currentControlRecords);
+    renderControlSummary(
+      currentControlRecords,
+      controlResultsTruncated
+        ? `Resumen completo pendiente de instalar en Supabase. Mostrando solo la pagina actual.`
+        : undefined
+    );
+    updateControlPaginationUi(controlRecordsTotalCount, currentControlRecords.length);
+    if (controlResultsTruncated) {
+      setStatus(
+        `Listado paginado cargado. Ejecuta la funcion get_control_records_summary en Supabase para ver totales completos.`,
+        "error"
+      );
+    }
+    return currentControlRecords;
+  }
+
   let query = supabase
-    .from("registros")
+    .from("registros_horarios")
     .select(
       "id, personal, dni, centro, puesto, fecha, hora_inicio, hora_fin, tipo_jornada, observacion, eliminado, control",
       { count: "exact" }
@@ -8041,7 +8972,7 @@ async function fetchControlFilterOptions() {
 
   while (offset < maxRows) {
     let query = supabase
-        .from("registros")
+        .from("registros_horarios")
         .select("id, personal, dni, centro, puesto, fecha")
         .order("id", { ascending: true })
         .range(offset, offset + pageSize - 1);
@@ -8302,7 +9233,2513 @@ async function handlePasswordRecovery(event) {
 }
 
 async function loadPrivateDataAfterAuth() {
+  await loadCurrentAccessRole();
+  syncAccessTabVisibility();
   await refreshPrivateTabData(currentPrivateTabTarget);
+}
+
+function setContractsStatus(message = "", tone = "default") {
+  setPanelStatus(contractsStatus, message, tone);
+}
+
+function getPersonalFieldInput(fieldKey) {
+  return personalForm?.querySelector(`[name="${fieldKey}"]`) || null;
+}
+
+function renderPersonalFormFields() {
+  if (!personalFormFields) {
+    return;
+  }
+
+  let documentationGroupRendered = false;
+  personalFormFields.innerHTML = PERSONAL_FIELDS
+    .map((field) => {
+      if (PERSONAL_DOCUMENTATION_FIELD_KEYS.has(field.key)) {
+        if (documentationGroupRendered) {
+          return "";
+        }
+        documentationGroupRendered = true;
+        const checkboxes = PERSONAL_FIELDS
+          .filter((item) => PERSONAL_DOCUMENTATION_FIELD_KEYS.has(item.key))
+          .map(
+            (item) => `
+              <label class="checkbox-item with-label">
+                <input name="${escapeHtml(item.key)}" type="checkbox" disabled />
+                <span>${escapeHtml(item.label)}</span>
+              </label>
+            `
+          )
+          .join("");
+        return `
+          <fieldset class="full-width personal-checks-fieldset">
+            <legend>Documentación y equipamiento</legend>
+            <div class="checkbox-grid personal-checks-grid">
+              ${checkboxes}
+            </div>
+          </fieldset>
+        `;
+      }
+
+      const required = field.required ? " required" : "";
+      if (field.type === "boolean") {
+        return `
+          <label class="checkbox-item with-label">
+            <input name="${escapeHtml(field.key)}" type="checkbox" disabled />
+            <span>${escapeHtml(field.label)}</span>
+          </label>
+        `;
+      }
+
+      if (field.type === "textarea") {
+        return `
+          <label class="full-width">
+            ${escapeHtml(field.label)}
+            <textarea name="${escapeHtml(field.key)}" rows="3" disabled${required}></textarea>
+          </label>
+        `;
+      }
+
+      if (field.type === "select") {
+        const options = (field.options || [])
+          .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+          .join("");
+        return `
+          <label>
+            ${escapeHtml(field.label)}
+            <select name="${escapeHtml(field.key)}" disabled${required}>
+              <option value="">Sin vinculacion</option>
+              ${options}
+            </select>
+          </label>
+        `;
+      }
+
+      const inputType =
+        field.type === "integer" || field.type === "numeric"
+          ? "number"
+          : field.type === "date"
+            ? "date"
+            : field.type === "email"
+              ? "email"
+              : "text";
+      const step = field.type === "integer" ? ' step="1"' : field.type === "numeric" ? ' step="0.0001"' : "";
+      return `
+        <label>
+          ${escapeHtml(field.label)}
+          <input name="${escapeHtml(field.key)}" type="${inputType}"${step} disabled${required} />
+        </label>
+      `;
+    })
+    .join("");
+}
+
+function setPersonalFormEditing(isEditing) {
+  currentPersonalMode = isEditing ? currentPersonalMode : "view";
+  PERSONAL_FIELDS.forEach((field) => {
+    const input = getPersonalFieldInput(field.key);
+    if (!input) {
+      return;
+    }
+    input.disabled = !isEditing;
+    if (field.key === "id" && currentPersonalMode === "edit") {
+      input.readOnly = true;
+    } else {
+      input.readOnly = false;
+    }
+  });
+  personalEditButton?.classList.toggle("hidden", isEditing || currentPersonalMode === "new" || !currentSelectedPersonalId);
+  personalSaveButton?.classList.toggle("hidden", !isEditing);
+  personalCancelButton?.classList.toggle("hidden", !isEditing);
+}
+
+function clearPersonalForm() {
+  personalForm?.reset();
+  PERSONAL_FIELDS.forEach((field) => {
+    const input = getPersonalFieldInput(field.key);
+    if (!input) {
+      return;
+    }
+    if (field.type === "boolean") {
+      input.checked = false;
+    } else {
+      input.value = "";
+    }
+  });
+}
+
+function fillPersonalForm(row) {
+  clearPersonalForm();
+  if (!row) {
+    return;
+  }
+
+  PERSONAL_FIELDS.forEach((field) => {
+    const input = getPersonalFieldInput(field.key);
+    if (!input) {
+      return;
+    }
+    const value = row[field.key];
+    if (field.type === "boolean") {
+      input.checked = Boolean(value);
+    } else if (field.type === "date") {
+      input.value = formatNullableDate(value);
+    } else {
+      input.value = value ?? "";
+    }
+  });
+}
+
+function getPersonalDisplayName(row) {
+  return row?.personal || [row?.nombre, row?.apellido].filter(Boolean).join(" ") || `Personal ${row?.id ?? ""}`.trim();
+}
+
+function renderPersonalVinculacionOptions() {
+  if (!personalVinculacionFilter) {
+    return;
+  }
+
+  const currentValue = personalVinculacionFilter.value;
+  const configuredValues = new Set(PERSONAL_VINCULACION_OPTIONS.map((option) => option.value));
+  const extraValues = Array.from(
+    new Set(
+      currentPersonalRows
+        .map((row) => row.vinculacion_id)
+        .filter((value) => value !== null && value !== undefined && value !== "")
+        .map(String)
+    )
+  )
+    .filter((value) => !configuredValues.has(value))
+    .sort((a, b) => Number(a) - Number(b));
+
+  personalVinculacionFilter.innerHTML = [
+    '<option value="">Todas las vinculaciones</option>',
+    ...PERSONAL_VINCULACION_OPTIONS.map(
+      (option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
+    ),
+    ...extraValues.map((value) => `<option value="${escapeHtml(value)}">Vinculacion ${escapeHtml(value)}</option>`),
+  ].join("");
+  personalVinculacionFilter.value =
+    configuredValues.has(currentValue) || extraValues.includes(currentValue) ? currentValue : "";
+}
+
+function applyPersonalFilters() {
+  const vinculacion = personalVinculacionFilter?.value || "";
+  const search = normalizeSearchText(personalTextFilter?.value || "");
+
+  filteredPersonalRows = currentPersonalRows.filter((row) => {
+    if (vinculacion && String(row.vinculacion_id ?? "") !== vinculacion) {
+      return false;
+    }
+    if (!search) {
+      return true;
+    }
+    return normalizeSearchText(
+      [
+        row.personal,
+        row.nombre,
+        row.apellido,
+        row.dni,
+        row.email,
+        row.movil,
+        row.telefono,
+        row.localidad,
+        row.municipio,
+        row.provincia,
+      ].join(" ")
+    ).includes(search);
+  });
+
+  renderPersonalList();
+}
+
+function renderPersonalList() {
+  if (!personalList) {
+    return;
+  }
+
+  if (!filteredPersonalRows.length) {
+    personalList.innerHTML = '<option value="">No hay personal para mostrar</option>';
+    personalList.disabled = true;
+  } else {
+    personalList.disabled = false;
+    personalList.innerHTML = filteredPersonalRows
+      .map((row) => {
+        const selected = String(row.id) === currentSelectedPersonalId ? " selected" : "";
+        const dni = row.dni ? ` - ${row.dni}` : "";
+        const statusLabel =
+          Number(row.vinculacion_id) === 4 ? " (no pert.)" : row.activo ? "" : " (inactivo)";
+        return `<option value="${escapeHtml(row.id)}"${selected}>${escapeHtml(getPersonalDisplayName(row))}${escapeHtml(dni)}${escapeHtml(statusLabel)}</option>`;
+      })
+      .join("");
+  }
+
+  if (personalListSummary) {
+    personalListSummary.textContent = `${filteredPersonalRows.length} de ${currentPersonalRows.length} personas`;
+  }
+}
+
+function selectPersonal(personalId) {
+  const row = currentPersonalRows.find((item) => String(item.id) === String(personalId));
+  currentSelectedPersonalId = row ? String(row.id) : "";
+  currentPersonalMode = "view";
+  if (personalFormTitle) {
+    personalFormTitle.textContent = row ? getPersonalDisplayName(row) : "Ficha de personal";
+  }
+  fillPersonalForm(row);
+  setPersonalFormEditing(false);
+  renderPersonalList();
+}
+
+function startNewPersonal() {
+  currentSelectedPersonalId = "";
+  currentPersonalMode = "new";
+  if (personalFormTitle) {
+    personalFormTitle.textContent = "Nueva persona";
+  }
+  clearPersonalForm();
+  setPersonalFormEditing(true);
+  getPersonalFieldInput("personal")?.focus();
+}
+
+function startEditPersonal() {
+  if (!currentSelectedPersonalId) {
+    setPersonalStatus("Selecciona una persona antes de editar.", "error");
+    return;
+  }
+  currentPersonalMode = "edit";
+  setPersonalFormEditing(true);
+  getPersonalFieldInput("personal")?.focus();
+}
+
+async function getNextPersonalId() {
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase.from("personal").select("id").order("id", { ascending: false }).limit(1);
+  if (error) {
+    throw error;
+  }
+  return Number(data?.[0]?.id || 0) + 1;
+}
+
+function collectPersonalPayload() {
+  const payload = {};
+  PERSONAL_FIELDS.forEach((field) => {
+    const input = getPersonalFieldInput(field.key);
+    if (!input) {
+      return;
+    }
+
+    if (field.type === "boolean") {
+      payload[field.key] = Boolean(input.checked);
+      return;
+    }
+
+    const rawValue = String(input.value ?? "").trim();
+    if (!rawValue) {
+      payload[field.key] = null;
+      return;
+    }
+
+    if (field.type === "integer") {
+      payload[field.key] = Number.parseInt(rawValue, 10);
+      return;
+    }
+    if (field.type === "select") {
+      payload[field.key] = Number.parseInt(rawValue, 10);
+      return;
+    }
+    if (field.type === "numeric") {
+      payload[field.key] = Number(rawValue.replace(",", "."));
+      return;
+    }
+    payload[field.key] = rawValue;
+  });
+
+  if (!payload.personal) {
+    throw new Error("El campo Personal es obligatorio.");
+  }
+  if (payload.id !== null && (!Number.isInteger(payload.id) || payload.id <= 0)) {
+    throw new Error("El ID debe ser un numero entero positivo.");
+  }
+  return payload;
+}
+
+function normalizePersonalImportHeader(value) {
+  return normalizeCsvHeader(value);
+}
+
+function parsePersonalImportBoolean(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (value === null || value === undefined || value === "") {
+    return false;
+  }
+
+  const normalized = normalizeSearchText(value);
+  if (["true", "t", "1", "si", "s", "yes", "y", "verdadero"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "f", "0", "no", "n", "falso"].includes(normalized)) {
+    return false;
+  }
+
+  throw new Error(`Valor booleano no reconocido: ${value}`);
+}
+
+function excelSerialDateToIso(value) {
+  const serial = Number(value);
+  if (!Number.isFinite(serial) || serial <= 0) {
+    return null;
+  }
+
+  const utcDays = Math.floor(serial - 25569);
+  const utcValue = utcDays * 86400 * 1000;
+  return new Date(utcValue).toISOString().slice(0, 10);
+}
+
+function parsePersonalImportDate(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === "number") {
+    return excelSerialDateToIso(value);
+  }
+
+  const normalized = normalizeImportedDate(value);
+  if (!normalized) {
+    throw new Error(`Fecha no reconocida: ${value}`);
+  }
+  return normalized;
+}
+
+function splitPersonalImportName(value) {
+  const parts = String(value ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    return { nombre: null, apellido: null };
+  }
+  if (parts.length === 1) {
+    return { nombre: parts[0], apellido: null };
+  }
+  if (parts.length === 2) {
+    return { nombre: parts[0], apellido: parts[1] };
+  }
+  if (parts.length === 3 && normalizeSearchText(parts[1]) === "jesus") {
+    return { nombre: parts.slice(0, 2).join(" "), apellido: parts[2] };
+  }
+  return {
+    nombre: parts.slice(0, -2).join(" "),
+    apellido: parts.slice(-2).join(" "),
+  };
+}
+
+function normalizePersonalImportValue(column, value) {
+  if (PERSONAL_IMPORT_BOOLEAN_FIELDS.has(column)) {
+    return parsePersonalImportBoolean(value);
+  }
+  if (PERSONAL_IMPORT_DATE_FIELDS.has(column)) {
+    return parsePersonalImportDate(value);
+  }
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+  if (PERSONAL_IMPORT_INTEGER_FIELDS.has(column)) {
+    const parsed = Number.parseInt(text.replace(",", "."), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (PERSONAL_IMPORT_NUMERIC_FIELDS.has(column)) {
+    const parsed = Number(text.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (PERSONAL_IMPORT_TEXT_FIELDS.has(column)) {
+    return text;
+  }
+  return value;
+}
+
+function validatePersonalImportRows(rows) {
+  const duplicateIds = new Set();
+  const seenIds = new Set();
+  const duplicateDnis = new Set();
+  const seenDnis = new Set();
+
+  rows.forEach((row) => {
+    const id = String(row.id ?? "").trim();
+    if (id) {
+      if (seenIds.has(id)) duplicateIds.add(id);
+      seenIds.add(id);
+    }
+
+    const dni = normalizeControlDni(row.dni);
+    if (dni) {
+      if (seenDnis.has(dni)) duplicateDnis.add(dni);
+      seenDnis.add(dni);
+    }
+  });
+
+  if (duplicateIds.size) {
+    throw new Error(`El Excel contiene IDs repetidos: ${Array.from(duplicateIds).join(", ")}.`);
+  }
+  if (duplicateDnis.size) {
+    throw new Error(`El Excel contiene DNIs repetidos: ${Array.from(duplicateDnis).join(", ")}.`);
+  }
+}
+
+function normalizePersonalImportRow(sourceRow, targetHeaders, rowNumber) {
+  const row = {};
+  targetHeaders.forEach((column, index) => {
+    row[column] = normalizePersonalImportValue(column, sourceRow[index]);
+  });
+
+  if (!row.id || !row.personal) {
+    throw new Error(`La fila ${rowNumber} no tiene ID o Personal.`);
+  }
+
+  if (!row.nombre || !row.apellido) {
+    const nameParts = splitPersonalImportName(row.personal);
+    row.nombre = row.nombre || nameParts.nombre;
+    row.apellido = row.apellido || nameParts.apellido;
+  }
+
+  return row;
+}
+
+async function parsePersonalExcelFile(file) {
+  const xlsxModule = await getXlsxClient();
+  const XLSX = xlsxModule.default || xlsxModule;
+  const workbook = XLSX.read(await file.arrayBuffer(), {
+    type: "array",
+    cellDates: true,
+  });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  if (!worksheet) {
+    throw new Error("El Excel no contiene hojas.");
+  }
+
+  const sheetRows = XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    raw: true,
+    defval: null,
+  });
+  const headerIndex = sheetRows.findIndex((row) => row.some((cell) => String(cell ?? "").trim()));
+  if (headerIndex < 0) {
+    throw new Error("El Excel no contiene cabeceras.");
+  }
+
+  const sourceHeaders = sheetRows[headerIndex].map(normalizePersonalImportHeader);
+  const unmappedHeaders = sourceHeaders.filter((header) => header && !PERSONAL_IMPORT_HEADER_MAP[header]);
+  if (unmappedHeaders.length) {
+    throw new Error(`Columnas no reconocidas: ${Array.from(new Set(unmappedHeaders)).join(", ")}.`);
+  }
+
+  const targetHeaders = sourceHeaders.map((header) => PERSONAL_IMPORT_HEADER_MAP[header] || "");
+  const rows = sheetRows
+    .slice(headerIndex + 1)
+    .map((sourceRow, index) => ({ sourceRow, rowNumber: headerIndex + index + 2 }))
+    .filter(({ sourceRow }) => sourceRow.some((cell) => cell !== null && String(cell).trim() !== ""))
+    .map(({ sourceRow, rowNumber }) => normalizePersonalImportRow(sourceRow, targetHeaders, rowNumber));
+
+  validatePersonalImportRows(rows);
+  return rows;
+}
+
+function buildPersonalImportStatus(summary) {
+  const inserted = Number(summary?.filas_insertadas ?? 0);
+  const updatedById = Number(summary?.existentes_por_id ?? 0);
+  const updatedByDni = Number(summary?.existentes_por_dni ?? 0);
+  const ambiguous = Number(summary?.dni_ambiguos_no_insertados ?? 0);
+  const reviewed = Number(summary?.filas_revisadas_para_rellenar ?? 0);
+  return [
+    `Importacion completada: ${inserted} insertadas`,
+    `${reviewed} revisadas para rellenar faltantes`,
+    `${updatedById} existentes por ID`,
+    `${updatedByDni} existentes por DNI`,
+    `${ambiguous} DNIs ambiguos`,
+  ].join(". ");
+}
+
+function getPersonalImportFieldLabel(fieldKey) {
+  const field = PERSONAL_FIELDS.find((item) => item.key === fieldKey);
+  if (field) {
+    return field.label;
+  }
+  return fieldKey
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toLocaleUpperCase("es"));
+}
+
+function isPersonalImportEmptyValue(value) {
+  return value === null || value === undefined || (typeof value === "string" && !value.trim());
+}
+
+function normalizePersonalComparableValue(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return String(value).trim();
+}
+
+function getPersonalImportFillableColumns() {
+  return PERSONAL_IMPORT_COLUMNS.filter(
+    (column) => column !== "id" && !PERSONAL_IMPORT_BOOLEAN_FIELDS.has(column)
+  );
+}
+
+function getPersonalImportPredictedChanges(existingRow, importRow) {
+  return getPersonalImportFillableColumns()
+    .filter((column) => {
+      const incomingValue = importRow[column];
+      if (isPersonalImportEmptyValue(incomingValue)) {
+        return false;
+      }
+      return isPersonalImportEmptyValue(existingRow?.[column]);
+    })
+    .map((column) => ({
+      column,
+      label: getPersonalImportFieldLabel(column),
+      value: normalizePersonalComparableValue(importRow[column]),
+    }));
+}
+
+function getPersonalImportChangedColumnsForInsert(importRow) {
+  return PERSONAL_IMPORT_COLUMNS
+    .filter((column) => column !== "id" && !isPersonalImportEmptyValue(importRow[column]))
+    .slice(0, 10)
+    .map((column) => ({
+      column,
+      label: getPersonalImportFieldLabel(column),
+      value: normalizePersonalComparableValue(importRow[column]),
+    }));
+}
+
+async function fetchPersonalImportExistingRows() {
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase
+    .from("personal")
+    .select(PERSONAL_IMPORT_SELECT_COLUMNS)
+    .limit(10000);
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+function buildPersonalImportPreviewRows(importRows, existingRows) {
+  const byId = new Map(existingRows.map((row) => [String(row.id), row]));
+  const dniGroups = new Map();
+  existingRows.forEach((row) => {
+    const dni = normalizeControlDni(row.dni);
+    if (!dni) {
+      return;
+    }
+    if (!dniGroups.has(dni)) {
+      dniGroups.set(dni, []);
+    }
+    dniGroups.get(dni).push(row);
+  });
+
+  return importRows.map((row, index) => {
+    const idKey = String(row.id);
+    const dniKey = normalizeControlDni(row.dni);
+    const idMatch = byId.get(idKey);
+    const dniMatches = dniKey ? dniGroups.get(dniKey) || [] : [];
+    const dniMatch = !idMatch && dniMatches.length === 1 ? dniMatches[0] : null;
+    const existingRow = idMatch || dniMatch || null;
+    const ambiguousDni = !idMatch && dniMatches.length > 1;
+    const changes = existingRow
+      ? getPersonalImportPredictedChanges(existingRow, row)
+      : getPersonalImportChangedColumnsForInsert(row);
+    const hasChanges = !existingRow || changes.length > 0;
+
+    return {
+      previewId: `personal-import-${index}`,
+      row,
+      existingRow,
+      action: ambiguousDni
+        ? "ambiguous"
+        : existingRow
+          ? idMatch
+            ? "update_id"
+            : "update_dni"
+          : "insert",
+      selected: !ambiguousDni && hasChanges,
+      disabled: ambiguousDni || !hasChanges,
+      changes,
+    };
+  });
+}
+
+function getPersonalImportActionLabel(item) {
+  if (item.action === "insert") return "Alta nueva";
+  if (item.action === "update_id") return "Completar por ID";
+  if (item.action === "update_dni") return "Completar por DNI";
+  if (item.action === "ambiguous") return "DNI ambiguo";
+  return "Sin cambios";
+}
+
+function renderPersonalImportChanges(item) {
+  if (item.action === "ambiguous") {
+    return "Hay más de una persona existente con ese DNI.";
+  }
+  if (!item.changes.length) {
+    return "No hay campos vacíos que completar.";
+  }
+
+  const visibleChanges = item.changes.slice(0, 6);
+  const suffix = item.changes.length > visibleChanges.length
+    ? ` +${item.changes.length - visibleChanges.length} más`
+    : "";
+  return visibleChanges
+    .map((change) => `${change.label}: ${change.value}`)
+    .join(" · ") + suffix;
+}
+
+function updatePersonalImportSelectionUi() {
+  const selectableRows = pendingPersonalImportRows.filter((item) => !item.disabled);
+  const selectedRows = selectableRows.filter((item) => item.selected);
+
+  if (personalImportSelectedCount) {
+    personalImportSelectedCount.textContent = `${selectedRows.length} seleccionada${
+      selectedRows.length === 1 ? "" : "s"
+    }`;
+  }
+  if (personalImportSelectAll) {
+    personalImportSelectAll.checked = selectableRows.length > 0 && selectedRows.length === selectableRows.length;
+    personalImportSelectAll.indeterminate =
+      selectedRows.length > 0 && selectedRows.length < selectableRows.length;
+    personalImportSelectAll.disabled = selectableRows.length === 0;
+  }
+  if (personalImportApplyButton) {
+    personalImportApplyButton.disabled = selectedRows.length === 0;
+  }
+}
+
+function renderPersonalImportPreview() {
+  if (personalImportFileName) {
+    personalImportFileName.textContent = pendingPersonalImportFileName || "-";
+  }
+  if (personalImportTotalCount) {
+    personalImportTotalCount.textContent = `${pendingPersonalImportRows.length} fila${
+      pendingPersonalImportRows.length === 1 ? "" : "s"
+    }`;
+  }
+
+  if (!personalImportPreviewTableBody) {
+    return;
+  }
+
+  personalImportPreviewTableBody.innerHTML = pendingPersonalImportRows.length
+    ? pendingPersonalImportRows
+        .map((item) => {
+          const row = item.row;
+          return `
+            <tr>
+              <td>
+                <input
+                  type="checkbox"
+                  data-personal-import-select="${escapeHtml(item.previewId)}"
+                  ${item.selected ? "checked" : ""}
+                  ${item.disabled ? "disabled" : ""}
+                  aria-label="Aplicar importación de ${escapeHtml(row.personal || "")}"
+                />
+              </td>
+              <td>${escapeHtml(getPersonalImportActionLabel(item))}</td>
+              <td>${escapeHtml(row.personal || "")}</td>
+              <td>${escapeHtml(row.dni || "")}</td>
+              <td>${escapeHtml(renderPersonalImportChanges(item))}</td>
+            </tr>
+          `;
+        })
+        .join("")
+    : '<tr><td colspan="5" class="empty-state">Selecciona un Excel para revisar la carga.</td></tr>';
+
+  updatePersonalImportSelectionUi();
+}
+
+function openPersonalImportPanel() {
+  personalImportPanel?.classList.remove("hidden");
+  updatePersonalImportSelectionUi();
+}
+
+function closePersonalImportPanel() {
+  personalImportPanel?.classList.add("hidden");
+}
+
+function toggleAllPersonalImportRows(checked) {
+  pendingPersonalImportRows.forEach((item) => {
+    if (!item.disabled) {
+      item.selected = checked;
+    }
+  });
+  renderPersonalImportPreview();
+}
+
+function togglePersonalImportRow(previewId, checked) {
+  const item = pendingPersonalImportRows.find((row) => row.previewId === previewId);
+  if (!item || item.disabled) {
+    return;
+  }
+  item.selected = checked;
+  updatePersonalImportSelectionUi();
+}
+
+async function applySelectedPersonalImportRows() {
+  const selectedItems = pendingPersonalImportRows.filter((item) => item.selected && !item.disabled);
+  const rows = selectedItems.map((item) => ({ ...item.row }));
+
+  if (!rows.length) {
+    setPersonalStatus("No hay filas seleccionadas para importar.", "error");
+    return;
+  }
+  if (rows.some((row) => !row.id || !row.personal)) {
+    setPersonalStatus("Hay filas seleccionadas sin ID o Personal. Revisa la importación antes de aplicar.", "error");
+    return;
+  }
+
+  try {
+    personalImportApplyButton?.setAttribute("disabled", "true");
+    setPersonalStatus(`Importando ${rows.length} fila${rows.length === 1 ? "" : "s"} seleccionada${rows.length === 1 ? "" : "s"}...`);
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("import_coordinacion_personal", {
+      p_rows: rows,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const summary = Array.isArray(data) ? data[0] : data;
+    const processedRows = Number(summary?.filas_origen ?? 0);
+    if (!summary || !Number.isFinite(processedRows) || processedRows <= 0) {
+      throw new Error(
+        `Supabase no confirmó filas procesadas para las ${rows.length} filas enviadas. Comprueba que el SQL actualizado de import_coordinacion_personal está aplicado.`
+      );
+    }
+    if (processedRows !== rows.length) {
+      throw new Error(
+        `Supabase procesó ${processedRows} de ${rows.length} filas enviadas. No se confirma la importación; recarga la página y vuelve a intentarlo.`
+      );
+    }
+    const actionRows =
+      Number(summary?.filas_insertadas ?? 0) +
+      Number(summary?.filas_revisadas_para_rellenar ?? 0) +
+      Number(summary?.dni_ambiguos_no_insertados ?? 0);
+    if (actionRows === 0) {
+      throw new Error(
+        `Supabase recibió ${processedRows} filas pero no insertó, revisó ni marcó ninguna como ambigua. La función import_coordinacion_personal activa en Supabase parece desactualizada; vuelve a ejecutar el SQL actualizado.`
+      );
+    }
+
+    closePersonalImportPanel();
+    pendingPersonalImportRows = [];
+    pendingPersonalImportFileName = "";
+    await loadPersonalManagement(String(rows[0]?.id || currentSelectedPersonalId || ""));
+    setPersonalStatus(`${buildPersonalImportStatus(summary)} Filas enviadas: ${rows.length}.`, "success");
+  } catch (error) {
+    setPersonalStatus(formatSupabaseErrorDetails(error) || "No se pudo aplicar la importación seleccionada.", "error");
+  } finally {
+    personalImportApplyButton?.removeAttribute("disabled");
+    updatePersonalImportSelectionUi();
+  }
+}
+
+async function importPersonalExcelFile(file) {
+  if (!file) {
+    return;
+  }
+
+  try {
+    await ensurePrivateSession();
+    personalImportExcelButton?.setAttribute("disabled", "true");
+    setPersonalStatus(`Leyendo ${file.name}...`);
+
+    const rows = await parsePersonalExcelFile(file);
+    if (!rows.length) {
+      throw new Error("El Excel no contiene filas de personal.");
+    }
+
+    setPersonalStatus(`Preparando revisión de ${rows.length} fila${rows.length === 1 ? "" : "s"}...`);
+    const existingRows = await fetchPersonalImportExistingRows();
+    pendingPersonalImportRows = buildPersonalImportPreviewRows(rows, existingRows);
+    pendingPersonalImportFileName = file.name;
+    renderPersonalImportPreview();
+    openPersonalImportPanel();
+    const selectedRows = pendingPersonalImportRows.filter((item) => item.selected).length;
+    setPersonalStatus(
+      `Revisión preparada: ${selectedRows} fila${selectedRows === 1 ? "" : "s"} marcada${selectedRows === 1 ? "" : "s"} para aplicar.`,
+      "success"
+    );
+  } catch (error) {
+    setPersonalStatus(error?.message || "No se pudo importar el Excel de personal.", "error");
+  } finally {
+    personalImportExcelButton?.removeAttribute("disabled");
+    if (personalImportExcelInput) {
+      personalImportExcelInput.value = "";
+    }
+  }
+}
+
+async function savePersonal(event) {
+  event.preventDefault();
+
+  try {
+    const payload = collectPersonalPayload();
+    const supabase = await getSupabaseClient();
+    const isNew = currentPersonalMode === "new";
+    if (isNew && !payload.id) {
+      payload.id = await getNextPersonalId();
+    }
+    if (!isNew && !currentSelectedPersonalId) {
+      throw new Error("Selecciona una persona antes de guardar.");
+    }
+
+    personalSaveButton?.setAttribute("disabled", "true");
+    setPersonalStatus("Guardando ficha...");
+
+    const result = await supabase.rpc("save_coordinacion_personal", {
+      p_personal: payload,
+    });
+
+    if (result.error) {
+      throw result.error;
+    }
+    if (!result.data?.length) {
+      throw new Error("No se actualizo ningun registro. Revisa permisos de la pestaña Personal en Supabase.");
+    }
+
+    await loadPersonalManagement(String(payload.id));
+    setPersonalStatus("Ficha guardada correctamente.", "success");
+  } catch (error) {
+    setPersonalStatus(error?.message || "No se pudo guardar la ficha de personal.", "error");
+  } finally {
+    personalSaveButton?.removeAttribute("disabled");
+  }
+}
+
+async function loadPersonalManagement(preferredPersonalId = currentSelectedPersonalId) {
+  if (!personalList) {
+    return;
+  }
+
+  setPersonalStatus("Cargando personal...");
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase
+    .from("personal")
+    .select(PERSONAL_SELECT_COLUMNS)
+    .order("personal", { ascending: true });
+
+  if (error) {
+    setPersonalStatus(error.message || "No se pudo cargar el personal.", "error");
+    return;
+  }
+
+  currentPersonalRows = data || [];
+  renderPersonalVinculacionOptions();
+  applyPersonalFilters();
+
+  const selectedId =
+    preferredPersonalId && currentPersonalRows.some((row) => String(row.id) === String(preferredPersonalId))
+      ? String(preferredPersonalId)
+      : filteredPersonalRows[0]?.id
+        ? String(filteredPersonalRows[0].id)
+        : "";
+
+  if (selectedId) {
+    selectPersonal(selectedId);
+  } else {
+    currentSelectedPersonalId = "";
+    currentPersonalMode = "view";
+    if (personalFormTitle) {
+      personalFormTitle.textContent = "Ficha de personal";
+    }
+    clearPersonalForm();
+    setPersonalFormEditing(false);
+  }
+
+  setPersonalStatus(currentPersonalRows.length ? "" : "No hay personal cargado.");
+}
+
+function formatNullableDate(value) {
+  return String(value || "").slice(0, 10);
+}
+
+function getServicesForContract(contractId) {
+  return currentContractServiceRows.filter((service) => Number(service.contrato_id) === Number(contractId));
+}
+
+function isCurrentContractAssignment(row) {
+  return Boolean(row?.activo) && !row?.removed_at;
+}
+
+function getCurrentContractPersonalAssignments(contractId = currentEditingContractId) {
+  return currentContractPersonalRows.filter(
+    (row) => Number(row.contrato_id) === Number(contractId) && isCurrentContractAssignment(row)
+  );
+}
+
+function getCurrentContractInstallationAssignments(contractId = currentEditingContractId) {
+  return currentContractInstallationRows.filter(
+    (row) => Number(row.contrato_id) === Number(contractId) && isCurrentContractAssignment(row)
+  );
+}
+
+function formatContractPersonalLabel(row) {
+  const dni = String(row?.dni || "").trim();
+  return dni ? `${row.personal} (${dni})` : row.personal;
+}
+
+function renderContractAssignmentOptions() {
+  const hasContract = Boolean(currentEditingContractId);
+  contractPersonalSection?.classList.toggle("hidden", !hasContract);
+  contractInstallationsSection?.classList.toggle("hidden", !hasContract);
+
+  if (!hasContract) {
+    return;
+  }
+
+  if (contractPersonalAvailableSelect && contractPersonalSelectedSelect) {
+    const filterText = normalizeSearchText(contractPersonalFilter?.value || "");
+    const assignedIds = new Set(
+      getCurrentContractPersonalAssignments().map((row) => Number(row.personal_id))
+    );
+    const filteredRows = contractPersonalCatalogRows.filter((row) => {
+      const haystack = normalizeSearchText(`${row.personal} ${row.dni}`);
+      return !filterText || haystack.includes(filterText);
+    });
+    const availableRows = filteredRows.filter((row) => !assignedIds.has(Number(row.id)));
+    const selectedRows = filteredRows.filter((row) => assignedIds.has(Number(row.id)));
+
+    contractPersonalAvailableSelect.innerHTML = availableRows
+      .map((row) => `<option value="${row.id}">${escapeHtml(formatContractPersonalLabel(row))}</option>`)
+      .join("");
+    contractPersonalSelectedSelect.innerHTML = selectedRows
+      .map((row) => `<option value="${row.id}">${escapeHtml(formatContractPersonalLabel(row))}</option>`)
+      .join("");
+  }
+
+  if (contractInstallationAvailableSelect && contractInstallationSelectedSelect) {
+    const filterText = normalizeSearchText(contractInstallationFilter?.value || "");
+    const assignedIds = new Set(
+      getCurrentContractInstallationAssignments().map((row) => Number(row.instalacion_id))
+    );
+    const filteredRows = contractInstallationCatalogRows.filter((row) => {
+      const haystack = normalizeSearchText(row.instalacion);
+      return !filterText || haystack.includes(filterText);
+    });
+    const availableRows = filteredRows.filter((row) => !assignedIds.has(Number(row.id)));
+    const selectedRows = filteredRows.filter((row) => assignedIds.has(Number(row.id)));
+
+    contractInstallationAvailableSelect.innerHTML = availableRows
+      .map((row) => `<option value="${row.id}">${escapeHtml(row.instalacion)}</option>`)
+      .join("");
+    contractInstallationSelectedSelect.innerHTML = selectedRows
+      .map((row) => `<option value="${row.id}">${escapeHtml(row.instalacion)}</option>`)
+      .join("");
+  }
+}
+
+function getVisibleContractRows() {
+  const showInactive = Boolean(contractsShowInactiveInput?.checked);
+  return showInactive ? currentContractRows : currentContractRows.filter((contract) => contract.activo);
+}
+
+function getContractBulkFieldConfig() {
+  return CONTRACT_BULK_FIELDS[contractsBulkFieldSelect?.value] || CONTRACT_BULK_FIELDS.fecha_inicio;
+}
+
+function getContractBulkControlValue(kind = "current") {
+  const config = getContractBulkFieldConfig();
+  if (config.type === "boolean") {
+    return kind === "new" ? contractsBulkNewBoolSelect?.value || "false" : contractsBulkCurrentBoolSelect?.value || "false";
+  }
+
+  return kind === "new" ? contractsBulkNewValueInput?.value || "" : contractsBulkCurrentValueInput?.value || "";
+}
+
+function normalizeContractBulkValue(value, config = getContractBulkFieldConfig()) {
+  if (config.type === "boolean") {
+    return String(value) === "true";
+  }
+
+  if (config.type === "date") {
+    return formatNullableDate(value);
+  }
+
+  if (config.type === "number") {
+    const text = String(value ?? "").trim().replace(",", ".");
+    return text ? Number(text) : null;
+  }
+
+  return String(value ?? "").trim();
+}
+
+function formatContractBulkValue(value, config = getContractBulkFieldConfig()) {
+  if (config.type === "boolean") {
+    return value ? "Sí" : "No";
+  }
+
+  if (config.type === "date") {
+    return formatDisplayDate(value) || "vacío";
+  }
+
+  return String(value ?? "").trim() || "vacío";
+}
+
+function getContractBulkMatchingRows() {
+  const field = contractsBulkFieldSelect?.value;
+  const config = getContractBulkFieldConfig();
+  if (!field || !CONTRACT_BULK_FIELDS[field]) {
+    return [];
+  }
+
+  const currentValue = normalizeContractBulkValue(getContractBulkControlValue("current"), config);
+  return getVisibleContractRows().filter((contract) => {
+    const contractValue = normalizeContractBulkValue(contract[field], config);
+    return contractValue === currentValue;
+  });
+}
+
+function syncContractsBulkAssignmentUi() {
+  if (!contractsBulkFieldSelect || !contractsBulkCurrentValueInput || !contractsBulkNewValueInput) {
+    return;
+  }
+
+  const config = getContractBulkFieldConfig();
+  const isBoolean = config.type === "boolean";
+  contractsBulkCurrentValueInput.classList.toggle("hidden", isBoolean);
+  contractsBulkNewValueInput.classList.toggle("hidden", isBoolean);
+  contractsBulkCurrentBoolSelect?.classList.toggle("hidden", !isBoolean);
+  contractsBulkNewBoolSelect?.classList.toggle("hidden", !isBoolean);
+  if (!isBoolean) {
+    contractsBulkCurrentValueInput.type = config.type === "number" ? "number" : config.type;
+    contractsBulkNewValueInput.type = config.type === "number" ? "number" : config.type;
+    contractsBulkCurrentValueInput.step = config.type === "number" ? "0.01" : "";
+    contractsBulkNewValueInput.step = config.type === "number" ? "0.01" : "";
+  }
+
+  const matches = getContractBulkMatchingRows();
+  if (contractsBulkMatchCount) {
+    contractsBulkMatchCount.textContent = `${matches.length} coincidencia${matches.length === 1 ? "" : "s"}`;
+  }
+  if (contractsBulkApplyButton) {
+    contractsBulkApplyButton.disabled = matches.length === 0;
+  }
+}
+
+async function applyContractsBulkAssignment() {
+  const field = contractsBulkFieldSelect?.value;
+  const config = getContractBulkFieldConfig();
+  if (!field || !CONTRACT_BULK_FIELDS[field]) {
+    setContractsStatus("Selecciona un campo válido.", "error");
+    return;
+  }
+
+  const matches = getContractBulkMatchingRows();
+  if (!matches.length) {
+    setContractsStatus("No hay contratos visibles con ese valor actual.", "error");
+    return;
+  }
+
+  const currentValue = normalizeContractBulkValue(getContractBulkControlValue("current"), config);
+  const newValue = normalizeContractBulkValue(getContractBulkControlValue("new"), config);
+  if (config.type === "number" && getContractBulkControlValue("new").trim() && !Number.isFinite(newValue)) {
+    setContractsStatus("Indica un valor numérico válido.", "error");
+    return;
+  }
+  if (field === "contrato" && !String(newValue || "").trim()) {
+    setContractsStatus("El nombre del contrato no puede quedar vacío.", "error");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Vas a cambiar ${config.label} de ${formatContractBulkValue(currentValue, config)} a ${formatContractBulkValue(newValue, config)} en ${matches.length} contrato${
+      matches.length === 1 ? "" : "s"
+    } visible${matches.length === 1 ? "" : "s"}.`
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase
+    .from("contratos")
+    .update({ [field]: newValue === "" ? null : newValue })
+    .in(
+      "id",
+      matches.map((contract) => Number(contract.id))
+    );
+
+  if (error) {
+    setContractsStatus(`No se pudo aplicar la asignación masiva: ${error.message}`, "error");
+    return;
+  }
+
+  await loadContractsManagement();
+  setContractsStatus(`Asignación masiva aplicada a ${matches.length} contrato${matches.length === 1 ? "" : "s"}.`, "success");
+}
+
+function renderContractsTable() {
+  if (!contractsTableBody) {
+    return;
+  }
+
+  const visibleContracts = getVisibleContractRows();
+  syncContractsBulkAssignmentUi();
+  if (!visibleContracts.length) {
+    contractsTableBody.innerHTML =
+      '<tr><td colspan="6" class="empty-state">No hay contratos para mostrar.</td></tr>';
+    return;
+  }
+
+  contractsTableBody.innerHTML = visibleContracts
+    .map((contract) => {
+      const services = getServicesForContract(contract.id);
+      const activeServices = services.filter((service) => service.activo).length;
+      return `
+        <tr>
+          <td>${escapeHtml(contract.id)}</td>
+          <td>
+            <button
+              type="button"
+              class="contract-name-button"
+              data-contract-edit="${escapeHtml(contract.id)}"
+              aria-label="Editar contrato ${escapeHtml(contract.contrato || "Sin nombre")}"
+            >
+              ${escapeHtml(contract.contrato || "Sin nombre")}
+            </button>
+          </td>
+          <td>${escapeHtml(contract.cliente || "-")}</td>
+          <td>${escapeHtml(contract.expediente || "-")}</td>
+          <td>${services.length} servicio${services.length === 1 ? "" : "s"} (${activeServices} activo${activeServices === 1 ? "" : "s"})</td>
+          <td>${escapeHtml(contract.activo ? "Activo" : "Inactivo")}</td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function renderContractServicesList() {
+  if (!contractServicesList) {
+    return;
+  }
+
+  if (!currentEditingContractId) {
+    contractServicesList.innerHTML =
+      '<p class="empty-state">Guarda el contrato antes de añadir servicios.</p>';
+    return;
+  }
+
+  const services = getServicesForContract(currentEditingContractId);
+  if (!services.length) {
+    contractServicesList.innerHTML = '<p class="empty-state">Este contrato no tiene servicios.</p>';
+    return;
+  }
+
+  contractServicesList.innerHTML = services
+    .map(
+      (service) => `
+        <div class="contract-service-row">
+          <div>
+            <strong>${escapeHtml(service.servicio)}</strong>
+            <span>${escapeHtml(service.descripcion || "")}</span>
+          </div>
+          <span>${service.activo ? "Activo" : "Inactivo"}</span>
+          <div class="action-buttons">
+            <button type="button" class="secondary-button" data-contract-service-edit="${escapeHtml(service.id)}">
+              Editar
+            </button>
+            <button
+              type="button"
+              class="danger-button tooltip-button"
+              aria-label="Eliminar servicio"
+              data-contract-service-delete="${escapeHtml(service.id)}"
+            >
+              ${renderIcon("delete")}
+            </button>
+          </div>
+        </div>
+      `
+    )
+    .join("");
+}
+
+async function loadContractsManagement() {
+  setContractsStatus("Cargando contratos...");
+  contractsNewButton?.classList.toggle("hidden", !currentUserIsAccessAdmin);
+  const supabase = await getSupabaseClient();
+  const [
+    contractsResult,
+    servicesResult,
+    personalCatalogResult,
+    installationCatalogResult,
+    contractPersonalResult,
+    contractInstallationResult,
+  ] = await Promise.all([
+    supabase
+      .from("contratos")
+      .select("id, contrato, descripcion, presupuesto_anual, fecha_inicio, fecha_fin, expediente, cpv, importe, cliente, activo, seleccionar, desplazamiento, agrupacion_nomina, iva")
+      .order("contrato", { ascending: true }),
+    supabase
+      .from("servicios")
+      .select("id, contrato_id, servicio, descripcion, activo, created_at, updated_at")
+      .order("servicio", { ascending: true }),
+    supabase
+      .from("personal")
+      .select("id, personal, dni, activo, vinculacion_id")
+      .order("personal", { ascending: true }),
+    supabase
+      .from("instalaciones")
+      .select("id, instalacion, activo")
+      .order("instalacion", { ascending: true }),
+    supabase
+      .from("contrato_personal")
+      .select("contrato_id, personal_id, activo, fecha_inicio, fecha_fin, removed_at"),
+    supabase
+      .from("contrato_instalaciones")
+      .select("contrato_id, instalacion_id, activo, fecha_inicio, fecha_fin, removed_at"),
+  ]);
+
+  const error =
+    contractsResult.error ||
+    servicesResult.error ||
+    personalCatalogResult.error ||
+    installationCatalogResult.error;
+  if (error) {
+    setContractsStatus(`No se pudieron cargar contratos: ${error.message}`, "error");
+    return;
+  }
+
+  currentContractRows = contractsResult.data || [];
+  currentContractServiceRows = servicesResult.data || [];
+  contractPersonalCatalogRows = (personalCatalogResult.data || [])
+    .filter((row) => row.id && row.personal)
+    .filter((row) => [1, 2].includes(Number(row.vinculacion_id)))
+    .map((row) => ({
+      id: Number(row.id),
+      personal: row.personal,
+      dni: row.dni || "",
+    }));
+  contractInstallationCatalogRows = (installationCatalogResult.data || [])
+    .filter((row) => row.id && row.instalacion)
+    .filter((row) => row.activo !== false)
+    .map((row) => ({
+      id: Number(row.id),
+      instalacion: row.instalacion,
+    }));
+  currentContractPersonalRows = contractPersonalResult.error ? [] : contractPersonalResult.data || [];
+  currentContractInstallationRows = contractInstallationResult.error
+    ? []
+    : contractInstallationResult.data || [];
+  renderContractsTable();
+  renderContractServicesList();
+  renderContractAssignmentOptions();
+
+  const assignmentError = contractPersonalResult.error || contractInstallationResult.error;
+  if (assignmentError) {
+    setContractsStatus(
+      `Contratos cargados. Falta ejecutar la migración de asignaciones por contrato: ${assignmentError.message}`,
+      "error"
+    );
+    return;
+  }
+
+  setContractsStatus(
+    `Contratos visibles: ${getVisibleContractRows().length} de ${currentContractRows.length}.`,
+    "success"
+  );
+}
+
+function resetContractServiceForm() {
+  contractServiceForm?.reset();
+  if (contractServiceIdInput) {
+    contractServiceIdInput.value = "";
+  }
+  if (contractServiceActiveInput) {
+    contractServiceActiveInput.checked = true;
+  }
+}
+
+function openContractDetailPanel(contractId = "") {
+  const contract = currentContractRows.find((item) => String(item.id) === String(contractId));
+  currentEditingContractId = contract ? String(contract.id) : "";
+  if (contractDetailTitle) {
+    contractDetailTitle.textContent = contract ? "Editar contrato" : "Nuevo contrato";
+  }
+  if (contractDetailIdInput) {
+    contractDetailIdInput.value = contract?.id ?? "";
+    contractDetailIdInput.readOnly = Boolean(contract);
+  }
+  if (contractDetailNameInput) {
+    contractDetailNameInput.value = contract?.contrato || "";
+  }
+  if (contractDetailClientInput) {
+    contractDetailClientInput.value = contract?.cliente || "";
+  }
+  if (contractDetailFileInput) {
+    contractDetailFileInput.value = contract?.expediente || "";
+  }
+  if (contractDetailStartInput) {
+    contractDetailStartInput.value = formatNullableDate(contract?.fecha_inicio);
+  }
+  if (contractDetailEndInput) {
+    contractDetailEndInput.value = formatNullableDate(contract?.fecha_fin);
+  }
+  if (contractDetailAmountInput) {
+    contractDetailAmountInput.value = contract?.importe || "";
+  }
+  if (contractDetailVatInput) {
+    contractDetailVatInput.value = contract?.iva ?? "";
+  }
+  if (contractDetailActiveInput) {
+    contractDetailActiveInput.checked = Boolean(contract?.activo);
+  }
+  contractDetailDeleteButton?.classList.toggle("hidden", !contract);
+  contractServicesSection?.classList.toggle("hidden", !contract);
+  contractPersonalSection?.classList.toggle("hidden", !contract);
+  contractInstallationsSection?.classList.toggle("hidden", !contract);
+  resetContractServiceForm();
+  renderContractServicesList();
+  renderContractAssignmentOptions();
+  contractDetailPanel?.classList.remove("hidden");
+  contractDetailNameInput?.focus();
+}
+
+function closeContractDetailPanel() {
+  contractDetailPanel?.classList.add("hidden");
+  contractDetailForm?.reset();
+  resetContractServiceForm();
+  if (contractPersonalFilter) {
+    contractPersonalFilter.value = "";
+  }
+  if (contractInstallationFilter) {
+    contractInstallationFilter.value = "";
+  }
+  currentEditingContractId = "";
+  renderContractAssignmentOptions();
+}
+
+function getContractPayload() {
+  return {
+    id: Number(contractDetailIdInput?.value),
+    contrato: contractDetailNameInput?.value.trim() || null,
+    cliente: contractDetailClientInput?.value.trim() || null,
+    expediente: contractDetailFileInput?.value.trim() || null,
+    fecha_inicio: contractDetailStartInput?.value || null,
+    fecha_fin: contractDetailEndInput?.value || null,
+    importe: contractDetailAmountInput?.value.trim() || null,
+    iva: contractDetailVatInput?.value ? Number(contractDetailVatInput.value) : null,
+    activo: Boolean(contractDetailActiveInput?.checked),
+  };
+}
+
+async function saveContract(event) {
+  event.preventDefault();
+  const payload = getContractPayload();
+  if (!Number.isInteger(payload.id) || payload.id <= 0 || !payload.contrato) {
+    setContractsStatus("Indica ID y nombre de contrato.", "error");
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from("contratos").upsert(payload, { onConflict: "id" });
+  if (error) {
+    setContractsStatus(`No se pudo guardar el contrato: ${error.message}`, "error");
+    return;
+  }
+
+  currentEditingContractId = String(payload.id);
+  await loadContractsManagement();
+  openContractDetailPanel(payload.id);
+  setContractsStatus("Contrato guardado correctamente.", "success");
+}
+
+async function deleteCurrentContract() {
+  if (!currentEditingContractId) {
+    return;
+  }
+
+  const confirmed = window.confirm("Vas a eliminar el contrato. Si tiene servicios o actividades asociadas, Supabase puede impedirlo.");
+  if (!confirmed) {
+    return;
+  }
+
+  if (programmingImportInsertButton) {
+    programmingImportInsertButton.disabled = true;
+  }
+
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from("contratos").delete().eq("id", Number(currentEditingContractId));
+  if (error) {
+    setContractsStatus(`No se pudo eliminar el contrato: ${error.message}`, "error");
+    return;
+  }
+
+  closeContractDetailPanel();
+  await loadContractsManagement();
+  setContractsStatus("Contrato eliminado correctamente.", "success");
+}
+
+async function saveContractService(event) {
+  event.preventDefault();
+  if (!currentEditingContractId) {
+    setContractsStatus("Guarda primero el contrato.", "error");
+    return;
+  }
+
+  const payload = {
+    contrato_id: Number(currentEditingContractId),
+    servicio: contractServiceNameInput?.value.trim() || null,
+    descripcion: contractServiceDescriptionInput?.value.trim() || null,
+    activo: Boolean(contractServiceActiveInput?.checked),
+  };
+  const serviceId = contractServiceIdInput?.value;
+  if (!payload.servicio) {
+    setContractsStatus("Indica el nombre del servicio.", "error");
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const request = serviceId
+    ? supabase.from("servicios").update(payload).eq("id", Number(serviceId))
+    : supabase.from("servicios").insert(payload);
+  const { error } = await request;
+  if (error) {
+    setContractsStatus(`No se pudo guardar el servicio: ${error.message}`, "error");
+    return;
+  }
+
+  resetContractServiceForm();
+  await loadContractsManagement();
+  renderContractServicesList();
+  setContractsStatus("Servicio guardado correctamente.", "success");
+}
+
+function editContractService(serviceId) {
+  const service = currentContractServiceRows.find((item) => String(item.id) === String(serviceId));
+  if (!service) {
+    return;
+  }
+
+  if (contractServiceIdInput) {
+    contractServiceIdInput.value = service.id;
+  }
+  if (contractServiceNameInput) {
+    contractServiceNameInput.value = service.servicio || "";
+  }
+  if (contractServiceDescriptionInput) {
+    contractServiceDescriptionInput.value = service.descripcion || "";
+  }
+  if (contractServiceActiveInput) {
+    contractServiceActiveInput.checked = Boolean(service.activo);
+  }
+  contractServiceNameInput?.focus();
+}
+
+async function deleteContractService(serviceId) {
+  const confirmed = window.confirm("Vas a eliminar este servicio.");
+  if (!confirmed) {
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from("servicios").delete().eq("id", Number(serviceId));
+  if (error) {
+    setContractsStatus(`No se pudo eliminar el servicio: ${error.message}`, "error");
+    return;
+  }
+
+  await loadContractsManagement();
+  renderContractServicesList();
+  setContractsStatus("Servicio eliminado correctamente.", "success");
+}
+
+function getTodayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function setContractPersonalBatch(personalIds, isEnabled) {
+  const ids = personalIds.map(Number).filter(Boolean);
+  if (!currentEditingContractId || !ids.length) {
+    return;
+  }
+
+  if (!isEnabled) {
+    const confirmed = window.confirm(
+      "Vas a finalizar la asignación de este personal al contrato. Las actividades ya creadas no se modificarán."
+    );
+    if (!confirmed) {
+      return;
+    }
+  }
+
+  const supabase = await getSupabaseClient();
+  const today = getTodayIsoDate();
+  const contractId = Number(currentEditingContractId);
+  const request = isEnabled
+    ? supabase.from("contrato_personal").upsert(
+        ids.map((personalId) => ({
+          contrato_id: contractId,
+          personal_id: personalId,
+          activo: true,
+          fecha_inicio: today,
+          fecha_fin: null,
+          removed_at: null,
+        })),
+        { onConflict: "contrato_id,personal_id" }
+      )
+    : supabase
+        .from("contrato_personal")
+        .update({
+          activo: false,
+          fecha_fin: today,
+          removed_at: new Date().toISOString(),
+        })
+        .eq("contrato_id", contractId)
+        .in("personal_id", ids);
+
+  const { error } = await request;
+  if (error) {
+    setContractsStatus(`No se pudo actualizar el personal del contrato: ${error.message}`, "error");
+    return;
+  }
+
+  await loadContractsManagement();
+  renderContractAssignmentOptions();
+  setContractsStatus("Personal del contrato actualizado.", "success");
+}
+
+async function setContractInstallationBatch(installationIds, isEnabled) {
+  const ids = installationIds.map(Number).filter(Boolean);
+  if (!currentEditingContractId || !ids.length) {
+    return;
+  }
+
+  if (!isEnabled) {
+    const confirmed = window.confirm(
+      "Vas a finalizar la asignación de estas instalaciones al contrato. Las actividades ya creadas no se modificarán."
+    );
+    if (!confirmed) {
+      return;
+    }
+  }
+
+  const supabase = await getSupabaseClient();
+  const today = getTodayIsoDate();
+  const contractId = Number(currentEditingContractId);
+  const request = isEnabled
+    ? supabase.from("contrato_instalaciones").upsert(
+        ids.map((instalacionId) => ({
+          contrato_id: contractId,
+          instalacion_id: instalacionId,
+          activo: true,
+          fecha_inicio: today,
+          fecha_fin: null,
+          removed_at: null,
+        })),
+        { onConflict: "contrato_id,instalacion_id" }
+      )
+    : supabase
+        .from("contrato_instalaciones")
+        .update({
+          activo: false,
+          fecha_fin: today,
+          removed_at: new Date().toISOString(),
+        })
+        .eq("contrato_id", contractId)
+        .in("instalacion_id", ids);
+
+  const { error } = await request;
+  if (error) {
+    setContractsStatus(`No se pudieron actualizar las instalaciones del contrato: ${error.message}`, "error");
+    return;
+  }
+
+  await loadContractsManagement();
+  renderContractAssignmentOptions();
+  setContractsStatus("Instalaciones del contrato actualizadas.", "success");
+}
+
+function isValidUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    String(value ?? "").trim()
+  );
+}
+
+function normalizeAccessRole(value) {
+  return ["admin", "coordinator", "area_coordinator", "viewer"].includes(value) ? value : "viewer";
+}
+
+function getAccessServiceLabel(service) {
+  const contractName = service.contractName || `Contrato ${service.contrato_id}`;
+  return `${contractName} / ${service.servicio}`;
+}
+
+function getSettingsCatalogConfig(catalog = currentSettingsCatalog) {
+  return SETTINGS_CATALOGS[catalog] || SETTINGS_CATALOGS.puestos;
+}
+
+function resetSettingsSort() {
+  const config = getSettingsCatalogConfig();
+  currentSettingsSortField = config.order;
+  currentSettingsSortDirection = "asc";
+}
+
+function renderSettingsSubtabs() {
+  settingsSubtabButtons.forEach((button) => {
+    const isActive = button.dataset.settingsCatalog === currentSettingsCatalog;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function renderSettingsTable() {
+  if (!settingsTableHead || !settingsTableBody) {
+    return;
+  }
+
+  const config = getSettingsCatalogConfig();
+  settingsTableHead.innerHTML = `
+    <tr>
+      ${config.listFields.map((field) => {
+        const label = config.fields.find((item) => item.key === field)?.label || field;
+        const isActive = currentSettingsSortField === field;
+        return `
+          <th>
+            <button
+              type="button"
+              class="sort-button settings-sort-button${isActive ? ` active sort-${currentSettingsSortDirection}` : ""}"
+              data-settings-sort="${escapeHtml(field)}"
+            >
+              ${escapeHtml(label)}
+            </button>
+          </th>
+        `;
+      }).join("")}
+      <th>Acciones</th>
+    </tr>
+  `;
+
+  if (!currentSettingsRows.length) {
+    settingsTableBody.innerHTML = `
+      <tr>
+        <td colspan="${config.listFields.length + 1}" class="empty-state">No hay registros en ${escapeHtml(config.label)}.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  settingsTableBody.innerHTML = getSortedSettingsRows()
+    .map(
+      (row) => `
+        <tr>
+          ${config.listFields.map((field) => `<td>${escapeHtml(formatSettingsCell(row[field]))}</td>`).join("")}
+          <td>
+            <button type="button" class="table-action tooltip-button" aria-label="Editar registro" data-settings-edit="${escapeHtml(row.id)}">${renderIcon("edit")}</button>
+          </td>
+        </tr>
+      `
+    )
+    .join("");
+}
+
+function formatSettingsCell(value) {
+  if (typeof value === "boolean") {
+    return value ? "Sí" : "No";
+  }
+  return value ?? "";
+}
+
+function compareSettingsValues(leftValue, rightValue) {
+  if (leftValue == null && rightValue == null) {
+    return 0;
+  }
+  if (leftValue == null) {
+    return 1;
+  }
+  if (rightValue == null) {
+    return -1;
+  }
+  if (typeof leftValue === "number" && typeof rightValue === "number") {
+    return leftValue - rightValue;
+  }
+  return String(leftValue).localeCompare(String(rightValue), "es", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function getSortedSettingsRows() {
+  const direction = currentSettingsSortDirection === "desc" ? -1 : 1;
+  return [...currentSettingsRows].sort((left, right) => {
+    const result = compareSettingsValues(left[currentSettingsSortField], right[currentSettingsSortField]);
+    return result * direction || compareSettingsValues(left.id, right.id);
+  });
+}
+
+function getNextSettingsId() {
+  return currentSettingsRows.reduce((maxId, row) => {
+    const rowId = Number(row.id);
+    return Number.isFinite(rowId) && rowId > maxId ? rowId : maxId;
+  }, 0) + 1;
+}
+
+async function loadSettingsManagement() {
+  const config = getSettingsCatalogConfig();
+  renderSettingsSubtabs();
+  setSettingsStatus(`Cargando ${config.label.toLowerCase()}...`);
+  if (settingsTableBody) {
+    settingsTableBody.innerHTML = `<tr><td class="empty-state">Cargando ${escapeHtml(config.label.toLowerCase())}...</td></tr>`;
+  }
+
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase
+    .from(config.table)
+    .select(config.columns)
+    .order(config.order, { ascending: true });
+
+  if (error) {
+    currentSettingsRows = [];
+    renderSettingsTable();
+    setSettingsStatus(`No se pudo cargar ${config.label.toLowerCase()}: ${error.message}`, "error");
+    return;
+  }
+
+  currentSettingsRows = data || [];
+  renderSettingsTable();
+  setSettingsStatus(`${currentSettingsRows.length} registro${currentSettingsRows.length === 1 ? "" : "s"} en ${config.label.toLowerCase()}.`, "success");
+}
+
+function renderSettingsDetailFields(row = {}) {
+  const config = getSettingsCatalogConfig();
+  if (!settingsDetailFields) {
+    return;
+  }
+
+  settingsDetailFields.innerHTML = config.fields
+    .map((field) => {
+      const value = row[field.key];
+      const required = field.required ? " required" : "";
+      const readonly = field.readonlyOnEdit && currentSettingsMode === "edit" ? " readonly" : "";
+      if (field.type === "checkbox") {
+        return `
+          <label class="checkbox-item">
+            <input name="${escapeHtml(field.key)}" type="checkbox" ${value ? "checked" : ""} />
+            <span>${escapeHtml(field.label)}</span>
+          </label>
+        `;
+      }
+      if (field.type === "textarea") {
+        return `
+          <label>
+            ${escapeHtml(field.label)}
+            <textarea name="${escapeHtml(field.key)}" rows="3"${required}${readonly}>${escapeHtml(value ?? "")}</textarea>
+          </label>
+        `;
+      }
+      return `
+        <label>
+          ${escapeHtml(field.label)}
+          <input name="${escapeHtml(field.key)}" type="${field.type || "text"}" value="${escapeHtml(value ?? "")}"${required}${readonly} />
+        </label>
+      `;
+    })
+    .join("");
+}
+
+function openSettingsDetail(mode = "new", rowId = "") {
+  const config = getSettingsCatalogConfig();
+  currentSettingsMode = mode;
+  currentSettingsEditingId = rowId ? String(rowId) : "";
+  const row = mode === "edit"
+    ? currentSettingsRows.find((item) => String(item.id) === currentSettingsEditingId) || {}
+    : { id: getNextSettingsId() };
+
+  settingsDetailTitle.textContent =
+    mode === "edit"
+      ? `Editar ${config.singularLabel}`
+      : `Nuevo registro en ${config.label}`;
+  settingsDetailDeleteButton?.classList.toggle("hidden", mode !== "edit");
+  if (settingsDetailDeleteButton) {
+    settingsDetailDeleteButton.innerHTML = renderIcon("delete");
+  }
+  renderSettingsDetailFields(row);
+  settingsDetailPanel?.classList.remove("hidden");
+}
+
+function closeSettingsDetail() {
+  settingsDetailForm?.reset();
+  settingsDetailPanel?.classList.add("hidden");
+  currentSettingsMode = "new";
+  currentSettingsEditingId = "";
+  settingsDetailDeleteButton?.classList.add("hidden");
+}
+
+function getSettingsPayloadFromForm() {
+  const config = getSettingsCatalogConfig();
+  const formData = new FormData(settingsDetailForm);
+  const payload = {};
+
+  config.fields.forEach((field) => {
+    if (field.type === "checkbox") {
+      payload[field.key] = formData.get(field.key) === "on";
+      return;
+    }
+
+    const rawValue = String(formData.get(field.key) ?? "").trim();
+    if (field.required && !rawValue) {
+      throw new Error(`Completa el campo ${field.label}.`);
+    }
+
+    if (field.type === "number") {
+      payload[field.key] = rawValue ? Number(rawValue) : null;
+      if (rawValue && !Number.isFinite(payload[field.key])) {
+        throw new Error(`El campo ${field.label} debe ser numérico.`);
+      }
+      return;
+    }
+
+    payload[field.key] = rawValue || null;
+  });
+
+  return payload;
+}
+
+async function saveSettingsDetail(event) {
+  event.preventDefault();
+  const config = getSettingsCatalogConfig();
+  let payload;
+  try {
+    payload = getSettingsPayloadFromForm();
+  } catch (error) {
+    setSettingsStatus(error.message, "error");
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const updatePayload = { ...payload };
+  if (currentSettingsMode === "edit") {
+    delete updatePayload.id;
+  }
+  const query = currentSettingsMode === "edit"
+    ? supabase.from(config.table).update(updatePayload).eq("id", currentSettingsEditingId)
+    : supabase.from(config.table).insert(payload);
+  const { error } = await query;
+
+  if (error) {
+    setSettingsStatus(`No se pudo guardar el registro: ${error.message}`, "error");
+    return;
+  }
+
+  closeSettingsDetail();
+  await loadSettingsManagement();
+  setSettingsStatus("Registro guardado correctamente.", "success");
+}
+
+async function getSettingsReferenceUsage(supabase, config, recordId) {
+  const { data, error } = await supabase.rpc("get_master_catalog_usage", {
+    p_catalog: config.table,
+    p_record_id: Number(recordId),
+  });
+
+  if (!error) {
+    return (data || [])
+      .map((row) => ({
+        label: row.source_label || row.source_table,
+        count: Number(row.usage_count || 0),
+      }))
+      .filter((item) => item.count > 0);
+  }
+
+  const results = await Promise.all(
+    (config.usageReferences || []).map(async (reference) => {
+      const result = await supabase
+        .from(reference.table)
+        .select("id", { count: "exact", head: true })
+        .eq(reference.column, recordId);
+      return {
+        label: reference.label,
+        count: Number(result.count || 0),
+        error: result.error,
+      };
+    })
+  );
+
+  const countError = results.find((result) => result.error)?.error;
+  if (countError) {
+    throw countError;
+  }
+
+  return results.filter((item) => item.count > 0);
+}
+
+async function deleteSettingsDetail() {
+  const config = getSettingsCatalogConfig();
+  if (currentSettingsMode !== "edit" || !currentSettingsEditingId) {
+    return;
+  }
+
+  const row = currentSettingsRows.find((item) => String(item.id) === currentSettingsEditingId);
+  const label = row?.[config.titleField] || `ID ${currentSettingsEditingId}`;
+  const supabase = await getSupabaseClient();
+  let usage = [];
+  try {
+    usage = await getSettingsReferenceUsage(supabase, config, currentSettingsEditingId);
+  } catch (error) {
+    setSettingsStatus(`No se pudo comprobar si el registro está en uso: ${error.message}`, "error");
+    return;
+  }
+
+  if (usage.length) {
+    const usageText = usage.map((item) => `${item.label}: ${item.count}`).join("; ");
+    const message = `No se puede borrar "${label}" porque está en uso en ${usageText}.`;
+    setSettingsStatus(message, "error");
+    window.alert(message);
+    return;
+  }
+
+  if (!window.confirm(`¿Borrar ${config.label.toLowerCase()} "${label}"?`)) {
+    return;
+  }
+
+  const { error } = await supabase.from(config.table).delete().eq("id", currentSettingsEditingId);
+  if (error) {
+    setSettingsStatus(`No se pudo borrar el registro: ${error.message}`, "error");
+    return;
+  }
+
+  closeSettingsDetail();
+  await loadSettingsManagement();
+  setSettingsStatus("Registro borrado correctamente.", "success");
+}
+
+function getAccessAssignmentsForUser(userId) {
+  return new Set(
+    currentAccessAssignments
+      .filter((assignment) => assignment.user_id === userId)
+      .map((assignment) => String(assignment.servicio_id))
+  );
+}
+
+function getAccessTabAssignmentsForUser(userId) {
+  return new Set(
+    currentAccessTabAssignments
+      .filter((assignment) => assignment.user_id === userId)
+      .map((assignment) => normalizeCoordinationTabKey(assignment.pestana))
+      .filter((tabKey) => ACCESS_ASSIGNABLE_TABS.some((tab) => tab.key === tabKey))
+  );
+}
+
+function getAccessTabLabel(tabKey) {
+  return ACCESS_ASSIGNABLE_TABS.find((tab) => tab.key === tabKey)?.label || tabKey;
+}
+
+function normalizeAccessTabCatalog(rows = []) {
+  const supportedKeys = new Set(ACCESS_ASSIGNABLE_TABS_FALLBACK.map((tab) => tab.key));
+  const normalizedRows = rows
+    .map((row) => ({
+      key: normalizeCoordinationTabKey(row.pestana ?? row.key),
+      label: String(row.etiqueta ?? row.label ?? "").trim(),
+      order: Number(row.orden ?? row.order ?? 999),
+    }))
+    .filter((row) => supportedKeys.has(row.key))
+    .sort((left, right) => left.order - right.order || left.label.localeCompare(right.label, "es"));
+
+  return normalizedRows.length
+    ? normalizedRows.map((row) => ({
+        key: row.key,
+        label: row.label || getAccessTabLabel(row.key),
+      }))
+    : [...ACCESS_ASSIGNABLE_TABS_FALLBACK];
+}
+
+function renderAccessTabOptions(selectedTabKeys = new Set()) {
+  if (!accessUserTabsContainer) {
+    return;
+  }
+
+  accessUserTabsContainer.innerHTML = ACCESS_ASSIGNABLE_TABS
+    .map(
+      (tab) => `
+        <label class="checkbox-item">
+          <input type="checkbox" name="access_tabs" value="${escapeHtml(tab.key)}" ${
+            selectedTabKeys.has(tab.key) ? "checked" : ""
+          } />
+          <span>${escapeHtml(tab.label)}</span>
+        </label>
+      `
+    )
+    .join("");
+}
+
+async function loadAccessTabCatalog(supabase) {
+  const { data, error } = await supabase
+    .from("coordinacion_pestanas")
+    .select("pestana, etiqueta, orden, activo")
+    .eq("activo", true)
+    .order("orden", { ascending: true });
+
+  if (error) {
+    ACCESS_ASSIGNABLE_TABS = [...ACCESS_ASSIGNABLE_TABS_FALLBACK];
+    renderAccessTabOptions();
+    return;
+  }
+
+  ACCESS_ASSIGNABLE_TABS = normalizeAccessTabCatalog(data || []);
+  renderAccessTabOptions();
+}
+
+function formatAccessListSummary(values, emptyLabel) {
+  if (!values.length) {
+    return emptyLabel;
+  }
+
+  const visibleValues = values.slice(0, 3);
+  const extraCount = values.length - visibleValues.length;
+  return `${visibleValues.join(", ")}${extraCount > 0 ? ` y ${extraCount} más` : ""}`;
+}
+
+function collectAccessFormTabs() {
+  return Array.from(accessUserTabsContainer?.querySelectorAll('input[name="access_tabs"]:checked') || [])
+    .map((input) => input.value)
+    .filter((tabKey) => ACCESS_ASSIGNABLE_TABS.some((tab) => tab.key === tabKey));
+}
+
+function setAccessFormTabs(tabKeys = new Set()) {
+  renderAccessTabOptions(tabKeys);
+}
+
+function renderAccessFormServiceOptions(selectedServiceIds = new Set()) {
+  if (!accessUserServicesSelect) {
+    return;
+  }
+
+  accessUserServicesSelect.innerHTML = currentAccessServices
+    .map(
+      (service) => `
+        <option value="${escapeHtml(service.id)}" ${selectedServiceIds.has(String(service.id)) ? "selected" : ""}>
+          ${escapeHtml(getAccessServiceLabel(service))}
+        </option>
+      `
+    )
+    .join("");
+}
+
+async function loadCurrentAccessRole() {
+  currentUserIsAccessAdmin = false;
+  currentAllowedPrivateTabs = new Set();
+  try {
+    const session = await ensurePrivateSession({ silent: true });
+    if (!session) {
+      return;
+    }
+
+    const supabase = await getSupabaseClient();
+    const [adminResult, tabsResult] = await Promise.all([
+      supabase.rpc("is_coordinacion_admin", {
+        p_user_id: session.user.id,
+      }),
+      supabase
+        .from("coordinacion_usuario_pestanas")
+        .select("pestana")
+        .eq("user_id", session.user.id),
+    ]);
+    if (adminResult.error) {
+      return;
+    }
+    currentUserIsAccessAdmin = Boolean(adminResult.data);
+    currentAllowedPrivateTabs = currentUserIsAccessAdmin
+      ? new Set(PRIVATE_TAB_TARGETS)
+      : new Set(
+          (tabsResult.data || [])
+            .map((row) => normalizeCoordinationTabKey(row.pestana))
+            .filter((tab) => PRIVATE_TAB_TARGETS.has(tab))
+        );
+    if (currentAllowedPrivateTabs.has("actividades")) {
+      currentAllowedPrivateTabs.add("registros");
+    }
+  } catch (_error) {
+    currentUserIsAccessAdmin = false;
+    currentAllowedPrivateTabs = new Set();
+  }
+}
+
+function renderAccessUsers() {
+  if (!accessUsersTableBody) {
+    return;
+  }
+
+  if (!currentUserIsAccessAdmin) {
+    accessUsersTableBody.innerHTML =
+      '<tr><td colspan="6" class="empty-state">Solo admin puede gestionar accesos.</td></tr>';
+    return;
+  }
+
+  if (!currentAccessUsers.length) {
+    accessUsersTableBody.innerHTML =
+      '<tr><td colspan="6" class="empty-state">No hay usuarios configurados.</td></tr>';
+    return;
+  }
+
+  accessUsersTableBody.innerHTML = currentAccessUsers
+    .map((user) => {
+      const selectedServices = getAccessAssignmentsForUser(user.user_id);
+      const serviceSummary = formatAccessListSummary(
+        currentAccessServices
+          .filter((service) => selectedServices.has(String(service.id)))
+          .map(getAccessServiceLabel),
+        "Sin servicios"
+      );
+      const selectedTabs = getAccessTabAssignmentsForUser(user.user_id);
+      const tabSummary = user.rol === "admin"
+        ? "Todas"
+        : formatAccessListSummary(Array.from(selectedTabs).map(getAccessTabLabel), "Sin pestañas");
+
+      return `
+        <tr data-access-user-row="${escapeHtml(user.user_id)}">
+          <td>
+            <strong>${escapeHtml(user.nombre || "Sin nombre")}</strong>
+            <span class="muted-block">${escapeHtml(user.user_id)}</span>
+          </td>
+          <td>${escapeHtml(user.rol)}</td>
+          <td>${escapeHtml(user.activo ? "Activo" : "Inactivo")}</td>
+          <td>${escapeHtml(tabSummary)}</td>
+          <td>${escapeHtml(serviceSummary)}</td>
+          <td>
+            <div class="action-buttons">
+              <button
+                type="button"
+                class="secondary-button"
+                data-access-edit="${escapeHtml(user.user_id)}"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                class="danger-button tooltip-button"
+                aria-label="Eliminar usuario"
+                data-access-delete="${escapeHtml(user.user_id)}"
+              >
+                ${renderIcon("delete")}
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+async function loadAccessManagement() {
+  if (!currentUserIsAccessAdmin) {
+    renderAccessUsers();
+    setAccessStatus("Solo admin puede gestionar accesos.", "error");
+    return;
+  }
+
+  setAccessStatus("Cargando accesos...");
+  const supabase = await getSupabaseClient();
+  await loadAccessTabCatalog(supabase);
+  const [usersResult, servicesResult, contractsResult, assignmentsResult, tabAssignmentsResult] = await Promise.all([
+    supabase
+      .from("coordinacion_usuarios")
+      .select("user_id, rol, nombre, activo, created_at, updated_at")
+      .order("nombre", { ascending: true }),
+    supabase
+      .from("servicios")
+      .select("id, contrato_id, servicio, activo")
+      .order("servicio", { ascending: true }),
+    supabase
+      .from("contratos")
+      .select("id, contrato, activo")
+      .order("contrato", { ascending: true }),
+    supabase
+      .from("coordinacion_usuario_servicios")
+      .select("user_id, servicio_id"),
+    supabase
+      .from("coordinacion_usuario_pestanas")
+      .select("user_id, pestana"),
+  ]);
+
+  const error = [usersResult, servicesResult, contractsResult, assignmentsResult, tabAssignmentsResult].find(
+    (result) => result.error
+  )?.error;
+  if (error) {
+    setAccessStatus(`No se pudieron cargar los accesos: ${error.message}`, "error");
+    return;
+  }
+
+  const contractNames = new Map(
+    (contractsResult.data || []).map((contract) => [Number(contract.id), contract.contrato])
+  );
+  const activeContractIds = new Set(
+    (contractsResult.data || [])
+      .filter((contract) => contract.activo)
+      .map((contract) => Number(contract.id))
+  );
+  currentAccessUsers = (usersResult.data || []).map((user) => ({
+    ...user,
+    rol: normalizeAccessRole(user.rol),
+  }));
+  currentAccessServices = (servicesResult.data || [])
+    .filter((service) => activeContractIds.has(Number(service.contrato_id)))
+    .map((service) => ({
+      ...service,
+      id: String(service.id),
+      contrato_id: Number(service.contrato_id),
+      contractName: contractNames.get(Number(service.contrato_id)) || "",
+    }))
+    .sort((left, right) =>
+      getAccessServiceLabel(left).localeCompare(getAccessServiceLabel(right), "es", {
+        sensitivity: "base",
+        numeric: true,
+      })
+    );
+  currentAccessAssignments = assignmentsResult.data || [];
+  currentAccessTabAssignments = tabAssignmentsResult.data || [];
+
+  renderAccessFormServiceOptions();
+  renderAccessUsers();
+  setAccessStatus(`Accesos cargados: ${currentAccessUsers.length}.`, "success");
+}
+
+function resetAccessUserForm() {
+  accessUserForm?.reset();
+  if (accessUserActiveInput) {
+    accessUserActiveInput.checked = true;
+  }
+  if (accessUserIdInput) {
+    accessUserIdInput.readOnly = false;
+  }
+  if (accessUserSaveButton) {
+    accessUserSaveButton.textContent = "Guardar usuario";
+  }
+  renderAccessFormServiceOptions();
+  setAccessFormTabs();
+  accessUserIdInput?.focus();
+}
+
+function openAccessUserPanel(mode = "new") {
+  if (accessUserPanelTitle) {
+    accessUserPanelTitle.textContent = mode === "edit" ? "Editar usuario" : "Nuevo usuario";
+  }
+  accessUserPanel?.classList.remove("hidden");
+  if (mode === "new") {
+    resetAccessUserForm();
+  }
+}
+
+function closeAccessUserPanel() {
+  accessUserPanel?.classList.add("hidden");
+  resetAccessUserForm();
+}
+
+function editAccessUser(userId) {
+  const user = currentAccessUsers.find((item) => item.user_id === userId);
+  if (!user) {
+    setAccessStatus("No se encontró el usuario seleccionado.", "error");
+    return;
+  }
+
+  if (accessUserIdInput) {
+    accessUserIdInput.value = user.user_id;
+    accessUserIdInput.readOnly = true;
+  }
+  if (accessUserNameInput) {
+    accessUserNameInput.value = user.nombre || "";
+  }
+  if (accessUserRoleSelect) {
+    accessUserRoleSelect.value = normalizeAccessRole(user.rol);
+  }
+  if (accessUserActiveInput) {
+    accessUserActiveInput.checked = Boolean(user.activo);
+  }
+  setAccessFormTabs(user.rol === "admin" ? new Set(ACCESS_ASSIGNABLE_TABS.map((tab) => tab.key)) : getAccessTabAssignmentsForUser(userId));
+  if (accessUserSaveButton) {
+    accessUserSaveButton.textContent = "Guardar cambios";
+  }
+  renderAccessFormServiceOptions(getAccessAssignmentsForUser(userId));
+  openAccessUserPanel("edit");
+  accessUserNameInput?.focus();
+  setAccessStatus("Usuario cargado para edición.");
+}
+
+async function saveAccessUserFromForm(event) {
+  event.preventDefault();
+  const userId = accessUserIdInput?.value.trim() || "";
+  if (!isValidUuid(userId)) {
+    setAccessStatus("Indica un User ID válido de Supabase Auth.", "error");
+    return;
+  }
+
+  const payload = {
+    user_id: userId,
+    nombre: accessUserNameInput?.value.trim() || null,
+    rol: normalizeAccessRole(accessUserRoleSelect?.value),
+    activo: Boolean(accessUserActiveInput?.checked),
+  };
+  const serviceIds = Array.from(accessUserServicesSelect?.selectedOptions || []).map((option) =>
+    Number(option.value)
+  );
+  const tabKeys = payload.rol === "admin" ? [] : collectAccessFormTabs();
+
+  if (currentSession?.user?.id === userId && (payload.rol !== "admin" || !payload.activo)) {
+    setAccessStatus("No puedes quitarte tu propio acceso admin desde esta pantalla.", "error");
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from("coordinacion_usuarios").upsert(payload, {
+    onConflict: "user_id",
+  });
+  if (error) {
+    setAccessStatus(`No se pudo guardar el usuario: ${error.message}`, "error");
+    return;
+  }
+
+  const { error: deleteError } = await supabase
+    .from("coordinacion_usuario_servicios")
+    .delete()
+    .eq("user_id", userId);
+  if (deleteError) {
+    setAccessStatus(`No se pudieron actualizar los servicios: ${deleteError.message}`, "error");
+    return;
+  }
+
+  if (serviceIds.length) {
+    const { error: insertError } = await supabase.from("coordinacion_usuario_servicios").insert(
+      serviceIds.map((serviceId) => ({
+        user_id: userId,
+        servicio_id: serviceId,
+      }))
+    );
+    if (insertError) {
+      setAccessStatus(`No se pudieron asignar los servicios: ${insertError.message}`, "error");
+      return;
+    }
+  }
+
+  const { error: deleteTabsError } = await supabase
+    .from("coordinacion_usuario_pestanas")
+    .delete()
+    .eq("user_id", userId);
+  if (deleteTabsError) {
+    setAccessStatus(`No se pudieron actualizar las pestañas: ${deleteTabsError.message}`, "error");
+    return;
+  }
+
+  if (tabKeys.length) {
+    const { error: insertTabsError } = await supabase.from("coordinacion_usuario_pestanas").insert(
+      tabKeys.map((tabKey) => ({
+        user_id: userId,
+        pestana: tabKey,
+      }))
+    );
+    if (insertTabsError) {
+      setAccessStatus(
+        `No se pudieron asignar las pestañas (${tabKeys.join(", ")}): ${insertTabsError.message}`,
+        "error"
+      );
+      return;
+    }
+  }
+
+  resetAccessUserForm();
+  closeAccessUserPanel();
+  await loadAccessManagement();
+  setAccessStatus("Usuario guardado correctamente.", "success");
+}
+
+async function saveAccessUserRow(userId) {
+  const row = accessUsersTableBody?.querySelector(`[data-access-user-row="${CSS.escape(userId)}"]`);
+  if (!row) {
+    return;
+  }
+
+  const role = normalizeAccessRole(row.querySelector("[data-access-role]")?.value);
+  const active = Boolean(row.querySelector("[data-access-active]")?.checked);
+  const serviceIds = Array.from(row.querySelector("[data-access-services]")?.selectedOptions || []).map(
+    (option) => Number(option.value)
+  );
+  const currentUser = currentAccessUsers.find((user) => user.user_id === userId);
+
+  if (currentSession?.user?.id === userId && (role !== "admin" || !active)) {
+    setAccessStatus("No puedes quitarte tu propio acceso admin desde esta pantalla.", "error");
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const { error: userError } = await supabase
+    .from("coordinacion_usuarios")
+    .update({
+      rol: role,
+      activo: active,
+      nombre: currentUser?.nombre || null,
+    })
+    .eq("user_id", userId);
+  if (userError) {
+    setAccessStatus(`No se pudo actualizar el usuario: ${userError.message}`, "error");
+    return;
+  }
+
+  const { error: deleteError } = await supabase
+    .from("coordinacion_usuario_servicios")
+    .delete()
+    .eq("user_id", userId);
+  if (deleteError) {
+    setAccessStatus(`No se pudieron actualizar los servicios: ${deleteError.message}`, "error");
+    return;
+  }
+
+  if (serviceIds.length) {
+    const { error: insertError } = await supabase.from("coordinacion_usuario_servicios").insert(
+      serviceIds.map((serviceId) => ({
+        user_id: userId,
+        servicio_id: serviceId,
+      }))
+    );
+    if (insertError) {
+      setAccessStatus(`No se pudieron asignar los servicios: ${insertError.message}`, "error");
+      return;
+    }
+  }
+
+  await loadAccessManagement();
+  setAccessStatus("Acceso actualizado correctamente.", "success");
+}
+
+async function deleteAccessUser(userId) {
+  if (currentSession?.user?.id === userId) {
+    setAccessStatus("No puedes eliminar tu propio perfil admin desde esta pantalla.", "error");
+    return;
+  }
+
+  const confirmed = window.confirm("Vas a eliminar este perfil de acceso y sus asignaciones.");
+  if (!confirmed) {
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from("coordinacion_usuarios").delete().eq("user_id", userId);
+  if (error) {
+    setAccessStatus(`No se pudo eliminar el usuario: ${error.message}`, "error");
+    return;
+  }
+
+  await loadAccessManagement();
+  setAccessStatus("Usuario eliminado correctamente.", "success");
 }
 
 async function handleInviteSetup(event) {
@@ -8372,6 +11809,25 @@ async function handleLogout() {
   eventAssignedInstallationIds = new Set();
   eventAssemblyPersonnelIds = new Set();
   eventsCatalogsLoaded = false;
+  currentContractRows = [];
+  currentContractServiceRows = [];
+  contractPersonalCatalogRows = [];
+  contractInstallationCatalogRows = [];
+  currentContractPersonalRows = [];
+  currentContractInstallationRows = [];
+  currentEditingContractId = "";
+  closeContractDetailPanel();
+  renderContractsTable();
+  renderContractAssignmentOptions();
+  currentAccessUsers = [];
+  currentAccessServices = [];
+  currentAccessAssignments = [];
+  currentAccessTabAssignments = [];
+  currentAllowedPrivateTabs = new Set(["programming"]);
+  currentUserIsAccessAdmin = false;
+  syncAccessTabVisibility();
+  closeAccessUserPanel();
+  renderAccessUsers();
   renderFilterOptions();
   clearFilters();
   renderProgrammingPersonnelUi();
@@ -8444,6 +11900,507 @@ function validateRoleOptions() {
   }
 }
 
+function normalizeRecordText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function getRecordColumn(key) {
+  return RECORD_COLUMNS.find((column) => column.key === key);
+}
+
+function formatRecordCellValue(value, column) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  if (column.type === "boolean") {
+    return value ? "Si" : "No";
+  }
+
+  if (column.type === "time") {
+    return String(value).slice(0, 5);
+  }
+
+  if (column.type === "datetime") {
+    return String(value).replace("T", " ").slice(0, 19);
+  }
+
+  return String(value);
+}
+
+function formatRecordDisplayValue(row, column) {
+  const baseValue = formatRecordCellValue(row[column.key], column);
+  const relationLabel = column.relationLabelKey
+    ? String(row[column.relationLabelKey] ?? "").trim()
+    : "";
+
+  if (!relationLabel) {
+    return baseValue;
+  }
+
+  return baseValue ? `${baseValue} · ${relationLabel}` : relationLabel;
+}
+
+function parseRecordFieldValue(rawValue, column) {
+  if (column.type === "boolean") {
+    return rawValue === true || rawValue === "true" || rawValue === "1";
+  }
+
+  if (rawValue === "" || rawValue === undefined) {
+    return null;
+  }
+
+  if (RECORD_NUMERIC_FIELDS.has(column.key)) {
+    const number = Number(rawValue);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  return String(rawValue);
+}
+
+function normalizeRecordComparableValue(value, column) {
+  const parsed = parseRecordFieldValue(value, column);
+  if (parsed === null || parsed === undefined) {
+    return "";
+  }
+  return String(parsed);
+}
+
+function getRecordsFilterValues() {
+  return {
+    fechaDesde: document.querySelector("#records-filter-date-from")?.value || "",
+    fechaHasta: document.querySelector("#records-filter-date-to")?.value || "",
+    personalId: document.querySelector("#records-filter-personal")?.value || "",
+    contratoId: document.querySelector("#records-filter-contrato")?.value || "",
+    empresaId: document.querySelector("#records-filter-empresa")?.value || "",
+    instalacionId: document.querySelector("#records-filter-instalacion")?.value || "",
+    actividadId:
+      document.querySelector("#records-filter-actividad")?.value ||
+      recordsExternalActivityFilter ||
+      "",
+    activo: document.querySelector("#records-filter-activo")?.value || "",
+    facturar: document.querySelector("#records-filter-facturar")?.value || "",
+    abonar: document.querySelector("#records-filter-abonar")?.value || "",
+    search: normalizeRecordText(document.querySelector("#records-filter-search")?.value || ""),
+  };
+}
+
+function applyRecordsQueryFilters(query, filters) {
+  let nextQuery = query;
+
+  if (filters.fechaDesde) {
+    nextQuery = nextQuery.gte("fecha", filters.fechaDesde);
+  }
+  if (filters.fechaHasta) {
+    nextQuery = nextQuery.lte("fecha", filters.fechaHasta);
+  }
+
+  [
+    ["personal_id", filters.personalId],
+    ["contrato_id", filters.contratoId],
+    ["empresa_id", filters.empresaId],
+    ["instalacion_id", filters.instalacionId],
+    ["actividad_id", filters.actividadId],
+  ].forEach(([column, value]) => {
+    if (value !== "") {
+      nextQuery = nextQuery.eq(column, Number(value));
+    }
+  });
+
+  [
+    ["activo", filters.activo],
+    ["facturar", filters.facturar],
+    ["abonar", filters.abonar],
+  ].forEach(([column, value]) => {
+    if (value !== "") {
+      nextQuery = nextQuery.eq(column, value === "true");
+    }
+  });
+
+  return nextQuery;
+}
+
+function applyRecordsClientFilters() {
+  const filters = getRecordsFilterValues();
+  filteredRecordsRows = recordsRows.filter((row) => {
+    if (!filters.search) {
+      return true;
+    }
+    return RECORD_COLUMNS.some((column) =>
+      normalizeRecordText(formatRecordDisplayValue(row, column)).includes(filters.search)
+    );
+  });
+}
+
+function renderRecordsTableHead() {
+  if (!recordsTableHead) {
+    return;
+  }
+
+  recordsTableHead.innerHTML = `<tr>${RECORD_COLUMNS.map(
+    (column) => `<th>${escapeHtml(column.label)}</th>`
+  ).join("")}</tr>`;
+}
+
+function renderRecordEditableControl(row, column) {
+  const value = row[column.key];
+  const commonAttrs = `data-record-cell="${escapeHtml(row.id)}" data-record-field="${escapeHtml(
+    column.key
+  )}" aria-label="${escapeHtml(column.label)}"`;
+
+  if (column.type === "boolean") {
+    return `<input ${commonAttrs} type="checkbox" ${value ? "checked" : ""} ${
+      column.readonly ? "disabled" : ""
+    } />`;
+  }
+
+  if (column.type === "textarea") {
+    return `<textarea ${commonAttrs} rows="2" ${
+      column.readonly ? "readonly" : ""
+    }>${escapeHtml(value ?? "")}</textarea>`;
+  }
+
+  const inputType =
+    column.type === "date"
+      ? "date"
+      : column.type === "time"
+        ? "time"
+        : column.type === "datetime"
+          ? "datetime-local"
+          : RECORD_NUMERIC_FIELDS.has(column.key)
+            ? "number"
+            : "text";
+  const step = column.type === "decimal" ? ' step="0.01"' : "";
+  const inputValue =
+    column.type === "time"
+      ? String(value ?? "").slice(0, 5)
+      : column.type === "datetime" && value
+        ? String(value).slice(0, 16)
+        : value ?? "";
+
+  return `<input ${commonAttrs} type="${inputType}"${step} value="${escapeHtml(inputValue)}" ${
+    column.readonly ? "readonly" : ""
+  } />`;
+}
+
+function renderRecordsTable() {
+  renderRecordsTableHead();
+
+  if (!recordsTableBody) {
+    return;
+  }
+
+  if (recordsSummary) {
+    recordsSummary.textContent = `${filteredRecordsRows.length} registros mostrados`;
+  }
+
+  if (!filteredRecordsRows.length) {
+    recordsTableBody.innerHTML = `<tr><td colspan="${RECORD_COLUMNS.length}" class="empty-state">No hay registros con esos filtros.</td></tr>`;
+    return;
+  }
+
+  const editable = Boolean(recordsEditModeInput?.checked);
+  recordsTableBody.innerHTML = filteredRecordsRows
+    .map((row) => {
+      const cells = RECORD_COLUMNS.map((column) => {
+        const content =
+          editable && !column.readonly
+            ? renderRecordEditableControl(row, column)
+            : escapeHtml(formatRecordDisplayValue(row, column));
+        return `<td data-record-row="${escapeHtml(row.id)}" data-record-field-read="${escapeHtml(
+          column.key
+        )}">${content}</td>`;
+      }).join("");
+      return `<tr data-record-id="${escapeHtml(row.id)}" class="${
+        String(row.id) === String(selectedRecordId) ? "selected-row" : ""
+      }">${cells}</tr>`;
+    })
+    .join("");
+}
+
+async function loadRecords() {
+  if (recordsSummary) {
+    recordsSummary.textContent = "Cargando registros...";
+  }
+  if (recordsTableBody) {
+    recordsTableBody.innerHTML = `<tr><td colspan="${RECORD_COLUMNS.length}" class="empty-state">Cargando registros...</td></tr>`;
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const filters = getRecordsFilterValues();
+    const buildQuery = (tableName, columns) => {
+      let nextQuery = supabase
+        .from(tableName)
+        .select(columns)
+        .order("fecha", { ascending: false })
+        .order("hora_inicio", { ascending: true })
+        .limit(1000);
+
+      return applyRecordsQueryFilters(nextQuery, filters);
+    };
+
+    let { data, error } = await buildQuery("registros_detalle", RECORD_SELECT_COLUMNS);
+    if (error && String(error.message || "").toLowerCase().includes("registros_detalle")) {
+      ({ data, error } = await buildQuery(
+        "registros",
+        RECORD_COLUMNS.filter((column) => !column.derived).map((column) => column.key).join(",")
+      ));
+    }
+
+    if (error) {
+      throw error;
+    }
+
+    recordsRows = data ?? [];
+    applyRecordsClientFilters();
+    renderRecordsTable();
+  } catch (error) {
+    if (recordsSummary) {
+      recordsSummary.textContent = "No se pudieron cargar los registros.";
+    }
+    if (recordsTableBody) {
+      recordsTableBody.innerHTML = `<tr><td colspan="${RECORD_COLUMNS.length}" class="empty-state">Error cargando registros.</td></tr>`;
+    }
+    setStatus(`No se pudieron cargar los registros: ${error.message}`, "error");
+  }
+}
+
+function updateRecordRowsLocally(recordId, patch) {
+  const updateRow = (row) => (String(row.id) === String(recordId) ? { ...row, ...patch } : row);
+  recordsRows = recordsRows.map(updateRow);
+  filteredRecordsRows = filteredRecordsRows.map(updateRow);
+  if (recordDetailSnapshot && String(recordDetailSnapshot.id) === String(recordId)) {
+    recordDetailSnapshot = { ...recordDetailSnapshot, ...patch };
+  }
+}
+
+function patchTouchesRecordRelation(patch) {
+  return Object.keys(patch).some((key) => getRecordColumn(key)?.relationLabelKey || key === "actividad_id");
+}
+
+async function saveRecordPatch(recordId, patch) {
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from("registros").update(patch).eq("id", recordId);
+
+  if (error) {
+    throw error;
+  }
+
+  updateRecordRowsLocally(recordId, patch);
+  if (patchTouchesRecordRelation(patch)) {
+    await loadRecords();
+  }
+}
+
+async function handleRecordCellCommit(control) {
+  const recordId = control?.dataset?.recordCell;
+  const field = control?.dataset?.recordField;
+  const column = getRecordColumn(field);
+
+  if (!recordId || !column || column.readonly) {
+    return;
+  }
+
+  const row = recordsRows.find((item) => String(item.id) === String(recordId));
+  if (!row) {
+    return;
+  }
+
+  const rawValue = column.type === "boolean" ? control.checked : control.value;
+  const nextValue = parseRecordFieldValue(rawValue, column);
+  const previousComparable = normalizeRecordComparableValue(row[field], column);
+  const nextComparable = normalizeRecordComparableValue(nextValue, column);
+
+  if (previousComparable === nextComparable) {
+    return;
+  }
+
+  control.disabled = true;
+  try {
+    await saveRecordPatch(recordId, { [field]: nextValue });
+    control.classList.add("cell-save-ok");
+    setStatus("Registro actualizado.", "success");
+  } catch (error) {
+    control.classList.add("cell-save-error");
+    if (column.type === "boolean") {
+      control.checked = Boolean(row[field]);
+    } else {
+      control.value = formatRecordCellValue(row[field], column);
+    }
+    setStatus(`No se pudo actualizar el registro: ${error.message}`, "error");
+  } finally {
+    control.disabled = false;
+    window.setTimeout(() => {
+      control.classList.remove("cell-save-ok", "cell-save-error");
+    }, 1200);
+  }
+}
+
+function renderRecordDetailForm(row) {
+  if (!recordDetailFields || !recordDetailTitle) {
+    return;
+  }
+
+  recordDetailTitle.textContent = `Registro ${row.id}`;
+  recordDetailFields.innerHTML = RECORD_COLUMNS.map((column) => {
+    const value = row[column.key];
+    const name = escapeHtml(column.key);
+    const label = escapeHtml(column.label);
+    const relationLabel = column.relationLabelKey
+      ? String(row[column.relationLabelKey] ?? "").trim()
+      : "";
+    const relationHelp = relationLabel
+      ? `<span class="record-relation-label">${escapeHtml(relationLabel)}</span>`
+      : "";
+
+    if (column.type === "boolean") {
+      return `<label class="checkbox-item"><input name="${name}" type="checkbox" ${
+        value ? "checked" : ""
+      } ${column.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
+    }
+
+    if (column.type === "textarea") {
+      return `<label class="full-width">${label}<textarea name="${name}" rows="3" ${
+        column.readonly ? "readonly" : ""
+      }>${escapeHtml(value ?? "")}</textarea>${relationHelp}</label>`;
+    }
+
+    const inputType =
+      column.type === "date"
+        ? "date"
+        : column.type === "time"
+          ? "time"
+          : column.type === "datetime"
+            ? "datetime-local"
+            : RECORD_NUMERIC_FIELDS.has(column.key)
+              ? "number"
+              : "text";
+    const step = column.type === "decimal" ? ' step="0.01"' : "";
+    const inputValue =
+      column.type === "time"
+        ? String(value ?? "").slice(0, 5)
+        : column.type === "datetime" && value
+          ? String(value).slice(0, 16)
+          : value ?? "";
+
+    return `<label>${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
+      inputValue
+    )}" ${column.readonly ? "readonly" : ""} />${relationHelp}</label>`;
+  }).join("");
+}
+
+function openRecordDetail(recordId) {
+  const row = recordsRows.find((item) => String(item.id) === String(recordId));
+  if (!row || !recordDetailPanel) {
+    return;
+  }
+
+  selectedRecordId = String(recordId);
+  recordDetailSnapshot = { ...row };
+  renderRecordDetailForm(row);
+  recordDetailPanel.classList.remove("hidden");
+  renderRecordsTable();
+}
+
+function closeRecordDetail() {
+  selectedRecordId = "";
+  recordDetailSnapshot = null;
+  recordDetailPanel?.classList.add("hidden");
+  renderRecordsTable();
+}
+
+function cancelRecordDetailEdit() {
+  if (recordDetailSnapshot) {
+    renderRecordDetailForm(recordDetailSnapshot);
+  }
+}
+
+function collectRecordDetailPayload() {
+  if (!recordDetailForm || !recordDetailSnapshot) {
+    return null;
+  }
+
+  const formData = new FormData(recordDetailForm);
+  const payload = {};
+
+  RECORD_COLUMNS.forEach((column) => {
+    if (column.readonly) {
+      return;
+    }
+
+    const field = recordDetailForm.elements[column.key];
+    const rawValue = column.type === "boolean" ? Boolean(field?.checked) : formData.get(column.key);
+    const nextValue = parseRecordFieldValue(rawValue, column);
+    const previousComparable = normalizeRecordComparableValue(recordDetailSnapshot[column.key], column);
+    const nextComparable = normalizeRecordComparableValue(nextValue, column);
+
+    if (previousComparable !== nextComparable) {
+      payload[column.key] = nextValue;
+    }
+  });
+
+  return payload;
+}
+
+async function handleRecordDetailSubmit(event) {
+  event.preventDefault();
+
+  if (!recordDetailSnapshot?.id) {
+    return;
+  }
+
+  const payload = collectRecordDetailPayload();
+  if (!payload || !Object.keys(payload).length) {
+    closeRecordDetail();
+    return;
+  }
+
+  const submitButton = recordDetailForm?.querySelector('button[type="submit"]');
+  try {
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+    await saveRecordPatch(recordDetailSnapshot.id, payload);
+    const updatedRow = recordsRows.find((row) => String(row.id) === String(recordDetailSnapshot.id));
+    recordDetailSnapshot = updatedRow ? { ...updatedRow } : null;
+    if (updatedRow) {
+      renderRecordDetailForm(updatedRow);
+    }
+    renderRecordsTable();
+    setStatus("Registro guardado.", "success");
+  } catch (error) {
+    setStatus(`No se pudo guardar el registro: ${error.message}`, "error");
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
+  }
+}
+
+async function showRecordsForActivity(activityId) {
+  recordsExternalActivityFilter = String(activityId || "");
+  const activityFilter = document.querySelector("#records-filter-actividad");
+  if (activityFilter) {
+    activityFilter.value = recordsExternalActivityFilter;
+  }
+  switchPrivateTab("registros");
+  await loadRecords();
+}
+
+window.CoordinacionRegistros = {
+  showForActivity(activityId) {
+    void showRecordsForActivity(activityId);
+  },
+  refresh() {
+    void loadRecords();
+  },
+};
+
 async function restoreSession() {
   initControlFilters();
   const session = await ensurePrivateSession({ silent: true });
@@ -8466,6 +12423,11 @@ async function restoreSession() {
 }
 
 async function refreshPrivateTabData(target = currentPrivateTabTarget) {
+  if (!currentAllowedPrivateTabs.size) {
+    setStatus("Tu usuario no tiene pestañas asignadas. Contacta con un administrador.", "error");
+    return;
+  }
+
   const normalizedTarget = normalizePrivateTabTarget(target);
   if (normalizedTarget === "search") {
     await fetchCandidates();
@@ -8483,9 +12445,50 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
     return;
   }
 
+  if (normalizedTarget === "contracts") {
+    await loadContractsManagement();
+    return;
+  }
+
+  if (normalizedTarget === "personal") {
+    await loadPersonalManagement();
+    return;
+  }
+
+  if (normalizedTarget === "registros") {
+    await loadRecords();
+    return;
+  }
+
+  if (normalizedTarget === "settings") {
+    await loadSettingsManagement();
+    return;
+  }
+
+  if (normalizedTarget === "concilia" || normalizedTarget === "actividades") {
+    const conciliaTarget = CONCILIA_MODULE_BY_TAB_KEY[normalizedTarget] || "alumnado";
+    showIntegratedConciliaPanel(normalizedTarget);
+    if (!window.CoordinacionConcilia?.showTab) {
+      const conciliaStatus = document.querySelector("#concilia-status-message");
+      if (conciliaStatus) {
+        conciliaStatus.textContent =
+          "El panel de Concilia no ha terminado de cargar. Recarga la pagina si los datos no aparecen.";
+        conciliaStatus.className = "panel-status-message error";
+      }
+      return;
+    }
+    await window.CoordinacionConcilia.showTab(conciliaTarget);
+    return;
+  }
+
   if (normalizedTarget === "programming") {
     await loadProgrammingPersonnel();
     await loadProgrammingFromSupabase();
+    return;
+  }
+
+  if (normalizedTarget === "access") {
+    await loadAccessManagement();
   }
 }
 
@@ -8863,6 +12866,7 @@ function getFilteredEvents() {
   const nameQuery = normalizeSearchText(eventFilterNameInput?.value || "");
   const installationId = eventFilterInstallationSelect?.value || "";
   const startDate = eventFilterStartDateInput?.value || "";
+  const endDate = eventFilterEndDateInput?.value || "";
   const includeArchived = Boolean(eventFilterIncludeArchivedInput?.checked);
 
   return currentEvents.filter((event) => {
@@ -8872,8 +12876,10 @@ function getFilteredEvents() {
     const matchesName = !nameQuery || normalizeSearchText(event.nombre).includes(nameQuery);
     const matchesInstallation =
       !installationId || String(event.instalacion_id) === String(installationId);
-    const matchesStartDate = !startDate || event.fecha_inicio === startDate;
-    return matchesName && matchesInstallation && matchesStartDate;
+    const matchesDateRange =
+      (!startDate || event.fecha_fin >= startDate) &&
+      (!endDate || event.fecha_inicio <= endDate);
+    return matchesName && matchesInstallation && matchesDateRange;
   });
 }
 
@@ -8882,6 +12888,7 @@ function resetSingleEventFilter(filterName) {
     name: eventFilterNameInput,
     installation: eventFilterInstallationSelect,
     start_date: eventFilterStartDateInput,
+    end_date: eventFilterEndDateInput,
   };
   const field = fieldMap[filterName];
 
@@ -8896,6 +12903,7 @@ function resetSingleEventFilter(filterName) {
 function getEventsForInstallationFilter() {
   const nameQuery = normalizeSearchText(eventFilterNameInput?.value || "");
   const startDate = eventFilterStartDateInput?.value || "";
+  const endDate = eventFilterEndDateInput?.value || "";
   const includeArchived = Boolean(eventFilterIncludeArchivedInput?.checked);
 
   return currentEvents.filter((event) => {
@@ -8903,9 +12911,297 @@ function getEventsForInstallationFilter() {
       return false;
     }
     const matchesName = !nameQuery || normalizeSearchText(event.nombre).includes(nameQuery);
-    const matchesStartDate = !startDate || event.fecha_inicio === startDate;
-    return matchesName && matchesStartDate;
+    const matchesDateRange =
+      (!startDate || event.fecha_fin >= startDate) &&
+      (!endDate || event.fecha_inicio <= endDate);
+    return matchesName && matchesDateRange;
   });
+}
+
+function getEventReportDateRange() {
+  const dateFrom = eventFilterStartDateInput?.value || "";
+  const dateTo = eventFilterEndDateInput?.value || "";
+
+  if (!dateFrom || !dateTo) {
+    throw new Error("Indica fecha de inicio y fecha de fin para generar el informe.");
+  }
+
+  if (dateFrom > dateTo) {
+    throw new Error("La fecha de inicio no puede ser posterior a la fecha de fin.");
+  }
+
+  return { dateFrom, dateTo };
+}
+
+function getEventPersonnelReportRows(personalId, dateFrom, dateTo) {
+  const selectedPersonalId = Number(personalId);
+  const filteredEventIds = new Set(getFilteredEvents().map((event) => Number(event.id)));
+
+  return currentEventSchedulePersonnelRows
+    .filter((assignment) => Number(assignment.personal_id) === selectedPersonalId)
+    .map((assignment) => {
+      const schedule = currentEventScheduleRows.find(
+        (row) => Number(row.id) === Number(assignment.cronograma_id)
+      );
+      if (!schedule || !filteredEventIds.has(Number(schedule.evento_id))) {
+        return null;
+      }
+
+      const eventRow = currentEvents.find((event) => Number(event.id) === Number(schedule.evento_id));
+      if (!eventRow || schedule.fecha < dateFrom || schedule.fecha > dateTo) {
+        return null;
+      }
+
+      return {
+        fecha: schedule.fecha,
+        hora_inicio: assignment.hora_inicio,
+        hora_fin: assignment.hora_fin,
+        evento: eventRow.nombre,
+        minutes: calculateWorkedMinutes(assignment.hora_inicio, assignment.hora_fin),
+      };
+    })
+    .filter(Boolean)
+    .sort(
+      (left, right) =>
+        String(left.fecha).localeCompare(String(right.fecha), "es", { numeric: true }) ||
+        formatHourValue(left.hora_inicio).localeCompare(formatHourValue(right.hora_inicio), "es", {
+          numeric: true,
+        }) ||
+        String(left.evento).localeCompare(String(right.evento), "es", {
+          sensitivity: "base",
+          numeric: true,
+        })
+    );
+}
+
+function renderEventPersonnelReportOptions() {
+  if (!eventPersonnelReportSelect) {
+    return;
+  }
+
+  const previousValue = eventPersonnelReportSelect.value;
+  const dateFrom = eventFilterStartDateInput?.value || "";
+  const dateTo = eventFilterEndDateInput?.value || "";
+  const filteredEventIds = new Set(getFilteredEvents().map((event) => Number(event.id)));
+  const workedPersonalIds = new Set();
+
+  currentEventSchedulePersonnelRows.forEach((assignment) => {
+    const schedule = currentEventScheduleRows.find(
+      (row) => Number(row.id) === Number(assignment.cronograma_id)
+    );
+    if (!schedule || !filteredEventIds.has(Number(schedule.evento_id))) {
+      return;
+    }
+    if (dateFrom && schedule.fecha < dateFrom) {
+      return;
+    }
+    if (dateTo && schedule.fecha > dateTo) {
+      return;
+    }
+    workedPersonalIds.add(Number(assignment.personal_id));
+  });
+
+  const rows = eventPersonnelRows
+    .filter((row) => workedPersonalIds.has(Number(row.id)))
+    .sort((left, right) =>
+      String(left.personal || "").localeCompare(String(right.personal || ""), "es", {
+        sensitivity: "base",
+        numeric: true,
+      })
+    );
+
+  eventPersonnelReportSelect.innerHTML = [
+    '<option value="">Persona informe</option>',
+    ...rows.map((row) => `<option value="${row.id}">${escapeHtml(row.personal)}</option>`),
+  ].join("");
+  eventPersonnelReportSelect.value = rows.some((row) => String(row.id) === previousValue)
+    ? previousValue
+    : "";
+}
+
+function getSelectedEventPersonnelReportData() {
+  const personalId = eventPersonnelReportSelect?.value || "";
+  if (!personalId) {
+    throw new Error("Selecciona una persona para generar el informe de eventos.");
+  }
+
+  const { dateFrom, dateTo } = getEventReportDateRange();
+  const rows = getEventPersonnelReportRows(personalId, dateFrom, dateTo);
+  const personName = getEventPersonnelName(personalId) || "Persona";
+
+  if (!rows.length) {
+    throw new Error("No hay horas de eventos para esa persona en el intervalo indicado.");
+  }
+
+  return {
+    dateFrom,
+    dateTo,
+    rows,
+    personName,
+    totalMinutes: rows.reduce((total, row) => total + row.minutes, 0),
+  };
+}
+
+function getEventReportImageFileName(personName, dateFrom, dateTo) {
+  return `eventos-${sanitizeFileName(personName)}-${dateFrom}-${dateTo}.png`;
+}
+
+function drawEventPersonnelReportImage(reportData) {
+  const { personName, dateFrom, dateTo, rows, totalMinutes } = reportData;
+  const scale = 2;
+  const margin = 40;
+  const tableWidth = 1180;
+  const canvasWidth = tableWidth + margin * 2;
+  const columns = [
+    { label: "Fecha", key: "fecha", width: 150 },
+    { label: "Inicio", key: "inicio", width: 110 },
+    { label: "Fin", key: "fin", width: 110 },
+    { label: "Evento", key: "evento", width: 690 },
+    { label: "Horas", key: "horas", width: 120 },
+  ];
+  const lineHeight = 26;
+  const cellPadding = 10;
+  const headerHeight = 42;
+  const titleHeight = 136;
+  const footerHeight = 72;
+  const scratchCanvas = document.createElement("canvas");
+  const scratchContext = scratchCanvas.getContext("2d");
+
+  scratchContext.font = "24px Arial";
+  const rowLayouts = rows.map((row) => {
+    const values = {
+      fecha: formatDisplayDate(row.fecha),
+      inicio: formatHourValue(row.hora_inicio).slice(0, 5),
+      fin: formatHourValue(row.hora_fin).slice(0, 5),
+      evento: row.evento,
+      horas: formatMinutesAsHours(row.minutes),
+    };
+    const cellLines = columns.map((column) =>
+      wrapCanvasText(scratchContext, values[column.key] || "-", column.width - cellPadding * 2)
+    );
+    const rowHeight = Math.max(46, Math.max(...cellLines.map((lines) => lines.length)) * lineHeight + cellPadding * 2);
+    return { cellLines, rowHeight };
+  });
+
+  const canvasHeight =
+    titleHeight +
+    headerHeight +
+    rowLayouts.reduce((total, layout) => total + layout.rowHeight, 0) +
+    footerHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth * scale;
+  canvas.height = canvasHeight * scale;
+  const context = canvas.getContext("2d");
+  context.scale(scale, scale);
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvasWidth, canvasHeight);
+  context.fillStyle = "#001f54";
+  context.font = "bold 34px Arial";
+  context.fillText("Informe de eventos por persona", margin, 46);
+  context.font = "bold 26px Arial";
+  context.fillText(personName, margin, 82);
+  context.font = "22px Arial";
+  context.fillText(`Periodo: ${formatDisplayDate(dateFrom)} - ${formatDisplayDate(dateTo)}`, margin, 114);
+
+  let y = titleHeight;
+  let x = margin;
+  context.font = "bold 20px Arial";
+  columns.forEach((column) => {
+    context.fillStyle = "#e5e7eb";
+    context.fillRect(x, y, column.width, headerHeight);
+    context.strokeStyle = "#94a3b8";
+    context.strokeRect(x, y, column.width, headerHeight);
+    context.fillStyle = "#111827";
+    context.fillText(column.label, x + cellPadding, y + 27);
+    x += column.width;
+  });
+  y += headerHeight;
+
+  rowLayouts.forEach(({ cellLines, rowHeight }) => {
+    x = margin;
+    context.font = "20px Arial";
+    columns.forEach((column, columnIndex) => {
+      context.strokeStyle = "#d6dbe7";
+      context.strokeRect(x, y, column.width, rowHeight);
+      context.fillStyle = "#001f54";
+      cellLines[columnIndex].forEach((line, lineIndex) => {
+        context.fillText(line, x + cellPadding, y + cellPadding + 20 + lineIndex * lineHeight);
+      });
+      x += column.width;
+    });
+    y += rowHeight;
+  });
+
+  const hoursColumn = columns[columns.length - 1];
+  context.fillStyle = "#f1f5f9";
+  context.fillRect(margin, y, tableWidth - hoursColumn.width, 46);
+  context.fillRect(margin + tableWidth - hoursColumn.width, y, hoursColumn.width, 46);
+  context.strokeStyle = "#94a3b8";
+  context.strokeRect(margin, y, tableWidth - hoursColumn.width, 46);
+  context.strokeRect(margin + tableWidth - hoursColumn.width, y, hoursColumn.width, 46);
+  context.fillStyle = "#001f54";
+  context.font = "bold 22px Arial";
+  context.fillText("Total", margin + cellPadding, y + 30);
+  context.fillText(formatMinutesAsHours(totalMinutes), margin + tableWidth - hoursColumn.width + cellPadding, y + 30);
+
+  context.fillStyle = "#64748b";
+  context.font = "18px Arial";
+  context.fillText(`Generado: ${new Date().toLocaleString("es-ES")}`, margin, canvasHeight - 12);
+
+  return canvas;
+}
+
+function closeEventReportImagePanel() {
+  eventReportImagePanel?.classList.add("hidden");
+}
+
+function showEventPersonnelReportImage() {
+  try {
+    const reportData = getSelectedEventPersonnelReportData();
+    currentEventReportImageCanvas = drawEventPersonnelReportImage(reportData);
+    currentEventReportImageFileName = getEventReportImageFileName(
+      reportData.personName,
+      reportData.dateFrom,
+      reportData.dateTo
+    );
+
+    if (eventReportImagePreview) {
+      eventReportImagePreview.src = currentEventReportImageCanvas.toDataURL("image/png");
+    }
+    eventReportImagePanel?.classList.remove("hidden");
+    setStatus("Imagen del informe generada correctamente.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo generar la imagen del informe.", "error");
+  }
+}
+
+async function copyEventReportImageToClipboard() {
+  try {
+    if (!currentEventReportImageCanvas) {
+      throw new Error("Genera primero la imagen del informe.");
+    }
+    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
+      throw new Error("El navegador no permite copiar imágenes al portapapeles.");
+    }
+    const blob = await canvasToBlob(currentEventReportImageCanvas);
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    setStatus("Imagen copiada al portapapeles.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo copiar la imagen.", "error");
+  }
+}
+
+async function downloadEventReportImage() {
+  try {
+    if (!currentEventReportImageCanvas) {
+      throw new Error("Genera primero la imagen del informe.");
+    }
+    const blob = await canvasToBlob(currentEventReportImageCanvas);
+    triggerDownload(blob, currentEventReportImageFileName || "informe-eventos.png");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo descargar la imagen.", "error");
+  }
 }
 
 function renderEventInstallationFilterOptions() {
@@ -8929,6 +13225,133 @@ function renderEventInstallationFilterOptions() {
   ].join("");
 
   eventFilterInstallationSelect.value = installationIds.has(String(selectedValue)) ? selectedValue : "";
+}
+
+async function exportEventPersonnelReportToPdf() {
+  try {
+    const personalId = eventPersonnelReportSelect?.value || "";
+    if (!personalId) {
+      setStatus("Selecciona una persona para generar el informe de eventos.", "error");
+      return;
+    }
+
+    const { dateFrom, dateTo } = getEventReportDateRange();
+    const rows = getEventPersonnelReportRows(personalId, dateFrom, dateTo);
+    const personName = getEventPersonnelName(personalId) || "Persona";
+
+    if (!rows.length) {
+      setStatus("No hay horas de eventos para esa persona en el intervalo indicado.", "error");
+      return;
+    }
+
+    const totalMinutes = rows.reduce((total, row) => total + row.minutes, 0);
+    const { jsPDF } = await getJsPdfClient();
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const bottomMargin = 12;
+    const columns = [
+      { label: "Fecha", key: "fecha", width: 24 },
+      { label: "Inicio", key: "inicio", width: 20 },
+      { label: "Fin", key: "fin", width: 20 },
+      { label: "Evento", key: "evento", width: 96 },
+      { label: "Horas", key: "horas", width: 20 },
+    ];
+    const tableWidth = columns.reduce((total, column) => total + column.width, 0);
+    const tableLeft = Math.max(margin, (pageWidth - tableWidth) / 2);
+    const headerHeight = 8;
+    const minRowHeight = 8;
+    const rowLineHeight = 3.8;
+    let y = margin;
+
+    const drawHeader = (title = personName) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text("Informe de eventos por persona", margin, y);
+      y += 7;
+      doc.setFontSize(11);
+      doc.text(title, margin, y);
+      y += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(`Periodo: ${formatDisplayDate(dateFrom)} - ${formatDisplayDate(dateTo)}`, margin, y);
+      y += 7;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      let x = tableLeft;
+      columns.forEach((column) => {
+        doc.setFillColor(225, 225, 225);
+        doc.setDrawColor(120, 120, 120);
+        doc.rect(x, y, column.width, headerHeight, "F");
+        doc.rect(x, y, column.width, headerHeight, "S");
+        doc.text(column.label, x + 2, y + 5.2);
+        x += column.width;
+      });
+      y += headerHeight;
+    };
+
+    drawHeader();
+
+    rows.forEach((row) => {
+      const values = {
+        fecha: formatDisplayDate(row.fecha),
+        inicio: formatHourValue(row.hora_inicio).slice(0, 5),
+        fin: formatHourValue(row.hora_fin).slice(0, 5),
+        evento: row.evento,
+        horas: formatMinutesAsHours(row.minutes),
+      };
+      const cellLines = columns.map((column) =>
+        doc.splitTextToSize(String(values[column.key] || "-"), column.width - 4)
+      );
+      const rowHeight = Math.max(
+        minRowHeight,
+        ...cellLines.map((lines) => lines.length * rowLineHeight + 4)
+      );
+
+      if (y + rowHeight > pageHeight - bottomMargin) {
+        doc.addPage();
+        y = margin;
+        drawHeader(`${personName} (continuacion)`);
+      }
+
+      let x = tableLeft;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setDrawColor(210, 219, 231);
+      columns.forEach((column, columnIndex) => {
+        doc.rect(x, y, column.width, rowHeight);
+        doc.text(cellLines[columnIndex], x + 2, y + 5, {
+          maxWidth: column.width - 4,
+        });
+        x += column.width;
+      });
+      y += rowHeight;
+    });
+
+    if (y + minRowHeight > pageHeight - bottomMargin) {
+      doc.addPage();
+      y = margin;
+      drawHeader(`${personName} (continuacion)`);
+    }
+
+    const hoursColumn = columns[columns.length - 1];
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.rect(tableLeft, y, tableWidth - hoursColumn.width, minRowHeight);
+    doc.rect(tableLeft + tableWidth - hoursColumn.width, y, hoursColumn.width, minRowHeight);
+    doc.text("Total", tableLeft + 2, y + 5.2);
+    doc.text(formatMinutesAsHours(totalMinutes), tableLeft + tableWidth - hoursColumn.width + 2, y + 5.2);
+
+    doc.save(`eventos-${personName.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}-${dateFrom}-${dateTo}.pdf`);
+    setStatus(`Informe de eventos generado correctamente. Total: ${formatMinutesAsHours(totalMinutes)}.`, "success");
+  } catch (error) {
+    setStatus(`No se pudo generar el informe de eventos: ${error?.message ?? "error desconocido"}`, "error");
+  }
 }
 
 function getEventSortValue(event, field) {
@@ -8984,6 +13407,7 @@ function renderEventsTable() {
 
   if (!visibleEvents.length) {
     eventsTableBody.innerHTML = '<tr><td colspan="5" class="empty-state">No hay eventos cargados.</td></tr>';
+    renderEventPersonnelReportOptions();
     return;
   }
 
@@ -9078,6 +13502,7 @@ function renderEventsTable() {
       `
     })
     .join("");
+  renderEventPersonnelReportOptions();
 }
 
 function resetEventForm() {
@@ -9456,6 +13881,36 @@ async function deleteEvent(eventId) {
   }
 
   const supabase = await getSupabaseClient();
+  const { data: scheduleRows, error: scheduleLoadError } = await supabase
+    .from("eventos_cronograma")
+    .select("id")
+    .eq("evento_id", eventId);
+
+  if (scheduleLoadError) {
+    setStatus(scheduleLoadError.message || "No se pudo preparar el borrado del evento.", "error");
+    return;
+  }
+
+  const scheduleIds = (scheduleRows ?? []).map((row) => row.id);
+
+  if (scheduleIds.length) {
+    const { error: personnelError } = await supabase
+      .from("eventos_cronograma_personal")
+      .delete()
+      .in("cronograma_id", scheduleIds);
+
+    if (personnelError) {
+      setStatus(personnelError.message || "No se pudo eliminar el personal del cronograma.", "error");
+      return;
+    }
+  }
+
+  const { error: scheduleError } = await supabase.from("eventos_cronograma").delete().eq("evento_id", eventId);
+  if (scheduleError) {
+    setStatus(scheduleError.message || "No se pudo eliminar el cronograma del evento.", "error");
+    return;
+  }
+
   const { error } = await supabase.from("eventos_deportivos").delete().eq("id", eventId);
   if (error) {
     setStatus(error.message || "No se pudo eliminar el evento.", "error");
@@ -9520,8 +13975,8 @@ async function saveEventSchedule(event) {
     return;
   }
 
-  if (payload.hora_fin <= payload.hora_inicio) {
-    setStatus("La hora de fin debe ser posterior a la hora de inicio.", "error");
+  if (payload.hora_fin === payload.hora_inicio) {
+    setStatus("La hora de fin debe ser distinta a la hora de inicio.", "error");
     return;
   }
 
@@ -9592,7 +14047,7 @@ async function saveEventAssignment(assignmentId) {
   const horaInicio = startInput?.value || "";
   const horaFin = endInput?.value || "";
 
-  if (!horaInicio || !horaFin || horaFin <= horaInicio) {
+  if (!horaInicio || !horaFin || horaFin === horaInicio) {
     setStatus("Revisa el horario del personal asignado.", "error");
     return;
   }
@@ -9608,8 +14063,30 @@ async function saveEventAssignment(assignmentId) {
     return;
   }
 
-  await loadEvents();
+  const assignmentRow = currentEventSchedulePersonnelRows.find(
+    (row) => String(row.id) === String(assignmentId)
+  );
+  if (assignmentRow) {
+    assignmentRow.hora_inicio = horaInicio;
+    assignmentRow.hora_fin = horaFin;
+  }
+  renderEventPersonnelReportOptions();
   setStatus("Horario de personal actualizado.", "success");
+}
+
+function queueEventAssignmentSave(assignmentId) {
+  if (!assignmentId) {
+    return;
+  }
+
+  window.clearTimeout(eventAssignmentSaveTimers.get(String(assignmentId)));
+  eventAssignmentSaveTimers.set(
+    String(assignmentId),
+    window.setTimeout(() => {
+      eventAssignmentSaveTimers.delete(String(assignmentId));
+      void saveEventAssignment(assignmentId);
+    }, 700)
+  );
 }
 
 async function deleteEventAssignment(assignmentId) {
@@ -9646,6 +14123,8 @@ function initControlFilters() {
 }
 
 async function init() {
+  decorateStaticActionButtons();
+
   if (!hasSupabaseConfig) {
     setStatus(
       "Falta la configuracion de Supabase en config.js. Esta version ya no funciona en modo local.",
@@ -9655,6 +14134,8 @@ async function init() {
   }
 
   validateRoleOptions();
+  renderPersonalFormFields();
+  setPersonalFormEditing(false);
   initDates();
   initControlFilters();
   window.addEventListener("beforeunload", (event) => {
@@ -9704,12 +14185,269 @@ async function init() {
       setStatus(error?.message || "No se pudieron cargar los eventos.", "error");
     });
   });
+  privateTabConciliaButton?.addEventListener("click", () => {
+    switchPrivateTab("concilia");
+    void refreshPrivateTabData("concilia").catch((error) => {
+      setStatus(error?.message || "No se pudo cargar Concilia.", "error");
+    });
+  });
+  privateTabActividadesButton?.addEventListener("click", () => {
+    switchPrivateTab("actividades");
+    void refreshPrivateTabData("actividades").catch((error) => {
+      setStatus(error?.message || "No se pudieron cargar las actividades.", "error");
+    });
+  });
+  privateTabRegistrosButton?.addEventListener("click", () => {
+    switchPrivateTab("registros");
+    void refreshPrivateTabData("registros").catch((error) => {
+      setStatus(error?.message || "No se pudieron cargar los registros.", "error");
+    });
+  });
+  privateTabContractsButton?.addEventListener("click", () => {
+    switchPrivateTab("contracts");
+    void refreshPrivateTabData("contracts").catch((error) => {
+      setContractsStatus(error?.message || "No se pudieron cargar los contratos.", "error");
+    });
+  });
+  privateTabPersonalButton?.addEventListener("click", () => {
+    switchPrivateTab("personal");
+    void refreshPrivateTabData("personal").catch((error) => {
+      setPersonalStatus(error?.message || "No se pudo cargar el personal.", "error");
+    });
+  });
+  privateTabSettingsButton?.addEventListener("click", () => {
+    switchPrivateTab("settings");
+    void refreshPrivateTabData("settings").catch((error) => {
+      setSettingsStatus(error?.message || "No se pudo cargar la configuración.", "error");
+    });
+  });
   privateTabProgrammingButton.addEventListener("click", () => {
     switchPrivateTab("programming");
     void refreshPrivateTabData("programming").catch((error) => {
       setStatus(error?.message || "No se pudo cargar la programacion.", "error");
     });
   });
+  privateTabAccessButton?.addEventListener("click", () => {
+    switchPrivateTab("access");
+    void refreshPrivateTabData("access").catch((error) => {
+      setAccessStatus(error?.message || "No se pudieron cargar los accesos.", "error");
+    });
+  });
+  settingsSubtabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const catalog = button.dataset.settingsCatalog;
+      if (!SETTINGS_CATALOGS[catalog]) {
+        return;
+      }
+      currentSettingsCatalog = catalog;
+      resetSettingsSort();
+      closeSettingsDetail();
+      void loadSettingsManagement();
+    });
+  });
+  settingsRefreshButton?.addEventListener("click", () => {
+    void loadSettingsManagement();
+  });
+  settingsNewButton?.addEventListener("click", () => {
+    openSettingsDetail("new");
+  });
+  closeSettingsDetailButton?.addEventListener("click", closeSettingsDetail);
+  settingsDetailOverlay?.addEventListener("click", closeSettingsDetail);
+  settingsDetailClearButton?.addEventListener("click", () => {
+    renderSettingsDetailFields(currentSettingsMode === "edit"
+      ? currentSettingsRows.find((row) => String(row.id) === currentSettingsEditingId) || {}
+      : { id: getNextSettingsId() });
+  });
+  settingsDetailDeleteButton?.addEventListener("click", () => {
+    void deleteSettingsDetail();
+  });
+  settingsDetailForm?.addEventListener("submit", (event) => {
+    void saveSettingsDetail(event);
+  });
+  settingsTableHead?.addEventListener("click", (event) => {
+    const sortField = event.target.closest("[data-settings-sort]")?.dataset.settingsSort;
+    if (!sortField) {
+      return;
+    }
+    currentSettingsSortDirection =
+      currentSettingsSortField === sortField && currentSettingsSortDirection === "asc" ? "desc" : "asc";
+    currentSettingsSortField = sortField;
+    renderSettingsTable();
+  });
+  settingsTableBody?.addEventListener("click", (event) => {
+    const editId = event.target.closest("[data-settings-edit]")?.dataset.settingsEdit;
+    if (editId) {
+      openSettingsDetail("edit", editId);
+    }
+  });
+  accessRefreshButton?.addEventListener("click", () => {
+    void loadAccessManagement();
+  });
+  accessNewUserButton?.addEventListener("click", () => {
+    openAccessUserPanel("new");
+  });
+  closeAccessUserPanelButton?.addEventListener("click", closeAccessUserPanel);
+  accessUserOverlay?.addEventListener("click", closeAccessUserPanel);
+  accessUserForm?.addEventListener("submit", (event) => {
+    void saveAccessUserFromForm(event);
+  });
+  accessUserClearButton?.addEventListener("click", closeAccessUserPanel);
+  accessUsersTableBody?.addEventListener("click", (event) => {
+    const editUserId = event.target.closest("[data-access-edit]")?.dataset.accessEdit;
+    if (editUserId) {
+      editAccessUser(editUserId);
+      return;
+    }
+
+    const saveUserId = event.target.closest("[data-access-save]")?.dataset.accessSave;
+    if (saveUserId) {
+      void saveAccessUserRow(saveUserId);
+      return;
+    }
+
+    const deleteUserId = event.target.closest("[data-access-delete]")?.dataset.accessDelete;
+    if (deleteUserId) {
+      void deleteAccessUser(deleteUserId);
+    }
+  });
+  contractsNewButton?.addEventListener("click", () => openContractDetailPanel());
+  contractsRefreshButton?.addEventListener("click", () => {
+    void loadContractsManagement();
+  });
+  contractsShowInactiveInput?.addEventListener("change", () => {
+    renderContractsTable();
+    setContractsStatus(
+      `Contratos visibles: ${getVisibleContractRows().length} de ${currentContractRows.length}.`,
+      "success"
+    );
+  });
+  contractsBulkFieldSelect?.addEventListener("change", () => {
+    if (contractsBulkCurrentValueInput) {
+      contractsBulkCurrentValueInput.value = "";
+    }
+    if (contractsBulkNewValueInput) {
+      contractsBulkNewValueInput.value = "";
+    }
+    syncContractsBulkAssignmentUi();
+  });
+  contractsBulkCurrentValueInput?.addEventListener("input", syncContractsBulkAssignmentUi);
+  contractsBulkCurrentBoolSelect?.addEventListener("change", syncContractsBulkAssignmentUi);
+  contractsBulkNewValueInput?.addEventListener("input", syncContractsBulkAssignmentUi);
+  contractsBulkNewBoolSelect?.addEventListener("change", syncContractsBulkAssignmentUi);
+  contractsBulkApplyButton?.addEventListener("click", () => {
+    void applyContractsBulkAssignment();
+  });
+  personalImportExcelButton?.addEventListener("click", () => {
+    personalImportExcelInput?.click();
+  });
+  personalImportExcelInput?.addEventListener("change", () => {
+    void importPersonalExcelFile(personalImportExcelInput.files?.[0]);
+  });
+  closePersonalImportPanelButton?.addEventListener("click", closePersonalImportPanel);
+  personalImportOverlay?.addEventListener("click", closePersonalImportPanel);
+  personalImportSelectAll?.addEventListener("change", () => {
+    toggleAllPersonalImportRows(Boolean(personalImportSelectAll.checked));
+  });
+  personalImportApplyButton?.addEventListener("click", () => {
+    void applySelectedPersonalImportRows();
+  });
+  personalImportPreviewTableBody?.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-personal-import-select]");
+    if (!checkbox) {
+      return;
+    }
+    togglePersonalImportRow(checkbox.dataset.personalImportSelect, Boolean(checkbox.checked));
+  });
+  personalNewButton?.addEventListener("click", startNewPersonal);
+  personalRefreshButton?.addEventListener("click", () => {
+    void loadPersonalManagement();
+  });
+  personalVinculacionFilter?.addEventListener("change", applyPersonalFilters);
+  personalTextFilter?.addEventListener("input", debounce(applyPersonalFilters, 160));
+  personalList?.addEventListener("change", () => {
+    selectPersonal(personalList.value);
+  });
+  personalEditButton?.addEventListener("click", startEditPersonal);
+  personalCancelButton?.addEventListener("click", () => {
+    if (currentPersonalMode === "new") {
+      selectPersonal(filteredPersonalRows[0]?.id || "");
+      return;
+    }
+    selectPersonal(currentSelectedPersonalId);
+  });
+  personalForm?.addEventListener("submit", (event) => {
+    void savePersonal(event);
+  });
+  contractsTableBody?.addEventListener("click", (event) => {
+    const contractId = event.target.closest("[data-contract-edit]")?.dataset.contractEdit;
+    if (contractId) {
+      openContractDetailPanel(contractId);
+    }
+  });
+  closeContractDetailButton?.addEventListener("click", closeContractDetailPanel);
+  contractDetailOverlay?.addEventListener("click", closeContractDetailPanel);
+  contractDetailForm?.addEventListener("submit", (event) => {
+    void saveContract(event);
+  });
+  contractDetailDeleteButton?.addEventListener("click", () => {
+    void deleteCurrentContract();
+  });
+  contractServiceForm?.addEventListener("submit", (event) => {
+    void saveContractService(event);
+  });
+  contractServiceClearButton?.addEventListener("click", resetContractServiceForm);
+  contractServicesList?.addEventListener("click", (event) => {
+    const editServiceId = event.target.closest("[data-contract-service-edit]")?.dataset.contractServiceEdit;
+    if (editServiceId) {
+      editContractService(editServiceId);
+      return;
+    }
+
+    const deleteServiceId = event.target.closest("[data-contract-service-delete]")?.dataset.contractServiceDelete;
+    if (deleteServiceId) {
+      void deleteContractService(deleteServiceId);
+    }
+  });
+  contractPersonalAddButton?.addEventListener("click", () => {
+    void setContractPersonalBatch(getSelectedOptionValues(contractPersonalAvailableSelect), true);
+  });
+  contractPersonalRemoveButton?.addEventListener("click", () => {
+    void setContractPersonalBatch(getSelectedOptionValues(contractPersonalSelectedSelect), false);
+  });
+  contractPersonalAvailableSelect?.addEventListener("dblclick", (event) => {
+    const value = event.target.closest("option")?.value || contractPersonalAvailableSelect.value;
+    if (value) {
+      void setContractPersonalBatch([value], true);
+    }
+  });
+  contractPersonalSelectedSelect?.addEventListener("dblclick", (event) => {
+    const value = event.target.closest("option")?.value || contractPersonalSelectedSelect.value;
+    if (value) {
+      void setContractPersonalBatch([value], false);
+    }
+  });
+  contractPersonalFilter?.addEventListener("input", debounce(renderContractAssignmentOptions, 160));
+  contractInstallationAddButton?.addEventListener("click", () => {
+    void setContractInstallationBatch(getSelectedOptionValues(contractInstallationAvailableSelect), true);
+  });
+  contractInstallationRemoveButton?.addEventListener("click", () => {
+    void setContractInstallationBatch(getSelectedOptionValues(contractInstallationSelectedSelect), false);
+  });
+  contractInstallationAvailableSelect?.addEventListener("dblclick", (event) => {
+    const value =
+      event.target.closest("option")?.value || contractInstallationAvailableSelect.value;
+    if (value) {
+      void setContractInstallationBatch([value], true);
+    }
+  });
+  contractInstallationSelectedSelect?.addEventListener("dblclick", (event) => {
+    const value =
+      event.target.closest("option")?.value || contractInstallationSelectedSelect.value;
+    if (value) {
+      void setContractInstallationBatch([value], false);
+    }
+  });
+  contractInstallationFilter?.addEventListener("input", debounce(renderContractAssignmentOptions, 160));
   openCandidateCreateButton?.addEventListener("click", openCandidateCreatePanel);
   closeCandidateCreateButton?.addEventListener("click", closeCandidateCreatePanel);
   candidateCreateOverlay?.addEventListener("click", closeCandidateCreatePanel);
@@ -9765,6 +14503,11 @@ async function init() {
   createTagButton.addEventListener("click", handleCreateTag);
   selectedTagsContainer.addEventListener("click", handleTagsClick);
   availableTagsContainer.addEventListener("click", handleTagsClick);
+  filtersForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    currentPage = 1;
+    applyCandidateFilters();
+  });
   filtersForm.addEventListener("input", debouncedCandidateFilters);
   filtersForm.addEventListener("change", () => {
     currentPage = 1;
@@ -9828,6 +14571,22 @@ async function init() {
       setStatus(error?.message || "No se pudieron actualizar los eventos.", "error");
     });
   });
+  eventPersonnelReportPdfButton?.addEventListener("click", () => {
+    void exportEventPersonnelReportToPdf();
+  });
+  eventPersonnelReportImageButton?.addEventListener("click", showEventPersonnelReportImage);
+  closeEventReportImageButton?.addEventListener("click", closeEventReportImagePanel);
+  eventReportImageBackdrop?.addEventListener("click", closeEventReportImagePanel);
+  copyEventReportImageButton?.addEventListener("click", () => {
+    void copyEventReportImageToClipboard();
+  });
+  downloadEventReportImageButton?.addEventListener("click", () => {
+    void downloadEventReportImage();
+  });
+  eventsFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    renderEventsTable();
+  });
   eventsFiltersForm?.addEventListener("input", renderEventsTable);
   eventsFiltersForm?.addEventListener("change", renderEventsTable);
   eventsFiltersForm?.addEventListener("click", (event) => {
@@ -9838,13 +14597,21 @@ async function init() {
 
     resetSingleEventFilter(resetButton.dataset.resetEventFilter);
   });
+  eventsTableBody?.addEventListener("input", (event) => {
+    const assignmentTimeInput = event.target.closest("[data-event-assignment-time]");
+    if (!assignmentTimeInput) {
+      return;
+    }
+
+    queueEventAssignmentSave(assignmentTimeInput.dataset.eventAssignmentTime);
+  });
   eventsTableBody?.addEventListener("change", (event) => {
     const assignmentTimeInput = event.target.closest("[data-event-assignment-time]");
     if (!assignmentTimeInput) {
       return;
     }
 
-    void saveEventAssignment(assignmentTimeInput.dataset.eventAssignmentTime);
+    queueEventAssignmentSave(assignmentTimeInput.dataset.eventAssignmentTime);
   });
   eventsTableBody?.addEventListener("click", (event) => {
     const toggleId = event.target.closest("[data-event-toggle-id]")?.dataset.eventToggleId;
@@ -9919,6 +14686,58 @@ async function init() {
     });
   });
   eventScheduleNeedsTransportInput?.addEventListener("change", syncEventScheduleTransportField);
+  recordsFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadRecords();
+  });
+  recordsFiltersForm?.addEventListener("change", () => {
+    recordsExternalActivityFilter = document.querySelector("#records-filter-actividad")?.value || "";
+    void loadRecords();
+  });
+  recordsFiltersForm?.addEventListener("input", (event) => {
+    if (event.target?.id === "records-filter-search") {
+      applyRecordsClientFilters();
+      renderRecordsTable();
+      return;
+    }
+    recordsExternalActivityFilter = document.querySelector("#records-filter-actividad")?.value || "";
+  });
+  recordsClearFiltersButton?.addEventListener("click", () => {
+    recordsExternalActivityFilter = "";
+    recordsFiltersForm?.reset();
+    void loadRecords();
+  });
+  recordsRefreshButton?.addEventListener("click", () => {
+    void loadRecords();
+  });
+  recordsEditModeInput?.addEventListener("change", renderRecordsTable);
+  recordsTableBody?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-record-cell]")) {
+      return;
+    }
+    const row = event.target.closest("[data-record-id]");
+    if (row) {
+      openRecordDetail(row.dataset.recordId);
+    }
+  });
+  recordsTableBody?.addEventListener("focusout", (event) => {
+    const control = event.target.closest("[data-record-cell]");
+    if (control && control.type !== "checkbox") {
+      void handleRecordCellCommit(control);
+    }
+  });
+  recordsTableBody?.addEventListener("change", (event) => {
+    const control = event.target.closest("[data-record-cell]");
+    if (control && control.type === "checkbox") {
+      void handleRecordCellCommit(control);
+    }
+  });
+  recordDetailForm?.addEventListener("submit", (event) => {
+    void handleRecordDetailSubmit(event);
+  });
+  recordDetailCloseButton?.addEventListener("click", closeRecordDetail);
+  recordDetailCancelButton?.addEventListener("click", cancelRecordDetailEdit);
+  recordDetailOverlay?.addEventListener("click", closeRecordDetail);
   controlClearFiltersButton?.addEventListener("click", clearControlFilters);
   controlExportCsvButton.addEventListener("click", exportControlRecordsToCsv);
   controlExportPdfButton.addEventListener("click", exportControlRecordsToPdf);
@@ -9938,6 +14757,10 @@ async function init() {
     void prepareControlImportFromCsv(file).finally(() => {
       controlImportCsvInput.value = "";
     });
+  });
+  controlImportPreviewFilters?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    applyControlImportPreviewFilters();
   });
   controlImportPreviewFilters?.addEventListener("change", applyControlImportPreviewFilters);
   controlImportPreviewConfirmButton?.addEventListener("click", () => {
@@ -9961,6 +14784,12 @@ async function init() {
   });
   controlSelectPageCheckbox?.addEventListener("change", () => {
     toggleCurrentControlPageSelection(controlSelectPageCheckbox.checked);
+  });
+  controlFiltersForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    controlCurrentPage = 1;
+    controlPersonalSuggestions?.classList.add("hidden");
+    void fetchControlFilterOptions().then(() => fetchControlRecords());
   });
   controlFiltersForm.addEventListener("input", (event) => {
     if (event.target === controlPersonalInput) {
@@ -10075,12 +14904,16 @@ async function init() {
     applyProgrammingImportPreviewFilters();
   });
   programmingImportPreviewInstallation?.addEventListener("change", applyProgrammingImportPreviewFilters);
+  programmingImportPreviewFilters?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    applyProgrammingImportPreviewFilters();
+  });
   programmingImportPreviewFilters?.addEventListener("input", debouncedProgrammingImportFilters);
   programmingImportForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     const file = programmingImportFileInput?.files?.[0];
     if (!file) {
-      setStatus("Selecciona un archivo Word o CSV para cargar datos.", "error");
+      setProgrammingImportStatus("Selecciona un archivo Word o CSV para cargar datos.", "error");
       return;
     }
 
@@ -10088,15 +14921,16 @@ async function init() {
     const prepareFile = isCsv ? prepareProgrammingImportCsv : prepareProgrammingWordFile;
     const fileLabel = isCsv ? "CSV" : "Word";
 
+    setProgrammingImportStatus(`Procesando ${fileLabel}...`);
     void prepareFile(file)
       .then(() => {
-        setStatus(
+        setProgrammingImportStatus(
           `${fileLabel} procesado correctamente. Registros detectados: ${pendingProgrammingImportRows.length}.`,
           "success"
         );
       })
       .catch((error) => {
-        setStatus(`No se pudo procesar el ${fileLabel}: ${error.message}`, "error");
+        setProgrammingImportStatus(`No se pudo procesar el ${fileLabel}: ${error.message}`, "error");
       });
   });
   programmingDownloadCsvButton?.addEventListener("click", downloadProgrammingCsv);
@@ -10244,6 +15078,12 @@ async function init() {
   });
   programmingFilterDate?.addEventListener("change", () => {
     syncProgrammingDateScopedFilters();
+    applyProgrammingFilters();
+    suggestBulkPersonalFromCurrentFilter();
+    suggestBulkInstallationFromCurrentFilter();
+  });
+  programmingFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
     applyProgrammingFilters();
     suggestBulkPersonalFromCurrentFilter();
     suggestBulkInstallationFromCurrentFilter();

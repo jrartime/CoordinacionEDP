@@ -616,13 +616,12 @@ async function fetchAllFilteredControlRecordsForBulk() {
 
   while (offset < maxRows) {
     let query = supabase
-      .from("registros")
+      .from("registros_horarios")
       .select(
         "id, personal, dni, centro, puesto, fecha, hora_inicio, hora_fin, tipo_jornada, observacion, eliminado, control"
       )
       .range(offset, offset + fetchPageSize - 1);
     query = applyControlFiltersToQuery(query, filters);
-    query = applyControlPersonalFilterToQuery(query, filters);
     query = applyControlSortToQuery(query);
 
     const { data, error } = await query;
@@ -635,7 +634,7 @@ async function fetchAllFilteredControlRecordsForBulk() {
       break;
     }
 
-    rows.push(...data.map(enrichControlRecord));
+    rows.push(...data.map(enrichControlRecord).filter((row) => controlRecordMatchesFilters(row, filters)));
     offset += data.length;
 
     if (data.length < fetchPageSize) {
@@ -1307,7 +1306,7 @@ async function importPreparedControlRecords() {
 
   if (pendingControlImport.needsIdAssignment) {
     const { data, error } = await supabase
-      .from("registros")
+      .from("registros_horarios")
       .select("id")
       .order("id", { ascending: false })
       .limit(1);
@@ -1328,7 +1327,7 @@ async function importPreparedControlRecords() {
 
   for (let index = 0; index < records.length; index += batchSize) {
     const chunk = records.slice(index, index + batchSize);
-    const { error } = await supabase.from("registros").upsert(chunk, {
+    const { error } = await supabase.from("registros_horarios").upsert(chunk, {
       onConflict: "id",
     });
 
@@ -1437,7 +1436,7 @@ async function deleteSelectedControlRecords() {
   }
 
   const supabase = await getSupabaseClient();
-  const { error } = await supabase.from("registros").delete().in("id", ids);
+  const { error } = await supabase.from("registros_horarios").delete().in("id", ids);
   if (error) {
     setStatus(`No se pudieron borrar los registros seleccionados: ${error.message}`, "error");
     return;
@@ -1463,12 +1462,12 @@ async function deleteFilteredControlRecords() {
   try {
     const supabase = await getSupabaseClient();
     countQuery = applyControlFiltersToQuery(
-      supabase.from("registros").select("id", { count: "exact", head: true }),
+      supabase.from("registros_horarios").select("id", { count: "exact", head: true }),
       filters,
       { requireDateRange: true }
     );
     deleteQuery = applyControlFiltersToQuery(
-      supabase.from("registros").delete(),
+      supabase.from("registros_horarios").delete(),
       filters,
       { requireDateRange: true }
     );
@@ -1617,7 +1616,7 @@ async function saveControlDetail(event) {
 
   const supabase = await getSupabaseClient();
   const { error } = await supabase
-    .from("registros")
+    .from("registros_horarios")
     .update({
       personal,
       dni,
@@ -1663,7 +1662,7 @@ async function deleteControlRecord(recordId) {
   }
 
   const supabase = await getSupabaseClient();
-  const { error } = await supabase.from("registros").delete().eq("id", row.id);
+  const { error } = await supabase.from("registros_horarios").delete().eq("id", row.id);
 
   if (error) {
     setStatus(`No se pudo borrar el registro: ${error.message}`, "error");
@@ -1698,8 +1697,58 @@ async function fetchControlRecords() {
   const supabase = await getSupabaseClient();
   const from = (controlCurrentPage - 1) * controlPageSize;
   const to = from + controlPageSize - 1;
+
+  if (filters.personal) {
+    const [records, summaryResult] = await Promise.all([
+      fetchAllFilteredControlRecordsForBulk(),
+      fetchControlSummary(filters).then(
+        () => ({ ok: true }),
+        (summaryError) => ({ ok: false, error: summaryError })
+      ),
+    ]);
+
+    if (requestId !== controlRecordsFetchRequestId) {
+      return currentControlRecords;
+    }
+
+    currentControlRecords = records.slice(from, to + 1);
+    filteredControlRecords = currentControlRecords;
+    if (controlSelectiveDeleteMode) {
+      const filteredIds = new Set(currentControlRecords.map((row) => String(row.id)));
+      selectedControlDeleteIds = new Set(
+        [...selectedControlDeleteIds].filter((id) => filteredIds.has(id))
+      );
+    }
+    controlRecordsTotalCount = records.length;
+    controlResultsTruncated = !summaryResult.ok;
+    controlCurrentPage = Math.min(
+      Math.max(controlCurrentPage, 1),
+      Math.max(1, Math.ceil(controlRecordsTotalCount / controlPageSize))
+    );
+    if (!summaryResult.ok) {
+      controlRecordsTotalMinutes = records.reduce((total, row) => {
+        return total + calculateWorkedMinutes(row.hora_inicio, row.hora_fin);
+      }, 0);
+    }
+    renderControlRecords(currentControlRecords);
+    renderControlSummary(
+      currentControlRecords,
+      controlResultsTruncated
+        ? `Resumen completo pendiente de instalar en Supabase. Mostrando solo la pagina actual.`
+        : undefined
+    );
+    updateControlPaginationUi(controlRecordsTotalCount, currentControlRecords.length);
+    if (controlResultsTruncated) {
+      setStatus(
+        `Listado paginado cargado. Ejecuta la funcion get_control_records_summary en Supabase para ver totales completos.`,
+        "error"
+      );
+    }
+    return currentControlRecords;
+  }
+
   let query = supabase
-    .from("registros")
+    .from("registros_horarios")
     .select(
       "id, personal, dni, centro, puesto, fecha, hora_inicio, hora_fin, tipo_jornada, observacion, eliminado, control",
       { count: "exact" }
@@ -1822,7 +1871,7 @@ async function fetchControlFilterOptions() {
 
   while (offset < maxRows) {
     let query = supabase
-        .from("registros")
+        .from("registros_horarios")
         .select("id, personal, dni, centro, puesto, fecha")
         .order("id", { ascending: true })
         .range(offset, offset + fetchPageSize - 1);
@@ -1997,3 +2046,4 @@ function initControlFilters() {
   controlPuestoInput.value = "";
   controlCurrentPage = 1;
 }
+
