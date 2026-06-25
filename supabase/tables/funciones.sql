@@ -31,5 +31,9 @@ create table if not exists public.funciones (
   funcion text not null,
   siglas text,
   grupo text,
-  formacion_horario boolean not null default false
+  formacion_horario boolean not null default false,
+  activo boolean not null default true
 );
+
+alter table public.funciones
+  add column if not exists activo boolean not null default true;

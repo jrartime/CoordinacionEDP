@@ -141,10 +141,11 @@ const SETTINGS_CATALOGS = {
     singularLabel: "puesto",
     table: "puestos",
     order: "puesto",
-    columns: "id,puesto,detalle_puesto,siglas,convenio_grupo_nivel,categoria_id,dea,rec_medico,epi,clausula_preferencia",
+    columns: "id,puesto,detalle_puesto,siglas,convenio_grupo_nivel,categoria_id,dea,rec_medico,epi,clausula_preferencia,activo",
     fields: [
       { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
       { key: "puesto", label: "Puesto", type: "text", required: true },
+      { key: "activo", label: "Activo", type: "checkbox" },
       { key: "detalle_puesto", label: "Detalle", type: "textarea" },
       { key: "siglas", label: "Siglas", type: "text" },
       { key: "convenio_grupo_nivel", label: "Convenio grupo nivel", type: "number" },
@@ -154,7 +155,7 @@ const SETTINGS_CATALOGS = {
       { key: "epi", label: "EPI", type: "checkbox" },
       { key: "clausula_preferencia", label: "Cláusula preferencia", type: "checkbox" },
     ],
-    listFields: ["id", "puesto", "siglas", "detalle_puesto"],
+    listFields: ["puesto", "detalle_puesto", "activo"],
     titleField: "puesto",
     usageReferences: [
       { table: "actividades", label: "Actividades", column: "puesto_id" },
@@ -167,15 +168,16 @@ const SETTINGS_CATALOGS = {
     singularLabel: "función",
     table: "funciones",
     order: "funcion",
-    columns: "id,funcion,siglas,grupo,formacion_horario",
+    columns: "id,funcion,siglas,grupo,formacion_horario,activo",
     fields: [
       { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
       { key: "funcion", label: "Función", type: "text", required: true },
+      { key: "activo", label: "Activo", type: "checkbox" },
       { key: "siglas", label: "Siglas", type: "text" },
       { key: "grupo", label: "Grupo", type: "text" },
       { key: "formacion_horario", label: "Formación horario", type: "checkbox" },
     ],
-    listFields: ["id", "funcion", "siglas", "grupo"],
+    listFields: ["funcion", "grupo", "activo"],
     titleField: "funcion",
     usageReferences: [
       { table: "actividades", label: "Actividades", column: "funcion_id" },
@@ -187,13 +189,14 @@ const SETTINGS_CATALOGS = {
     singularLabel: "modalidad",
     table: "modalidades",
     order: "modalidad",
-    columns: "id,modalidad,siglas",
+    columns: "id,modalidad,siglas,activo",
     fields: [
       { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
       { key: "modalidad", label: "Modalidad", type: "text", required: true },
+      { key: "activo", label: "Activo", type: "checkbox" },
       { key: "siglas", label: "Siglas", type: "text" },
     ],
-    listFields: ["id", "modalidad", "siglas"],
+    listFields: ["modalidad", "activo"],
     titleField: "modalidad",
     usageReferences: [
       { table: "actividades", label: "Actividades", column: "modalidad_id" },
@@ -9379,6 +9382,35 @@ function clearPersonalForm() {
   });
 }
 
+function normalizeAccountNumber(value) {
+  return String(value ?? "").replace(/\s+/g, "").toUpperCase();
+}
+
+function formatAccountNumber(value) {
+  return normalizeAccountNumber(value).replace(/(.{4})/g, "$1 ").trim();
+}
+
+function reformatAccountNumberInput(input) {
+  if (!input) {
+    return;
+  }
+  const charsBeforeCaret = String(input.value).slice(0, input.selectionStart ?? input.value.length).replace(/\s+/g, "").length;
+  const formatted = formatAccountNumber(input.value);
+  input.value = formatted;
+  let count = 0;
+  let caret = formatted.length;
+  for (let i = 0; i < formatted.length; i += 1) {
+    if (count >= charsBeforeCaret) {
+      caret = i;
+      break;
+    }
+    if (formatted[i] !== " ") {
+      count += 1;
+    }
+  }
+  input.setSelectionRange(caret, caret);
+}
+
 function fillPersonalForm(row) {
   clearPersonalForm();
   if (!row) {
@@ -9395,6 +9427,8 @@ function fillPersonalForm(row) {
       input.checked = Boolean(value);
     } else if (field.type === "date") {
       input.value = formatNullableDate(value);
+    } else if (field.key === "cuenta_corriente") {
+      input.value = formatAccountNumber(value);
     } else {
       input.value = value ?? "";
     }
@@ -9548,6 +9582,11 @@ function collectPersonalPayload() {
     const rawValue = String(input.value ?? "").trim();
     if (!rawValue) {
       payload[field.key] = null;
+      return;
+    }
+
+    if (field.key === "cuenta_corriente") {
+      payload[field.key] = normalizeAccountNumber(rawValue);
       return;
     }
 
@@ -11081,7 +11120,7 @@ function openSettingsDetail(mode = "new", rowId = "") {
   currentSettingsEditingId = rowId ? String(rowId) : "";
   const row = mode === "edit"
     ? currentSettingsRows.find((item) => String(item.id) === currentSettingsEditingId) || {}
-    : { id: getNextSettingsId() };
+    : { id: getNextSettingsId(), activo: true };
 
   settingsDetailTitle.textContent =
     mode === "edit"
@@ -11145,6 +11184,37 @@ async function saveSettingsDetail(event) {
   }
 
   const supabase = await getSupabaseClient();
+
+  // Aviso al desactivar un registro que esta en uso: se permite, pero el valor
+  // dejara de aparecer en los desplegables (seguira vigente en los registros
+  // existentes que ya lo referencian).
+  if (currentSettingsMode === "edit" && payload.activo === false) {
+    const previousRow = currentSettingsRows.find(
+      (item) => String(item.id) === currentSettingsEditingId
+    );
+    const wasActive = previousRow ? previousRow.activo !== false : true;
+    if (wasActive) {
+      let usage = [];
+      try {
+        usage = await getSettingsReferenceUsage(supabase, config, currentSettingsEditingId);
+      } catch (error) {
+        setSettingsStatus(`No se pudo comprobar si el registro está en uso: ${error.message}`, "error");
+        return;
+      }
+      if (usage.length) {
+        const label = previousRow?.[config.titleField] || `ID ${currentSettingsEditingId}`;
+        const usageText = usage.map((item) => `${item.label}: ${item.count}`).join("; ");
+        const confirmed = window.confirm(
+          `Estás desactivando "${label}", que está en uso en ${usageText}.\n\n` +
+            "Seguirá vigente en esos registros, pero dejará de aparecer en los desplegables. ¿Continuar?"
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+    }
+  }
+
   const updatePayload = { ...payload };
   if (currentSettingsMode === "edit") {
     delete updatePayload.id;
@@ -14378,6 +14448,11 @@ async function init() {
   });
   personalForm?.addEventListener("submit", (event) => {
     void savePersonal(event);
+  });
+  personalForm?.addEventListener("input", (event) => {
+    if (event.target?.name === "cuenta_corriente") {
+      reformatAccountNumberInput(event.target);
+    }
   });
   contractsTableBody?.addEventListener("click", (event) => {
     const contractId = event.target.closest("[data-contract-edit]")?.dataset.contractEdit;

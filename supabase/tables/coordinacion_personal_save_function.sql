@@ -23,7 +23,7 @@ create or replace function public.save_coordinacion_personal(
   p_personal jsonb
 )
 returns table (
-  personal_id integer
+  saved_personal_id integer
 )
 language plpgsql
 security definer
@@ -187,7 +187,7 @@ begin
       fecha_nacimiento = excluded.fecha_nacimiento;
   end if;
 
-  return query select payload_id as personal_id;
+  return query select payload_id as saved_personal_id;
 end;
 $$;
 

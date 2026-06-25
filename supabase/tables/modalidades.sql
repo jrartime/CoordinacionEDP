@@ -29,5 +29,9 @@ end $$;
 create table if not exists public.modalidades (
   id integer primary key,
   modalidad text not null,
-  siglas text
+  siglas text,
+  activo boolean not null default true
 );
+
+alter table public.modalidades
+  add column if not exists activo boolean not null default true;

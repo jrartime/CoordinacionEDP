@@ -36,5 +36,9 @@ create table if not exists public.puestos (
   dea boolean not null default false,
   rec_medico integer,
   epi boolean not null default false,
-  clausula_preferencia boolean not null default false
+  clausula_preferencia boolean not null default false,
+  activo boolean not null default true
 );
+
+alter table public.puestos
+  add column if not exists activo boolean not null default true;

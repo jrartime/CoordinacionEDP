@@ -1407,6 +1407,12 @@
       rows.push(selectedRow);
     }
 
+    // Si el contrato no tiene personal asignado en contrato_personal (roster
+    // vacio), no se bloquea la creacion: se ofrece toda la plantilla.
+    if (!rows.length) {
+      return activityPersonalRows;
+    }
+
     return rows;
   }
 
@@ -1436,19 +1442,41 @@
     return rows;
   }
 
+  function renderActivityPersonalSelect(select, contratoId, selectedValue = "") {
+    if (!select) {
+      return;
+    }
+    const desired = String(selectedValue || select.value || "");
+    const rosterRows = getActivityPersonalRowsForContract(contratoId, desired);
+    const rosterIds = new Set(rosterRows.map((row) => Number(row.id)));
+    const otherRows = activityPersonalRows.filter((row) => !rosterIds.has(Number(row.id)));
+
+    const buildOptions = (rows) =>
+      rows
+        .map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.personal || `ID ${row.id}`)}</option>`)
+        .join("");
+
+    const parts = ['<option value="">Seleccionar personal</option>'];
+    if (Number(contratoId) && rosterRows.length && otherRows.length) {
+      // Personal del contrato primero; el resto de la plantilla queda disponible
+      // para poder asignar a personas nuevas todavia no incluidas en el contrato.
+      parts.push(`<optgroup label="Asignados al contrato">${buildOptions(rosterRows)}</optgroup>`);
+      parts.push(`<optgroup label="Resto del personal">${buildOptions(otherRows)}</optgroup>`);
+    } else {
+      parts.push(buildOptions(activityPersonalRows));
+    }
+
+    select.innerHTML = parts.join("");
+    select.value = Array.from(select.options).some((option) => option.value === desired) ? desired : "";
+  }
+
   function renderActivityContractScopedOptions(form, selectedPersonalId = "", selectedInstallationId = "") {
     const contractSelect = form === activityEditForm ? editActivityContrato : activityContrato;
     const personalSelect = form === activityEditForm ? editActivityPersonal : activityPersonal;
     const installationSelect = form === activityEditForm ? editActivityInstalacion : activityInstalacion;
     const contratoId = contractSelect?.value || "";
 
-    renderCatalogOptions(
-      personalSelect,
-      getActivityPersonalRowsForContract(contratoId, selectedPersonalId || personalSelect?.value),
-      "id",
-      "personal",
-      "Seleccionar personal"
-    );
+    renderActivityPersonalSelect(personalSelect, contratoId, selectedPersonalId || personalSelect?.value);
     renderCatalogOptions(
       installationSelect,
       getActivityInstallationRowsForContract(contratoId, selectedInstallationId || installationSelect?.value),
@@ -2275,9 +2303,15 @@
         fetchCatalog(supabase, "instalaciones", "id,instalacion", "instalacion", [
           { column: "activo", value: true },
         ]),
-        fetchCatalog(supabase, "puestos", "id,puesto", "puesto"),
-        fetchCatalog(supabase, "funciones", "id,funcion", "funcion"),
-        fetchCatalog(supabase, "modalidades", "id,modalidad", "modalidad"),
+        fetchCatalog(supabase, "puestos", "id,puesto", "puesto", [
+          { column: "activo", value: true },
+        ]),
+        fetchCatalog(supabase, "funciones", "id,funcion", "funcion", [
+          { column: "activo", value: true },
+        ]),
+        fetchCatalog(supabase, "modalidades", "id,modalidad", "modalidad", [
+          { column: "activo", value: true },
+        ]),
         fetchCatalog(supabase, "situaciones", "id,situacion", "situacion"),
         fetchCatalog(supabase, "tipo_horas", "id,tipo_hora", "tipo_hora"),
         fetchCatalog(supabase, "servicios", "id,contrato_id,servicio", "servicio", [
