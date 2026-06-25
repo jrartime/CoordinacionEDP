@@ -984,6 +984,7 @@ const accessUserTabsContainer = document.querySelector("#access-user-tabs");
 const accessUserServicesSelect = document.querySelector("#access-user-services");
 const accessUserSaveButton = document.querySelector("#access-user-save-button");
 const accessUserClearButton = document.querySelector("#access-user-clear-button");
+const accessUserDeleteButton = document.querySelector("#access-user-delete-button");
 const accessStatus = document.querySelector("#access-status");
 const accessUsersTableBody = document.querySelector("#access-users-table-body");
 const settingsSubtabButtons = Array.from(document.querySelectorAll("[data-settings-catalog]"));
@@ -10939,14 +10940,13 @@ function renderSettingsTable() {
           </th>
         `;
       }).join("")}
-      <th>Acciones</th>
     </tr>
   `;
 
   if (!currentSettingsRows.length) {
     settingsTableBody.innerHTML = `
       <tr>
-        <td colspan="${config.listFields.length + 1}" class="empty-state">No hay registros en ${escapeHtml(config.label)}.</td>
+        <td colspan="${config.listFields.length}" class="empty-state">No hay registros en ${escapeHtml(config.label)}.</td>
       </tr>
     `;
     return;
@@ -10956,10 +10956,15 @@ function renderSettingsTable() {
     .map(
       (row) => `
         <tr>
-          ${config.listFields.map((field) => `<td>${escapeHtml(formatSettingsCell(row[field]))}</td>`).join("")}
-          <td>
-            <button type="button" class="table-action tooltip-button" aria-label="Editar registro" data-settings-edit="${escapeHtml(row.id)}">${renderIcon("edit")}</button>
-          </td>
+          ${config.listFields
+            .map((field, index) => {
+              const value = escapeHtml(formatSettingsCell(row[field]));
+              if (index === 0) {
+                return `<td><button type="button" class="row-name-button" data-settings-edit="${escapeHtml(row.id)}" aria-label="Editar registro">${value}</button></td>`;
+              }
+              return `<td>${value}</td>`;
+            })
+            .join("")}
         </tr>
       `
     )
@@ -11394,13 +11399,13 @@ function renderAccessUsers() {
 
   if (!currentUserIsAccessAdmin) {
     accessUsersTableBody.innerHTML =
-      '<tr><td colspan="6" class="empty-state">Solo admin puede gestionar accesos.</td></tr>';
+      '<tr><td colspan="5" class="empty-state">Solo admin puede gestionar accesos.</td></tr>';
     return;
   }
 
   if (!currentAccessUsers.length) {
     accessUsersTableBody.innerHTML =
-      '<tr><td colspan="6" class="empty-state">No hay usuarios configurados.</td></tr>';
+      '<tr><td colspan="5" class="empty-state">No hay usuarios configurados.</td></tr>';
     return;
   }
 
@@ -11421,32 +11426,15 @@ function renderAccessUsers() {
       return `
         <tr data-access-user-row="${escapeHtml(user.user_id)}">
           <td>
-            <strong>${escapeHtml(user.nombre || "Sin nombre")}</strong>
+            <button type="button" class="row-name-button" data-access-edit="${escapeHtml(user.user_id)}" aria-label="Editar usuario ${escapeHtml(user.nombre || "Sin nombre")}">
+              ${escapeHtml(user.nombre || "Sin nombre")}
+            </button>
             <span class="muted-block">${escapeHtml(user.user_id)}</span>
           </td>
           <td>${escapeHtml(user.rol)}</td>
           <td>${escapeHtml(user.activo ? "Activo" : "Inactivo")}</td>
           <td>${escapeHtml(tabSummary)}</td>
           <td>${escapeHtml(serviceSummary)}</td>
-          <td>
-            <div class="action-buttons">
-              <button
-                type="button"
-                class="secondary-button"
-                data-access-edit="${escapeHtml(user.user_id)}"
-              >
-                Editar
-              </button>
-              <button
-                type="button"
-                class="danger-button tooltip-button"
-                aria-label="Eliminar usuario"
-                data-access-delete="${escapeHtml(user.user_id)}"
-              >
-                ${renderIcon("delete")}
-              </button>
-            </div>
-          </td>
         </tr>
       `;
     })
@@ -11546,6 +11534,7 @@ function openAccessUserPanel(mode = "new") {
   if (accessUserPanelTitle) {
     accessUserPanelTitle.textContent = mode === "edit" ? "Editar usuario" : "Nuevo usuario";
   }
+  accessUserDeleteButton?.classList.toggle("hidden", mode !== "edit");
   accessUserPanel?.classList.remove("hidden");
   if (mode === "new") {
     resetAccessUserForm();
@@ -11749,6 +11738,7 @@ async function deleteAccessUser(userId) {
     return;
   }
 
+  closeAccessUserPanel();
   await loadAccessManagement();
   setAccessStatus("Usuario eliminado correctamente.", "success");
 }
@@ -14303,6 +14293,12 @@ async function init() {
     void saveAccessUserFromForm(event);
   });
   accessUserClearButton?.addEventListener("click", closeAccessUserPanel);
+  accessUserDeleteButton?.addEventListener("click", () => {
+    const userId = accessUserIdInput?.value.trim() || "";
+    if (userId) {
+      void deleteAccessUser(userId);
+    }
+  });
   accessUsersTableBody?.addEventListener("click", (event) => {
     const editUserId = event.target.closest("[data-access-edit]")?.dataset.accessEdit;
     if (editUserId) {
@@ -14313,12 +14309,6 @@ async function init() {
     const saveUserId = event.target.closest("[data-access-save]")?.dataset.accessSave;
     if (saveUserId) {
       void saveAccessUserRow(saveUserId);
-      return;
-    }
-
-    const deleteUserId = event.target.closest("[data-access-delete]")?.dataset.accessDelete;
-    if (deleteUserId) {
-      void deleteAccessUser(deleteUserId);
     }
   });
   contractsNewButton?.addEventListener("click", () => openContractDetailPanel());

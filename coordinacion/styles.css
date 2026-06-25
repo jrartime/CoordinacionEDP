@@ -1611,8 +1611,23 @@ button:hover,
   color: var(--muted);
 }
 
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .access-table-wrap {
   margin-top: 14px;
+}
+
+/* Las tablas de Accesos y Configuracion reutilizan .records-table, que impone
+   un min-width de 2800px pensado para la tabla maestra de Personal. Aqui se
+   anula para que se ajusten al ancho del panel y no desborden la pantalla. */
+.access-table-wrap .records-table.access-users-table,
+.access-table-wrap .records-table.settings-table {
+  min-width: 0;
+  width: 100%;
 }
 
 #private-tab-panel-contracts {
@@ -1650,8 +1665,11 @@ button:hover,
 }
 
 .contract-name-button,
+.row-name-button,
 .contract-name-button:hover,
-.contract-name-button:active {
+.row-name-button:hover,
+.contract-name-button:active,
+.row-name-button:active {
   min-height: 0;
   margin: 0;
   padding: 0;
@@ -1665,12 +1683,14 @@ button:hover,
   transform: none;
 }
 
-.contract-name-button:hover {
+.contract-name-button:hover,
+.row-name-button:hover {
   color: var(--accent-dark);
   text-decoration: underline;
 }
 
-.contract-name-button:focus-visible {
+.contract-name-button:focus-visible,
+.row-name-button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
