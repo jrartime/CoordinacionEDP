@@ -3,9 +3,9 @@
   "configurations": [
     {
       "name": "EDP Dev Server (all apps)",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8080"],
-      "port": 8080
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-Command", "python -m http.server $env:PORT"],
+      "autoPort": true
     }
   ]
 }

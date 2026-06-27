@@ -1439,6 +1439,12 @@
       rows.push(selectedRow);
     }
 
+    // Si el contrato no tiene instalaciones asignadas (roster vacio), no se
+    // bloquea: se ofrecen todas las instalaciones.
+    if (!rows.length) {
+      return activityInstallationRows;
+    }
+
     return rows;
   }
 
@@ -1470,6 +1476,34 @@
     select.value = Array.from(select.options).some((option) => option.value === desired) ? desired : "";
   }
 
+  function renderActivityInstallationSelect(select, contratoId, selectedValue = "") {
+    if (!select) {
+      return;
+    }
+    const desired = String(selectedValue || select.value || "");
+    const rosterRows = getActivityInstallationRowsForContract(contratoId, desired);
+    const rosterIds = new Set(rosterRows.map((row) => Number(row.id)));
+    const otherRows = activityInstallationRows.filter((row) => !rosterIds.has(Number(row.id)));
+
+    const buildOptions = (rows) =>
+      rows
+        .map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.instalacion || `ID ${row.id}`)}</option>`)
+        .join("");
+
+    const parts = ['<option value="">Seleccionar instalacion</option>'];
+    if (Number(contratoId) && rosterRows.length && otherRows.length) {
+      // Instalaciones del contrato primero; el resto queda disponible para poder
+      // asignar instalaciones todavia no incluidas en el contrato.
+      parts.push(`<optgroup label="Asignadas al contrato">${buildOptions(rosterRows)}</optgroup>`);
+      parts.push(`<optgroup label="Resto de instalaciones">${buildOptions(otherRows)}</optgroup>`);
+    } else {
+      parts.push(buildOptions(activityInstallationRows));
+    }
+
+    select.innerHTML = parts.join("");
+    select.value = Array.from(select.options).some((option) => option.value === desired) ? desired : "";
+  }
+
   function renderActivityContractScopedOptions(form, selectedPersonalId = "", selectedInstallationId = "") {
     const contractSelect = form === activityEditForm ? editActivityContrato : activityContrato;
     const personalSelect = form === activityEditForm ? editActivityPersonal : activityPersonal;
@@ -1477,13 +1511,7 @@
     const contratoId = contractSelect?.value || "";
 
     renderActivityPersonalSelect(personalSelect, contratoId, selectedPersonalId || personalSelect?.value);
-    renderCatalogOptions(
-      installationSelect,
-      getActivityInstallationRowsForContract(contratoId, selectedInstallationId || installationSelect?.value),
-      "id",
-      "instalacion",
-      "Seleccionar instalacion"
-    );
+    renderActivityInstallationSelect(installationSelect, contratoId, selectedInstallationId || installationSelect?.value);
   }
 
   function isMissingTableError(error, tableName) {

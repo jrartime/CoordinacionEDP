@@ -1989,20 +1989,78 @@ button.tag-chip.warm-button:hover {
   padding: 0 8px;
 }
 
+.records-filters-compact {
+  gap: 3px 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.records-filters-compact label,
+.records-filters-compact .filter-field {
+  gap: 1px;
+  font-size: 0.72rem;
+}
+
+.records-filters-compact input,
+.records-filters-compact select {
+  padding: 2px 4px;
+  font-size: 0.74rem;
+  height: 24px;
+}
+
+.records-filters-compact .filter-actions {
+  align-self: end;
+}
+
+.records-filters-compact .filter-actions button {
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  height: 24px;
+}
+
 .records-table-wrapper {
   max-height: 68vh;
   overflow: auto;
 }
 
 .records-table {
-  min-width: 2800px;
-  table-layout: fixed;
+  min-width: 1800px;
+  table-layout: auto;
+  font-size: 0.76rem;
 }
 
 .records-table th,
 .records-table td {
-  min-width: 110px;
-  max-width: 180px;
+  white-space: normal;
+  word-break: break-word;
+  max-width: 200px;
+  line-height: 1.3;
+  padding: 5px 6px;
+}
+
+.records-table th {
+  white-space: nowrap;
+}
+
+.records-table th .sort-button {
+  font-size: 0.76rem;
+}
+
+.records-table td[data-record-field-read="fecha"] {
+  white-space: nowrap;
+}
+
+.records-table td[data-record-field-read="hora_inicio"],
+.records-table td[data-record-field-read="hora_fin"],
+.records-table td[data-record-field-read="horas"],
+.records-table td[data-record-field-read="hc"],
+.records-table td[data-record-field-read="hf"],
+.records-table td[data-record-field-read="hm"],
+.records-table td[data-record-field-read="hd"],
+.records-table td[data-record-field-read="bolsa_horas"],
+.records-table td[data-record-field-read="horas_diurnas"],
+.records-table td[data-record-field-read="horas_nocturnas"],
+.records-table td[data-record-field-read="clases"],
+.records-table td[data-record-field-read="horas_2"] {
   white-space: nowrap;
 }
 

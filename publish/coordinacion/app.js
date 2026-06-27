@@ -75,41 +75,41 @@ let ACCESS_ASSIGNABLE_TABS = [
 ];
 const ACCESS_ASSIGNABLE_TABS_FALLBACK = [...ACCESS_ASSIGNABLE_TABS];
 const RECORD_COLUMNS = [
-  { key: "id", label: "ID", type: "number", readonly: true },
-  { key: "fecha", label: "Fecha", type: "date" },
-  { key: "actividad_id", label: "Actividad ID", type: "number" },
-  { key: "servicio_id", label: "Servicio ID", type: "number", relationLabelKey: "servicio" },
-  { key: "empresa_id", label: "Empresa ID", type: "number", relationLabelKey: "empresa" },
-  { key: "contrato_id", label: "Contrato ID", type: "number", relationLabelKey: "contrato" },
-  { key: "personal_id", label: "Personal ID", type: "number", relationLabelKey: "personal" },
-  { key: "titular_personal_id", label: "Titular ID", type: "number", relationLabelKey: "titular_personal" },
-  { key: "sustituto_personal_id", label: "Sustituto ID", type: "number", relationLabelKey: "sustituto_personal" },
-  { key: "instalacion_id", label: "Instalacion ID", type: "number", relationLabelKey: "instalacion" },
-  { key: "categoria_id", label: "Categoria ID", type: "number" },
-  { key: "puesto_id", label: "Puesto ID", type: "number", relationLabelKey: "puesto" },
-  { key: "funcion_id", label: "Funcion ID", type: "number", relationLabelKey: "funcion" },
-  { key: "modalidad_id", label: "Modalidad ID", type: "number", relationLabelKey: "modalidad" },
-  { key: "nota", label: "Nota", type: "text" },
-  { key: "hora_inicio", label: "Hora inicio", type: "time" },
-  { key: "hora_fin", label: "Hora fin", type: "time" },
-  { key: "horas", label: "Horas", type: "decimal" },
-  { key: "hc", label: "hc", type: "decimal" },
-  { key: "hf", label: "hf", type: "decimal" },
-  { key: "hm", label: "hm", type: "decimal" },
-  { key: "hd", label: "hd", type: "decimal" },
-  { key: "bolsa_horas", label: "bolsa_horas", type: "decimal" },
-  { key: "horas_diurnas", label: "horas_diurnas", type: "decimal" },
-  { key: "horas_nocturnas", label: "horas_nocturnas", type: "decimal" },
-  { key: "clases", label: "clases", type: "decimal" },
-  { key: "horas_2", label: "horas_2", type: "decimal" },
+  { key: "id", label: "ID", type: "number", readonly: true, hiddenInList: true },
+  { key: "fecha", label: "Fecha", type: "date", sortable: true },
+  { key: "actividad_id", label: "Actividad", type: "number", hiddenInList: true },
+  { key: "empresa_id", label: "Empresa", type: "number", relationLabelKey: "empresa", sortable: true },
+  { key: "contrato_id", label: "Contrato", type: "number", relationLabelKey: "contrato", sortable: true },
+  { key: "servicio_id", label: "Servicio", type: "number", relationLabelKey: "servicio", sortable: true },
+  { key: "personal_id", label: "Personal", type: "number", relationLabelKey: "personal", sortable: true },
+  { key: "titular_personal_id", label: "Titular", type: "number", relationLabelKey: "titular_personal" },
+  { key: "sustituto_personal_id", label: "Sustituto", type: "number", relationLabelKey: "sustituto_personal" },
+  { key: "instalacion_id", label: "Instalacion", type: "number", relationLabelKey: "instalacion", sortable: true, shortLabelKey: "instalacion_siglas" },
+  { key: "categoria_id", label: "Categoria", type: "number", hiddenInList: true },
+  { key: "puesto_id", label: "Puesto", type: "number", relationLabelKey: "puesto", sortable: true, stackWith: ["funcion_id", "modalidad_id"] },
+  { key: "funcion_id", label: "Funcion", type: "number", relationLabelKey: "funcion", hiddenInList: true },
+  { key: "modalidad_id", label: "Modalidad", type: "number", relationLabelKey: "modalidad", sortable: true, hiddenInList: true },
+  { key: "nota", label: "Nota", type: "text", hiddenInList: true },
+  { key: "hora_inicio", label: "Inicio", type: "time", sortable: true },
+  { key: "hora_fin", label: "Fin", type: "time", sortable: true },
+  { key: "horas", label: "Horas", type: "decimal", sortable: true },
+  { key: "hc", label: "HC", type: "decimal" },
+  { key: "hf", label: "HF", type: "decimal" },
+  { key: "hm", label: "HM", type: "decimal" },
+  { key: "hd", label: "HD", type: "decimal" },
+  { key: "bolsa_horas", label: "Bolsa horas", type: "decimal" },
+  { key: "horas_diurnas", label: "H. diurnas", type: "decimal" },
+  { key: "horas_nocturnas", label: "H. nocturnas", type: "decimal" },
+  { key: "clases", label: "Clases", type: "decimal" },
+  { key: "horas_2", label: "Horas 2", type: "decimal" },
   { key: "sustitucion", label: "Sustitucion", type: "boolean" },
   { key: "facturar", label: "Facturar", type: "boolean" },
   { key: "abonar", label: "Abonar", type: "boolean" },
-  { key: "tipo_hora_id", label: "Tipo hora ID", type: "number", relationLabelKey: "tipo_hora" },
-  { key: "situacion_id", label: "Situacion ID", type: "number", relationLabelKey: "situacion" },
-  { key: "anio", label: "Anio", type: "number" },
-  { key: "observacion", label: "Observacion", type: "textarea" },
-  { key: "control", label: "Control", type: "datetime" },
+  { key: "tipo_hora_id", label: "Tipo hora", type: "number", relationLabelKey: "tipo_hora", sortable: true },
+  { key: "situacion_id", label: "Situacion", type: "number", relationLabelKey: "situacion", sortable: true },
+  { key: "anio", label: "Anio", type: "number", hiddenInList: true },
+  { key: "observacion", label: "Observacion", type: "textarea", hiddenInList: true },
+  { key: "control", label: "Control", type: "datetime", hiddenInList: true },
   { key: "factura", label: "Factura", type: "text" },
 ];
 const RECORD_DETAIL_LABEL_COLUMNS = [
@@ -121,6 +121,7 @@ const RECORD_DETAIL_LABEL_COLUMNS = [
   "titular_personal",
   "sustituto_personal",
   "instalacion",
+  "instalacion_siglas",
   "puesto",
   "funcion",
   "modalidad",
@@ -601,6 +602,8 @@ const recordDetailFields = document.querySelector("#record-detail-fields");
 const recordDetailTitle = document.querySelector("#record-detail-title");
 const recordDetailCloseButton = document.querySelector("#record-detail-close-button");
 const recordDetailCancelButton = document.querySelector("#record-detail-cancel-button");
+const recordDetailDeleteButton = document.querySelector("#record-detail-delete-button");
+const recordDetailDuplicateButton = document.querySelector("#record-detail-duplicate-button");
 const controlFiltersForm = document.querySelector("#control-filters-form");
 const controlDateFromInput = document.querySelector("#control-date-from");
 const controlDateToInput = document.querySelector("#control-date-to");
@@ -613,6 +616,13 @@ const controlClearFiltersButton = document.querySelector("#control-clear-filters
 const controlExportCsvButton = document.querySelector("#control-export-csv-button");
 const controlExportPdfButton = document.querySelector("#control-export-pdf-button");
 const controlTotalsButton = document.querySelector("#control-totals-button");
+const controlPersonalReportImageButton = document.querySelector("#control-personal-report-image-button");
+const controlReportImagePanel = document.querySelector("#control-report-image-panel");
+const controlReportImageBackdrop = document.querySelector("#control-report-image-backdrop");
+const closeControlReportImageButton = document.querySelector("#close-control-report-image-button");
+const copyControlReportImageButton = document.querySelector("#copy-control-report-image-button");
+const downloadControlReportImageButton = document.querySelector("#download-control-report-image-button");
+const controlReportImagePreview = document.querySelector("#control-report-image-preview");
 const controlImportCsvButton = document.querySelector("#control-import-csv-button");
 const controlImportPanel = document.querySelector("#control-import-panel");
 const controlImportOverlay = document.querySelector("#control-import-overlay");
@@ -1122,6 +1132,7 @@ let filteredRecordsRows = [];
 let selectedRecordId = "";
 let recordDetailSnapshot = null;
 let recordsExternalActivityFilter = "";
+let recordsSort = { field: "fecha", direction: "desc" };
 let currentControlPersonalOptions = [];
 let pendingControlImport = null;
 let filteredControlImportRecords = [];
@@ -1163,6 +1174,8 @@ let expandedEventIds = new Set();
 let eventSortCriteria = [{ field: "fecha_inicio", direction: "desc" }];
 let currentEventReportImageCanvas = null;
 let currentEventReportImageFileName = "";
+let currentControlReportImageCanvas = null;
+let currentControlReportImageFileName = "";
 const eventAssignmentSaveTimers = new Map();
 let currentContractRows = [];
 let currentContractServiceRows = [];
@@ -3860,6 +3873,225 @@ function exportControlRecordsToPdf() {
       );
     }
   })();
+}
+
+function getControlReportImageFileName(personName, dateFrom, dateTo) {
+  return `control-personal-${sanitizeFileName(personName)}-${dateFrom || "sin-inicio"}-${dateTo || "sin-fin"}.png`;
+}
+
+async function getSelectedControlPersonalReportData() {
+  const rows = await fetchAllFilteredControlRecordsForBulk();
+  if (!rows.length) {
+    throw new Error("No hay registros filtrados de control personal para generar el PNG.");
+  }
+
+  const personNames = [
+    ...new Set(
+      rows
+        .map((row) => String(row.personal_resolved || getResolvedControlPersonal(row) || "").trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  if (personNames.length !== 1) {
+    throw new Error("Filtra una unica persona en Control personal antes de generar el PNG.");
+  }
+
+  const normalizedDates = rows
+    .map((row) => normalizeImportedDate(row.fecha) || String(row.fecha ?? "").trim())
+    .filter(Boolean)
+    .sort();
+  const filters = buildControlFilters();
+  const dateFrom = filters.dateFrom || normalizedDates[0] || "";
+  const dateTo = filters.dateTo || normalizedDates[normalizedDates.length - 1] || "";
+  const sortedRows = [...rows].sort((left, right) => {
+    const leftDate = normalizeImportedDate(left.fecha) || String(left.fecha ?? "");
+    const rightDate = normalizeImportedDate(right.fecha) || String(right.fecha ?? "");
+    return (
+      leftDate.localeCompare(rightDate) ||
+      String(left.hora_inicio ?? "").localeCompare(String(right.hora_inicio ?? "")) ||
+      String(left.centro ?? "").localeCompare(String(right.centro ?? ""), "es", { sensitivity: "base" })
+    );
+  });
+
+  return {
+    personName: personNames[0],
+    dateFrom,
+    dateTo,
+    rows: sortedRows,
+    totalMinutes: sortedRows.reduce(
+      (total, row) => total + calculateWorkedMinutes(row.hora_inicio, row.hora_fin),
+      0
+    ),
+  };
+}
+
+function drawControlPersonalReportImage(reportData) {
+  const { personName, dateFrom, dateTo, rows, totalMinutes } = reportData;
+  const scale = 2;
+  const margin = 40;
+  const tableWidth = 1460;
+  const canvasWidth = tableWidth + margin * 2;
+  const columns = [
+    { label: "Dia", key: "dia", width: 70 },
+    { label: "Fecha", key: "fecha", width: 140 },
+    { label: "Centro", key: "centro", width: 320 },
+    { label: "Puesto", key: "puesto", width: 250 },
+    { label: "Inicio", key: "inicio", width: 100 },
+    { label: "Fin", key: "fin", width: 100 },
+    { label: "Horas", key: "horas", width: 110 },
+    { label: "Jornada", key: "jornada", width: 170 },
+    { label: "Observacion", key: "observacion", width: 200 },
+  ];
+  const lineHeight = 26;
+  const cellPadding = 10;
+  const headerHeight = 42;
+  const titleHeight = 136;
+  const footerHeight = 72;
+  const scratchCanvas = document.createElement("canvas");
+  const scratchContext = scratchCanvas.getContext("2d");
+
+  scratchContext.font = "24px Arial";
+  const rowLayouts = rows.map((row) => {
+    const normalizedDate = normalizeImportedDate(row.fecha) || row.fecha;
+    const values = {
+      dia: getControlWeekdayInfo(normalizedDate).letter,
+      fecha: formatDisplayDate(normalizedDate),
+      centro: row.centro || "-",
+      puesto: row.puesto || "-",
+      inicio: formatHourValue(row.hora_inicio).slice(0, 5) || "-",
+      fin: formatHourValue(row.hora_fin).slice(0, 5) || "-",
+      horas: formatMinutesAsHours(calculateWorkedMinutes(row.hora_inicio, row.hora_fin)),
+      jornada: row.tipo_jornada || "-",
+      observacion: row.observacion || "-",
+    };
+    const cellLines = columns.map((column) =>
+      wrapCanvasText(scratchContext, values[column.key] || "-", column.width - cellPadding * 2)
+    );
+    const rowHeight = Math.max(46, Math.max(...cellLines.map((lines) => lines.length)) * lineHeight + cellPadding * 2);
+    return { cellLines, rowHeight };
+  });
+
+  const canvasHeight =
+    titleHeight +
+    headerHeight +
+    rowLayouts.reduce((total, layout) => total + layout.rowHeight, 0) +
+    footerHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth * scale;
+  canvas.height = canvasHeight * scale;
+  const context = canvas.getContext("2d");
+  context.scale(scale, scale);
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvasWidth, canvasHeight);
+  context.fillStyle = "#001f54";
+  context.font = "bold 34px Arial";
+  context.fillText("Informe de control personal", margin, 46);
+  context.font = "bold 26px Arial";
+  context.fillText(personName, margin, 82);
+  context.font = "22px Arial";
+  context.fillText(`Periodo: ${formatDisplayDate(dateFrom) || "Sin fecha inicial"} - ${formatDisplayDate(dateTo) || "Sin fecha final"}`, margin, 114);
+
+  let y = titleHeight;
+  let x = margin;
+  context.font = "bold 20px Arial";
+  columns.forEach((column) => {
+    context.fillStyle = "#e5e7eb";
+    context.fillRect(x, y, column.width, headerHeight);
+    context.strokeStyle = "#94a3b8";
+    context.strokeRect(x, y, column.width, headerHeight);
+    context.fillStyle = "#111827";
+    context.fillText(column.label, x + cellPadding, y + 27);
+    x += column.width;
+  });
+  y += headerHeight;
+
+  rowLayouts.forEach(({ cellLines, rowHeight }) => {
+    x = margin;
+    context.font = "20px Arial";
+    columns.forEach((column, columnIndex) => {
+      context.strokeStyle = "#d6dbe7";
+      context.strokeRect(x, y, column.width, rowHeight);
+      context.fillStyle = "#001f54";
+      cellLines[columnIndex].forEach((line, lineIndex) => {
+        context.fillText(line, x + cellPadding, y + cellPadding + 20 + lineIndex * lineHeight);
+      });
+      x += column.width;
+    });
+    y += rowHeight;
+  });
+
+  const hoursColumn = columns.find((column) => column.key === "horas");
+  const hoursLeft = margin + columns.slice(0, columns.indexOf(hoursColumn)).reduce((total, column) => total + column.width, 0);
+  context.fillStyle = "#f1f5f9";
+  context.fillRect(margin, y, tableWidth, 46);
+  context.strokeStyle = "#94a3b8";
+  context.strokeRect(margin, y, tableWidth, 46);
+  context.fillStyle = "#001f54";
+  context.font = "bold 22px Arial";
+  context.fillText("Total", margin + cellPadding, y + 30);
+  context.fillText(formatMinutesAsHours(totalMinutes), hoursLeft + cellPadding, y + 30);
+
+  context.fillStyle = "#64748b";
+  context.font = "18px Arial";
+  context.fillText(`Generado: ${new Date().toLocaleString("es-ES")}`, margin, canvasHeight - 12);
+
+  return canvas;
+}
+
+function closeControlReportImagePanel() {
+  controlReportImagePanel?.classList.add("hidden");
+}
+
+function showControlPersonalReportImage() {
+  void (async () => {
+    try {
+      const reportData = await getSelectedControlPersonalReportData();
+      currentControlReportImageCanvas = drawControlPersonalReportImage(reportData);
+      currentControlReportImageFileName = getControlReportImageFileName(
+        reportData.personName,
+        reportData.dateFrom,
+        reportData.dateTo
+      );
+
+      if (controlReportImagePreview) {
+        controlReportImagePreview.src = currentControlReportImageCanvas.toDataURL("image/png");
+      }
+      controlReportImagePanel?.classList.remove("hidden");
+      setStatus("Imagen del informe de control generada correctamente.", "success");
+    } catch (error) {
+      setStatus(error?.message || "No se pudo generar la imagen del informe de control.", "error");
+    }
+  })();
+}
+
+async function copyControlReportImageToClipboard() {
+  try {
+    if (!currentControlReportImageCanvas) {
+      throw new Error("Genera primero la imagen del informe.");
+    }
+    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
+      throw new Error("El navegador no permite copiar imagenes al portapapeles.");
+    }
+    const blob = await canvasToBlob(currentControlReportImageCanvas);
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    setStatus("Imagen copiada al portapapeles.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo copiar la imagen.", "error");
+  }
+}
+
+async function downloadControlReportImage() {
+  try {
+    if (!currentControlReportImageCanvas) {
+      throw new Error("Genera primero la imagen del informe.");
+    }
+    const blob = await canvasToBlob(currentControlReportImageCanvas);
+    triggerDownload(blob, currentControlReportImageFileName || "informe-control-personal.png");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo descargar la imagen.", "error");
+  }
 }
 
 
@@ -11996,8 +12228,22 @@ function formatRecordCellValue(value, column) {
     return String(value).slice(0, 5);
   }
 
+  if (column.type === "date") {
+    const parts = String(value).split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return String(value);
+  }
+
   if (column.type === "datetime") {
-    return String(value).replace("T", " ").slice(0, 19);
+    const dt = String(value).replace("T", " ").slice(0, 19);
+    const [datePart, timePart] = dt.split(" ");
+    const parts = (datePart || "").split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}${timePart ? " " + timePart : ""}`;
+    }
+    return dt;
   }
 
   return String(value);
@@ -12009,11 +12255,7 @@ function formatRecordDisplayValue(row, column) {
     ? String(row[column.relationLabelKey] ?? "").trim()
     : "";
 
-  if (!relationLabel) {
-    return baseValue;
-  }
-
-  return baseValue ? `${baseValue} · ${relationLabel}` : relationLabel;
+  return relationLabel || baseValue;
 }
 
 function parseRecordFieldValue(rawValue, column) {
@@ -12045,17 +12287,14 @@ function getRecordsFilterValues() {
   return {
     fechaDesde: document.querySelector("#records-filter-date-from")?.value || "",
     fechaHasta: document.querySelector("#records-filter-date-to")?.value || "",
-    personalId: document.querySelector("#records-filter-personal")?.value || "",
     contratoId: document.querySelector("#records-filter-contrato")?.value || "",
-    empresaId: document.querySelector("#records-filter-empresa")?.value || "",
+    servicioId: document.querySelector("#records-filter-servicio")?.value || "",
+    personalId: document.querySelector("#records-filter-personal")?.value || "",
     instalacionId: document.querySelector("#records-filter-instalacion")?.value || "",
     actividadId:
       document.querySelector("#records-filter-actividad")?.value ||
       recordsExternalActivityFilter ||
       "",
-    activo: document.querySelector("#records-filter-activo")?.value || "",
-    facturar: document.querySelector("#records-filter-facturar")?.value || "",
-    abonar: document.querySelector("#records-filter-abonar")?.value || "",
     search: normalizeRecordText(document.querySelector("#records-filter-search")?.value || ""),
   };
 }
@@ -12071,24 +12310,14 @@ function applyRecordsQueryFilters(query, filters) {
   }
 
   [
-    ["personal_id", filters.personalId],
     ["contrato_id", filters.contratoId],
-    ["empresa_id", filters.empresaId],
+    ["servicio_id", filters.servicioId],
+    ["personal_id", filters.personalId],
     ["instalacion_id", filters.instalacionId],
     ["actividad_id", filters.actividadId],
   ].forEach(([column, value]) => {
     if (value !== "") {
       nextQuery = nextQuery.eq(column, Number(value));
-    }
-  });
-
-  [
-    ["activo", filters.activo],
-    ["facturar", filters.facturar],
-    ["abonar", filters.abonar],
-  ].forEach(([column, value]) => {
-    if (value !== "") {
-      nextQuery = nextQuery.eq(column, value === "true");
     }
   });
 
@@ -12107,14 +12336,57 @@ function applyRecordsClientFilters() {
   });
 }
 
+function sortRecordsRows() {
+  const col = RECORD_COLUMNS.find((c) => c.key === recordsSort.field);
+  if (!col) return;
+  const labelKey = col.relationLabelKey;
+  const asc = recordsSort.direction === "asc" ? 1 : -1;
+  filteredRecordsRows.sort((a, b) => {
+    const va = labelKey ? (a[labelKey] ?? "") : (a[col.key] ?? "");
+    const vb = labelKey ? (b[labelKey] ?? "") : (b[col.key] ?? "");
+    if (va === vb) return 0;
+    if (va === "" || va === null) return 1;
+    if (vb === "" || vb === null) return -1;
+    if (typeof va === "number" && typeof vb === "number") return (va - vb) * asc;
+    return String(va).localeCompare(String(vb), "es", { sensitivity: "base" }) * asc;
+  });
+}
+
+function toggleRecordsSort(field) {
+  if (recordsSort.field === field) {
+    recordsSort.direction = recordsSort.direction === "asc" ? "desc" : "asc";
+  } else {
+    recordsSort.field = field;
+    recordsSort.direction = "asc";
+  }
+  sortRecordsRows();
+  renderRecordsTable();
+}
+
+function getRecordsListColumns() {
+  const editable = Boolean(recordsEditModeInput?.checked);
+  return RECORD_COLUMNS.filter((c) => !c.hiddenInList || (editable && c.showInEdit));
+}
+
 function renderRecordsTableHead() {
   if (!recordsTableHead) {
     return;
   }
 
-  recordsTableHead.innerHTML = `<tr>${RECORD_COLUMNS.map(
-    (column) => `<th>${escapeHtml(column.label)}</th>`
-  ).join("")}</tr>`;
+  const listColumns = getRecordsListColumns();
+  const stackedLabel = (col) => {
+    const stackKeys = col.stackWith ? (Array.isArray(col.stackWith) ? col.stackWith : [col.stackWith]) : [];
+    const stackedLabels = stackKeys.map((k) => RECORD_COLUMNS.find((c) => c.key === k)?.label).filter(Boolean);
+    return stackedLabels.length ? `${col.label} / ${stackedLabels.join(" / ")}` : col.label;
+  };
+  recordsTableHead.innerHTML = `<tr>${listColumns.map((column) => {
+    const label = escapeHtml(stackedLabel(column));
+    if (!column.sortable) return `<th>${label}</th>`;
+    const arrow = recordsSort.field === column.key
+      ? (recordsSort.direction === "asc" ? " ↑" : " ↓")
+      : " ↕";
+    return `<th><button class="sort-button" type="button" data-records-sort-field="${escapeHtml(column.key)}">${label}${arrow}</button></th>`;
+  }).join("")}</tr>`;
 }
 
 function renderRecordEditableControl(row, column) {
@@ -12127,6 +12399,13 @@ function renderRecordEditableControl(row, column) {
     return `<input ${commonAttrs} type="checkbox" ${value ? "checked" : ""} ${
       column.readonly ? "disabled" : ""
     } />`;
+  }
+
+  if (RECORD_RELATION_TABLES[column.key]) {
+    const options = recordRelationOptionsCache[column.key] || [];
+    let html = `<option value="">—</option>`;
+    html += options.map((o) => `<option value="${escapeHtml(o.value)}" ${String(o.value) === String(value) ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("");
+    return `<select ${commonAttrs} ${column.readonly ? "disabled" : ""}>${html}</select>`;
   }
 
   if (column.type === "textarea") {
@@ -12169,19 +12448,47 @@ function renderRecordsTable() {
     recordsSummary.textContent = `${filteredRecordsRows.length} registros mostrados`;
   }
 
+  const listColumns = getRecordsListColumns();
+
   if (!filteredRecordsRows.length) {
-    recordsTableBody.innerHTML = `<tr><td colspan="${RECORD_COLUMNS.length}" class="empty-state">No hay registros con esos filtros.</td></tr>`;
+    recordsTableBody.innerHTML = `<tr><td colspan="${listColumns.length}" class="empty-state">No hay registros con esos filtros.</td></tr>`;
     return;
   }
 
   const editable = Boolean(recordsEditModeInput?.checked);
   recordsTableBody.innerHTML = filteredRecordsRows
     .map((row) => {
-      const cells = RECORD_COLUMNS.map((column) => {
-        const content =
-          editable && !column.readonly
-            ? renderRecordEditableControl(row, column)
-            : escapeHtml(formatRecordDisplayValue(row, column));
+      const cells = listColumns.map((column) => {
+        let content;
+        if (editable && !column.readonly) {
+          content = renderRecordEditableControl(row, column);
+        } else {
+          if (column.shortLabelKey) {
+            const shortVal = String(row[column.shortLabelKey] ?? "").trim();
+            const fullVal = column.relationLabelKey ? String(row[column.relationLabelKey] ?? "").trim() : "";
+            if (shortVal) {
+              content = `<span title="${escapeHtml(fullVal)}">${escapeHtml(shortVal)}</span>`;
+            } else {
+              content = escapeHtml(formatRecordDisplayValue(row, column));
+            }
+          } else {
+            content = escapeHtml(formatRecordDisplayValue(row, column));
+          }
+          if (column.stackWith) {
+            const stackKeys = Array.isArray(column.stackWith) ? column.stackWith : [column.stackWith];
+            for (const sk of stackKeys) {
+              const stackedCol = RECORD_COLUMNS.find((c) => c.key === sk);
+              if (stackedCol) {
+                const stackedLabel = stackedCol.relationLabelKey
+                  ? String(row[stackedCol.relationLabelKey] ?? "").trim()
+                  : String(row[stackedCol.key] ?? "").trim();
+                if (stackedLabel) {
+                  content += `<br><span class="muted-text">${escapeHtml(stackedLabel)}</span>`;
+                }
+              }
+            }
+          }
+        }
         return `<td data-record-row="${escapeHtml(row.id)}" data-record-field-read="${escapeHtml(
           column.key
         )}">${content}</td>`;
@@ -12193,12 +12500,231 @@ function renderRecordsTable() {
     .join("");
 }
 
+const RECORDS_FILTER_SELECTS = [
+  { id: "records-filter-contrato", idKey: "contrato_id", labelKey: "contrato" },
+  { id: "records-filter-servicio", idKey: "servicio_id", labelKey: "servicio" },
+  { id: "records-filter-personal", idKey: "personal_id", labelKey: "personal" },
+  { id: "records-filter-instalacion", idKey: "instalacion_id", labelKey: "instalacion" },
+];
+
+function updateRecordsFilterOptions() {
+  const currentValues = {};
+  for (const { id, idKey } of RECORDS_FILTER_SELECTS) {
+    currentValues[idKey] = document.querySelector(`#${id}`)?.value || "";
+  }
+
+  for (const { id, idKey, labelKey } of RECORDS_FILTER_SELECTS) {
+    const select = document.querySelector(`#${id}`);
+    if (!select) continue;
+
+    const compatibleRows = recordsRows.filter((row) =>
+      RECORDS_FILTER_SELECTS.every(({ idKey: otherKey }) => {
+        if (otherKey === idKey) return true;
+        const filterVal = currentValues[otherKey];
+        return !filterVal || String(row[otherKey]) === filterVal;
+      })
+    );
+
+    const seen = new Map();
+    for (const row of compatibleRows) {
+      const val = row[idKey];
+      if (val == null || seen.has(val)) continue;
+      seen.set(val, labelKey ? (row[labelKey] ?? "") : "");
+    }
+
+    const sorted = Array.from(seen.entries()).sort((a, b) => {
+      const la = a[1] || String(a[0]);
+      const lb = b[1] || String(b[0]);
+      return la.localeCompare(lb, "es", { sensitivity: "base" });
+    });
+
+    const prev = select.value;
+    select.innerHTML =
+      `<option value="">Todos</option>` +
+      sorted
+        .map(([val, label]) => {
+          const display = label || String(val);
+          return `<option value="${escapeHtml(val)}">${escapeHtml(display)}</option>`;
+        })
+        .join("");
+    if (prev && seen.has(isNaN(prev) ? prev : Number(prev))) {
+      select.value = prev;
+    } else if (prev) {
+      select.value = "";
+    }
+  }
+}
+
+const RECORD_BULK_FIELDS = {
+  fecha: { label: "Fecha", type: "date" },
+  empresa_id: { label: "Empresa", type: "select", source: "empresa_id" },
+  contrato_id: { label: "Contrato", type: "select", source: "contrato_id" },
+  servicio_id: { label: "Servicio", type: "select", source: "servicio_id" },
+  personal_id: { label: "Personal", type: "select", source: "personal_id" },
+  titular_personal_id: { label: "Titular", type: "select", source: "titular_personal_id" },
+  sustituto_personal_id: { label: "Sustituto", type: "select", source: "sustituto_personal_id" },
+  instalacion_id: { label: "Instalacion", type: "select", source: "instalacion_id" },
+  puesto_id: { label: "Puesto", type: "select", source: "puesto_id" },
+  funcion_id: { label: "Funcion", type: "select", source: "funcion_id" },
+  modalidad_id: { label: "Modalidad", type: "select", source: "modalidad_id" },
+  tipo_hora_id: { label: "Tipo hora", type: "select", source: "tipo_hora_id" },
+  situacion_id: { label: "Situacion", type: "select", source: "situacion_id" },
+  hora_inicio: { label: "Hora inicio", type: "time" },
+  hora_fin: { label: "Hora fin", type: "time" },
+  horas: { label: "Horas", type: "number" },
+  facturar: { label: "Facturar", type: "boolean" },
+  abonar: { label: "Abonar", type: "boolean" },
+  sustitucion: { label: "Sustitucion", type: "boolean" },
+  nota: { label: "Nota", type: "text" },
+  observacion: { label: "Observacion", type: "text" },
+};
+
+const recordsBulkFieldSelect = document.querySelector("#records-bulk-field");
+const recordsBulkCurrentValueInput = document.querySelector("#records-bulk-current-value");
+const recordsBulkCurrentSelect = document.querySelector("#records-bulk-current-select");
+const recordsBulkNewValueInput = document.querySelector("#records-bulk-new-value");
+const recordsBulkNewSelect = document.querySelector("#records-bulk-new-select");
+const recordsBulkApplyButton = document.querySelector("#records-bulk-apply-button");
+const recordsBulkMatchCount = document.querySelector("#records-bulk-match-count");
+
+function getRecordsBulkFieldConfig() {
+  return RECORD_BULK_FIELDS[recordsBulkFieldSelect?.value] || RECORD_BULK_FIELDS.fecha;
+}
+
+function getRecordBulkSelectOptions(source) {
+  const col = RECORD_COLUMNS.find((c) => c.key === source);
+  const labelKey = col?.relationLabelKey;
+  const seen = new Map();
+  for (const row of recordsRows) {
+    const val = row[source];
+    if (val == null || seen.has(val)) continue;
+    seen.set(val, labelKey ? (row[labelKey] ?? "") : String(val));
+  }
+  return Array.from(seen.entries())
+    .map(([value, label]) => ({ value, label: label ? `${value} · ${label}` : String(value) }))
+    .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
+}
+
+function renderRecordsBulkSelectOptions(select, config, selectedValue = "", includeUnset = false) {
+  if (!select || config.type !== "select") return;
+  const options = getRecordBulkSelectOptions(config.source);
+  const rendered = includeUnset
+    ? [{ value: "__unset__", label: "Selecciona valor" }, { value: "__empty__", label: "Vacio" }, ...options]
+    : options;
+  select.innerHTML = rendered
+    .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+    .join("");
+  const sel = String(selectedValue ?? "");
+  select.value = rendered.some((o) => String(o.value) === sel) ? sel : rendered[0]?.value || "";
+}
+
+function normalizeRecordBulkValue(value, config) {
+  if (value === null || value === undefined || value === "" || value === "__empty__") return "";
+  if (config.type === "boolean") return value === true || value === "true" ? "true" : "false";
+  if (config.type === "number") { const n = Number(value); return Number.isFinite(n) ? String(n) : ""; }
+  return String(value).trim();
+}
+
+function getRecordBulkControlValue(kind = "current") {
+  const config = getRecordsBulkFieldConfig();
+  if (config.type === "select") {
+    return kind === "new" ? recordsBulkNewSelect?.value || "" : recordsBulkCurrentSelect?.value || "";
+  }
+  if (config.type === "boolean") {
+    return kind === "new" ? recordsBulkNewSelect?.value || "" : recordsBulkCurrentSelect?.value || "";
+  }
+  return kind === "new" ? recordsBulkNewValueInput?.value || "" : recordsBulkCurrentValueInput?.value || "";
+}
+
+function getRecordBulkMatchingRows() {
+  const field = recordsBulkFieldSelect?.value;
+  const config = getRecordsBulkFieldConfig();
+  if (!field) return [];
+  const currentValue = normalizeRecordBulkValue(getRecordBulkControlValue("current"), config);
+  return filteredRecordsRows.filter((row) => normalizeRecordBulkValue(row[field], config) === currentValue);
+}
+
+function syncRecordsBulkUi() {
+  const config = getRecordsBulkFieldConfig();
+  const isSelect = config.type === "select" || config.type === "boolean";
+
+  if (recordsBulkCurrentValueInput) recordsBulkCurrentValueInput.classList.toggle("hidden", isSelect);
+  if (recordsBulkCurrentSelect) recordsBulkCurrentSelect.classList.toggle("hidden", !isSelect);
+  if (recordsBulkNewValueInput) recordsBulkNewValueInput.classList.toggle("hidden", isSelect);
+  if (recordsBulkNewSelect) recordsBulkNewSelect.classList.toggle("hidden", !isSelect);
+
+  if (isSelect) {
+    if (config.type === "boolean") {
+      const boolOpts = [{ value: "true", label: "Si" }, { value: "false", label: "No" }];
+      [recordsBulkCurrentSelect, recordsBulkNewSelect].forEach((sel) => {
+        if (sel) sel.innerHTML = boolOpts.map((o) => `<option value="${o.value}">${o.label}</option>`).join("");
+      });
+    } else {
+      renderRecordsBulkSelectOptions(recordsBulkCurrentSelect, config);
+      renderRecordsBulkSelectOptions(recordsBulkNewSelect, config, "", true);
+    }
+  } else {
+    const inputType = config.type === "date" ? "date" : config.type === "time" ? "time" : config.type === "number" ? "number" : "text";
+    if (recordsBulkCurrentValueInput) { recordsBulkCurrentValueInput.type = inputType; recordsBulkCurrentValueInput.value = ""; }
+    if (recordsBulkNewValueInput) { recordsBulkNewValueInput.type = inputType; recordsBulkNewValueInput.value = ""; }
+  }
+
+  updateRecordsBulkMatchCount();
+}
+
+function updateRecordsBulkMatchCount() {
+  const matches = getRecordBulkMatchingRows();
+  if (recordsBulkMatchCount) {
+    recordsBulkMatchCount.textContent = `${matches.length} coincidencia${matches.length !== 1 ? "s" : ""}`;
+  }
+}
+
+async function applyRecordsBulkAssignment() {
+  const field = recordsBulkFieldSelect?.value;
+  const config = getRecordsBulkFieldConfig();
+  if (!field || !RECORD_BULK_FIELDS[field]) return;
+
+  const matches = getRecordBulkMatchingRows();
+  if (!matches.length) {
+    setStatus("No hay registros que coincidan con el valor actual.", "error");
+    return;
+  }
+
+  const rawNewValue = getRecordBulkControlValue("new");
+  if (rawNewValue === "__unset__") {
+    setStatus("Selecciona un nuevo valor.", "error");
+    return;
+  }
+
+  const newValue = rawNewValue === "__empty__" ? null
+    : config.type === "boolean" ? (rawNewValue === "true")
+    : config.type === "number" ? (Number(rawNewValue) || null)
+    : ["select"].includes(config.type) ? (Number(rawNewValue) || rawNewValue || null)
+    : rawNewValue || null;
+
+  const currentLabel = normalizeRecordBulkValue(getRecordBulkControlValue("current"), config);
+  const newLabel = rawNewValue === "__empty__" ? "Vacio" : normalizeRecordBulkValue(rawNewValue, config);
+
+  if (!confirm(`Cambiar ${config.label} de "${currentLabel}" a "${newLabel}" en ${matches.length} registro${matches.length !== 1 ? "s" : ""}?`)) return;
+
+  try {
+    const supabase = await getSupabaseClient();
+    const ids = matches.map((row) => row.id);
+    const { error } = await supabase.from("registros").update({ [field]: newValue }).in("id", ids);
+    if (error) throw error;
+    await loadRecords();
+    setStatus(`${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}.`, "success");
+  } catch (error) {
+    setStatus(`Error en asignación masiva: ${error.message}`, "error");
+  }
+}
+
 async function loadRecords() {
   if (recordsSummary) {
     recordsSummary.textContent = "Cargando registros...";
   }
   if (recordsTableBody) {
-    recordsTableBody.innerHTML = `<tr><td colspan="${RECORD_COLUMNS.length}" class="empty-state">Cargando registros...</td></tr>`;
+    recordsTableBody.innerHTML = `<tr><td colspan="99" class="empty-state">Cargando registros...</td></tr>`;
   }
 
   try {
@@ -12229,13 +12755,15 @@ async function loadRecords() {
 
     recordsRows = data ?? [];
     applyRecordsClientFilters();
+    sortRecordsRows();
     renderRecordsTable();
+    updateRecordsFilterOptions();
   } catch (error) {
     if (recordsSummary) {
       recordsSummary.textContent = "No se pudieron cargar los registros.";
     }
     if (recordsTableBody) {
-      recordsTableBody.innerHTML = `<tr><td colspan="${RECORD_COLUMNS.length}" class="empty-state">Error cargando registros.</td></tr>`;
+      recordsTableBody.innerHTML = `<tr><td colspan="99" class="empty-state">Error cargando registros.</td></tr>`;
     }
     setStatus(`No se pudieron cargar los registros: ${error.message}`, "error");
   }
@@ -12312,6 +12840,60 @@ async function handleRecordCellCommit(control) {
   }
 }
 
+const RECORD_RELATION_TABLES = {
+  empresa_id: { table: "empresas", labelCol: "empresa" },
+  contrato_id: { table: "contratos", labelCol: "contrato" },
+  servicio_id: { table: "servicios", labelCol: "servicio" },
+  personal_id: { table: "personal", labelCol: "personal" },
+  titular_personal_id: { table: "personal", labelCol: "personal" },
+  sustituto_personal_id: { table: "personal", labelCol: "personal" },
+  instalacion_id: { table: "instalaciones", labelCol: "instalacion" },
+  puesto_id: { table: "puestos", labelCol: "puesto" },
+  funcion_id: { table: "funciones", labelCol: "funcion" },
+  modalidad_id: { table: "modalidades", labelCol: "modalidad" },
+  tipo_hora_id: { table: "tipo_horas", labelCol: "tipo_hora" },
+  situacion_id: { table: "situaciones", labelCol: "situacion" },
+};
+let recordRelationOptionsCache = {};
+
+async function loadRecordRelationOptions() {
+  if (Object.keys(recordRelationOptionsCache).length) return;
+  try {
+    const supabase = await getSupabaseClient();
+    const uniqueTables = {};
+    for (const [key, { table, labelCol }] of Object.entries(RECORD_RELATION_TABLES)) {
+      const tableKey = `${table}:${labelCol}`;
+      if (!uniqueTables[tableKey]) {
+        uniqueTables[tableKey] = { table, labelCol, keys: [] };
+      }
+      uniqueTables[tableKey].keys.push(key);
+    }
+    await Promise.all(
+      Object.values(uniqueTables).map(async ({ table, labelCol, keys }) => {
+        const { data } = await supabase
+          .from(table)
+          .select(`id,${labelCol}`)
+          .order(labelCol, { ascending: true })
+          .limit(5000);
+        if (!data) return;
+        const options = data.map((r) => ({ value: r.id, label: r[labelCol] ?? "" }));
+        for (const key of keys) {
+          recordRelationOptionsCache[key] = options;
+        }
+      })
+    );
+  } catch (_) {}
+}
+
+function renderRecordRelationSelect(name, value, options, readonly) {
+  const current = value ?? "";
+  let html = `<option value="">— Ninguno —</option>`;
+  html += (options || [])
+    .map((o) => `<option value="${escapeHtml(o.value)}" ${String(o.value) === String(current) ? "selected" : ""}>${escapeHtml(o.label)}</option>`)
+    .join("");
+  return `<select name="${name}" ${readonly ? "disabled" : ""}>${html}</select>`;
+}
+
 function renderRecordDetailForm(row) {
   if (!recordDetailFields || !recordDetailTitle) {
     return;
@@ -12322,12 +12904,6 @@ function renderRecordDetailForm(row) {
     const value = row[column.key];
     const name = escapeHtml(column.key);
     const label = escapeHtml(column.label);
-    const relationLabel = column.relationLabelKey
-      ? String(row[column.relationLabelKey] ?? "").trim()
-      : "";
-    const relationHelp = relationLabel
-      ? `<span class="record-relation-label">${escapeHtml(relationLabel)}</span>`
-      : "";
 
     if (column.type === "boolean") {
       return `<label class="checkbox-item"><input name="${name}" type="checkbox" ${
@@ -12338,7 +12914,12 @@ function renderRecordDetailForm(row) {
     if (column.type === "textarea") {
       return `<label class="full-width">${label}<textarea name="${name}" rows="3" ${
         column.readonly ? "readonly" : ""
-      }>${escapeHtml(value ?? "")}</textarea>${relationHelp}</label>`;
+      }>${escapeHtml(value ?? "")}</textarea></label>`;
+    }
+
+    if (RECORD_RELATION_TABLES[column.key]) {
+      const options = recordRelationOptionsCache[column.key] || [];
+      return `<label>${label}${renderRecordRelationSelect(name, value, options, column.readonly)}</label>`;
     }
 
     const inputType =
@@ -12361,16 +12942,17 @@ function renderRecordDetailForm(row) {
 
     return `<label>${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
       inputValue
-    )}" ${column.readonly ? "readonly" : ""} />${relationHelp}</label>`;
+    )}" ${column.readonly ? "readonly" : ""} /></label>`;
   }).join("");
 }
 
-function openRecordDetail(recordId) {
+async function openRecordDetail(recordId) {
   const row = recordsRows.find((item) => String(item.id) === String(recordId));
   if (!row || !recordDetailPanel) {
     return;
   }
 
+  await loadRecordRelationOptions();
   selectedRecordId = String(recordId);
   recordDetailSnapshot = { ...row };
   renderRecordDetailForm(row);
@@ -12378,7 +12960,23 @@ function openRecordDetail(recordId) {
   renderRecordsTable();
 }
 
-function closeRecordDetail() {
+function hasRecordDetailUnsavedChanges() {
+  const payload = collectRecordDetailPayload();
+  return payload && Object.keys(payload).length > 0;
+}
+
+async function closeRecordDetail(skipSave = false) {
+  if (!skipSave && hasRecordDetailUnsavedChanges() && recordDetailSnapshot?.id) {
+    const payload = collectRecordDetailPayload();
+    if (payload && Object.keys(payload).length) {
+      try {
+        await saveRecordPatch(recordDetailSnapshot.id, payload);
+        setStatus("Registro guardado.", "success");
+      } catch (error) {
+        setStatus(`No se pudo guardar el registro: ${error.message}`, "error");
+      }
+    }
+  }
   selectedRecordId = "";
   recordDetailSnapshot = null;
   recordDetailPanel?.classList.add("hidden");
@@ -12388,6 +12986,52 @@ function closeRecordDetail() {
 function cancelRecordDetailEdit() {
   if (recordDetailSnapshot) {
     renderRecordDetailForm(recordDetailSnapshot);
+  }
+}
+
+async function deleteRecordDetail() {
+  if (!recordDetailSnapshot?.id) return;
+  if (!confirm(`¿Eliminar el registro ${recordDetailSnapshot.id}?`)) return;
+
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.from("registros").delete().eq("id", recordDetailSnapshot.id);
+    if (error) throw error;
+    closeRecordDetail(true);
+    await loadRecords();
+    setStatus("Registro eliminado.", "success");
+  } catch (error) {
+    setStatus(`No se pudo eliminar el registro: ${error.message}`, "error");
+  }
+}
+
+async function duplicateRecordDetail() {
+  if (!recordDetailSnapshot?.id) return;
+
+  const excludeKeys = new Set(["id", "control"]);
+  const derivedKeys = new Set(RECORD_DETAIL_LABEL_COLUMNS);
+  const insertData = {};
+  for (const column of RECORD_COLUMNS) {
+    if (excludeKeys.has(column.key) || derivedKeys.has(column.key)) continue;
+    const field = recordDetailForm?.elements[column.key];
+    if (field) {
+      insertData[column.key] = column.type === "boolean"
+        ? Boolean(field.checked)
+        : parseRecordFieldValue(field.value ?? recordDetailSnapshot[column.key], column);
+    } else if (recordDetailSnapshot[column.key] !== undefined) {
+      insertData[column.key] = recordDetailSnapshot[column.key];
+    }
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.from("registros").insert(insertData).select("id").single();
+    if (error) throw error;
+    await loadRecords();
+    openRecordDetail(data.id);
+    setStatus(`Registro duplicado. Nuevo ID: ${data.id}`, "success");
+  } catch (error) {
+    setStatus(`No se pudo duplicar el registro: ${error.message}`, "error");
   }
 }
 
@@ -14783,10 +15427,23 @@ async function init() {
     recordsFiltersForm?.reset();
     void loadRecords();
   });
+  recordsBulkFieldSelect?.addEventListener("change", syncRecordsBulkUi);
+  recordsBulkCurrentValueInput?.addEventListener("input", updateRecordsBulkMatchCount);
+  recordsBulkCurrentSelect?.addEventListener("change", updateRecordsBulkMatchCount);
+  recordsBulkApplyButton?.addEventListener("click", () => void applyRecordsBulkAssignment());
   recordsRefreshButton?.addEventListener("click", () => {
     void loadRecords();
   });
-  recordsEditModeInput?.addEventListener("change", renderRecordsTable);
+  recordsEditModeInput?.addEventListener("change", async () => {
+    if (recordsEditModeInput.checked) await loadRecordRelationOptions();
+    renderRecordsTable();
+  });
+  recordsTableHead?.addEventListener("click", (event) => {
+    const sortButton = event.target.closest("[data-records-sort-field]");
+    if (sortButton) {
+      toggleRecordsSort(sortButton.dataset.recordsSortField);
+    }
+  });
   recordsTableBody?.addEventListener("click", (event) => {
     if (event.target.closest("[data-record-cell]")) {
       return;
@@ -14804,20 +15461,32 @@ async function init() {
   });
   recordsTableBody?.addEventListener("change", (event) => {
     const control = event.target.closest("[data-record-cell]");
-    if (control && control.type === "checkbox") {
+    if (control && (control.type === "checkbox" || control.tagName === "SELECT")) {
       void handleRecordCellCommit(control);
     }
   });
   recordDetailForm?.addEventListener("submit", (event) => {
     void handleRecordDetailSubmit(event);
   });
-  recordDetailCloseButton?.addEventListener("click", closeRecordDetail);
+  recordDetailCloseButton?.addEventListener("click", () => closeRecordDetail());
+  recordDetailOverlay?.addEventListener("click", () => closeRecordDetail());
   recordDetailCancelButton?.addEventListener("click", cancelRecordDetailEdit);
+  recordDetailDeleteButton?.addEventListener("click", deleteRecordDetail);
+  recordDetailDuplicateButton?.addEventListener("click", duplicateRecordDetail);
   recordDetailOverlay?.addEventListener("click", closeRecordDetail);
   controlClearFiltersButton?.addEventListener("click", clearControlFilters);
   controlExportCsvButton.addEventListener("click", exportControlRecordsToCsv);
   controlExportPdfButton.addEventListener("click", exportControlRecordsToPdf);
   controlTotalsButton?.addEventListener("click", openControlTotalsPanel);
+  controlPersonalReportImageButton?.addEventListener("click", showControlPersonalReportImage);
+  closeControlReportImageButton?.addEventListener("click", closeControlReportImagePanel);
+  controlReportImageBackdrop?.addEventListener("click", closeControlReportImagePanel);
+  copyControlReportImageButton?.addEventListener("click", () => {
+    void copyControlReportImageToClipboard();
+  });
+  downloadControlReportImageButton?.addEventListener("click", () => {
+    void downloadControlReportImage();
+  });
   controlImportCsvButton?.addEventListener("click", openControlImportPanel);
   closeControlImportButton?.addEventListener("click", closeControlImportPanel);
   controlImportCancelButton?.addEventListener("click", closeControlImportPanel);

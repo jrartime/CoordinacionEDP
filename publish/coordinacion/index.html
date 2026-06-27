@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260608-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260623-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260626-4" />
   </head>
   <body>
     <script>
@@ -599,77 +599,105 @@
                     <h2>Detalle generado desde actividades</h2>
                   </div>
                   <div class="results-actions">
-                    <label class="checkbox-item records-edit-toggle">
+                    <label class="checkbox-item records-edit-toggle" title="Edicion tipo Excel">
                       <input id="records-edit-mode" type="checkbox" />
-                      <span>Edicion tipo Excel</span>
+                      <span>&#9998;</span>
                     </label>
                     <button id="records-refresh-button" type="button">Actualizar</button>
                   </div>
                 </div>
 
-                <form id="records-filters-form" class="filters-grid records-filters-grid">
+                <form id="records-filters-form" class="filters-grid records-filters-grid records-filters-compact">
                   <label class="filter-field">
-                    Fecha desde
+                    Desde
                     <input id="records-filter-date-from" name="fecha_desde" type="date" />
                   </label>
                   <label class="filter-field">
-                    Fecha hasta
+                    Hasta
                     <input id="records-filter-date-to" name="fecha_hasta" type="date" />
                   </label>
                   <label class="filter-field">
-                    Personal ID
-                    <input id="records-filter-personal" name="personal_id" type="number" inputmode="numeric" />
-                  </label>
-                  <label class="filter-field">
-                    Contrato ID
-                    <input id="records-filter-contrato" name="contrato_id" type="number" inputmode="numeric" />
-                  </label>
-                  <label class="filter-field">
-                    Empresa ID
-                    <input id="records-filter-empresa" name="empresa_id" type="number" inputmode="numeric" />
-                  </label>
-                  <label class="filter-field">
-                    Instalacion ID
-                    <input id="records-filter-instalacion" name="instalacion_id" type="number" inputmode="numeric" />
-                  </label>
-                  <label class="filter-field">
-                    Actividad ID
-                    <input id="records-filter-actividad" name="actividad_id" type="number" inputmode="numeric" />
-                  </label>
-                  <label class="filter-field">
-                    Activo
-                    <select id="records-filter-activo" name="activo">
+                    Contrato
+                    <select id="records-filter-contrato" name="contrato_id">
                       <option value="">Todos</option>
-                      <option value="true">Si</option>
-                      <option value="false">No</option>
                     </select>
                   </label>
                   <label class="filter-field">
-                    Facturar
-                    <select id="records-filter-facturar" name="facturar">
+                    Servicio
+                    <select id="records-filter-servicio" name="servicio_id">
                       <option value="">Todos</option>
-                      <option value="true">Si</option>
-                      <option value="false">No</option>
                     </select>
                   </label>
                   <label class="filter-field">
-                    Abonar
-                    <select id="records-filter-abonar" name="abonar">
+                    Personal
+                    <select id="records-filter-personal" name="personal_id">
                       <option value="">Todos</option>
-                      <option value="true">Si</option>
-                      <option value="false">No</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Instalacion
+                    <select id="records-filter-instalacion" name="instalacion_id">
+                      <option value="">Todos</option>
                     </select>
                   </label>
                   <label class="filter-field">
                     Busqueda
-                    <input id="records-filter-search" name="search" type="search" placeholder="ID, nota, observacion..." />
+                    <input id="records-filter-search" name="search" type="search" placeholder="ID, nota..." />
                   </label>
                   <div class="filter-actions">
                     <button id="records-clear-filters-button" type="button" class="secondary-button">
-                      Limpiar filtros
+                      Limpiar
                     </button>
                   </div>
                 </form>
+
+                <details class="programming-panel-zone">
+                  <summary>Asignación masiva</summary>
+                  <div class="activities-bulk-assignment-panel">
+                    <label>
+                      Campo
+                      <select id="records-bulk-field">
+                        <option value="fecha">Fecha</option>
+                        <option value="empresa_id">Empresa</option>
+                        <option value="contrato_id">Contrato</option>
+                        <option value="servicio_id">Servicio</option>
+                        <option value="personal_id">Personal</option>
+                        <option value="titular_personal_id">Titular</option>
+                        <option value="sustituto_personal_id">Sustituto</option>
+                        <option value="instalacion_id">Instalacion</option>
+                        <option value="puesto_id">Puesto</option>
+                        <option value="funcion_id">Funcion</option>
+                        <option value="modalidad_id">Modalidad</option>
+                        <option value="tipo_hora_id">Tipo hora</option>
+                        <option value="situacion_id">Situacion</option>
+                        <option value="hora_inicio">Hora inicio</option>
+                        <option value="hora_fin">Hora fin</option>
+                        <option value="horas">Horas</option>
+                        <option value="facturar">Facturar</option>
+                        <option value="abonar">Abonar</option>
+                        <option value="sustitucion">Sustitucion</option>
+                        <option value="nota">Nota</option>
+                        <option value="observacion">Observacion</option>
+                      </select>
+                    </label>
+                    <label>
+                      Valor actual
+                      <input id="records-bulk-current-value" type="date" />
+                      <select id="records-bulk-current-select" class="hidden"></select>
+                    </label>
+                    <label>
+                      Nuevo valor
+                      <input id="records-bulk-new-value" type="date" />
+                      <select id="records-bulk-new-select" class="hidden"></select>
+                    </label>
+                    <button id="records-bulk-apply-button" type="button">
+                      Aplicar
+                    </button>
+                    <span id="records-bulk-match-count" class="control-selected-delete-count">
+                      0 coincidencias
+                    </span>
+                  </div>
+                </details>
 
                 <div class="results-toolbar section-summary-toolbar">
                   <div class="results-summary">
@@ -698,6 +726,12 @@
                       <h3 id="record-detail-title">Registro seleccionado</h3>
                     </div>
                     <div class="detail-header-actions">
+                      <button id="record-detail-duplicate-button" type="button" class="secondary-button">
+                        Duplicar
+                      </button>
+                      <button id="record-detail-delete-button" type="button" class="danger-button">
+                        Eliminar
+                      </button>
                       <button id="record-detail-close-button" type="button" class="secondary-button">
                         Cerrar panel
                       </button>
@@ -1252,6 +1286,13 @@
                         class="secondary-button"
                       >
                         Informe por personal
+                      </button>
+                      <button
+                        id="control-personal-report-image-button"
+                        type="button"
+                        class="secondary-button"
+                      >
+                        Ver PNG
                       </button>
                     </div>
                   </div>
@@ -5088,6 +5129,30 @@
           </aside>
         </section>
 
+        <section id="control-report-image-panel" class="detail-panel hidden">
+          <div id="control-report-image-backdrop" class="detail-overlay"></div>
+          <aside class="detail-drawer event-report-image-drawer">
+            <div class="detail-header">
+              <div>
+                <p class="eyebrow">Control personal</p>
+                <h3>Vista previa PNG</h3>
+              </div>
+              <button id="close-control-report-image-button" type="button" class="secondary-button">
+                Cerrar
+              </button>
+            </div>
+            <div class="event-report-image-actions">
+              <button id="copy-control-report-image-button" type="button">Copiar imagen</button>
+              <button id="download-control-report-image-button" class="secondary-button" type="button">
+                Descargar PNG
+              </button>
+            </div>
+            <div class="event-report-image-preview">
+              <img id="control-report-image-preview" alt="Vista previa del informe de control personal" />
+            </div>
+          </aside>
+        </section>
+
         <section id="control-detail-panel" class="detail-panel hidden">
           <div class="detail-overlay" id="control-detail-overlay"></div>
           <aside class="detail-drawer control-detail-drawer">
@@ -5710,6 +5775,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260623-1" defer></script>
-    <script src="./app.js?v=20260623-1" defer></script>
+    <script src="./app.js?v=20260627-1" defer></script>
   </body>
 </html>
