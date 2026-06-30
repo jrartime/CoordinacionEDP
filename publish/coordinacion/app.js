@@ -82,8 +82,9 @@ const RECORD_COLUMNS = [
   { key: "contrato_id", label: "Contrato", type: "number", relationLabelKey: "contrato", sortable: true },
   { key: "servicio_id", label: "Servicio", type: "number", relationLabelKey: "servicio", sortable: true },
   { key: "personal_id", label: "Personal", type: "number", relationLabelKey: "personal", sortable: true },
-  { key: "titular_personal_id", label: "Titular", type: "number", relationLabelKey: "titular_personal" },
-  { key: "sustituto_personal_id", label: "Sustituto", type: "number", relationLabelKey: "sustituto_personal" },
+  { key: "titular_personal_id", label: "Titular", type: "number", relationLabelKey: "titular_personal", derived: true, readonly: true, hiddenInList: true },
+  { key: "sustituto_personal_id", label: "Sustituto", type: "number", relationLabelKey: "sustituto_personal", derived: true, readonly: true, hiddenInList: true },
+  { key: "sustituye_registro_id", label: "Sustituye a registro", type: "number", readonly: true, hiddenInList: true },
   { key: "instalacion_id", label: "Instalacion", type: "number", relationLabelKey: "instalacion", sortable: true, shortLabelKey: "instalacion_siglas" },
   { key: "categoria_id", label: "Categoria", type: "number", hiddenInList: true },
   { key: "puesto_id", label: "Puesto", type: "number", relationLabelKey: "puesto", sortable: true, stackWith: ["funcion_id", "modalidad_id"] },
@@ -604,6 +605,15 @@ const recordDetailCloseButton = document.querySelector("#record-detail-close-but
 const recordDetailCancelButton = document.querySelector("#record-detail-cancel-button");
 const recordDetailDeleteButton = document.querySelector("#record-detail-delete-button");
 const recordDetailDuplicateButton = document.querySelector("#record-detail-duplicate-button");
+const recordDetailSubstitutionButton = document.querySelector("#record-detail-substitution-button");
+const recordDetailRemoveSubstitutionButton = document.querySelector("#record-detail-remove-substitution-button");
+const recordSubstitutionPanel = document.querySelector("#record-substitution-panel");
+const recordSubstitutionOverlay = document.querySelector("#record-substitution-overlay");
+const recordSubstitutionInfo = document.querySelector("#record-substitution-info");
+const recordSubstitutionReasonSelect = document.querySelector("#record-substitution-reason");
+const recordSubstitutionPersonSelect = document.querySelector("#record-substitution-person");
+const recordSubstitutionConfirmButton = document.querySelector("#record-substitution-confirm-button");
+const recordSubstitutionCancelButton = document.querySelector("#record-substitution-cancel-button");
 const controlFiltersForm = document.querySelector("#control-filters-form");
 const controlDateFromInput = document.querySelector("#control-date-from");
 const controlDateToInput = document.querySelector("#control-date-to");
@@ -613,10 +623,7 @@ const controlCentroInput = document.querySelector("#control-centro");
 const controlPuestoInput = document.querySelector("#control-puesto");
 const controlRecordsTable = document.querySelector("#control-records-table");
 const controlClearFiltersButton = document.querySelector("#control-clear-filters-button");
-const controlExportCsvButton = document.querySelector("#control-export-csv-button");
-const controlExportPdfButton = document.querySelector("#control-export-pdf-button");
 const controlTotalsButton = document.querySelector("#control-totals-button");
-const controlPersonalReportImageButton = document.querySelector("#control-personal-report-image-button");
 const controlReportImagePanel = document.querySelector("#control-report-image-panel");
 const controlReportImageBackdrop = document.querySelector("#control-report-image-backdrop");
 const closeControlReportImageButton = document.querySelector("#close-control-report-image-button");
@@ -1025,6 +1032,9 @@ const controlTotalsRecordCount = document.querySelector("#control-totals-record-
 const controlTotalsHours = document.querySelector("#control-totals-hours");
 const controlTotalsFilterSummary = document.querySelector("#control-totals-filter-summary");
 const controlTotalsReportContent = document.querySelector("#control-totals-report-content");
+const controlTotalsExportCsvButton = document.querySelector("#control-totals-export-csv-button");
+const controlTotalsExportPdfButton = document.querySelector("#control-totals-export-pdf-button");
+const controlTotalsReportImageButton = document.querySelector("#control-totals-report-image-button");
 const controlDetailForm = document.querySelector("#control-detail-form");
 const controlDetailIdInput = document.querySelector("#control-detail-id");
 const controlDetailPersonalInput = document.querySelector("#control-detail-personal");
@@ -1176,6 +1186,8 @@ let currentEventReportImageCanvas = null;
 let currentEventReportImageFileName = "";
 let currentControlReportImageCanvas = null;
 let currentControlReportImageFileName = "";
+let controlTotalsSections = [];
+let controlTotalsCurrentSummary = "";
 const eventAssignmentSaveTimers = new Map();
 let currentContractRows = [];
 let currentContractServiceRows = [];
@@ -2477,9 +2489,11 @@ function renderControlTotalsPanel(rows = filteredControlRecords) {
   controlTotalsHours.textContent = controlResultsTruncated
     ? "Acota filtros"
     : formatMinutesAsHours(totalMinutes);
-  controlTotalsFilterSummary.textContent = buildControlTotalsFilterSummary(filters);
+  controlTotalsCurrentSummary = buildControlTotalsFilterSummary(filters);
+  controlTotalsFilterSummary.textContent = controlTotalsCurrentSummary;
 
   if (!rows.length) {
+    controlTotalsSections = [];
     if (reportContent) {
       reportContent.innerHTML = `<p class="empty-state">No hay datos filtrados.</p>`;
     }
@@ -2490,16 +2504,24 @@ function renderControlTotalsPanel(rows = filteredControlRecords) {
     return;
   }
 
+  controlTotalsSections = [];
   reportContent.innerHTML = [...peopleGroups.entries()]
     .sort(([left], [right]) => left.localeCompare(right, "es", { sensitivity: "base" }))
     .map(
-      ([person, group]) => {
-        const dailyRows = [...group.daily.values()]
-          .sort(
-            (left, right) =>
-              left.date.localeCompare(right.date) ||
-              left.puesto.localeCompare(right.puesto, "es", { sensitivity: "base" })
-          )
+      ([person, group], personIndex) => {
+        const dailyItems = [...group.daily.values()].sort(
+          (left, right) =>
+            left.date.localeCompare(right.date) ||
+            left.puesto.localeCompare(right.puesto, "es", { sensitivity: "base" })
+        );
+        const weeklyItems = [...group.weekly.values()].sort(
+          (left, right) =>
+            left.weekKey.localeCompare(right.weekKey) ||
+            left.puesto.localeCompare(right.puesto, "es", { sensitivity: "base" })
+        );
+        controlTotalsSections.push({ person, daily: dailyItems, weekly: weeklyItems });
+
+        const dailyRows = dailyItems
           .map((item) => {
             const weekday = getControlWeekdayInfo(item.date);
             return `
@@ -2519,12 +2541,7 @@ function renderControlTotalsPanel(rows = filteredControlRecords) {
           })
           .join("");
 
-        const weeklyRows = [...group.weekly.values()]
-          .sort(
-            (left, right) =>
-              left.weekKey.localeCompare(right.weekKey) ||
-              left.puesto.localeCompare(right.puesto, "es", { sensitivity: "base" })
-          )
+        const weeklyRows = weeklyItems
           .map(
             (item) => `
               <tr>
@@ -2536,12 +2553,26 @@ function renderControlTotalsPanel(rows = filteredControlRecords) {
           )
           .join("");
 
+        const copyButton = (listing, label) => `
+          <button
+            type="button"
+            class="secondary-button control-totals-copy-png-button"
+            data-totals-index="${personIndex}"
+            data-totals-listing="${listing}"
+            title="${escapeHtml(label)}"
+            aria-label="${escapeHtml(label)}"
+          >Copiar PNG</button>
+        `;
+
         return `
           <section class="control-person-report-section">
             <h4>${escapeHtml(person)}</h4>
             <div class="control-totals-grid">
               <section>
-                <h5>Total diario por puesto</h5>
+                <div class="control-totals-listing-header">
+                  <h5>Total diario por puesto</h5>
+                  ${copyButton("daily", `Copiar PNG del total diario de ${person}`)}
+                </div>
                 <div class="table-wrapper control-totals-table-wrapper">
                   <table>
                     <thead>
@@ -2557,7 +2588,10 @@ function renderControlTotalsPanel(rows = filteredControlRecords) {
                 </div>
               </section>
               <section>
-                <h5>Total por semana y puesto</h5>
+                <div class="control-totals-listing-header">
+                  <h5>Total por semana y puesto</h5>
+                  ${copyButton("weekly", `Copiar PNG del total semanal de ${person}`)}
+                </div>
                 <div class="table-wrapper control-totals-table-wrapper">
                   <table>
                     <thead>
@@ -4091,6 +4125,156 @@ async function downloadControlReportImage() {
     triggerDownload(blob, currentControlReportImageFileName || "informe-control-personal.png");
   } catch (error) {
     setStatus(error?.message || "No se pudo descargar la imagen.", "error");
+  }
+}
+
+function drawControlTotalsListingImage({ title, subtitle, columns, rows }) {
+  const scale = 2;
+  const margin = 40;
+  const cellPadding = 10;
+  const lineHeight = 26;
+  const headerHeight = 42;
+  const titleHeight = subtitle ? 108 : 72;
+  const footerHeight = 52;
+  const tableWidth = columns.reduce((total, column) => total + column.width, 0);
+  const canvasWidth = tableWidth + margin * 2;
+  const scratchContext = document.createElement("canvas").getContext("2d");
+
+  scratchContext.font = "20px Arial";
+  const rowLayouts = rows.map((cells) => {
+    const cellLines = columns.map((column, index) =>
+      wrapCanvasText(scratchContext, String(cells[index] ?? "-") || "-", column.width - cellPadding * 2)
+    );
+    const rowHeight = Math.max(
+      40,
+      Math.max(...cellLines.map((lines) => lines.length)) * lineHeight + cellPadding * 2
+    );
+    return { cellLines, rowHeight };
+  });
+
+  const canvasHeight =
+    titleHeight +
+    headerHeight +
+    rowLayouts.reduce((total, layout) => total + layout.rowHeight, 0) +
+    footerHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth * scale;
+  canvas.height = canvasHeight * scale;
+  const context = canvas.getContext("2d");
+  context.scale(scale, scale);
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvasWidth, canvasHeight);
+  context.fillStyle = "#001f54";
+  context.font = "bold 26px Arial";
+  context.fillText(title, margin, 42);
+  if (subtitle) {
+    context.fillStyle = "#475569";
+    context.font = "18px Arial";
+    context.fillText(subtitle, margin, 74);
+  }
+
+  let y = titleHeight;
+  let x = margin;
+  context.font = "bold 18px Arial";
+  columns.forEach((column) => {
+    context.fillStyle = "#e5e7eb";
+    context.fillRect(x, y, column.width, headerHeight);
+    context.strokeStyle = "#94a3b8";
+    context.strokeRect(x, y, column.width, headerHeight);
+    context.fillStyle = "#111827";
+    context.fillText(column.label, x + cellPadding, y + 27);
+    x += column.width;
+  });
+  y += headerHeight;
+
+  rowLayouts.forEach(({ cellLines, rowHeight }) => {
+    x = margin;
+    context.font = "18px Arial";
+    columns.forEach((column, columnIndex) => {
+      context.strokeStyle = "#d6dbe7";
+      context.strokeRect(x, y, column.width, rowHeight);
+      context.fillStyle = "#001f54";
+      cellLines[columnIndex].forEach((line, lineIndex) => {
+        context.fillText(line, x + cellPadding, y + cellPadding + 18 + lineIndex * lineHeight);
+      });
+      x += column.width;
+    });
+    y += rowHeight;
+  });
+
+  context.fillStyle = "#64748b";
+  context.font = "16px Arial";
+  context.fillText(`Generado: ${new Date().toLocaleString("es-ES")}`, margin, canvasHeight - 14);
+
+  return canvas;
+}
+
+async function copyControlTotalsListingImage(index, listing) {
+  try {
+    const section = controlTotalsSections[index];
+    if (!section) {
+      throw new Error("No hay datos del listado para copiar.");
+    }
+
+    let title;
+    let columns;
+    let rows;
+    if (listing === "weekly") {
+      title = `${section.person} · Total por semana y puesto`;
+      columns = [
+        { label: "Semana", width: 340 },
+        { label: "Puesto", width: 260 },
+        { label: "Total horas", width: 150 },
+      ];
+      rows = section.weekly.map((item) => [
+        item.weekLabel,
+        item.puesto,
+        formatMinutesAsHours(item.minutes),
+      ]);
+    } else {
+      title = `${section.person} · Total diario por puesto`;
+      columns = [
+        { label: "Día", width: 70 },
+        { label: "Fecha", width: 150 },
+        { label: "Puesto", width: 260 },
+        { label: "Total horas", width: 150 },
+      ];
+      rows = section.daily.map((item) => [
+        getControlWeekdayInfo(item.date).letter,
+        formatDisplayDate(item.date),
+        item.puesto,
+        formatMinutesAsHours(item.minutes),
+      ]);
+    }
+
+    if (!rows.length) {
+      throw new Error("El listado no tiene filas para copiar.");
+    }
+
+    const canvas = drawControlTotalsListingImage({
+      title,
+      subtitle: controlTotalsCurrentSummary,
+      columns,
+      rows,
+    });
+    const blob = await canvasToBlob(canvas);
+    const fileName = `control-${sanitizeFileName(section.person)}-${listing === "weekly" ? "semanal" : "diario"}.png`;
+
+    if (navigator.clipboard && typeof window.ClipboardItem !== "undefined") {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        setStatus("Imagen del listado copiada al portapapeles.", "success");
+        return;
+      } catch (clipboardError) {
+        // El portapapeles puede fallar (permisos o foco): caemos a descarga.
+      }
+    }
+
+    triggerDownload(blob, fileName);
+    setStatus("No se pudo copiar al portapapeles; se ha descargado el PNG.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo copiar la imagen del listado.", "error");
   }
 }
 
@@ -12488,14 +12672,26 @@ function renderRecordsTable() {
               }
             }
           }
+          if (column.key === "personal_id") {
+            const subInfo = getRecordSubstitutionInfo(row);
+            if (subInfo) {
+              content = `<span title="${escapeHtml(subInfo.title)}">${content}</span>`;
+            }
+            content += renderRecordSubstitutionBadge(row);
+          }
         }
         return `<td data-record-row="${escapeHtml(row.id)}" data-record-field-read="${escapeHtml(
           column.key
         )}">${content}</td>`;
       }).join("");
-      return `<tr data-record-id="${escapeHtml(row.id)}" class="${
-        String(row.id) === String(selectedRecordId) ? "selected-row" : ""
-      }">${cells}</tr>`;
+      const rowClasses = [
+        String(row.id) === String(selectedRecordId) ? "selected-row" : "",
+        isRecordSubstituteRow(row) ? "record-row-sustituto" : "",
+        row.sustituto_personal_id ? "record-row-sustituido" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return `<tr data-record-id="${escapeHtml(row.id)}" class="${rowClasses}">${cells}</tr>`;
     })
     .join("");
 }
@@ -12538,6 +12734,24 @@ function updateRecordsFilterOptions() {
       return la.localeCompare(lb, "es", { sensitivity: "base" });
     });
 
+    if (id === "records-filter-personal") {
+      // Filtro de personal con autocompletado (input oculto guarda el id).
+      const options = sorted.map(([val, label]) => ({ value: val, label: label || String(val) }));
+      setPersonalPickerOptions("records-filter", options);
+      const currentId = select.value;
+      const inputEl = document.querySelector("#records-filter-personal-input");
+      if (currentId) {
+        const match = options.find((option) => String(option.value) === String(currentId));
+        if (match && inputEl && document.activeElement !== inputEl) {
+          inputEl.value = match.label;
+        } else if (!match) {
+          select.value = "";
+          if (inputEl && document.activeElement !== inputEl) inputEl.value = "";
+        }
+      }
+      continue;
+    }
+
     const prev = select.value;
     select.innerHTML =
       `<option value="">Todos</option>` +
@@ -12561,8 +12775,6 @@ const RECORD_BULK_FIELDS = {
   contrato_id: { label: "Contrato", type: "select", source: "contrato_id" },
   servicio_id: { label: "Servicio", type: "select", source: "servicio_id" },
   personal_id: { label: "Personal", type: "select", source: "personal_id" },
-  titular_personal_id: { label: "Titular", type: "select", source: "titular_personal_id" },
-  sustituto_personal_id: { label: "Sustituto", type: "select", source: "sustituto_personal_id" },
   instalacion_id: { label: "Instalacion", type: "select", source: "instalacion_id" },
   puesto_id: { label: "Puesto", type: "select", source: "puesto_id" },
   funcion_id: { label: "Funcion", type: "select", source: "funcion_id" },
@@ -12956,6 +13168,7 @@ async function openRecordDetail(recordId) {
   selectedRecordId = String(recordId);
   recordDetailSnapshot = { ...row };
   renderRecordDetailForm(row);
+  updateRecordSubstitutionButtons();
   recordDetailPanel.classList.remove("hidden");
   renderRecordsTable();
 }
@@ -13012,7 +13225,7 @@ async function duplicateRecordDetail() {
   const derivedKeys = new Set(RECORD_DETAIL_LABEL_COLUMNS);
   const insertData = {};
   for (const column of RECORD_COLUMNS) {
-    if (excludeKeys.has(column.key) || derivedKeys.has(column.key)) continue;
+    if (excludeKeys.has(column.key) || derivedKeys.has(column.key) || column.derived) continue;
     const field = recordDetailForm?.elements[column.key];
     if (field) {
       insertData[column.key] = column.type === "boolean"
@@ -13033,6 +13246,329 @@ async function duplicateRecordDetail() {
   } catch (error) {
     setStatus(`No se pudo duplicar el registro: ${error.message}`, "error");
   }
+}
+
+// --- Sustituciones ---
+// Motivos de ausencia del titular y como se marcan en su fila.
+// Regla de nomina acordada: VAC/IT/AP/PR/LG se pagan y facturan (sin tocar horas);
+// PNR (permiso no retribuido) se marca como tipo de hora PNR y pone hd en negativo.
+const RECORD_SUBSTITUTION_REASONS = [
+  { value: "VAC", label: "Vacaciones (VAC)", situacionCode: "VAC" },
+  { value: "IT", label: "Baja IT (IT)", situacionCode: "IT" },
+  { value: "AP", label: "Asuntos propios (AP)", situacionCode: "AP" },
+  { value: "PR", label: "Permiso retribuido (PR)", situacionCode: "PR" },
+  { value: "LG", label: "Licencia (LG)", situacionCode: "LG" },
+  { value: "PNR", label: "Permiso no retribuido (PNR)", tipoHoraCode: "PNR", hdNegative: true },
+];
+
+function findRecordRelationIdByLabel(field, label) {
+  const options = recordRelationOptionsCache[field] || [];
+  const target = String(label).trim().toLocaleUpperCase("es");
+  const found = options.find(
+    (option) => String(option.label).trim().toLocaleUpperCase("es") === target
+  );
+  return found ? found.value : null;
+}
+
+// Devuelve { titularId, subIds } si el registro forma parte de una sustitucion.
+function resolveRecordSubstitutionGroup(row) {
+  if (!row) return null;
+  if (row.sustituye_registro_id) {
+    const titularId = row.sustituye_registro_id;
+    const subIds = recordsRows
+      .filter((r) => String(r.sustituye_registro_id) === String(titularId))
+      .map((r) => r.id);
+    if (!subIds.includes(row.id)) subIds.push(row.id);
+    return { titularId, subIds };
+  }
+  const subIds = recordsRows
+    .filter((r) => String(r.sustituye_registro_id) === String(row.id))
+    .map((r) => r.id);
+  return subIds.length ? { titularId: row.id, subIds } : null;
+}
+
+function isRecordSubstituteRow(row) {
+  return Boolean(row?.sustitucion) || row?.sustituye_registro_id != null;
+}
+
+function getRecordSubstitutionInfo(row) {
+  if (isRecordSubstituteRow(row)) {
+    const titularName = String(row?.titular_personal ?? "").trim();
+    return {
+      title: titularName ? `Sustituye a ${titularName}` : "Fila de sustitución",
+      badgeText: "↻ Sustituto",
+      badgeClass: "record-sub-badge-sustituto",
+    };
+  }
+  if (row?.sustituto_personal_id) {
+    const sustitutoName = String(row?.sustituto_personal ?? "").trim();
+    return {
+      title: sustitutoName ? `Sustituido por ${sustitutoName}` : "Titular sustituido",
+      badgeText: "✦ Sustituido",
+      badgeClass: "record-sub-badge-titular",
+    };
+  }
+  return null;
+}
+
+function renderRecordSubstitutionBadge(row) {
+  const info = getRecordSubstitutionInfo(row);
+  if (!info) return "";
+  return ` <span class="record-sub-badge ${info.badgeClass}" title="${escapeHtml(info.title)}">${escapeHtml(info.badgeText)}</span>`;
+}
+
+function openRecordSubstitutionPanel() {
+  if (!recordDetailSnapshot?.id || !recordSubstitutionPanel) return;
+
+  if (isRecordSubstituteRow(recordDetailSnapshot)) {
+    setStatus("Este registro ya es una fila de sustituto. Usa 'Quitar sustitución' si quieres revertir.", "error");
+    return;
+  }
+  if (recordDetailSnapshot.sustituto_personal_id) {
+    setStatus("Este registro ya tiene una sustitución asignada.", "error");
+    return;
+  }
+
+  if (recordSubstitutionReasonSelect) {
+    recordSubstitutionReasonSelect.innerHTML = RECORD_SUBSTITUTION_REASONS.map(
+      (reason) => `<option value="${reason.value}">${escapeHtml(reason.label)}</option>`
+    ).join("");
+  }
+  setPersonalPickerOptions("substitution", recordRelationOptionsCache.personal_id || []);
+  clearPersonalPicker("substitution");
+  if (recordSubstitutionInfo) {
+    const titularName = recordDetailSnapshot.personal || `ID ${recordDetailSnapshot.personal_id ?? "?"}`;
+    const fecha = formatRecordDisplayValue(recordDetailSnapshot, getRecordColumn("fecha"));
+    recordSubstitutionInfo.textContent = `Titular: ${titularName} · ${fecha} · ${String(recordDetailSnapshot.hora_inicio ?? "").slice(0, 5)}-${String(recordDetailSnapshot.hora_fin ?? "").slice(0, 5)}`;
+  }
+  recordSubstitutionPanel.classList.remove("hidden");
+}
+
+function closeRecordSubstitutionPanel() {
+  recordSubstitutionPanel?.classList.add("hidden");
+  clearPersonalPicker("substitution");
+}
+
+async function confirmRecordSubstitution() {
+  const titular = recordDetailSnapshot;
+  if (!titular?.id) return;
+
+  const reasonValue = recordSubstitutionReasonSelect?.value || "";
+  const reason = RECORD_SUBSTITUTION_REASONS.find((r) => r.value === reasonValue);
+  const sustitutoId = Number(recordSubstitutionPersonSelect?.value || "");
+
+  if (!reason) {
+    setStatus("Selecciona un motivo de ausencia.", "error");
+    return;
+  }
+  if (!sustitutoId) {
+    setStatus("Selecciona la persona que sustituye.", "error");
+    return;
+  }
+  if (sustitutoId === Number(titular.personal_id)) {
+    setStatus("El sustituto no puede ser el propio titular.", "error");
+    return;
+  }
+
+  // Fila del titular ausente. El sustituto se deduce del enlace de la fila nueva,
+  // por eso no se guarda titular/sustituto: solo el motivo de ausencia.
+  const titularPatch = {};
+  if (reason.situacionCode) {
+    const situacionId = findRecordRelationIdByLabel("situacion_id", reason.situacionCode);
+    if (situacionId != null) titularPatch.situacion_id = situacionId;
+  }
+  if (reason.tipoHoraCode) {
+    const tipoHoraId = findRecordRelationIdByLabel("tipo_hora_id", reason.tipoHoraCode);
+    if (tipoHoraId != null) titularPatch.tipo_hora_id = tipoHoraId;
+  }
+  if (reason.hdNegative) {
+    const horas = Number(titular.horas) || 0;
+    titularPatch.hd = -Math.abs(horas);
+  }
+
+  // Fila del sustituto (copia del turno). titular/sustituto son derivados, no se copian.
+  const excludeKeys = new Set(["id", "control"]);
+  const derivedKeys = new Set(RECORD_DETAIL_LABEL_COLUMNS);
+  const insertData = {};
+  for (const column of RECORD_COLUMNS) {
+    if (excludeKeys.has(column.key) || derivedKeys.has(column.key) || column.derived) continue;
+    if (titular[column.key] !== undefined) insertData[column.key] = titular[column.key];
+  }
+  insertData.personal_id = sustitutoId;
+  insertData.sustitucion = true;
+  insertData.facturar = true;
+  insertData.abonar = true;
+  insertData.hd = 0;
+  insertData.sustituye_registro_id = titular.id;
+  const sustSituacionId = findRecordRelationIdByLabel("situacion_id", "SUST");
+  if (sustSituacionId != null) insertData.situacion_id = sustSituacionId;
+  // El sustituto trabaja horas normales: conserva el tipo de hora original del turno.
+  insertData.tipo_hora_id = titular.tipo_hora_id ?? findRecordRelationIdByLabel("tipo_hora_id", "REG");
+
+  try {
+    const supabase = await getSupabaseClient();
+    const { error: updateError } = await supabase
+      .from("registros")
+      .update(titularPatch)
+      .eq("id", titular.id);
+    if (updateError) throw updateError;
+
+    const { data, error: insertError } = await supabase
+      .from("registros")
+      .insert(insertData)
+      .select("id")
+      .single();
+    if (insertError) throw insertError;
+
+    closeRecordSubstitutionPanel();
+    await loadRecords();
+    openRecordDetail(titular.id);
+    setStatus(`Sustitución registrada (${reason.value}). Nueva fila del sustituto: ID ${data.id}.`, "success");
+  } catch (error) {
+    setStatus(`No se pudo registrar la sustitución: ${error.message}`, "error");
+  }
+}
+
+async function removeRecordSubstitution() {
+  const group = resolveRecordSubstitutionGroup(recordDetailSnapshot);
+  if (!group) {
+    setStatus("Este registro no forma parte de una sustitución.", "error");
+    return;
+  }
+  if (!confirm("¿Quitar la sustitución? Se borrará la fila del sustituto y el titular volverá a estado normal.")) {
+    return;
+  }
+
+  const normSituacionId = findRecordRelationIdByLabel("situacion_id", "NORM");
+  const regTipoHoraId = findRecordRelationIdByLabel("tipo_hora_id", "REG");
+  const titularRevert = { hd: 0 };
+  if (normSituacionId != null) titularRevert.situacion_id = normSituacionId;
+  if (regTipoHoraId != null) titularRevert.tipo_hora_id = regTipoHoraId;
+
+  try {
+    const supabase = await getSupabaseClient();
+    if (group.subIds.length) {
+      const { error: deleteError } = await supabase
+        .from("registros")
+        .delete()
+        .in("id", group.subIds);
+      if (deleteError) throw deleteError;
+    }
+    const { error: revertError } = await supabase
+      .from("registros")
+      .update(titularRevert)
+      .eq("id", group.titularId);
+    if (revertError) throw revertError;
+
+    await loadRecords();
+    if (recordsRows.some((r) => String(r.id) === String(group.titularId))) {
+      openRecordDetail(group.titularId);
+    } else {
+      closeRecordDetail(true);
+    }
+    setStatus("Sustitución eliminada.", "success");
+  } catch (error) {
+    setStatus(`No se pudo quitar la sustitución: ${error.message}`, "error");
+  }
+}
+
+function updateRecordSubstitutionButtons() {
+  const row = recordDetailSnapshot;
+  const group = resolveRecordSubstitutionGroup(row);
+  const isPartOfSub = Boolean(group) || isRecordSubstituteRow(row) || Boolean(row?.sustituto_personal_id);
+
+  if (recordDetailSubstitutionButton) {
+    recordDetailSubstitutionButton.classList.toggle("hidden", isPartOfSub);
+  }
+  if (recordDetailRemoveSubstitutionButton) {
+    recordDetailRemoveSubstitutionButton.classList.toggle("hidden", !isPartOfSub);
+  }
+}
+
+// --- Combo de personal con autocompletado (resuelve a id) ---
+// Reutilizable: un input de texto para buscar + un input oculto con el id seleccionado
+// + una lista de sugerencias. Mismo look que el buscador de Control personal.
+const personalPickers = new Map();
+
+function setupPersonalPicker(key, { inputId, hiddenId, suggestionsId, onChange } = {}) {
+  const inputEl = document.querySelector(`#${inputId}`);
+  const suggestionsEl = document.querySelector(`#${suggestionsId}`);
+  const hiddenEl = hiddenId ? document.querySelector(`#${hiddenId}`) : null;
+  if (!inputEl || !suggestionsEl) return null;
+
+  const state = { inputEl, suggestionsEl, hiddenEl, options: [], onChange };
+  personalPickers.set(key, state);
+
+  inputEl.addEventListener("input", () => {
+    if (!inputEl.value.trim() && hiddenEl && hiddenEl.value) {
+      hiddenEl.value = "";
+      if (typeof onChange === "function") onChange("", "");
+    }
+    renderPersonalPickerSuggestions(state);
+  });
+  inputEl.addEventListener("focus", () => renderPersonalPickerSuggestions(state));
+  inputEl.addEventListener("blur", () => {
+    window.setTimeout(() => suggestionsEl.classList.add("hidden"), 200);
+  });
+  suggestionsEl.addEventListener("pointerdown", (event) => {
+    const option = event.target.closest("[data-personal-option-value]");
+    if (!option) return;
+    event.preventDefault();
+    const value = option.dataset.personalOptionValue;
+    const label = option.dataset.personalOptionLabel;
+    inputEl.value = label;
+    if (hiddenEl) hiddenEl.value = value;
+    suggestionsEl.classList.add("hidden");
+    if (typeof onChange === "function") onChange(value, label);
+  });
+
+  return state;
+}
+
+function setPersonalPickerOptions(key, options) {
+  const state = personalPickers.get(key);
+  if (state) state.options = Array.isArray(options) ? options : [];
+}
+
+function setPersonalPickerSelection(key, value, label) {
+  const state = personalPickers.get(key);
+  if (!state) return;
+  state.inputEl.value = label || "";
+  if (state.hiddenEl) state.hiddenEl.value = value != null ? String(value) : "";
+}
+
+function clearPersonalPicker(key) {
+  setPersonalPickerSelection(key, "", "");
+  personalPickers.get(key)?.suggestionsEl.classList.add("hidden");
+}
+
+function renderPersonalPickerSuggestions(state) {
+  const query = normalizeSearchText(state.inputEl.value);
+  let options = state.options;
+  if (query) {
+    options = options.filter((option) => normalizeSearchText(option.label).includes(query));
+  }
+  options = options.slice(0, 60);
+
+  if (!options.length || (!query && state.inputEl !== document.activeElement)) {
+    state.suggestionsEl.classList.add("hidden");
+    state.suggestionsEl.innerHTML = "";
+    return;
+  }
+
+  state.suggestionsEl.innerHTML = options
+    .map(
+      (option) => `
+        <button
+          type="button"
+          class="filter-suggestion-option"
+          data-personal-option-value="${escapeHtml(option.value)}"
+          data-personal-option-label="${escapeHtml(option.label)}"
+        >${escapeHtml(option.label)}</button>
+      `
+    )
+    .join("");
+  state.suggestionsEl.classList.remove("hidden");
 }
 
 function collectRecordDetailPayload() {
@@ -15410,7 +15946,9 @@ async function init() {
     event.preventDefault();
     void loadRecords();
   });
-  recordsFiltersForm?.addEventListener("change", () => {
+  recordsFiltersForm?.addEventListener("change", (event) => {
+    // El combo de personal gestiona su propia recarga al elegir/limpiar.
+    if (event.target?.id === "records-filter-personal-input") return;
     recordsExternalActivityFilter = document.querySelector("#records-filter-actividad")?.value || "";
     void loadRecords();
   });
@@ -15420,7 +15958,21 @@ async function init() {
       renderRecordsTable();
       return;
     }
+    if (event.target?.id === "records-filter-personal-input") return;
     recordsExternalActivityFilter = document.querySelector("#records-filter-actividad")?.value || "";
+  });
+  setupPersonalPicker("records-filter", {
+    inputId: "records-filter-personal-input",
+    hiddenId: "records-filter-personal",
+    suggestionsId: "records-filter-personal-suggestions",
+    onChange: () => {
+      void loadRecords();
+    },
+  });
+  setupPersonalPicker("substitution", {
+    inputId: "record-substitution-person-input",
+    hiddenId: "record-substitution-person",
+    suggestionsId: "record-substitution-person-suggestions",
   });
   recordsClearFiltersButton?.addEventListener("click", () => {
     recordsExternalActivityFilter = "";
@@ -15473,12 +16025,31 @@ async function init() {
   recordDetailCancelButton?.addEventListener("click", cancelRecordDetailEdit);
   recordDetailDeleteButton?.addEventListener("click", deleteRecordDetail);
   recordDetailDuplicateButton?.addEventListener("click", duplicateRecordDetail);
+  recordDetailSubstitutionButton?.addEventListener("click", openRecordSubstitutionPanel);
+  recordDetailRemoveSubstitutionButton?.addEventListener("click", () => {
+    void removeRecordSubstitution();
+  });
+  recordSubstitutionConfirmButton?.addEventListener("click", () => {
+    void confirmRecordSubstitution();
+  });
+  recordSubstitutionCancelButton?.addEventListener("click", closeRecordSubstitutionPanel);
+  recordSubstitutionOverlay?.addEventListener("click", closeRecordSubstitutionPanel);
   recordDetailOverlay?.addEventListener("click", closeRecordDetail);
   controlClearFiltersButton?.addEventListener("click", clearControlFilters);
-  controlExportCsvButton.addEventListener("click", exportControlRecordsToCsv);
-  controlExportPdfButton.addEventListener("click", exportControlRecordsToPdf);
   controlTotalsButton?.addEventListener("click", openControlTotalsPanel);
-  controlPersonalReportImageButton?.addEventListener("click", showControlPersonalReportImage);
+  controlTotalsExportCsvButton?.addEventListener("click", exportControlRecordsToCsv);
+  controlTotalsExportPdfButton?.addEventListener("click", exportControlRecordsToPdf);
+  controlTotalsReportImageButton?.addEventListener("click", showControlPersonalReportImage);
+  controlTotalsReportContent?.addEventListener("click", (event) => {
+    const button = event.target.closest(".control-totals-copy-png-button");
+    if (!button) {
+      return;
+    }
+    void copyControlTotalsListingImage(
+      Number(button.dataset.totalsIndex),
+      button.dataset.totalsListing
+    );
+  });
   closeControlReportImageButton?.addEventListener("click", closeControlReportImagePanel);
   controlReportImageBackdrop?.addEventListener("click", closeControlReportImagePanel);
   copyControlReportImageButton?.addEventListener("click", () => {

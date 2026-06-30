@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260608-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260626-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260627-5" />
   </head>
   <body>
     <script>
@@ -630,9 +630,19 @@
                   </label>
                   <label class="filter-field">
                     Personal
-                    <select id="records-filter-personal" name="personal_id">
-                      <option value="">Todos</option>
-                    </select>
+                    <div class="filter-field-stack">
+                      <input
+                        id="records-filter-personal-input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Buscar personal"
+                      />
+                      <input id="records-filter-personal" name="personal_id" type="hidden" />
+                      <div
+                        id="records-filter-personal-suggestions"
+                        class="filter-suggestions filter-suggestions-full hidden"
+                      ></div>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Instalacion
@@ -662,8 +672,6 @@
                         <option value="contrato_id">Contrato</option>
                         <option value="servicio_id">Servicio</option>
                         <option value="personal_id">Personal</option>
-                        <option value="titular_personal_id">Titular</option>
-                        <option value="sustituto_personal_id">Sustituto</option>
                         <option value="instalacion_id">Instalacion</option>
                         <option value="puesto_id">Puesto</option>
                         <option value="funcion_id">Funcion</option>
@@ -726,6 +734,12 @@
                       <h3 id="record-detail-title">Registro seleccionado</h3>
                     </div>
                     <div class="detail-header-actions">
+                      <button id="record-detail-substitution-button" type="button" class="warm-button">
+                        Marcar sustitución
+                      </button>
+                      <button id="record-detail-remove-substitution-button" type="button" class="secondary-button hidden">
+                        Quitar sustitución
+                      </button>
                       <button id="record-detail-duplicate-button" type="button" class="secondary-button">
                         Duplicar
                       </button>
@@ -749,6 +763,55 @@
                       </button>
                     </div>
                   </form>
+                </aside>
+              </section>
+
+              <section id="record-substitution-panel" class="detail-panel hidden">
+                <div id="record-substitution-overlay" class="detail-overlay"></div>
+                <aside class="detail-drawer record-substitution-drawer" aria-labelledby="record-substitution-title">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Registro</p>
+                      <h3 id="record-substitution-title">Marcar sustitución</h3>
+                    </div>
+                    <button id="record-substitution-cancel-button" type="button" class="secondary-button">
+                      Cancelar
+                    </button>
+                  </div>
+
+                  <p id="record-substitution-info" class="control-totals-filter-summary"></p>
+
+                  <div class="detail-form">
+                    <label>
+                      Motivo de la ausencia del titular
+                      <select id="record-substitution-reason"></select>
+                    </label>
+                    <label>
+                      Persona que sustituye
+                      <div class="filter-field-stack">
+                        <input
+                          id="record-substitution-person-input"
+                          type="text"
+                          autocomplete="off"
+                          placeholder="Buscar persona"
+                        />
+                        <input id="record-substitution-person" type="hidden" />
+                        <div
+                          id="record-substitution-person-suggestions"
+                          class="filter-suggestions filter-suggestions-full hidden"
+                        ></div>
+                      </div>
+                    </label>
+                    <p class="muted-text">
+                      Se marcará la ausencia en la fila del titular y se creará una fila nueva
+                      con el sustituto trabajando ese turno, enlazada al titular.
+                    </p>
+                    <div class="detail-actions">
+                      <button id="record-substitution-confirm-button" type="button">
+                        Confirmar sustitución
+                      </button>
+                    </div>
+                  </div>
                 </aside>
               </section>
             </section>
@@ -1267,32 +1330,11 @@
                         Cargar datos
                       </button>
                       <button
-                        id="control-export-csv-button"
-                        type="button"
-                        class="warm-button"
-                      >
-                        Exportar CSV
-                      </button>
-                      <button
-                        id="control-export-pdf-button"
-                        type="button"
-                        class="warm-button"
-                      >
-                        Exportar PDF
-                      </button>
-                      <button
                         id="control-totals-button"
                         type="button"
                         class="secondary-button"
                       >
                         Informe por personal
-                      </button>
-                      <button
-                        id="control-personal-report-image-button"
-                        type="button"
-                        class="secondary-button"
-                      >
-                        Ver PNG
                       </button>
                     </div>
                   </div>
@@ -5100,6 +5142,27 @@
                 <h3 id="control-totals-title">Informe por personal</h3>
               </div>
               <div class="detail-header-actions">
+                <button
+                  id="control-totals-export-csv-button"
+                  type="button"
+                  class="warm-button"
+                >
+                  Exportar CSV
+                </button>
+                <button
+                  id="control-totals-export-pdf-button"
+                  type="button"
+                  class="warm-button"
+                >
+                  Exportar PDF
+                </button>
+                <button
+                  id="control-totals-report-image-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Ver PNG
+                </button>
                 <button id="close-control-totals-button" type="button" class="secondary-button">
                   Cerrar
                 </button>
@@ -5775,6 +5838,6 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260623-1" defer></script>
-    <script src="./app.js?v=20260627-1" defer></script>
+    <script src="./app.js?v=20260627-8" defer></script>
   </body>
 </html>

@@ -1989,9 +1989,9 @@ button.tag-chip.warm-button:hover {
   padding: 0 8px;
 }
 
-.records-filters-compact {
-  gap: 3px 8px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+.private-tab-panel .records-filters-compact {
+  gap: 3px 6px;
+  grid-template-columns: 120px 120px 90px 90px minmax(80px, 1fr) minmax(80px, 1fr) 100px auto;
 }
 
 .records-filters-compact label,
@@ -2000,21 +2000,23 @@ button.tag-chip.warm-button:hover {
   font-size: 0.72rem;
 }
 
-.records-filters-compact input,
-.records-filters-compact select {
-  padding: 2px 4px;
+.private-tab-panel .records-filters-compact .filter-field input,
+.private-tab-panel .records-filters-compact .filter-field select,
+.private-tab-panel .records-filters-compact .filter-field textarea {
+  padding: 3px 6px;
   font-size: 0.74rem;
-  height: 24px;
+  height: 28px;
+  line-height: 1.2;
 }
 
 .records-filters-compact .filter-actions {
   align-self: end;
 }
 
-.records-filters-compact .filter-actions button {
-  padding: 2px 8px;
+.private-tab-panel .records-filters-compact .filter-actions button {
+  padding: 3px 10px;
   font-size: 0.72rem;
-  height: 24px;
+  height: 28px;
 }
 
 .records-table-wrapper {
@@ -2102,6 +2104,39 @@ button.tag-chip.warm-button:hover {
 
 .records-detail-drawer {
   width: min(760px, calc(100vw - 32px));
+}
+
+.record-substitution-drawer {
+  width: min(460px, calc(100vw - 32px));
+}
+
+.record-sub-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.record-sub-badge-sustituto {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.record-sub-badge-titular {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.records-table tr.record-row-sustituto > td {
+  background: rgba(14, 165, 233, 0.06);
+}
+
+.records-table tr.record-row-sustituido > td {
+  background: rgba(245, 158, 11, 0.07);
 }
 
 .records-detail-form .detail-field-row {
@@ -2401,6 +2436,10 @@ th {
   overflow-y: auto;
 }
 
+.filter-suggestions.filter-suggestions-full {
+  right: 0;
+}
+
 .filter-suggestion-option {
   border: 0;
   border-radius: 0;
@@ -2616,7 +2655,7 @@ th {
 }
 
 .control-totals-drawer {
-  width: min(880px, 100%);
+  width: min(1180px, 100%);
 }
 
 .programming-import-drawer {
@@ -2740,9 +2779,28 @@ th {
   font-size: 0.9rem;
 }
 
+.control-totals-listing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.control-totals-copy-png-button {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  font-size: 0.74rem;
+}
+
 .control-totals-table-wrapper {
-  max-height: 680px;
-  overflow: auto;
+  overflow-x: auto;
+}
+
+.control-totals-table-wrapper table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
 }
 
 .control-person-report-section .control-totals-table-wrapper th,
@@ -2750,6 +2808,7 @@ th {
   padding: 3px 5px;
   font-size: 0.76rem;
   line-height: 1.15;
+  overflow-wrap: break-word;
 }
 
 .control-person-report-section .control-totals-table-wrapper .weekday-marker {

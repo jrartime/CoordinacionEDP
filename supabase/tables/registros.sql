@@ -25,8 +25,6 @@ create table if not exists public.registros (
   empresa_id integer default 1,
   contrato_id integer,
   personal_id integer,
-  titular_personal_id integer,
-  sustituto_personal_id integer,
   instalacion_id integer,
   categoria_id integer,
   puesto_id integer,
@@ -79,12 +77,6 @@ on public.registros (contrato_id, fecha desc);
 
 create index if not exists registros_personal_fecha_idx
 on public.registros (personal_id, fecha desc);
-
-create index if not exists registros_titular_personal_fecha_idx
-on public.registros (titular_personal_id, fecha desc);
-
-create index if not exists registros_sustituto_personal_fecha_idx
-on public.registros (sustituto_personal_id, fecha desc);
 
 create index if not exists registros_instalacion_fecha_idx
 on public.registros (instalacion_id, fecha desc);
@@ -181,36 +173,6 @@ begin
     alter table public.registros
       add constraint registros_personal_id_fkey
       foreign key (personal_id)
-      references public.personal (id)
-      on update cascade
-      on delete set null
-      not valid;
-  end if;
-
-  if not exists (
-    select 1
-    from pg_constraint
-    where conname = 'registros_titular_personal_id_fkey'
-      and conrelid = 'public.registros'::regclass
-  ) then
-    alter table public.registros
-      add constraint registros_titular_personal_id_fkey
-      foreign key (titular_personal_id)
-      references public.personal (id)
-      on update cascade
-      on delete set null
-      not valid;
-  end if;
-
-  if not exists (
-    select 1
-    from pg_constraint
-    where conname = 'registros_sustituto_personal_id_fkey'
-      and conrelid = 'public.registros'::regclass
-  ) then
-    alter table public.registros
-      add constraint registros_sustituto_personal_id_fkey
-      foreign key (sustituto_personal_id)
       references public.personal (id)
       on update cascade
       on delete set null
@@ -318,14 +280,9 @@ comment on column public.registros.servicio_id is
   'Servicio asociado al registro. Se copia desde la actividad generadora cuando existe.';
 
 comment on column public.registros.personal_id is
-  'Personal principal asignado al registro.';
+  'Personal que trabaja realmente en el registro (en una sustitucion, el sustituto).';
 
-comment on column public.registros.titular_personal_id is
-  'Personal titular cuando el registro representa una sustitucion.';
-
-comment on column public.registros.sustituto_personal_id is
-  'Personal sustituto cuando el registro representa una sustitucion.';
-
+-- Titular y sustituto no se almacenan: se derivan del enlace sustituye_registro_id en la vista.
 drop view if exists public.registros_detalle;
 
 create or replace view public.registros_detalle as
@@ -342,12 +299,14 @@ select
   r.personal_id,
   p.personal,
   p.dni,
-  r.titular_personal_id,
-  titular.personal as titular_personal,
-  r.sustituto_personal_id,
-  sustituto.personal as sustituto_personal,
+  tlink.personal_id as titular_personal_id,
+  tp.personal as titular_personal,
+  subs.sustituto_personal_id,
+  subs.sustituto_personal,
+  r.sustituye_registro_id,
   r.instalacion_id,
   i.instalacion,
+  i.siglas as instalacion_siglas,
   r.categoria_id,
   r.puesto_id,
   pu.puesto,
@@ -396,10 +355,18 @@ left join public.contratos c
   on c.id = r.contrato_id
 left join public.personal p
   on p.id = r.personal_id
-left join public.personal titular
-  on titular.id = r.titular_personal_id
-left join public.personal sustituto
-  on sustituto.id = r.sustituto_personal_id
+left join public.registros tlink
+  on tlink.id = r.sustituye_registro_id
+left join public.personal tp
+  on tp.id = tlink.personal_id
+left join lateral (
+  select
+    min(sr.personal_id) as sustituto_personal_id,
+    string_agg(distinct sp.personal, ', ') as sustituto_personal
+  from public.registros sr
+  left join public.personal sp on sp.id = sr.personal_id
+  where sr.sustituye_registro_id = r.id
+) subs on true
 left join public.instalaciones i
   on i.id = r.instalacion_id
 left join public.puestos pu
