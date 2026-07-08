@@ -125,7 +125,8 @@ check (
     'settings',
     'concilia',
     'actividades',
-    'registros'
+    'registros',
+    'historial'
   )
 );
 

@@ -96,6 +96,14 @@
   const attendancePageSize = document.querySelector("#attendance-page-size");
   const attendancePreviousPage = document.querySelector("#attendance-previous-page");
   const attendanceNextPage = document.querySelector("#attendance-next-page");
+  const openAttendanceReportButton = document.querySelector("#open-attendance-report-button");
+  const closeAttendanceReportButton = document.querySelector("#close-attendance-report-button");
+  const attendanceReportBackdrop = document.querySelector("#attendance-report-backdrop");
+  const attendanceReportPanel = document.querySelector("#attendance-report-panel");
+  const attendanceReportSummary = document.querySelector("#attendance-report-summary");
+  const attendanceReportTableBody = document.querySelector("#attendance-report-table-body");
+  const attendanceReportPdfButton = document.querySelector("#attendance-report-pdf-button");
+  const attendanceReportExcelButton = document.querySelector("#attendance-report-excel-button");
   const neeFiltersForm = document.querySelector("#nee-filters-form");
   const filterNeeAlumnado = document.querySelector("#filter-nee-alumnado");
   const clearNeeFilterButton = document.querySelector("#clear-nee-filter-button");
@@ -300,6 +308,7 @@
   let activityAllInstallationRows = [];
   let activityInstallationRows = [];
   let activityServiceRows = [];
+  let activityContractNocturnidad = new Map();
   let activityContractPersonalRows = [];
   let activityContractInstallationRows = [];
   let activityUsesContractAssignments = false;
@@ -2324,9 +2333,13 @@
         fetchCatalog(supabase, "personal", "id,personal", "personal", [
           { column: "vinculacion_id", operator: "in", value: [1, 2] },
         ]),
-        fetchCatalog(supabase, "contratos", "id,contrato", "contrato", [
-          { column: "activo", value: true },
-        ]),
+        fetchCatalog(
+          supabase,
+          "contratos",
+          "id,contrato,tiene_nocturnidad,nocturnidad_inicio,nocturnidad_fin",
+          "contrato",
+          [{ column: "activo", value: true }]
+        ),
         fetchCatalog(supabase, "empresas", "id,empresa", "empresa"),
         fetchCatalog(supabase, "instalaciones", "id,instalacion", "instalacion", [
           { column: "activo", value: true },
@@ -2373,6 +2386,17 @@
       activityPersonalRows = personalRows;
       activityInstallationRows = instalacionRows;
       activityServiceRows = servicioRows;
+
+      activityContractNocturnidad = new Map(
+        (contratoRows ?? []).map((row) => [
+          Number(row.id),
+          {
+            tiene: Boolean(row.tiene_nocturnidad),
+            inicio: row.nocturnidad_inicio,
+            fin: row.nocturnidad_fin,
+          },
+        ])
+      );
 
       renderCatalogOptions(activityContrato, contratoRows, "id", "contrato", "Seleccionar contrato");
       renderCatalogOptions(
@@ -3711,9 +3735,43 @@
     return Math.round((minutes / 60) * 100) / 100;
   }
 
+  // Horas del turno que caen dentro de la franja nocturna del contrato.
+  // Franja definida por dos `time` que puede cruzar medianoche (22:00 -> 06:00).
+  // El turno tambien puede cruzar medianoche; se resuelve desenrollando ambos
+  // y sumando el solape sobre los desplazamientos de dia adyacentes.
+  function getActivityNightHours(activity, nightConfig) {
+    if (!nightConfig || !nightConfig.tiene) {
+      return 0;
+    }
+    const start = parseTimeMinutes(activity.hora_inicio);
+    const end = parseTimeMinutes(activity.hora_fin);
+    const nStart = parseTimeMinutes(nightConfig.inicio);
+    const nEnd = parseTimeMinutes(nightConfig.fin);
+    if (start === null || end === null || nStart === null || nEnd === null) {
+      return 0;
+    }
+    const shiftStart = start;
+    const shiftEnd = end >= start ? end : end + 24 * 60;
+    const winLen = nEnd > nStart ? nEnd - nStart : nEnd + 24 * 60 - nStart;
+    if (winLen <= 0) {
+      return 0;
+    }
+    let overlap = 0;
+    for (const dayOffset of [-24 * 60, 0, 24 * 60]) {
+      const winStart = nStart + dayOffset;
+      const winEnd = winStart + winLen;
+      overlap += Math.max(0, Math.min(shiftEnd, winEnd) - Math.max(shiftStart, winStart));
+    }
+    return Math.round((overlap / 60) * 100) / 100;
+  }
+
   function buildRecordsForActivity(activity, existingKeys, options = {}) {
     const dates = getActivityGeneratedDates(activity, options);
     const hours = getActivityGeneratedHours(activity);
+    const nightHours = getActivityNightHours(
+      activity,
+      activityContractNocturnidad.get(Number(activity.contrato_id))
+    );
     return dates
       .map((date) => ({
         actividad_id: activity.id,
@@ -3731,6 +3789,7 @@
         hora_inicio: formatTime(activity.hora_inicio),
         hora_fin: formatTime(activity.hora_fin),
         horas: hours,
+        horas_nocturnas: nightHours,
         activo: true,
         facturar: true,
         abonar: true,
@@ -5318,6 +5377,334 @@
     updateAttendanceSortButtons();
   }
 
+  // -----------------------------------------------
+  // Informe de asistencia por centro y semana
+  // -----------------------------------------------
+  let attendanceReportRows = [];
+
+  function describeAttendanceReportFilters() {
+    const centro = String(attendanceCenterFilter?.value || "").trim();
+    const semana = String(attendanceWeekFilter?.value || "").trim();
+    const alumnado = String(attendanceNameFilter?.value || "").trim();
+    const parts = [];
+    parts.push(`Centro: ${centro || "Todos"}`);
+    parts.push(`Semana: ${semana || "Todas"}`);
+    if (alumnado) {
+      parts.push(`Alumnado: ${alumnado}`);
+    }
+    return parts.join(" · ");
+  }
+
+  async function fetchAllFilteredAttendanceForReport(supabase) {
+    const centro = String(attendanceCenterFilter?.value || "").trim();
+    const semana = String(attendanceWeekFilter?.value || "").trim();
+    const alumnado = normalizeText(attendanceNameFilter?.value || "");
+    const selectColumns = ["centro", "semana", "alumnado", ...ATTENDANCE_DAYS.map((day) => day.field)].join(",");
+    const pageSize = 1000;
+    const rows = [];
+
+    for (let pageFrom = 0; ; pageFrom += pageSize) {
+      let query = supabase
+        .from("concilia_usuarios")
+        .select(selectColumns)
+        .order("centro", { ascending: true })
+        .order("semana", { ascending: true })
+        .range(pageFrom, pageFrom + pageSize - 1);
+      if (centro) {
+        query = query.eq("centro", centro);
+      }
+      if (semana) {
+        query = query.eq("semana", semana);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+
+      rows.push(
+        ...(data ?? []).filter((row) => !alumnado || normalizeText(row.alumnado).includes(alumnado))
+      );
+
+      if (!data || data.length < pageSize) {
+        break;
+      }
+    }
+
+    return rows;
+  }
+
+  function buildAttendanceReportRows(rows) {
+    const grouped = new Map();
+
+    rows.forEach((row) => {
+      const centro = String(row.centro ?? "").trim() || "Sin centro";
+      const semana = String(row.semana ?? "").trim() || "Sin semana";
+      const groupKey = `${centro} ${semana}`;
+
+      if (!grouped.has(groupKey)) {
+        grouped.set(groupKey, {
+          centro,
+          semana,
+          alumnos: 0,
+          counts: Object.fromEntries(ATTENDANCE_DAYS.map((day) => [day.field, 0])),
+        });
+      }
+
+      const group = grouped.get(groupKey);
+      group.alumnos += 1;
+      ATTENDANCE_DAYS.forEach((day) => {
+        if (row[day.field]) {
+          group.counts[day.field] += 1;
+        }
+      });
+    });
+
+    return Array.from(grouped.values()).sort((left, right) => {
+      const centerCompare = left.centro.localeCompare(right.centro, "es", { sensitivity: "base" });
+      if (centerCompare !== 0) {
+        return centerCompare;
+      }
+      return left.semana.localeCompare(right.semana, "es", { numeric: true, sensitivity: "base" });
+    });
+  }
+
+  function computeAttendanceReportTotals(reportRows) {
+    const totals = {
+      alumnos: 0,
+      counts: Object.fromEntries(ATTENDANCE_DAYS.map((day) => [day.field, 0])),
+    };
+    reportRows.forEach((row) => {
+      totals.alumnos += row.alumnos;
+      ATTENDANCE_DAYS.forEach((day) => {
+        totals.counts[day.field] += row.counts[day.field];
+      });
+    });
+    return totals;
+  }
+
+  function renderAttendanceReportTable(reportRows) {
+    if (!attendanceReportTableBody) {
+      return;
+    }
+
+    if (!reportRows.length) {
+      attendanceReportTableBody.innerHTML =
+        '<tr><td colspan="8" class="empty-state">No hay asistencia para esos filtros.</td></tr>';
+      return;
+    }
+
+    const totals = computeAttendanceReportTotals(reportRows);
+    const bodyRows = reportRows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.centro)}</td>
+            <td>${escapeHtml(row.semana)}</td>
+            ${ATTENDANCE_DAYS.map((day) => `<td>${row.counts[day.field]}</td>`).join("")}
+            <td>${row.alumnos}</td>
+          </tr>`
+      )
+      .join("");
+    const totalsRow = `
+      <tr class="weekly-summary-total-row">
+        <td>Totales</td>
+        <td></td>
+        ${ATTENDANCE_DAYS.map((day) => `<td>${totals.counts[day.field]}</td>`).join("")}
+        <td>${totals.alumnos}</td>
+      </tr>`;
+
+    attendanceReportTableBody.innerHTML = bodyRows + totalsRow;
+  }
+
+  function openAttendanceReportPanel() {
+    attendanceReportBackdrop?.classList.remove("hidden");
+    attendanceReportPanel?.classList.remove("hidden");
+  }
+
+  function closeAttendanceReportPanel() {
+    attendanceReportBackdrop?.classList.add("hidden");
+    attendanceReportPanel?.classList.add("hidden");
+  }
+
+  async function loadAttendanceReport() {
+    openAttendanceReportPanel();
+    if (attendanceReportSummary) {
+      attendanceReportSummary.textContent = "Cargando informe...";
+    }
+    if (attendanceReportTableBody) {
+      attendanceReportTableBody.innerHTML =
+        '<tr><td colspan="8" class="empty-state">Cargando informe...</td></tr>';
+    }
+
+    try {
+      const supabase = await getSupabaseClient();
+      const rawRows = await fetchAllFilteredAttendanceForReport(supabase);
+      attendanceReportRows = buildAttendanceReportRows(rawRows);
+      renderAttendanceReportTable(attendanceReportRows);
+      if (attendanceReportSummary) {
+        const totals = computeAttendanceReportTotals(attendanceReportRows);
+        attendanceReportSummary.textContent = attendanceReportRows.length
+          ? `${attendanceReportRows.length} centro/semana · ${totals.alumnos} alumnos · ${describeAttendanceReportFilters()}`
+          : `Sin datos · ${describeAttendanceReportFilters()}`;
+      }
+    } catch (error) {
+      attendanceReportRows = [];
+      if (attendanceReportSummary) {
+        attendanceReportSummary.textContent = "No se pudo generar el informe.";
+      }
+      if (attendanceReportTableBody) {
+        attendanceReportTableBody.innerHTML =
+          '<tr><td colspan="8" class="empty-state">Error generando el informe.</td></tr>';
+      }
+      setStatus(`No se pudo generar el informe de asistencia: ${error.message}`, "error");
+    }
+  }
+
+  async function downloadAttendanceReportPdf() {
+    if (!attendanceReportRows.length) {
+      setStatus("No hay asistencia filtrada para generar el informe.", "error");
+      return;
+    }
+
+    try {
+      const { jsPDF } = await getJsPdfClient();
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 8;
+      const rowHeight = 7;
+      const centerWidth = 78;
+      const weekWidth = 20;
+      const numericWidth = (pageWidth - margin * 2 - centerWidth - weekWidth) / (ATTENDANCE_DAYS.length + 1);
+      const totals = computeAttendanceReportTotals(attendanceReportRows);
+      const dayLabels = [...ATTENDANCE_DAYS.map((day) => day.shortLabel), "Alumnos"];
+      let y = margin;
+
+      const drawTitle = () => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("Informe de asistencia por centro y semana", margin, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text(describeAttendanceReportFilters(), margin, y);
+        y += 8;
+      };
+
+      const drawHeader = () => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.6);
+        doc.setFillColor(235, 239, 245);
+        doc.rect(margin, y - 4.5, pageWidth - margin * 2, rowHeight, "F");
+        doc.text("Centro", margin + 1, y);
+        doc.text("Semana", margin + centerWidth + 1, y);
+        dayLabels.forEach((label, index) => {
+          doc.text(label, margin + centerWidth + weekWidth + numericWidth * index + 1, y, {
+            maxWidth: numericWidth - 1,
+          });
+        });
+        y += rowHeight;
+      };
+
+      const ensureSpace = () => {
+        if (y + rowHeight <= pageHeight - margin) {
+          return;
+        }
+        doc.addPage();
+        y = margin;
+        drawHeader();
+      };
+
+      const drawNumericCells = (values) => {
+        values.forEach((value, index) => {
+          doc.text(String(value), margin + centerWidth + weekWidth + numericWidth * index + 1, y, {
+            maxWidth: numericWidth - 1,
+          });
+        });
+      };
+
+      drawTitle();
+      drawHeader();
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      attendanceReportRows.forEach((row) => {
+        ensureSpace();
+        doc.text(row.centro, margin + 1, y, { maxWidth: centerWidth - 2 });
+        doc.text(row.semana, margin + centerWidth + 1, y, { maxWidth: weekWidth - 2 });
+        drawNumericCells([...ATTENDANCE_DAYS.map((day) => row.counts[day.field]), row.alumnos]);
+        y += rowHeight;
+      });
+
+      ensureSpace();
+      doc.setFont("helvetica", "bold");
+      doc.text("Totales", margin + 1, y, { maxWidth: centerWidth - 2 });
+      drawNumericCells([...ATTENDANCE_DAYS.map((day) => totals.counts[day.field]), totals.alumnos]);
+
+      const today = new Date().toISOString().slice(0, 10);
+      doc.save(`informe-asistencia-${today}.pdf`);
+      setStatus("PDF de asistencia generado correctamente.", "success");
+    } catch (error) {
+      setStatus(`No se pudo generar el PDF de asistencia: ${error.message}`, "error");
+    }
+  }
+
+  function downloadAttendanceReportExcel() {
+    if (!attendanceReportRows.length) {
+      setStatus("No hay asistencia filtrada para generar el informe.", "error");
+      return;
+    }
+
+    const totals = computeAttendanceReportTotals(attendanceReportRows);
+    const headerCells = ["Centro", "Semana", ...ATTENDANCE_DAYS.map((day) => day.shortLabel), "Alumnos"];
+    const renderCell = (value) => `<td>${escapeHtml(String(value))}</td>`;
+    const bodyRows = attendanceReportRows
+      .map(
+        (row) =>
+          `<tr>${renderCell(row.centro)}${renderCell(row.semana)}${ATTENDANCE_DAYS.map((day) =>
+            renderCell(row.counts[day.field])
+          ).join("")}${renderCell(row.alumnos)}</tr>`
+      )
+      .join("");
+    const totalsRow = `<tr>${renderCell("Totales")}${renderCell("")}${ATTENDANCE_DAYS.map((day) =>
+      renderCell(totals.counts[day.field])
+    ).join("")}${renderCell(totals.alumnos)}</tr>`;
+    const headerRow = `<tr>${headerCells.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("")}</tr>`;
+    const captionRow = `<tr><td colspan="${headerCells.length}">${escapeHtml(
+      describeAttendanceReportFilters()
+    )}</td></tr>`;
+
+    const workbook = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office"
+        xmlns:x="urn:schemas-microsoft-com:office:excel"
+        xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="UTF-8" />
+          <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+          <x:Name>Asistencia</x:Name>
+          <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+          </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+        </head>
+        <body>
+          <table>${captionRow}${headerRow}${bodyRows}${totalsRow}</table>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const today = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `informe-asistencia-${today}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setStatus("Excel de asistencia generado correctamente.", "success");
+  }
+
   async function loadNeeRows(supabase) {
     const { data, error } = await supabase.rpc("get_concilia_nee_rows", {
       p_alumnado: String(filterNeeAlumnado.value || "").trim() || null,
@@ -5746,6 +6133,15 @@
     openSummaryPanelButton.addEventListener("click", openSummaryPanel);
     closeSummaryPanelButton.addEventListener("click", closeSummaryPanel);
     summaryPanelBackdrop.addEventListener("click", closeSummaryPanel);
+    openAttendanceReportButton?.addEventListener("click", () => {
+      void loadAttendanceReport();
+    });
+    closeAttendanceReportButton?.addEventListener("click", closeAttendanceReportPanel);
+    attendanceReportBackdrop?.addEventListener("click", closeAttendanceReportPanel);
+    attendanceReportPdfButton?.addEventListener("click", () => {
+      void downloadAttendanceReportPdf();
+    });
+    attendanceReportExcelButton?.addEventListener("click", downloadAttendanceReportExcel);
     openStudentPanelButton.addEventListener("click", openStudentCreatePanel);
     closeStudentPanelButton.addEventListener("click", closeStudentPanel);
     studentPanelBackdrop.addEventListener("click", closeStudentPanel);

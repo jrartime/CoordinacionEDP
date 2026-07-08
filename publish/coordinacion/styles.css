@@ -1991,7 +1991,7 @@ button.tag-chip.warm-button:hover {
 
 .private-tab-panel .records-filters-compact {
   gap: 3px 6px;
-  grid-template-columns: 120px 120px 90px 90px minmax(80px, 1fr) minmax(80px, 1fr) 100px auto;
+  grid-template-columns: 120px 120px 140px 90px minmax(80px, 1fr) minmax(80px, 1fr) 100px auto;
 }
 
 .records-filters-compact label,
@@ -2067,6 +2067,22 @@ button.tag-chip.warm-button:hover {
 }
 
 .records-table td {
+  cursor: pointer;
+}
+
+.records-table td.records-row-actions {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.records-table .compact-button {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1;
+  border-radius: 6px;
   cursor: pointer;
 }
 

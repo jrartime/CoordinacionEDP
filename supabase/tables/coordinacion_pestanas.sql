@@ -18,7 +18,8 @@ create table if not exists public.coordinacion_pestanas (
         'settings',
         'concilia',
         'actividades',
-        'registros'
+        'registros',
+        'historial'
       )
     )
 );
@@ -34,6 +35,7 @@ values
   ('concilia', 'Concilia', 'Gestión de alumnado, asistencia, NEE, disponibilidad y asignaciones.', 50, true),
   ('search', 'Candidaturas', 'Gestión de candidaturas.', 100, true),
   ('personal', 'Personal', 'Gestion de personal.', 105, true),
+  ('historial', 'Historial laboral', 'Historial laboral del personal (altas y bajas).', 107, true),
   ('contracts', 'Contratos', 'Gestión de contratos y servicios.', 110, true),
   ('settings', 'Configuracion', 'Gestion de puestos, funciones y modalidades.', 115, true),
   ('actividades', 'Actividades', 'Gestión transversal de actividades.', 120, true),
@@ -110,7 +112,8 @@ check (
     'settings',
     'concilia',
     'actividades',
-    'registros'
+    'registros',
+    'historial'
   )
 );
 

@@ -58,8 +58,8 @@ const PRIVATE_TAB_TARGETS = new Set([
   "contracts",
   "actividades",
   "registros",
+  "historial",
   "settings",
-  "access",
 ]);
 let ACCESS_ASSIGNABLE_TABS = [
   { key: "programming", label: "Programación" },
@@ -71,6 +71,7 @@ let ACCESS_ASSIGNABLE_TABS = [
   { key: "contracts", label: "Contratos" },
   { key: "actividades", label: "Actividades" },
   { key: "registros", label: "Registros" },
+  { key: "historial", label: "Historial laboral" },
   { key: "settings", label: "Configuración" },
 ];
 const ACCESS_ASSIGNABLE_TABS_FALLBACK = [...ACCESS_ASSIGNABLE_TABS];
@@ -94,15 +95,15 @@ const RECORD_COLUMNS = [
   { key: "hora_inicio", label: "Inicio", type: "time", sortable: true },
   { key: "hora_fin", label: "Fin", type: "time", sortable: true },
   { key: "horas", label: "Horas", type: "decimal", sortable: true },
-  { key: "hc", label: "HC", type: "decimal" },
-  { key: "hf", label: "HF", type: "decimal" },
-  { key: "hm", label: "HM", type: "decimal" },
-  { key: "hd", label: "HD", type: "decimal" },
+  { key: "hc", label: "HC", type: "decimal", hiddenInList: true },
+  { key: "hf", label: "HF", type: "decimal", hiddenInList: true },
+  { key: "hm", label: "HM", type: "decimal", hiddenInList: true },
+  { key: "hd", label: "HD", type: "decimal", hiddenInList: true },
   { key: "bolsa_horas", label: "Bolsa horas", type: "decimal" },
-  { key: "horas_diurnas", label: "H. diurnas", type: "decimal" },
-  { key: "horas_nocturnas", label: "H. nocturnas", type: "decimal" },
-  { key: "clases", label: "Clases", type: "decimal" },
-  { key: "horas_2", label: "Horas 2", type: "decimal" },
+  { key: "horas_diurnas", label: "H. diurnas", type: "decimal", hiddenInList: true },
+  { key: "horas_nocturnas", label: "H. nocturnas", type: "decimal", sortable: true },
+  { key: "clases", label: "Clases", type: "decimal", hiddenInList: true },
+  { key: "horas_2", label: "Horas 2", type: "decimal", hiddenInList: true },
   { key: "sustitucion", label: "Sustitucion", type: "boolean" },
   { key: "facturar", label: "Facturar", type: "boolean" },
   { key: "abonar", label: "Abonar", type: "boolean" },
@@ -128,6 +129,9 @@ const RECORD_DETAIL_LABEL_COLUMNS = [
   "modalidad",
   "tipo_hora",
   "situacion",
+  "apunte_abonado",
+  "apunte_facturado",
+  "apunte_neto",
 ];
 const RECORD_SELECT_COLUMNS = Array.from(
   new Set([...RECORD_COLUMNS.map((column) => column.key), ...RECORD_DETAIL_LABEL_COLUMNS])
@@ -525,11 +529,11 @@ const privateTabEventsButton = document.querySelector("#private-tab-events");
 const privateTabConciliaButton = document.querySelector("#private-tab-concilia");
 const privateTabActividadesButton = document.querySelector("#private-tab-actividades");
 const privateTabRegistrosButton = document.querySelector("#private-tab-registros");
+const privateTabHistorialButton = document.querySelector("#private-tab-historial");
 const privateTabContractsButton = document.querySelector("#private-tab-contracts");
 const privateTabPersonalButton = document.querySelector("#private-tab-personal");
 const privateTabProgrammingButton = document.querySelector("#private-tab-programming");
 const privateTabSettingsButton = document.querySelector("#private-tab-settings");
-const privateTabAccessButton = document.querySelector("#private-tab-access");
 const privateTabPanelNew = document.querySelector("#private-tab-panel-new");
 const privateTabPanelSearch = document.querySelector("#private-tab-panel-search");
 const privateTabPanelControl = document.querySelector("#private-tab-panel-control");
@@ -538,8 +542,11 @@ const privateTabPanelContracts = document.querySelector("#private-tab-panel-cont
 const privateTabPanelPersonal = document.querySelector("#private-tab-panel-personal");
 const privateTabPanelProgramming = document.querySelector("#private-tab-panel-programming");
 const privateTabPanelRegistros = document.querySelector("#private-tab-panel-registros");
+const privateTabPanelHistorial = document.querySelector("#private-tab-panel-historial");
 const privateTabPanelSettings = document.querySelector("#private-tab-panel-settings");
-const privateTabPanelAccess = document.querySelector("#private-tab-panel-access");
+const settingsCatalogView = document.querySelector("#settings-catalog-view");
+const settingsAccessView = document.querySelector("#settings-access-view");
+const settingsSubtabAccessButton = document.querySelector("#settings-subtab-access");
 const privateTabPanelConciliaIntegrated = document.querySelector("#private-tab-panel-concilia-integrated");
 const openCandidateCreateButton = document.querySelector("#open-candidate-create-button");
 const closeCandidateCreateButton = document.querySelector("#close-candidate-create-button");
@@ -968,6 +975,10 @@ const contractDetailEndInput = document.querySelector("#contract-detail-end");
 const contractDetailAmountInput = document.querySelector("#contract-detail-amount");
 const contractDetailVatInput = document.querySelector("#contract-detail-vat");
 const contractDetailActiveInput = document.querySelector("#contract-detail-active");
+const contractDetailNightInput = document.querySelector("#contract-detail-nocturnidad");
+const contractDetailNightStartInput = document.querySelector("#contract-detail-nocturnidad-inicio");
+const contractDetailNightEndInput = document.querySelector("#contract-detail-nocturnidad-fin");
+const contractDetailNightFieldsWrap = document.querySelector("#contract-detail-nocturnidad-fields");
 const contractDetailDeleteButton = document.querySelector("#contract-detail-delete-button");
 const contractServicesSection = document.querySelector("#contract-services-section");
 const contractServiceForm = document.querySelector("#contract-service-form");
@@ -1007,7 +1018,7 @@ const accessUserClearButton = document.querySelector("#access-user-clear-button"
 const accessUserDeleteButton = document.querySelector("#access-user-delete-button");
 const accessStatus = document.querySelector("#access-status");
 const accessUsersTableBody = document.querySelector("#access-users-table-body");
-const settingsSubtabButtons = Array.from(document.querySelectorAll("[data-settings-catalog]"));
+const settingsSubtabButtons = Array.from(document.querySelectorAll(".settings-subtab-button[data-settings-view]"));
 const settingsNewButton = document.querySelector("#settings-new-button");
 const settingsRefreshButton = document.querySelector("#settings-refresh-button");
 const settingsStatus = document.querySelector("#settings-status");
@@ -1221,6 +1232,7 @@ let currentAccessServices = [];
 let currentAccessAssignments = [];
 let currentAccessTabAssignments = [];
 let currentSettingsCatalog = "puestos";
+let currentSettingsView = "catalog"; // "catalog" | "access"
 let currentSettingsRows = [];
 let currentSettingsMode = "new";
 let currentSettingsEditingId = "";
@@ -1680,20 +1692,50 @@ function syncAccessTabVisibility() {
     concilia: privateTabConciliaButton,
     actividades: privateTabActividadesButton,
     registros: privateTabRegistrosButton,
+    historial: privateTabHistorialButton,
     programming: privateTabProgrammingButton,
     contracts: privateTabContractsButton,
     personal: privateTabPersonalButton,
     settings: privateTabSettingsButton,
-    access: privateTabAccessButton,
   };
 
   Object.entries(tabButtons).forEach(([tabKey, button]) => {
     button?.classList.toggle("hidden", !currentAllowedPrivateTabs.has(tabKey));
   });
 
+  // Accesos es ahora una subpestaña de Configuración, visible solo para admin.
+  syncSettingsAccessSubtabVisibility();
+
   if (!currentAllowedPrivateTabs.has(currentPrivateTabTarget)) {
     switchPrivateTab(normalizePrivateTabTarget(currentPrivateTabTarget));
   }
+}
+
+function syncSettingsAccessSubtabVisibility() {
+  settingsSubtabAccessButton?.classList.toggle("hidden", !currentUserIsAccessAdmin);
+  // Si un no-admin tuviera la vista de accesos activa, la devolvemos a catálogos.
+  if (!currentUserIsAccessAdmin && currentSettingsView === "access") {
+    switchSettingsView("catalog");
+  }
+}
+
+function switchSettingsView(view) {
+  const nextView = view === "access" && currentUserIsAccessAdmin ? "access" : "catalog";
+  currentSettingsView = nextView;
+  settingsCatalogView?.classList.toggle("hidden", nextView !== "catalog");
+  settingsAccessView?.classList.toggle("hidden", nextView !== "access");
+  renderSettingsSubtabs();
+}
+
+async function loadSettingsTabActiveView() {
+  syncSettingsAccessSubtabVisibility();
+  if (currentSettingsView === "access" && currentUserIsAccessAdmin) {
+    switchSettingsView("access");
+    await loadAccessManagement();
+    return;
+  }
+  switchSettingsView("catalog");
+  await loadSettingsManagement();
 }
 
 function showPasswordRecoveryView() {
@@ -1782,8 +1824,8 @@ function switchPrivateTab(target) {
   const showContracts = normalizedTarget === "contracts";
   const showPersonal = normalizedTarget === "personal";
   const showRegistros = normalizedTarget === "registros";
+  const showHistorial = normalizedTarget === "historial";
   const showSettings = normalizedTarget === "settings";
-  const showAccess = normalizedTarget === "access";
   const showConcilia = normalizedTarget === "concilia" || normalizedTarget === "actividades";
   const hasAnyAccess = currentAllowedPrivateTabs.size > 0;
 
@@ -1794,8 +1836,8 @@ function switchPrivateTab(target) {
   privateTabPanelContracts?.classList.toggle("hidden", !hasAnyAccess || !showContracts);
   privateTabPanelPersonal?.classList.toggle("hidden", !hasAnyAccess || !showPersonal);
   privateTabPanelRegistros?.classList.toggle("hidden", !hasAnyAccess || !showRegistros);
+  privateTabPanelHistorial?.classList.toggle("hidden", !hasAnyAccess || !showHistorial);
   privateTabPanelSettings?.classList.toggle("hidden", !hasAnyAccess || !showSettings);
-  privateTabPanelAccess?.classList.toggle("hidden", !hasAnyAccess || !showAccess);
   privateTabPanelConciliaIntegrated?.classList.toggle("hidden", !hasAnyAccess || !showConcilia);
   if (showConcilia) {
     showIntegratedConciliaPanel(normalizedTarget);
@@ -1809,8 +1851,8 @@ function switchPrivateTab(target) {
   privateTabContractsButton?.classList.toggle("active", showContracts);
   privateTabPersonalButton?.classList.toggle("active", showPersonal);
   privateTabRegistrosButton?.classList.toggle("active", showRegistros);
+  privateTabHistorialButton?.classList.toggle("active", showHistorial);
   privateTabSettingsButton?.classList.toggle("active", showSettings);
-  privateTabAccessButton?.classList.toggle("active", showAccess);
   privateTabSearchButton.setAttribute("aria-pressed", String(showSearch));
   privateTabControlButton.setAttribute("aria-pressed", String(showControl));
   privateTabEventsButton?.setAttribute("aria-pressed", String(showEvents));
@@ -1820,8 +1862,8 @@ function switchPrivateTab(target) {
   privateTabContractsButton?.setAttribute("aria-pressed", String(showContracts));
   privateTabPersonalButton?.setAttribute("aria-pressed", String(showPersonal));
   privateTabRegistrosButton?.setAttribute("aria-pressed", String(showRegistros));
+  privateTabHistorialButton?.setAttribute("aria-pressed", String(showHistorial));
   privateTabSettingsButton?.setAttribute("aria-pressed", String(showSettings));
-  privateTabAccessButton?.setAttribute("aria-pressed", String(showAccess));
   syncProgrammingTypeUi();
 }
 
@@ -10643,6 +10685,10 @@ function formatNullableDate(value) {
   return String(value || "").slice(0, 10);
 }
 
+function formatNullableTime(value) {
+  return String(value || "").slice(0, 5);
+}
+
 function getServicesForContract(contractId) {
   return currentContractServiceRows.filter((service) => Number(service.contrato_id) === Number(contractId));
 }
@@ -10957,7 +11003,7 @@ async function loadContractsManagement() {
   ] = await Promise.all([
     supabase
       .from("contratos")
-      .select("id, contrato, descripcion, presupuesto_anual, fecha_inicio, fecha_fin, expediente, cpv, importe, cliente, activo, seleccionar, desplazamiento, agrupacion_nomina, iva")
+      .select("id, contrato, descripcion, presupuesto_anual, fecha_inicio, fecha_fin, expediente, cpv, importe, cliente, activo, seleccionar, desplazamiento, agrupacion_nomina, iva, tiene_nocturnidad, nocturnidad_inicio, nocturnidad_fin")
       .order("contrato", { ascending: true }),
     supabase
       .from("servicios")
@@ -11039,6 +11085,17 @@ function resetContractServiceForm() {
   }
 }
 
+function syncContractNightFieldsState() {
+  const enabled = Boolean(contractDetailNightInput?.checked);
+  contractDetailNightFieldsWrap?.classList.toggle("hidden", !enabled);
+  if (contractDetailNightStartInput) {
+    contractDetailNightStartInput.disabled = !enabled;
+  }
+  if (contractDetailNightEndInput) {
+    contractDetailNightEndInput.disabled = !enabled;
+  }
+}
+
 function openContractDetailPanel(contractId = "") {
   const contract = currentContractRows.find((item) => String(item.id) === String(contractId));
   currentEditingContractId = contract ? String(contract.id) : "";
@@ -11073,6 +11130,16 @@ function openContractDetailPanel(contractId = "") {
   if (contractDetailActiveInput) {
     contractDetailActiveInput.checked = Boolean(contract?.activo);
   }
+  if (contractDetailNightInput) {
+    contractDetailNightInput.checked = Boolean(contract?.tiene_nocturnidad);
+  }
+  if (contractDetailNightStartInput) {
+    contractDetailNightStartInput.value = formatNullableTime(contract?.nocturnidad_inicio) || "22:00";
+  }
+  if (contractDetailNightEndInput) {
+    contractDetailNightEndInput.value = formatNullableTime(contract?.nocturnidad_fin) || "06:00";
+  }
+  syncContractNightFieldsState();
   contractDetailDeleteButton?.classList.toggle("hidden", !contract);
   contractServicesSection?.classList.toggle("hidden", !contract);
   contractPersonalSection?.classList.toggle("hidden", !contract);
@@ -11109,6 +11176,9 @@ function getContractPayload() {
     importe: contractDetailAmountInput?.value.trim() || null,
     iva: contractDetailVatInput?.value ? Number(contractDetailVatInput.value) : null,
     activo: Boolean(contractDetailActiveInput?.checked),
+    tiene_nocturnidad: Boolean(contractDetailNightInput?.checked),
+    nocturnidad_inicio: contractDetailNightStartInput?.value || "22:00",
+    nocturnidad_fin: contractDetailNightEndInput?.value || "06:00",
   };
 }
 
@@ -11366,7 +11436,11 @@ function resetSettingsSort() {
 
 function renderSettingsSubtabs() {
   settingsSubtabButtons.forEach((button) => {
-    const isActive = button.dataset.settingsCatalog === currentSettingsCatalog;
+    const view = button.dataset.settingsView;
+    const isActive =
+      view === "access"
+        ? currentSettingsView === "access"
+        : currentSettingsView === "catalog" && button.dataset.settingsCatalog === currentSettingsCatalog;
     button.classList.toggle("active", isActive);
     button.setAttribute("aria-pressed", String(isActive));
   });
@@ -12471,7 +12545,7 @@ function getRecordsFilterValues() {
   return {
     fechaDesde: document.querySelector("#records-filter-date-from")?.value || "",
     fechaHasta: document.querySelector("#records-filter-date-to")?.value || "",
-    contratoId: document.querySelector("#records-filter-contrato")?.value || "",
+    contratoIds: getSelectValues(document.querySelector("#records-filter-contrato")),
     servicioId: document.querySelector("#records-filter-servicio")?.value || "",
     personalId: document.querySelector("#records-filter-personal")?.value || "",
     instalacionId: document.querySelector("#records-filter-instalacion")?.value || "",
@@ -12493,8 +12567,11 @@ function applyRecordsQueryFilters(query, filters) {
     nextQuery = nextQuery.lte("fecha", filters.fechaHasta);
   }
 
+  if (filters.contratoIds.length) {
+    nextQuery = nextQuery.in("contrato_id", filters.contratoIds.map(Number));
+  }
+
   [
-    ["contrato_id", filters.contratoId],
     ["servicio_id", filters.servicioId],
     ["personal_id", filters.personalId],
     ["instalacion_id", filters.instalacionId],
@@ -12621,6 +12698,32 @@ function renderRecordEditableControl(row, column) {
   } />`;
 }
 
+function formatRecordHours(value) {
+  const n = Number(value) || 0;
+  return n.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function buildRecordsSummaryText(rows) {
+  const n = rows.length;
+  let horas = 0;
+  let abonado = 0;
+  let facturado = 0;
+  let hasApunte = false;
+  for (const row of rows) {
+    horas += Number(row.horas) || 0;
+    if (row.apunte_abonado != null || row.apunte_facturado != null) {
+      hasApunte = true;
+    }
+    abonado += Number(row.apunte_abonado) || 0;
+    facturado += Number(row.apunte_facturado) || 0;
+  }
+  const base = `${n} ${n === 1 ? "registro" : "registros"} · ${formatRecordHours(horas)} h`;
+  if (!hasApunte) {
+    return base;
+  }
+  return `${base} · abona ${formatRecordHours(abonado)} h · factura ${formatRecordHours(facturado)} h`;
+}
+
 function renderRecordsTable() {
   renderRecordsTableHead();
 
@@ -12629,7 +12732,7 @@ function renderRecordsTable() {
   }
 
   if (recordsSummary) {
-    recordsSummary.textContent = `${filteredRecordsRows.length} registros mostrados`;
+    recordsSummary.textContent = buildRecordsSummaryText(filteredRecordsRows);
   }
 
   const listColumns = getRecordsListColumns();
@@ -12697,27 +12800,165 @@ function renderRecordsTable() {
 }
 
 const RECORDS_FILTER_SELECTS = [
-  { id: "records-filter-contrato", idKey: "contrato_id", labelKey: "contrato" },
+  { id: "records-filter-contrato", idKey: "contrato_id", labelKey: "contrato", multiple: true, emptyLabel: "Todos los contratos" },
   { id: "records-filter-servicio", idKey: "servicio_id", labelKey: "servicio" },
   { id: "records-filter-personal", idKey: "personal_id", labelKey: "personal" },
   { id: "records-filter-instalacion", idKey: "instalacion_id", labelKey: "instalacion" },
 ];
 
-function updateRecordsFilterOptions() {
-  const currentValues = {};
-  for (const { id, idKey } of RECORDS_FILTER_SELECTS) {
-    currentValues[idKey] = document.querySelector(`#${id}`)?.value || "";
+function getSelectValues(select) {
+  return Array.from(select?.selectedOptions || [])
+    .map((option) => String(option.value || ""))
+    .filter(Boolean);
+}
+
+function getMultiCheckDropdown(select, emptyLabel) {
+  if (!select?.multiple) {
+    return null;
   }
 
-  for (const { id, idKey, labelKey } of RECORDS_FILTER_SELECTS) {
+  select.classList.add("multi-check-select-hidden");
+  let dropdown = select.nextElementSibling;
+  if (!dropdown?.classList?.contains("multi-check-dropdown")) {
+    dropdown = document.createElement("div");
+    dropdown.className = "multi-check-dropdown";
+    dropdown.innerHTML = `
+      <button type="button" class="multi-check-toggle" aria-haspopup="listbox" aria-expanded="false">
+        <span></span>
+      </button>
+      <div class="multi-check-menu hidden" role="listbox" aria-multiselectable="true"></div>
+    `;
+    select.insertAdjacentElement("afterend", dropdown);
+
+    dropdown.querySelector(".multi-check-toggle")?.addEventListener("click", () => {
+      const menu = dropdown.querySelector(".multi-check-menu");
+      const isOpen = !menu.classList.contains("hidden");
+      menu.classList.toggle("hidden", isOpen);
+      dropdown.querySelector(".multi-check-toggle").setAttribute("aria-expanded", String(!isOpen));
+    });
+
+    dropdown.addEventListener("change", (event) => {
+      const allCheckbox = event.target.closest("[data-multi-check-all]");
+      if (allCheckbox) {
+        Array.from(select.options).forEach((option) => {
+          option.selected = false;
+        });
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        return;
+      }
+
+      const checkbox = event.target.closest("[data-multi-check-value]");
+      if (!checkbox) {
+        return;
+      }
+
+      const option = Array.from(select.options).find(
+        (item) => String(item.value) === checkbox.dataset.multiCheckValue
+      );
+      if (!option) {
+        return;
+      }
+
+      option.selected = checkbox.checked;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    document.addEventListener("click", (event) => {
+      if (dropdown.contains(event.target)) {
+        return;
+      }
+
+      dropdown.querySelector(".multi-check-menu")?.classList.add("hidden");
+      dropdown.querySelector(".multi-check-toggle")?.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  dropdown.dataset.emptyLabel = emptyLabel;
+  return dropdown;
+}
+
+function syncMultiCheckDropdown(select, emptyLabel) {
+  const dropdown = getMultiCheckDropdown(select, emptyLabel);
+  if (!dropdown) {
+    return;
+  }
+
+  const selectedOptions = Array.from(select.selectedOptions);
+  const selectedCount = selectedOptions.length;
+  const selectedLabel = select.dataset.multiCheckSelectedLabel || "opciones seleccionadas";
+  const label =
+    selectedCount === 0
+      ? emptyLabel
+      : selectedCount === 1
+        ? selectedOptions[0].textContent
+        : `${selectedCount} ${selectedLabel}`;
+
+  dropdown.querySelector(".multi-check-toggle span").textContent = label;
+  dropdown.querySelector(".multi-check-menu").innerHTML = `
+    <label class="multi-check-option" role="option" aria-selected="${selectedCount === 0}">
+      <input
+        type="checkbox"
+        data-multi-check-all="true"
+        ${selectedCount === 0 ? "checked" : ""}
+      />
+      <span>${escapeHtml(emptyLabel)}</span>
+    </label>
+    ${Array.from(select.options)
+      .map(
+        (option) => `
+        <label class="multi-check-option" role="option" aria-selected="${option.selected}">
+          <input
+            type="checkbox"
+            data-multi-check-value="${escapeHtml(option.value)}"
+            ${option.selected ? "checked" : ""}
+          />
+          <span>${escapeHtml(option.textContent)}</span>
+        </label>
+      `
+      )
+      .join("")}
+  `;
+}
+
+function recordsFilterMatchesValue(row, idKey, filterValue, isMultiple) {
+  if (isMultiple) {
+    return !filterValue.length || filterValue.includes(String(row[idKey]));
+  }
+  return !filterValue || String(row[idKey]) === filterValue;
+}
+
+function resetRecordsNamedFilterControl(form, controlName) {
+  const control = form?.elements?.[controlName];
+  if (!control) {
+    return false;
+  }
+
+  if (control instanceof HTMLSelectElement && control.multiple) {
+    Array.from(control.options).forEach((option) => {
+      option.selected = false;
+    });
+    return true;
+  }
+
+  control.value = "";
+  return true;
+}
+
+function updateRecordsFilterOptions() {
+  const currentValues = {};
+  for (const { id, idKey, multiple } of RECORDS_FILTER_SELECTS) {
+    const select = document.querySelector(`#${id}`);
+    currentValues[idKey] = multiple ? getSelectValues(select) : select?.value || "";
+  }
+
+  for (const { id, idKey, labelKey, multiple, emptyLabel } of RECORDS_FILTER_SELECTS) {
     const select = document.querySelector(`#${id}`);
     if (!select) continue;
 
     const compatibleRows = recordsRows.filter((row) =>
-      RECORDS_FILTER_SELECTS.every(({ idKey: otherKey }) => {
+      RECORDS_FILTER_SELECTS.every(({ idKey: otherKey, multiple: otherMultiple }) => {
         if (otherKey === idKey) return true;
-        const filterVal = currentValues[otherKey];
-        return !filterVal || String(row[otherKey]) === filterVal;
+        return recordsFilterMatchesValue(row, otherKey, currentValues[otherKey], otherMultiple);
       })
     );
 
@@ -12749,6 +12990,26 @@ function updateRecordsFilterOptions() {
           if (inputEl && document.activeElement !== inputEl) inputEl.value = "";
         }
       }
+      continue;
+    }
+
+    if (multiple) {
+      // Usa el catalogo completo (no las filas ya filtradas por el servidor) para
+      // que el listado de opciones no se reduzca a lo ya seleccionado.
+      const catalogOptions = recordRelationOptionsCache[idKey];
+      const optionEntries = catalogOptions?.length
+        ? catalogOptions
+            .map((option) => [String(option.value), option.label || String(option.value)])
+            .sort((a, b) => a[1].localeCompare(b[1], "es", { sensitivity: "base" }))
+        : sorted;
+      const currentIds = new Set(currentValues[idKey]);
+      select.innerHTML = optionEntries
+        .map(([val, label]) => `<option value="${escapeHtml(val)}">${escapeHtml(label)}</option>`)
+        .join("");
+      Array.from(select.options).forEach((option) => {
+        option.selected = currentIds.has(option.value);
+      });
+      syncMultiCheckDropdown(select, emptyLabel || "Todos");
       continue;
     }
 
@@ -12942,6 +13203,7 @@ async function loadRecords() {
   try {
     const supabase = await getSupabaseClient();
     const filters = getRecordsFilterValues();
+    const relationOptionsPromise = loadRecordRelationOptions();
     const buildQuery = (tableName, columns) => {
       let nextQuery = supabase
         .from(tableName)
@@ -12965,6 +13227,7 @@ async function loadRecords() {
       throw error;
     }
 
+    await relationOptionsPromise;
     recordsRows = data ?? [];
     applyRecordsClientFilters();
     sortRecordsRows();
@@ -13652,6 +13915,695 @@ window.CoordinacionRegistros = {
   },
 };
 
+// --- Historial laboral ---
+const historialFiltersForm = document.querySelector("#historial-filters-form");
+const historialSummary = document.querySelector("#historial-summary");
+const historialTableBody = document.querySelector("#historial-table-body");
+const historialRefreshButton = document.querySelector("#historial-refresh-button");
+const historialClearFiltersButton = document.querySelector("#historial-clear-filters-button");
+const historialNewButton = document.querySelector("#historial-new-button");
+const historialDetailPanel = document.querySelector("#historial-detail-panel");
+const historialDetailOverlay = document.querySelector("#historial-detail-overlay");
+const historialDetailTitle = document.querySelector("#historial-detail-title");
+const historialDetailForm = document.querySelector("#historial-detail-form");
+const historialDetailFields = document.querySelector("#historial-detail-fields");
+const historialDetailCloseButton = document.querySelector("#historial-detail-close-button");
+const historialDetailCancelButton = document.querySelector("#historial-detail-cancel-button");
+const historialDetailDeleteButton = document.querySelector("#historial-detail-delete-button");
+const historialDetailDuplicateButton = document.querySelector("#historial-detail-duplicate-button");
+const historialBulkFieldSelect = document.querySelector("#historial-bulk-field");
+const historialBulkCurrentValueInput = document.querySelector("#historial-bulk-current-value");
+const historialBulkCurrentSelect = document.querySelector("#historial-bulk-current-select");
+const historialBulkNewValueInput = document.querySelector("#historial-bulk-new-value");
+const historialBulkNewSelect = document.querySelector("#historial-bulk-new-select");
+const historialBulkApplyButton = document.querySelector("#historial-bulk-apply-button");
+const historialBulkMatchCount = document.querySelector("#historial-bulk-match-count");
+
+const HISTORIAL_FETCH_LIMIT = 1000;
+const HISTORIAL_TABLE = "historiales_laborales";
+const HISTORIAL_DETAIL_VIEW = "historiales_laborales_detalle";
+const HISTORIAL_DETAIL_SELECT =
+  "id, activo, personal_id, personal, empresa_id, empresa, jornada, jornada_maxima, " +
+  "contrato_laboral_id, contrato_laboral_clave, modalidad_pago_id, fecha_alta, fecha_baja, " +
+  "dias_periodo, coeficiente_temporalidad_miles, puesto_id, puesto, puesto_texto, " +
+  "tipo_contratacion_id, tipo_contratacion, motivo_baja_id, motivo_baja, grupo_cotizacion, " +
+  "movimiento, salario_jornada_completa, importe_horas_complementarias, complemento, horarios, " +
+  "observaciones, notas, tiene_complemento, tiene_complemento_movilidad, tiene_complemento_dedicacion, " +
+  "tiene_plus_transporte, tiene_nocturnidad, tiene_antiguedad, lenguaje_inclusivo";
+
+// Tablas de catálogo para los selectores de relación del formulario y la asignación masiva.
+const HISTORIAL_RELATION_TABLES = {
+  personal_id: { table: "personal", labelCol: "personal" },
+  empresa_id: { table: "empresas", labelCol: "empresa" },
+  puesto_id: { table: "puestos", labelCol: "puesto" },
+  contrato_laboral_id: { table: "historiales_laborales_contratos", labelCol: "clave" },
+  modalidad_pago_id: { table: "historiales_laborales_modalidades_pago", labelCol: "modalidad_pago" },
+  tipo_contratacion_id: { table: "historiales_laborales_tipos_contratacion", labelCol: "tipo_contratacion" },
+  motivo_baja_id: { table: "historiales_laborales_motivos_baja", labelCol: "motivo_baja" },
+};
+
+// Campos editables del periodo. dias_periodo y coeficiente se calculan por trigger (solo lectura).
+const HISTORIAL_FORM_FIELDS = [
+  { key: "personal_id", label: "Personal", type: "relation" },
+  { key: "empresa_id", label: "Empresa", type: "relation" },
+  { key: "fecha_alta", label: "Fecha alta", type: "date" },
+  { key: "fecha_baja", label: "Fecha baja", type: "date" },
+  { key: "jornada", label: "Jornada", type: "decimal" },
+  { key: "jornada_maxima", label: "Jornada máxima", type: "decimal" },
+  { key: "dias_periodo", label: "Días periodo", type: "number", readonly: true },
+  { key: "coeficiente_temporalidad_miles", label: "Coef. temporalidad (‰)", type: "number", readonly: true },
+  { key: "puesto_id", label: "Puesto", type: "relation" },
+  { key: "puesto_texto", label: "Puesto (texto libre)", type: "text" },
+  { key: "contrato_laboral_id", label: "Contrato", type: "relation" },
+  { key: "modalidad_pago_id", label: "Modalidad de pago", type: "relation" },
+  { key: "tipo_contratacion_id", label: "Tipo contratación", type: "relation" },
+  { key: "motivo_baja_id", label: "Motivo baja", type: "relation" },
+  { key: "grupo_cotizacion", label: "Grupo cotización", type: "number" },
+  { key: "movimiento", label: "Movimiento", type: "text" },
+  { key: "salario_jornada_completa", label: "Salario jornada completa", type: "decimal" },
+  { key: "importe_horas_complementarias", label: "Importe horas complementarias", type: "decimal" },
+  { key: "complemento", label: "Complemento", type: "decimal" },
+  { key: "horarios", label: "Horarios", type: "text" },
+  { key: "activo", label: "Activo", type: "boolean" },
+  { key: "tiene_complemento", label: "Tiene complemento", type: "boolean" },
+  { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean" },
+  { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean" },
+  { key: "tiene_plus_transporte", label: "Plus transporte", type: "boolean" },
+  { key: "tiene_nocturnidad", label: "Nocturnidad", type: "boolean" },
+  { key: "tiene_antiguedad", label: "Antigüedad", type: "boolean" },
+  { key: "lenguaje_inclusivo", label: "Lenguaje inclusivo", type: "boolean" },
+  { key: "observaciones", label: "Observaciones", type: "textarea" },
+  { key: "notas", label: "Notas", type: "textarea" },
+];
+const HISTORIAL_FIELD_BY_KEY = new Map(HISTORIAL_FORM_FIELDS.map((field) => [field.key, field]));
+const HISTORIAL_NUMERIC_TYPES = new Set(["number", "decimal", "relation"]);
+
+const HISTORIAL_BULK_FIELDS = {
+  empresa_id: { label: "Empresa", type: "relation", labelKey: "empresa" },
+  fecha_alta: { label: "Fecha alta", type: "date" },
+  fecha_baja: { label: "Fecha baja", type: "date" },
+  puesto_id: { label: "Puesto", type: "relation", labelKey: "puesto" },
+  contrato_laboral_id: { label: "Contrato", type: "relation", labelKey: "contrato_laboral_clave" },
+  modalidad_pago_id: { label: "Modalidad de pago", type: "relation" },
+  tipo_contratacion_id: { label: "Tipo contratación", type: "relation", labelKey: "tipo_contratacion" },
+  motivo_baja_id: { label: "Motivo baja", type: "relation", labelKey: "motivo_baja" },
+  jornada: { label: "Jornada", type: "number" },
+  jornada_maxima: { label: "Jornada máxima", type: "number" },
+  grupo_cotizacion: { label: "Grupo cotización", type: "number" },
+  activo: { label: "Activo", type: "boolean" },
+};
+
+let historialPersonalOptionsLoaded = false;
+let historialRows = [];
+let historialRelationOptionsCache = {};
+let historialDetailSnapshot = null;
+let historialDetailMode = "edit"; // "edit" | "new"
+
+async function loadHistorialRelationOptions() {
+  if (Object.keys(historialRelationOptionsCache).length) {
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    await Promise.all(
+      Object.entries(HISTORIAL_RELATION_TABLES).map(async ([key, { table, labelCol }]) => {
+        const { data } = await supabase
+          .from(table)
+          .select(`id,${labelCol}`)
+          .order(labelCol, { ascending: true })
+          .limit(5000);
+        if (!data) return;
+        historialRelationOptionsCache[key] = data.map((row) => ({
+          value: row.id,
+          label: row[labelCol] ?? "",
+        }));
+      })
+    );
+  } catch (_error) {
+    // Si falla la carga de catálogos, los selects quedan con "Ninguno" y se puede reintentar.
+  }
+}
+
+function parseHistorialFieldValue(rawValue, field) {
+  if (field.type === "boolean") {
+    return rawValue === true || rawValue === "true" || rawValue === "1";
+  }
+  if (rawValue === "" || rawValue === undefined || rawValue === null) {
+    return null;
+  }
+  if (HISTORIAL_NUMERIC_TYPES.has(field.type)) {
+    const number = Number(rawValue);
+    return Number.isFinite(number) ? number : null;
+  }
+  return String(rawValue);
+}
+
+function normalizeHistorialComparable(value, field) {
+  const parsed = parseHistorialFieldValue(value, field);
+  return parsed === null || parsed === undefined ? "" : String(parsed);
+}
+
+function getHistorialFilterValues() {
+  const formData = new FormData(historialFiltersForm ?? undefined);
+  return {
+    fechaAltaDesde: String(formData.get("fecha_alta_desde") || "").trim(),
+    fechaAltaHasta: String(formData.get("fecha_alta_hasta") || "").trim(),
+    fechaBajaDesde: String(formData.get("fecha_baja_desde") || "").trim(),
+    fechaBajaHasta: String(formData.get("fecha_baja_hasta") || "").trim(),
+    personalId: String(formData.get("personal_id") || "").trim(),
+  };
+}
+
+async function loadHistorialPersonalOptions(supabase) {
+  if (historialPersonalOptionsLoaded) {
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("personal")
+    .select("id, personal")
+    .order("personal", { ascending: true })
+    .limit(3000);
+
+  if (error) {
+    return;
+  }
+
+  setPersonalPickerOptions(
+    "historial-filter",
+    (data || []).map((row) => ({ value: String(row.id), label: row.personal || String(row.id) }))
+  );
+  historialPersonalOptionsLoaded = true;
+}
+
+function formatHistorialJornada(row) {
+  if (row.jornada == null) {
+    return "";
+  }
+  const jornada = Number(row.jornada);
+  if (!Number.isFinite(jornada)) {
+    return String(row.jornada);
+  }
+  const jornadaLabel = jornada.toLocaleString("es-ES", { maximumFractionDigits: 2 });
+  const maxima = Number(row.jornada_maxima);
+  if (Number.isFinite(maxima) && maxima > 0) {
+    return `${jornadaLabel} / ${maxima.toLocaleString("es-ES", { maximumFractionDigits: 2 })}`;
+  }
+  return jornadaLabel;
+}
+
+function renderHistorialTable(rows) {
+  if (!historialTableBody) {
+    return;
+  }
+
+  if (!rows.length) {
+    historialTableBody.innerHTML =
+      '<tr><td colspan="12" class="empty-state">No hay periodos que coincidan con los filtros.</td></tr>';
+    return;
+  }
+
+  historialTableBody.innerHTML = rows
+    .map((row) => {
+      const cells = [
+        row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : ""),
+        row.empresa || "",
+        formatDisplayDate(row.fecha_alta),
+        formatDisplayDate(row.fecha_baja),
+        row.dias_periodo ?? "",
+        formatHistorialJornada(row),
+        row.puesto || row.puesto_texto || "",
+        row.contrato_laboral_clave || "",
+        row.tipo_contratacion || "",
+        row.motivo_baja || "",
+        row.activo ? "Sí" : "",
+      ];
+      const dataCells = cells
+        .map((value) => `<td>${escapeHtml(String(value ?? ""))}</td>`)
+        .join("");
+      const actionCell = `<td class="records-row-actions"><button type="button" class="compact-button" data-historial-edit="${escapeHtml(
+        row.id
+      )}" title="Editar periodo" aria-label="Editar periodo">&#9998;</button></td>`;
+      return `<tr data-historial-id="${escapeHtml(row.id)}">${dataCells}${actionCell}</tr>`;
+    })
+    .join("");
+}
+
+async function loadHistorial() {
+  if (historialSummary) {
+    historialSummary.textContent = "Cargando historial laboral...";
+  }
+  if (historialTableBody) {
+    historialTableBody.innerHTML =
+      '<tr><td colspan="12" class="empty-state">Cargando historial laboral...</td></tr>';
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const personalOptionsPromise = loadHistorialPersonalOptions(supabase);
+    const relationOptionsPromise = loadHistorialRelationOptions();
+    const filters = getHistorialFilterValues();
+
+    let query = supabase
+      .from(HISTORIAL_DETAIL_VIEW)
+      .select(HISTORIAL_DETAIL_SELECT)
+      .order("fecha_alta", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false })
+      .limit(HISTORIAL_FETCH_LIMIT);
+
+    if (filters.fechaAltaDesde) {
+      query = query.gte("fecha_alta", filters.fechaAltaDesde);
+    }
+    if (filters.fechaAltaHasta) {
+      query = query.lte("fecha_alta", filters.fechaAltaHasta);
+    }
+    if (filters.fechaBajaDesde) {
+      query = query.gte("fecha_baja", filters.fechaBajaDesde);
+    }
+    if (filters.fechaBajaHasta) {
+      query = query.lte("fecha_baja", filters.fechaBajaHasta);
+    }
+    if (filters.personalId) {
+      query = query.eq("personal_id", filters.personalId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw error;
+    }
+
+    await personalOptionsPromise;
+    await relationOptionsPromise;
+    historialRows = data ?? [];
+    renderHistorialTable(historialRows);
+    updateHistorialBulkMatchCount();
+    if (historialSummary) {
+      historialSummary.textContent =
+        historialRows.length >= HISTORIAL_FETCH_LIMIT
+          ? `Mostrando los primeros ${HISTORIAL_FETCH_LIMIT} periodos. Ajusta los filtros para acotar.`
+          : `${historialRows.length} ${historialRows.length === 1 ? "periodo" : "periodos"}`;
+    }
+  } catch (error) {
+    historialRows = [];
+    if (historialSummary) {
+      historialSummary.textContent = "No se pudo cargar el historial laboral.";
+    }
+    if (historialTableBody) {
+      historialTableBody.innerHTML =
+        '<tr><td colspan="12" class="empty-state">Error cargando el historial laboral.</td></tr>';
+    }
+    setStatus(`No se pudo cargar el historial laboral: ${error.message}`, "error");
+  }
+}
+
+// --- Detalle / edición / alta de periodo ---
+function renderHistorialRelationSelect(field, value, readonly) {
+  const options = historialRelationOptionsCache[field.key] || [];
+  const current = value ?? "";
+  let html = '<option value="">— Ninguno —</option>';
+  html += options
+    .map(
+      (option) =>
+        `<option value="${escapeHtml(option.value)}" ${
+          String(option.value) === String(current) ? "selected" : ""
+        }>${escapeHtml(option.label)}</option>`
+    )
+    .join("");
+  return `<select name="${field.key}" ${readonly ? "disabled" : ""}>${html}</select>`;
+}
+
+function renderHistorialDetailForm(row) {
+  if (!historialDetailFields) {
+    return;
+  }
+
+  historialDetailFields.innerHTML = HISTORIAL_FORM_FIELDS.map((field) => {
+    const value = row[field.key];
+    const name = escapeHtml(field.key);
+    const label = escapeHtml(field.label);
+
+    if (field.type === "boolean") {
+      return `<label class="checkbox-item"><input name="${name}" type="checkbox" ${
+        value ? "checked" : ""
+      } ${field.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
+    }
+
+    if (field.type === "textarea") {
+      return `<label class="full-width">${label}<textarea name="${name}" rows="3" ${
+        field.readonly ? "readonly" : ""
+      }>${escapeHtml(value ?? "")}</textarea></label>`;
+    }
+
+    if (field.type === "relation") {
+      return `<label>${label}${renderHistorialRelationSelect(field, value, field.readonly)}</label>`;
+    }
+
+    const inputType =
+      field.type === "date" ? "date" : HISTORIAL_NUMERIC_TYPES.has(field.type) ? "number" : "text";
+    const step = field.type === "decimal" ? ' step="0.0001"' : "";
+    return `<label>${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
+      value ?? ""
+    )}" ${field.readonly ? "readonly" : ""} /></label>`;
+  }).join("");
+}
+
+async function openHistorialDetail(historialId) {
+  const row = historialRows.find((item) => String(item.id) === String(historialId));
+  if (!row || !historialDetailPanel) {
+    return;
+  }
+  await loadHistorialRelationOptions();
+  historialDetailMode = "edit";
+  historialDetailSnapshot = { ...row };
+  if (historialDetailTitle) {
+    historialDetailTitle.textContent = `Periodo ${row.id}${row.personal ? ` · ${row.personal}` : ""}`;
+  }
+  if (historialDetailDuplicateButton) historialDetailDuplicateButton.classList.remove("hidden");
+  if (historialDetailDeleteButton) historialDetailDeleteButton.classList.remove("hidden");
+  renderHistorialDetailForm(row);
+  historialDetailPanel.classList.remove("hidden");
+}
+
+async function openHistorialNew(seedRow = null) {
+  if (!historialDetailPanel) {
+    return;
+  }
+  await loadHistorialRelationOptions();
+  historialDetailMode = "new";
+  historialDetailSnapshot = seedRow ? { ...seedRow, id: null } : {};
+  if (historialDetailTitle) {
+    historialDetailTitle.textContent = seedRow ? "Nuevo periodo (copia)" : "Nuevo periodo";
+  }
+  // En alta no aplican duplicar ni eliminar.
+  if (historialDetailDuplicateButton) historialDetailDuplicateButton.classList.add("hidden");
+  if (historialDetailDeleteButton) historialDetailDeleteButton.classList.add("hidden");
+  renderHistorialDetailForm(historialDetailSnapshot);
+  historialDetailPanel.classList.remove("hidden");
+}
+
+function closeHistorialDetail() {
+  historialDetailSnapshot = null;
+  historialDetailMode = "edit";
+  historialDetailPanel?.classList.add("hidden");
+}
+
+function collectHistorialDetailPayload({ full = false } = {}) {
+  if (!historialDetailForm) {
+    return {};
+  }
+  const formData = new FormData(historialDetailForm);
+  const payload = {};
+  HISTORIAL_FORM_FIELDS.forEach((field) => {
+    if (field.readonly) {
+      return;
+    }
+    const control = historialDetailForm.elements[field.key];
+    const rawValue = field.type === "boolean" ? Boolean(control?.checked) : formData.get(field.key);
+    const nextValue = parseHistorialFieldValue(rawValue, field);
+    if (full) {
+      payload[field.key] = nextValue;
+      return;
+    }
+    const previous = normalizeHistorialComparable(historialDetailSnapshot?.[field.key], field);
+    if (previous !== normalizeHistorialComparable(nextValue, field)) {
+      payload[field.key] = nextValue;
+    }
+  });
+  return payload;
+}
+
+async function saveHistorialDetail(event) {
+  event?.preventDefault();
+
+  const submitButton = historialDetailForm?.querySelector('button[type="submit"]');
+  try {
+    if (submitButton) submitButton.disabled = true;
+    const supabase = await getSupabaseClient();
+
+    if (historialDetailMode === "new") {
+      const payload = collectHistorialDetailPayload({ full: true });
+      if (payload.personal_id == null) {
+        setStatus("Selecciona la persona del periodo antes de guardar.", "error");
+        return;
+      }
+      const { data, error } = await supabase
+        .from(HISTORIAL_TABLE)
+        .insert(payload)
+        .select("id")
+        .single();
+      if (error) throw error;
+      closeHistorialDetail();
+      await loadHistorial();
+      if (data?.id != null) {
+        await openHistorialDetail(data.id);
+      }
+      setStatus("Periodo creado.", "success");
+      return;
+    }
+
+    if (!historialDetailSnapshot?.id) {
+      return;
+    }
+    const payload = collectHistorialDetailPayload();
+    if (!Object.keys(payload).length) {
+      closeHistorialDetail();
+      return;
+    }
+    const { error } = await supabase
+      .from(HISTORIAL_TABLE)
+      .update(payload)
+      .eq("id", historialDetailSnapshot.id);
+    if (error) throw error;
+    const savedId = historialDetailSnapshot.id;
+    closeHistorialDetail();
+    await loadHistorial();
+    await openHistorialDetail(savedId);
+    setStatus("Periodo guardado.", "success");
+  } catch (error) {
+    setStatus(`No se pudo guardar el periodo: ${error.message}`, "error");
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
+}
+
+async function deleteHistorialDetail() {
+  if (!historialDetailSnapshot?.id) {
+    return;
+  }
+  if (!confirm(`¿Eliminar el periodo ${historialDetailSnapshot.id}?`)) {
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.from(HISTORIAL_TABLE).delete().eq("id", historialDetailSnapshot.id);
+    if (error) throw error;
+    closeHistorialDetail();
+    await loadHistorial();
+    setStatus("Periodo eliminado.", "success");
+  } catch (error) {
+    setStatus(`No se pudo eliminar el periodo: ${error.message}`, "error");
+  }
+}
+
+function duplicateHistorialDetail() {
+  if (!historialDetailSnapshot) {
+    return;
+  }
+  // Tomamos los valores actuales del formulario como semilla del nuevo periodo.
+  const seed = {};
+  HISTORIAL_FORM_FIELDS.forEach((field) => {
+    if (field.readonly) {
+      return;
+    }
+    const control = historialDetailForm?.elements[field.key];
+    const rawValue = field.type === "boolean" ? Boolean(control?.checked) : control?.value;
+    seed[field.key] = parseHistorialFieldValue(rawValue, field);
+  });
+  void openHistorialNew(seed);
+}
+
+// --- Asignación masiva ---
+function getHistorialBulkFieldConfig() {
+  return HISTORIAL_BULK_FIELDS[historialBulkFieldSelect?.value] || HISTORIAL_BULK_FIELDS.empresa_id;
+}
+
+function getHistorialBulkCurrentOptions(field, config) {
+  const seen = new Map();
+  for (const row of historialRows) {
+    const val = row[field];
+    if (val == null || val === "" || seen.has(val)) continue;
+    const label = config.labelKey ? (row[config.labelKey] ?? "") : String(val);
+    seen.set(val, label);
+  }
+  return Array.from(seen.entries())
+    .map(([value, label]) => ({ value, label: label ? `${value} · ${label}` : String(value) }))
+    .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
+}
+
+function getHistorialBulkNewOptions(field) {
+  const catalog = historialRelationOptionsCache[field];
+  if (catalog?.length) {
+    return catalog.map((option) => ({
+      value: option.value,
+      label: option.label ? `${option.value} · ${option.label}` : String(option.value),
+    }));
+  }
+  return getHistorialBulkCurrentOptions(field, getHistorialBulkFieldConfig());
+}
+
+function renderHistorialBulkSelect(select, options, { includeUnset = false } = {}) {
+  if (!select) return;
+  const rendered = includeUnset
+    ? [
+        { value: "__unset__", label: "Selecciona valor" },
+        { value: "__empty__", label: "Vacío" },
+        ...options,
+      ]
+    : options;
+  select.innerHTML = rendered
+    .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+    .join("");
+  select.value = rendered[0]?.value ?? "";
+}
+
+function normalizeHistorialBulkValue(value, config) {
+  if (value === null || value === undefined || value === "" || value === "__empty__") return "";
+  if (config.type === "boolean") return value === true || value === "true" ? "true" : "false";
+  if (config.type === "number") {
+    const number = Number(value);
+    return Number.isFinite(number) ? String(number) : "";
+  }
+  if (config.type === "relation") {
+    const number = Number(value);
+    return Number.isFinite(number) ? String(number) : String(value).trim();
+  }
+  return String(value).trim();
+}
+
+function getHistorialBulkControlValue(kind = "current") {
+  const config = getHistorialBulkFieldConfig();
+  const isSelect = config.type === "relation" || config.type === "boolean";
+  if (isSelect) {
+    return kind === "new" ? historialBulkNewSelect?.value || "" : historialBulkCurrentSelect?.value || "";
+  }
+  return kind === "new"
+    ? historialBulkNewValueInput?.value || ""
+    : historialBulkCurrentValueInput?.value || "";
+}
+
+function getHistorialBulkMatchingRows() {
+  const field = historialBulkFieldSelect?.value;
+  const config = getHistorialBulkFieldConfig();
+  if (!field) return [];
+  const currentValue = normalizeHistorialBulkValue(getHistorialBulkControlValue("current"), config);
+  return historialRows.filter((row) => normalizeHistorialBulkValue(row[field], config) === currentValue);
+}
+
+function syncHistorialBulkUi() {
+  const field = historialBulkFieldSelect?.value;
+  const config = getHistorialBulkFieldConfig();
+  const isSelect = config.type === "relation" || config.type === "boolean";
+
+  historialBulkCurrentValueInput?.classList.toggle("hidden", isSelect);
+  historialBulkCurrentSelect?.classList.toggle("hidden", !isSelect);
+  historialBulkNewValueInput?.classList.toggle("hidden", isSelect);
+  historialBulkNewSelect?.classList.toggle("hidden", !isSelect);
+
+  if (isSelect) {
+    if (config.type === "boolean") {
+      const boolOpts = [
+        { value: "true", label: "Sí" },
+        { value: "false", label: "No" },
+      ];
+      renderHistorialBulkSelect(historialBulkCurrentSelect, boolOpts);
+      renderHistorialBulkSelect(historialBulkNewSelect, boolOpts);
+    } else {
+      renderHistorialBulkSelect(historialBulkCurrentSelect, getHistorialBulkCurrentOptions(field, config));
+      renderHistorialBulkSelect(historialBulkNewSelect, getHistorialBulkNewOptions(field), {
+        includeUnset: true,
+      });
+    }
+  } else {
+    const inputType = config.type === "date" ? "date" : config.type === "number" ? "number" : "text";
+    if (historialBulkCurrentValueInput) {
+      historialBulkCurrentValueInput.type = inputType;
+      historialBulkCurrentValueInput.value = "";
+    }
+    if (historialBulkNewValueInput) {
+      historialBulkNewValueInput.type = inputType;
+      historialBulkNewValueInput.value = "";
+    }
+  }
+
+  updateHistorialBulkMatchCount();
+}
+
+function updateHistorialBulkMatchCount() {
+  if (!historialBulkMatchCount) return;
+  const matches = getHistorialBulkMatchingRows();
+  historialBulkMatchCount.textContent = `${matches.length} coincidencia${matches.length !== 1 ? "s" : ""}`;
+}
+
+async function applyHistorialBulkAssignment() {
+  const field = historialBulkFieldSelect?.value;
+  const config = getHistorialBulkFieldConfig();
+  if (!field || !HISTORIAL_BULK_FIELDS[field]) return;
+
+  const matches = getHistorialBulkMatchingRows();
+  if (!matches.length) {
+    setStatus("No hay periodos que coincidan con el valor actual.", "error");
+    return;
+  }
+
+  const rawNewValue = getHistorialBulkControlValue("new");
+  if (rawNewValue === "__unset__") {
+    setStatus("Selecciona un nuevo valor.", "error");
+    return;
+  }
+
+  let newValue;
+  if (rawNewValue === "__empty__" || rawNewValue === "") {
+    newValue = null;
+  } else if (config.type === "boolean") {
+    newValue = rawNewValue === "true";
+  } else if (config.type === "number" || config.type === "relation") {
+    const number = Number(rawNewValue);
+    newValue = Number.isFinite(number) ? number : null;
+  } else {
+    newValue = rawNewValue;
+  }
+
+  const currentLabel = normalizeHistorialBulkValue(getHistorialBulkControlValue("current"), config);
+  const newLabel = rawNewValue === "__empty__" ? "Vacío" : normalizeHistorialBulkValue(rawNewValue, config);
+
+  if (
+    !confirm(
+      `¿Cambiar ${config.label} de "${currentLabel}" a "${newLabel}" en ${matches.length} periodo${
+        matches.length !== 1 ? "s" : ""
+      }?`
+    )
+  ) {
+    return;
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const ids = matches.map((row) => row.id);
+    const { error } = await supabase
+      .from(HISTORIAL_TABLE)
+      .update({ [field]: newValue })
+      .in("id", ids);
+    if (error) throw error;
+    await loadHistorial();
+    setStatus(
+      `${config.label} actualizado en ${matches.length} periodo${matches.length !== 1 ? "s" : ""}.`,
+      "success"
+    );
+  } catch (error) {
+    setStatus(`Error en asignación masiva: ${error.message}`, "error");
+  }
+}
+
 async function restoreSession() {
   initControlFilters();
   const session = await ensurePrivateSession({ silent: true });
@@ -13711,8 +14663,13 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
     return;
   }
 
+  if (normalizedTarget === "historial") {
+    await loadHistorial();
+    return;
+  }
+
   if (normalizedTarget === "settings") {
-    await loadSettingsManagement();
+    await loadSettingsTabActiveView();
     return;
   }
 
@@ -13736,10 +14693,6 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
     await loadProgrammingPersonnel();
     await loadProgrammingFromSupabase();
     return;
-  }
-
-  if (normalizedTarget === "access") {
-    await loadAccessManagement();
   }
 }
 
@@ -15454,6 +16407,12 @@ async function init() {
       setStatus(error?.message || "No se pudieron cargar los registros.", "error");
     });
   });
+  privateTabHistorialButton?.addEventListener("click", () => {
+    switchPrivateTab("historial");
+    void refreshPrivateTabData("historial").catch((error) => {
+      setStatus(error?.message || "No se pudo cargar el historial laboral.", "error");
+    });
+  });
   privateTabContractsButton?.addEventListener("click", () => {
     switchPrivateTab("contracts");
     void refreshPrivateTabData("contracts").catch((error) => {
@@ -15478,18 +16437,25 @@ async function init() {
       setStatus(error?.message || "No se pudo cargar la programacion.", "error");
     });
   });
-  privateTabAccessButton?.addEventListener("click", () => {
-    switchPrivateTab("access");
-    void refreshPrivateTabData("access").catch((error) => {
-      setAccessStatus(error?.message || "No se pudieron cargar los accesos.", "error");
-    });
-  });
   settingsSubtabButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (button.dataset.settingsView === "access") {
+        if (!currentUserIsAccessAdmin) {
+          return;
+        }
+        closeSettingsDetail();
+        switchSettingsView("access");
+        void loadAccessManagement().catch((error) => {
+          setAccessStatus(error?.message || "No se pudieron cargar los accesos.", "error");
+        });
+        return;
+      }
+
       const catalog = button.dataset.settingsCatalog;
       if (!SETTINGS_CATALOGS[catalog]) {
         return;
       }
+      switchSettingsView("catalog");
       currentSettingsCatalog = catalog;
       resetSettingsSort();
       closeSettingsDetail();
@@ -15645,6 +16611,7 @@ async function init() {
   contractDetailForm?.addEventListener("submit", (event) => {
     void saveContract(event);
   });
+  contractDetailNightInput?.addEventListener("change", syncContractNightFieldsState);
   contractDetailDeleteButton?.addEventListener("click", () => {
     void deleteCurrentContract();
   });
@@ -15974,9 +16941,70 @@ async function init() {
     hiddenId: "record-substitution-person",
     suggestionsId: "record-substitution-person-suggestions",
   });
+  historialFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadHistorial();
+  });
+  historialFiltersForm?.addEventListener("change", (event) => {
+    // El combo de personal gestiona su propia recarga al elegir/limpiar.
+    if (event.target?.id === "historial-filter-personal-input") return;
+    void loadHistorial();
+  });
+  setupPersonalPicker("historial-filter", {
+    inputId: "historial-filter-personal-input",
+    hiddenId: "historial-filter-personal",
+    suggestionsId: "historial-filter-personal-suggestions",
+    onChange: () => {
+      void loadHistorial();
+    },
+  });
+  historialClearFiltersButton?.addEventListener("click", () => {
+    historialFiltersForm?.reset();
+    clearPersonalPicker("historial-filter");
+    void loadHistorial();
+  });
+  historialRefreshButton?.addEventListener("click", () => {
+    void loadHistorial();
+  });
+  historialNewButton?.addEventListener("click", () => {
+    void openHistorialNew();
+  });
+  historialTableBody?.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-historial-edit]");
+    if (editButton) {
+      void openHistorialDetail(editButton.dataset.historialEdit);
+      return;
+    }
+    const rowEl = event.target.closest("[data-historial-id]");
+    if (rowEl) {
+      void openHistorialDetail(rowEl.dataset.historialId);
+    }
+  });
+  historialDetailForm?.addEventListener("submit", (event) => {
+    void saveHistorialDetail(event);
+  });
+  historialDetailCloseButton?.addEventListener("click", closeHistorialDetail);
+  historialDetailCancelButton?.addEventListener("click", closeHistorialDetail);
+  historialDetailOverlay?.addEventListener("click", closeHistorialDetail);
+  historialDetailDeleteButton?.addEventListener("click", () => {
+    void deleteHistorialDetail();
+  });
+  historialDetailDuplicateButton?.addEventListener("click", duplicateHistorialDetail);
+  historialBulkFieldSelect?.addEventListener("change", syncHistorialBulkUi);
+  historialBulkCurrentValueInput?.addEventListener("input", updateHistorialBulkMatchCount);
+  historialBulkCurrentSelect?.addEventListener("change", updateHistorialBulkMatchCount);
+  historialBulkApplyButton?.addEventListener("click", () => void applyHistorialBulkAssignment());
+  syncHistorialBulkUi();
   recordsClearFiltersButton?.addEventListener("click", () => {
     recordsExternalActivityFilter = "";
     recordsFiltersForm?.reset();
+    void loadRecords();
+  });
+  recordsFiltersForm?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-reset-filter]");
+    if (!button || !resetRecordsNamedFilterControl(recordsFiltersForm, button.dataset.resetFilter)) {
+      return;
+    }
     void loadRecords();
   });
   recordsBulkFieldSelect?.addEventListener("change", syncRecordsBulkUi);

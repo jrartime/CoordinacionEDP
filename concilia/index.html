@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Concilia EDP</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260706-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -597,6 +597,11 @@
             <div class="results-summary">
               <p id="attendance-summary" class="summary-chip">Cargando asistencia...</p>
             </div>
+            <div class="header-actions">
+              <button id="open-attendance-report-button" class="secondary-button" type="button">
+                Informes
+              </button>
+            </div>
           </div>
 
           <form id="attendance-filters-form" class="filters-grid attendance-filters-grid">
@@ -810,6 +815,70 @@
               </button>
             </div>
           </div>
+
+          <div id="attendance-report-backdrop" class="panel-backdrop hidden"></div>
+          <aside
+            id="attendance-report-panel"
+            class="summary-panel hidden"
+            aria-labelledby="attendance-report-title"
+          >
+            <div class="side-panel-header">
+              <div class="section-heading">
+                <p class="eyebrow">Informe</p>
+                <h2 id="attendance-report-title">Asistencia por centro y semana</h2>
+              </div>
+              <div class="header-actions">
+                <button
+                  id="attendance-report-pdf-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  PDF
+                </button>
+                <button
+                  id="attendance-report-excel-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Excel
+                </button>
+                <button
+                  id="close-attendance-report-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+            <div class="results-toolbar section-summary-toolbar">
+              <div class="results-summary">
+                <p id="attendance-report-summary" class="summary-chip">Cargando informe...</p>
+              </div>
+            </div>
+
+            <div class="table-wrap weekly-table-wrap">
+              <table class="weekly-summary-table attendance-report-table">
+                <thead>
+                  <tr>
+                    <th>Centro</th>
+                    <th>Semana</th>
+                    <th>L</th>
+                    <th>M</th>
+                    <th>X</th>
+                    <th>J</th>
+                    <th>V</th>
+                    <th>Alumnos</th>
+                  </tr>
+                </thead>
+                <tbody id="attendance-report-table-body">
+                  <tr>
+                    <td colspan="8" class="empty-state">Cargando informe...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </aside>
         </section>
 
         <section
@@ -899,6 +968,6 @@
     <script src="./config.js"></script>
     <script src="../shared/supabase-client.js"></script>
     <script src="../shared/auth.js"></script>
-    <script src="./app.js?v=20260619-5"></script>
+    <script src="./app.js?v=20260706-1"></script>
   </body>
 </html>

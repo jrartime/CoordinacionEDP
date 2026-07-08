@@ -1413,6 +1413,12 @@ td {
   box-shadow: 0 22px 54px rgba(20, 40, 75, 0.18);
 }
 
+.weekly-summary-total-row td {
+  font-weight: 700;
+  border-top: 2px solid var(--line);
+  background: #f4f7fb;
+}
+
 .report-panel {
   position: fixed;
   inset: 24px;

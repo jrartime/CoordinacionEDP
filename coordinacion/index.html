@@ -25,8 +25,8 @@
     </style>
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
-    <link rel="stylesheet" href="./concilia-integrated.css?v=20260608-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260627-5" />
+    <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260706-1" />
   </head>
   <body>
     <script>
@@ -550,6 +550,14 @@
                 Personal
               </button>
               <button
+                id="private-tab-historial"
+                type="button"
+                class="private-tab-button hidden"
+                aria-pressed="false"
+              >
+                Historial laboral
+              </button>
+              <button
                 id="private-tab-contracts"
                 type="button"
                 class="private-tab-button hidden"
@@ -581,14 +589,6 @@
               >
                 Configuración
               </button>
-              <button
-                id="private-tab-access"
-                type="button"
-                class="private-tab-button hidden"
-                aria-pressed="false"
-              >
-                Accesos
-              </button>
             </div>
 
             <section id="private-tab-panel-registros" class="private-tab-panel hidden">
@@ -617,10 +617,26 @@
                     <input id="records-filter-date-to" name="fecha_hasta" type="date" />
                   </label>
                   <label class="filter-field">
-                    Contrato
-                    <select id="records-filter-contrato" name="contrato_id">
-                      <option value="">Todos</option>
-                    </select>
+                    Contratos
+                    <div class="filter-control-row">
+                      <select
+                        id="records-filter-contrato"
+                        name="contrato_id"
+                        multiple
+                        size="4"
+                        aria-label="Filtrar por contratos"
+                        data-multi-check-selected-label="contratos seleccionados"
+                      ></select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="contrato_id"
+                        aria-label="Restablecer contrato"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Servicio
@@ -812,6 +828,169 @@
                       </button>
                     </div>
                   </div>
+                </aside>
+              </section>
+            </section>
+
+            <section id="private-tab-panel-historial" class="private-tab-panel hidden">
+              <section class="card">
+                <div class="card-header records-header">
+                  <div>
+                    <p class="eyebrow">Historial laboral</p>
+                    <h2>Periodos de alta y baja del personal</h2>
+                  </div>
+                  <div class="results-actions">
+                    <button id="historial-new-button" type="button" title="Añadir periodo">
+                      + Añadir
+                    </button>
+                    <button id="historial-refresh-button" type="button">Actualizar</button>
+                  </div>
+                </div>
+
+                <form id="historial-filters-form" class="filters-grid records-filters-grid records-filters-compact">
+                  <label class="filter-field">
+                    Alta desde
+                    <input id="historial-filter-alta-desde" name="fecha_alta_desde" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Alta hasta
+                    <input id="historial-filter-alta-hasta" name="fecha_alta_hasta" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Baja desde
+                    <input id="historial-filter-baja-desde" name="fecha_baja_desde" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Baja hasta
+                    <input id="historial-filter-baja-hasta" name="fecha_baja_hasta" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Personal
+                    <div class="filter-field-stack">
+                      <input
+                        id="historial-filter-personal-input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Buscar personal"
+                      />
+                      <input id="historial-filter-personal" name="personal_id" type="hidden" />
+                      <div
+                        id="historial-filter-personal-suggestions"
+                        class="filter-suggestions filter-suggestions-full hidden"
+                      ></div>
+                    </div>
+                  </label>
+                  <div class="filter-actions">
+                    <button id="historial-clear-filters-button" type="button" class="secondary-button">
+                      Limpiar
+                    </button>
+                  </div>
+                </form>
+
+                <details class="programming-panel-zone">
+                  <summary>Asignación masiva</summary>
+                  <div class="activities-bulk-assignment-panel">
+                    <label>
+                      Campo
+                      <select id="historial-bulk-field">
+                        <option value="empresa_id">Empresa</option>
+                        <option value="fecha_alta">Fecha alta</option>
+                        <option value="fecha_baja">Fecha baja</option>
+                        <option value="puesto_id">Puesto</option>
+                        <option value="contrato_laboral_id">Contrato</option>
+                        <option value="modalidad_pago_id">Modalidad pago</option>
+                        <option value="tipo_contratacion_id">Tipo contratación</option>
+                        <option value="motivo_baja_id">Motivo baja</option>
+                        <option value="jornada">Jornada</option>
+                        <option value="jornada_maxima">Jornada máxima</option>
+                        <option value="grupo_cotizacion">Grupo cotización</option>
+                        <option value="activo">Activo</option>
+                      </select>
+                    </label>
+                    <label>
+                      Valor actual
+                      <input id="historial-bulk-current-value" type="text" />
+                      <select id="historial-bulk-current-select" class="hidden"></select>
+                    </label>
+                    <label>
+                      Nuevo valor
+                      <input id="historial-bulk-new-value" type="text" />
+                      <select id="historial-bulk-new-select" class="hidden"></select>
+                    </label>
+                    <button id="historial-bulk-apply-button" type="button">
+                      Aplicar
+                    </button>
+                    <span id="historial-bulk-match-count" class="control-selected-delete-count">
+                      0 coincidencias
+                    </span>
+                  </div>
+                </details>
+
+                <div class="results-toolbar section-summary-toolbar">
+                  <div class="results-summary">
+                    <p id="historial-summary" class="summary-chip">Cargando historial laboral...</p>
+                  </div>
+                </div>
+
+                <div class="table-wrapper records-table-wrapper">
+                  <table id="historial-table" class="records-table">
+                    <thead>
+                      <tr>
+                        <th>Personal</th>
+                        <th>Empresa</th>
+                        <th>Fecha alta</th>
+                        <th>Fecha baja</th>
+                        <th>Días</th>
+                        <th>Jornada</th>
+                        <th>Puesto</th>
+                        <th>Contrato</th>
+                        <th>Tipo contratación</th>
+                        <th>Motivo baja</th>
+                        <th>Activo</th>
+                        <th aria-label="Acciones"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="historial-table-body">
+                      <tr>
+                        <td colspan="12" class="empty-state">Cargando historial laboral...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section id="historial-detail-panel" class="detail-panel hidden">
+                <div id="historial-detail-overlay" class="detail-overlay"></div>
+                <aside class="detail-drawer records-detail-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Historial laboral</p>
+                      <h3 id="historial-detail-title">Periodo seleccionado</h3>
+                    </div>
+                    <div class="detail-header-actions">
+                      <button id="historial-detail-duplicate-button" type="button" class="secondary-button">
+                        Duplicar
+                      </button>
+                      <button id="historial-detail-delete-button" type="button" class="danger-button">
+                        Eliminar
+                      </button>
+                      <button id="historial-detail-close-button" type="button" class="secondary-button">
+                        Cerrar panel
+                      </button>
+                    </div>
+                  </div>
+
+                  <form id="historial-detail-form" class="detail-form records-detail-form">
+                    <div id="historial-detail-fields" class="detail-field-row cols-2 full-width"></div>
+                    <div class="detail-actions">
+                      <button id="historial-detail-cancel-button" type="button" class="secondary-button">
+                        Cancelar
+                      </button>
+                      <button id="historial-detail-save-button" type="submit">
+                        Guardar
+                      </button>
+                    </div>
+                  </form>
                 </aside>
               </section>
             </section>
@@ -2586,46 +2765,6 @@
           </div>
         </section>
 
-        <section id="private-tab-panel-access" class="private-tab-panel hidden">
-          <div class="section-heading-row">
-            <div>
-              <p class="eyebrow">Administración</p>
-              <h3>Usuarios, roles y servicios</h3>
-            </div>
-            <div class="toolbar-actions">
-              <button id="access-new-user-button" type="button">Nuevo usuario</button>
-              <button id="access-refresh-button" type="button" class="secondary-button">
-                Actualizar
-              </button>
-            </div>
-          </div>
-
-          <p class="muted-text">
-            Gestiona los perfiles de acceso de coordinación. Los usuarios deben existir previamente en Supabase Auth.
-          </p>
-
-          <p id="access-status" class="panel-status-message"></p>
-
-          <div class="table-scroll access-table-wrap">
-            <table class="records-table access-users-table">
-              <thead>
-                <tr>
-                  <th>Usuario</th>
-                  <th>Rol</th>
-                  <th>Estado</th>
-                  <th>Pestañas</th>
-                  <th>Servicios asignados</th>
-                </tr>
-              </thead>
-              <tbody id="access-users-table-body">
-                <tr>
-                  <td colspan="6" class="empty-state">No hay usuarios cargados.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
         <section id="personal-import-panel" class="detail-panel hidden">
           <div class="detail-overlay" id="personal-import-overlay"></div>
           <aside class="detail-drawer personal-import-drawer">
@@ -2772,42 +2911,87 @@
         </section>
 
         <section id="private-tab-panel-settings" class="private-tab-panel hidden">
-          <div class="section-heading-row">
-            <div>
-              <p class="eyebrow">Configuración</p>
-              <h3>Tablas maestras</h3>
-            </div>
-            <div class="toolbar-actions">
-              <button id="settings-new-button" type="button">Nuevo registro</button>
-              <button id="settings-refresh-button" type="button" class="secondary-button">
-                Actualizar
-              </button>
-            </div>
-          </div>
-
-          <nav class="settings-subtabs" aria-label="Tablas de configuración">
-            <button class="settings-subtab-button active" type="button" data-settings-catalog="puestos" aria-pressed="true">
+          <nav class="settings-subtabs" aria-label="Secciones de configuración">
+            <button class="settings-subtab-button active" type="button" data-settings-view="catalog" data-settings-catalog="puestos" aria-pressed="true">
               Puestos
             </button>
-            <button class="settings-subtab-button" type="button" data-settings-catalog="funciones" aria-pressed="false">
+            <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="funciones" aria-pressed="false">
               Funciones
             </button>
-            <button class="settings-subtab-button" type="button" data-settings-catalog="modalidades" aria-pressed="false">
+            <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="modalidades" aria-pressed="false">
               Modalidades
+            </button>
+            <button id="settings-subtab-access" class="settings-subtab-button hidden" type="button" data-settings-view="access" aria-pressed="false">
+              Accesos
             </button>
           </nav>
 
-          <p id="settings-status" class="panel-status-message"></p>
+          <div id="settings-catalog-view">
+            <div class="section-heading-row">
+              <div>
+                <p class="eyebrow">Configuración</p>
+                <h3>Tablas maestras</h3>
+              </div>
+              <div class="toolbar-actions">
+                <button id="settings-new-button" type="button">Nuevo registro</button>
+                <button id="settings-refresh-button" type="button" class="secondary-button">
+                  Actualizar
+                </button>
+              </div>
+            </div>
 
-          <div class="table-scroll access-table-wrap">
-            <table class="records-table settings-table">
-              <thead id="settings-table-head"></thead>
-              <tbody id="settings-table-body">
-                <tr>
-                  <td class="empty-state">Selecciona una tabla.</td>
-                </tr>
-              </tbody>
-            </table>
+            <p id="settings-status" class="panel-status-message"></p>
+
+            <div class="table-scroll access-table-wrap">
+              <table class="records-table settings-table">
+                <thead id="settings-table-head"></thead>
+                <tbody id="settings-table-body">
+                  <tr>
+                    <td class="empty-state">Selecciona una tabla.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="settings-access-view" class="hidden">
+            <div class="section-heading-row">
+              <div>
+                <p class="eyebrow">Administración</p>
+                <h3>Usuarios, roles y servicios</h3>
+              </div>
+              <div class="toolbar-actions">
+                <button id="access-new-user-button" type="button">Nuevo usuario</button>
+                <button id="access-refresh-button" type="button" class="secondary-button">
+                  Actualizar
+                </button>
+              </div>
+            </div>
+
+            <p class="muted-text">
+              Gestiona los perfiles de acceso de coordinación. Los usuarios deben existir previamente en Supabase Auth.
+            </p>
+
+            <p id="access-status" class="panel-status-message"></p>
+
+            <div class="table-scroll access-table-wrap">
+              <table class="records-table access-users-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th>Pestañas</th>
+                    <th>Servicios asignados</th>
+                  </tr>
+                </thead>
+                <tbody id="access-users-table-body">
+                  <tr>
+                    <td colspan="6" class="empty-state">No hay usuarios cargados.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
 
@@ -3273,6 +3457,11 @@
             <div class="results-summary">
               <p id="attendance-summary" class="summary-chip">Cargando asistencia...</p>
             </div>
+            <div class="header-actions">
+              <button id="open-attendance-report-button" class="secondary-button" type="button">
+                Informes
+              </button>
+            </div>
           </div>
 
           <form id="attendance-filters-form" class="filters-grid attendance-filters-grid">
@@ -3384,6 +3573,70 @@
               </button>
             </div>
           </div>
+
+          <div id="attendance-report-backdrop" class="panel-backdrop hidden"></div>
+          <aside
+            id="attendance-report-panel"
+            class="summary-panel hidden"
+            aria-labelledby="attendance-report-title"
+          >
+            <div class="side-panel-header">
+              <div class="section-heading">
+                <p class="eyebrow">Informe</p>
+                <h2 id="attendance-report-title">Asistencia por centro y semana</h2>
+              </div>
+              <div class="header-actions">
+                <button
+                  id="attendance-report-pdf-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  PDF
+                </button>
+                <button
+                  id="attendance-report-excel-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Excel
+                </button>
+                <button
+                  id="close-attendance-report-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+            <div class="results-toolbar section-summary-toolbar">
+              <div class="results-summary">
+                <p id="attendance-report-summary" class="summary-chip">Cargando informe...</p>
+              </div>
+            </div>
+
+            <div class="table-wrap weekly-table-wrap">
+              <table class="weekly-summary-table attendance-report-table">
+                <thead>
+                  <tr>
+                    <th>Centro</th>
+                    <th>Semana</th>
+                    <th>L</th>
+                    <th>M</th>
+                    <th>X</th>
+                    <th>J</th>
+                    <th>V</th>
+                    <th>Alumnos</th>
+                  </tr>
+                </thead>
+                <tbody id="attendance-report-table-body">
+                  <tr>
+                    <td colspan="8" class="empty-state">Cargando informe...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </aside>
         </section>
 
         <section
@@ -4750,6 +5003,20 @@
                 <input id="contract-detail-active" type="checkbox" />
                 <span>Contrato activo</span>
               </label>
+              <label class="checkbox-item">
+                <input id="contract-detail-nocturnidad" type="checkbox" />
+                <span>Tiene nocturnidad</span>
+              </label>
+              <div id="contract-detail-nocturnidad-fields" class="hidden">
+                <label>
+                  Nocturnidad desde
+                  <input id="contract-detail-nocturnidad-inicio" type="time" value="22:00" />
+                </label>
+                <label>
+                  Nocturnidad hasta
+                  <input id="contract-detail-nocturnidad-fin" type="time" value="06:00" />
+                </label>
+              </div>
 
               <div class="detail-actions">
                 <button id="contract-detail-delete-button" type="button" class="danger-button">
@@ -5837,7 +6104,7 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260623-1" defer></script>
-    <script src="./app.js?v=20260627-8" defer></script>
+    <script src="./concilia-integrated.js?v=20260707-1" defer></script>
+    <script src="./app.js?v=20260707-1" defer></script>
   </body>
 </html>
