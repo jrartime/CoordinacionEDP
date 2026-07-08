@@ -1313,6 +1313,100 @@ function hasVisibleUnsavedFormChanges() {
   );
 }
 
+// Diálogo modal reutilizable con 3 salidas: "save" | "discard" | "cancel".
+// Promesa que resuelve con la elección del usuario. Autocontenido (se inyecta
+// y se limpia solo), para poder usarlo desde cualquier pestaña, incluida Concilia.
+function showUnsavedChangesDialog(options = {}) {
+  const {
+    title = "Cambios sin guardar",
+    message = "Hay cambios sin guardar en este panel. ¿Qué quieres hacer?",
+    saveLabel = "Guardar",
+    discardLabel = "Descartar",
+    cancelLabel = "Cancelar",
+  } = options;
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "unsaved-dialog-overlay";
+    overlay.innerHTML = `
+      <div class="unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="unsaved-dialog-title">
+        <h3 id="unsaved-dialog-title">${escapeHtml(title)}</h3>
+        <p>${escapeHtml(message)}</p>
+        <div class="unsaved-dialog-actions">
+          <button type="button" class="secondary-button" data-choice="cancel">${escapeHtml(cancelLabel)}</button>
+          <button type="button" class="danger-button" data-choice="discard">${escapeHtml(discardLabel)}</button>
+          <button type="button" class="primary-button" data-choice="save">${escapeHtml(saveLabel)}</button>
+        </div>
+      </div>`;
+
+    const finish = (choice) => {
+      document.removeEventListener("keydown", onKeydown, true);
+      overlay.remove();
+      resolve(choice);
+    };
+    const onKeydown = (event) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        finish("cancel");
+      }
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        finish("cancel");
+        return;
+      }
+      const choice = event.target.closest("[data-choice]")?.dataset.choice;
+      if (choice) {
+        finish(choice);
+      }
+    });
+    document.addEventListener("keydown", onKeydown, true);
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-choice="save"]')?.focus();
+  });
+}
+
+// Guarda de cierre para paneles con formulario. Devuelve true si el panel puede
+// cerrarse (no había cambios, se descartaron o se guardaron con éxito) y false
+// si el usuario canceló o el guardado falló.
+//   - saveFn: async, persiste y devuelve true/false. NO debe cerrar el panel.
+async function confirmCloseWithSave(form, saveFn) {
+  if (!hasUnsavedFormChanges(form)) {
+    return true;
+  }
+  const choice = await showUnsavedChangesDialog();
+  if (choice === "cancel") {
+    return false;
+  }
+  if (choice === "discard") {
+    return true;
+  }
+  if (typeof saveFn !== "function") {
+    return true;
+  }
+  let result;
+  try {
+    result = await saveFn();
+  } catch (_error) {
+    return false;
+  }
+  // saveFn puede devolver un booleano explícito de éxito; si no, se infiere del
+  // estado del formulario (un guardado con éxito lo deja "pristine").
+  if (result === true || result === false) {
+    return result;
+  }
+  return !hasUnsavedFormChanges(form);
+}
+
+// Expuesto para Concilia (concilia-integrated.js corre en su propio IIFE).
+window.CoordinacionUnsaved = {
+  showUnsavedChangesDialog,
+  confirmCloseWithSave,
+  hasUnsavedFormChanges,
+  markFormPristine,
+};
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -3402,8 +3496,8 @@ function openCandidateDetail(candidateId, editMode = false) {
   candidateDetailPanel.classList.remove("hidden");
 }
 
-function closeCandidateDetail(options = {}) {
-  if (!options.force && !confirmDiscardFormChanges(detailForm)) {
+async function closeCandidateDetail(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(detailForm, () => saveCandidateDetail()))) {
     return false;
   }
 
@@ -3415,7 +3509,7 @@ function closeCandidateDetail(options = {}) {
 }
 
 async function saveCandidateDetail(event) {
-  event.preventDefault();
+  event?.preventDefault();
 
   if (!detailEditMode) {
     return;
@@ -7185,8 +7279,8 @@ function openProgrammingDuplicateDetail(recordId) {
   );
 }
 
-function closeProgrammingDetail(options = {}) {
-  if (!options.force && !confirmDiscardFormChanges(programmingDetailForm)) {
+async function closeProgrammingDetail(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(programmingDetailForm, () => saveProgrammingDetail()))) {
     return false;
   }
 
@@ -7232,7 +7326,7 @@ function omitProgrammingPayloadFields(payload, fields) {
 }
 
 async function saveProgrammingDetail(event) {
-  event.preventDefault();
+  event?.preventDefault();
 
   const recordId = programmingDetailIdInput.value;
   const detailMode = programmingDetailModeInput.value || "edit";
@@ -8905,8 +8999,8 @@ async function openControlDetail(recordId) {
   controlDetailPanel?.classList.remove("hidden");
 }
 
-function closeControlDetail(options = {}) {
-  if (!options.force && !confirmDiscardFormChanges(controlDetailForm)) {
+async function closeControlDetail(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(controlDetailForm, () => saveControlDetail()))) {
     return false;
   }
 
@@ -8920,7 +9014,7 @@ function closeControlDetail(options = {}) {
 }
 
 async function saveControlDetail(event) {
-  event.preventDefault();
+  event?.preventDefault();
 
   if (!currentSession) {
     setStatus("Necesitas iniciar sesión para editar registros.", "error");
@@ -11147,11 +11241,15 @@ function openContractDetailPanel(contractId = "") {
   resetContractServiceForm();
   renderContractServicesList();
   renderContractAssignmentOptions();
+  markFormPristine(contractDetailForm);
   contractDetailPanel?.classList.remove("hidden");
   contractDetailNameInput?.focus();
 }
 
-function closeContractDetailPanel() {
+async function closeContractDetailPanel(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(contractDetailForm, () => saveContract()))) {
+    return false;
+  }
   contractDetailPanel?.classList.add("hidden");
   contractDetailForm?.reset();
   resetContractServiceForm();
@@ -11163,6 +11261,7 @@ function closeContractDetailPanel() {
   }
   currentEditingContractId = "";
   renderContractAssignmentOptions();
+  return true;
 }
 
 function getContractPayload() {
@@ -11183,7 +11282,7 @@ function getContractPayload() {
 }
 
 async function saveContract(event) {
-  event.preventDefault();
+  event?.preventDefault();
   const payload = getContractPayload();
   if (!Number.isInteger(payload.id) || payload.id <= 0 || !payload.contrato) {
     setContractsStatus("Indica ID y nombre de contrato.", "error");
@@ -11224,7 +11323,7 @@ async function deleteCurrentContract() {
     return;
   }
 
-  closeContractDetailPanel();
+  closeContractDetailPanel({ force: true });
   await loadContractsManagement();
   setContractsStatus("Contrato eliminado correctamente.", "success");
 }
@@ -11621,15 +11720,21 @@ function openSettingsDetail(mode = "new", rowId = "") {
     settingsDetailDeleteButton.innerHTML = renderIcon("delete");
   }
   renderSettingsDetailFields(row);
+  markFormPristine(settingsDetailForm);
   settingsDetailPanel?.classList.remove("hidden");
 }
 
-function closeSettingsDetail() {
+async function closeSettingsDetail(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(settingsDetailForm, () => saveSettingsDetail()))) {
+    return false;
+  }
   settingsDetailForm?.reset();
   settingsDetailPanel?.classList.add("hidden");
   currentSettingsMode = "new";
   currentSettingsEditingId = "";
   settingsDetailDeleteButton?.classList.add("hidden");
+  markFormPristine(settingsDetailForm);
+  return true;
 }
 
 function getSettingsPayloadFromForm() {
@@ -11663,7 +11768,7 @@ function getSettingsPayloadFromForm() {
 }
 
 async function saveSettingsDetail(event) {
-  event.preventDefault();
+  event?.preventDefault();
   const config = getSettingsCatalogConfig();
   let payload;
   try {
@@ -11719,7 +11824,7 @@ async function saveSettingsDetail(event) {
     return;
   }
 
-  closeSettingsDetail();
+  closeSettingsDetail({ force: true });
   await loadSettingsManagement();
   setSettingsStatus("Registro guardado correctamente.", "success");
 }
@@ -11796,7 +11901,7 @@ async function deleteSettingsDetail() {
     return;
   }
 
-  closeSettingsDetail();
+  closeSettingsDetail({ force: true });
   await loadSettingsManagement();
   setSettingsStatus("Registro borrado correctamente.", "success");
 }
@@ -12099,11 +12204,17 @@ function openAccessUserPanel(mode = "new") {
   if (mode === "new") {
     resetAccessUserForm();
   }
+  markFormPristine(accessUserForm);
 }
 
-function closeAccessUserPanel() {
+async function closeAccessUserPanel(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(accessUserForm, () => saveAccessUserFromForm()))) {
+    return false;
+  }
   accessUserPanel?.classList.add("hidden");
   resetAccessUserForm();
+  markFormPristine(accessUserForm);
+  return true;
 }
 
 function editAccessUser(userId) {
@@ -12137,7 +12248,7 @@ function editAccessUser(userId) {
 }
 
 async function saveAccessUserFromForm(event) {
-  event.preventDefault();
+  event?.preventDefault();
   const userId = accessUserIdInput?.value.trim() || "";
   if (!isValidUuid(userId)) {
     setAccessStatus("Indica un User ID válido de Supabase Auth.", "error");
@@ -12217,7 +12328,7 @@ async function saveAccessUserFromForm(event) {
   }
 
   resetAccessUserForm();
-  closeAccessUserPanel();
+  closeAccessUserPanel({ force: true });
   await loadAccessManagement();
   setAccessStatus("Usuario guardado correctamente.", "success");
 }
@@ -12298,7 +12409,7 @@ async function deleteAccessUser(userId) {
     return;
   }
 
-  closeAccessUserPanel();
+  closeAccessUserPanel({ force: true });
   await loadAccessManagement();
   setAccessStatus("Usuario eliminado correctamente.", "success");
 }
@@ -12377,7 +12488,7 @@ async function handleLogout() {
   currentContractPersonalRows = [];
   currentContractInstallationRows = [];
   currentEditingContractId = "";
-  closeContractDetailPanel();
+  closeContractDetailPanel({ force: true });
   renderContractsTable();
   renderContractAssignmentOptions();
   currentAccessUsers = [];
@@ -12387,7 +12498,7 @@ async function handleLogout() {
   currentAllowedPrivateTabs = new Set(["programming"]);
   currentUserIsAccessAdmin = false;
   syncAccessTabVisibility();
-  closeAccessUserPanel();
+  closeAccessUserPanel({ force: true });
   renderAccessUsers();
   renderFilterOptions();
   clearFilters();
@@ -12400,7 +12511,7 @@ async function handleLogout() {
 }
 
 async function handlePrivateCandidateSubmit(event) {
-  event.preventDefault();
+  event?.preventDefault();
 
   const { selectedRoles, normalizedSpecialties } = collectRoles(
     candidateForm,
@@ -13919,6 +14030,8 @@ window.CoordinacionRegistros = {
 const historialFiltersForm = document.querySelector("#historial-filters-form");
 const historialSummary = document.querySelector("#historial-summary");
 const historialTableBody = document.querySelector("#historial-table-body");
+const historialTable = document.querySelector("#historial-table");
+const historialFilterTipoContratacion = document.querySelector("#historial-filter-tipo-contratacion");
 const historialRefreshButton = document.querySelector("#historial-refresh-button");
 const historialClearFiltersButton = document.querySelector("#historial-clear-filters-button");
 const historialNewButton = document.querySelector("#historial-new-button");
@@ -13943,7 +14056,7 @@ const HISTORIAL_FETCH_LIMIT = 1000;
 const HISTORIAL_TABLE = "historiales_laborales";
 const HISTORIAL_DETAIL_VIEW = "historiales_laborales_detalle";
 const HISTORIAL_DETAIL_SELECT =
-  "id, activo, personal_id, personal, empresa_id, empresa, jornada, jornada_maxima, " +
+  "id, activo, enviado, gestionado, tramitado, personal_id, personal, empresa_id, empresa, jornada, jornada_maxima, " +
   "contrato_laboral_id, contrato_laboral_clave, modalidad_pago_id, fecha_alta, fecha_baja, " +
   "dias_periodo, coeficiente_temporalidad_miles, puesto_id, puesto, puesto_texto, " +
   "tipo_contratacion_id, tipo_contratacion, motivo_baja_id, motivo_baja, grupo_cotizacion, " +
@@ -13985,6 +14098,9 @@ const HISTORIAL_FORM_FIELDS = [
   { key: "complemento", label: "Complemento", type: "decimal" },
   { key: "horarios", label: "Horarios", type: "text" },
   { key: "activo", label: "Activo", type: "boolean" },
+  { key: "enviado", label: "Enviado", type: "boolean" },
+  { key: "gestionado", label: "Gestionado", type: "boolean" },
+  { key: "tramitado", label: "Tramitado", type: "boolean" },
   { key: "tiene_complemento", label: "Tiene complemento", type: "boolean" },
   { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean" },
   { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean" },
@@ -14011,10 +14127,14 @@ const HISTORIAL_BULK_FIELDS = {
   jornada_maxima: { label: "Jornada máxima", type: "number" },
   grupo_cotizacion: { label: "Grupo cotización", type: "number" },
   activo: { label: "Activo", type: "boolean" },
+  enviado: { label: "Enviado", type: "boolean" },
+  gestionado: { label: "Gestionado", type: "boolean" },
+  tramitado: { label: "Tramitado", type: "boolean" },
 };
 
 let historialPersonalOptionsLoaded = false;
 let historialRows = [];
+let currentHistorialSort = { field: "fecha_alta", direction: "desc" };
 let historialRelationOptionsCache = {};
 let historialDetailSnapshot = null;
 let historialDetailMode = "edit"; // "edit" | "new"
@@ -14067,9 +14187,11 @@ function getHistorialFilterValues() {
   const formData = new FormData(historialFiltersForm ?? undefined);
   return {
     fechaAltaDesde: String(formData.get("fecha_alta_desde") || "").trim(),
-    fechaAltaHasta: String(formData.get("fecha_alta_hasta") || "").trim(),
-    fechaBajaDesde: String(formData.get("fecha_baja_desde") || "").trim(),
     fechaBajaHasta: String(formData.get("fecha_baja_hasta") || "").trim(),
+    tipoContratacionId: String(formData.get("tipo_contratacion_id") || "").trim(),
+    enviado: String(formData.get("enviado") || "").trim(),
+    gestionado: String(formData.get("gestionado") || "").trim(),
+    tramitado: String(formData.get("tramitado") || "").trim(),
     personalId: String(formData.get("personal_id") || "").trim(),
   };
 }
@@ -14112,29 +14234,130 @@ function formatHistorialJornada(row) {
   return jornadaLabel;
 }
 
+function populateHistorialTipoContratacionFilter() {
+  if (!historialFilterTipoContratacion) {
+    return;
+  }
+  const options = historialRelationOptionsCache.tipo_contratacion_id || [];
+  if (!options.length) {
+    return;
+  }
+  const previous = historialFilterTipoContratacion.value;
+  historialFilterTipoContratacion.innerHTML =
+    '<option value="">Todos</option>' +
+    options
+      .map(
+        (option) =>
+          `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
+      )
+      .join("");
+  historialFilterTipoContratacion.value = previous;
+}
+
+function getSortableHistorialValue(row, field) {
+  switch (field) {
+    case "personal":
+      return String(row.personal ?? (row.personal_id != null ? `ID ${row.personal_id}` : "")).trim();
+    case "empresa":
+      return String(row.empresa ?? "").trim();
+    case "fecha_alta":
+      return String(row.fecha_alta ?? "");
+    case "fecha_baja":
+      return String(row.fecha_baja ?? "");
+    case "dias":
+      return Number(row.dias_periodo ?? NaN);
+    case "jornada":
+      return Number(row.jornada ?? NaN);
+    case "puesto":
+      return String(row.puesto || row.puesto_texto || "").trim();
+    case "contrato":
+      return String(row.contrato_laboral_clave ?? "").trim();
+    case "tipo_contratacion":
+      return String(row.tipo_contratacion ?? "").trim();
+    case "motivo_baja":
+      return String(row.motivo_baja ?? "").trim();
+    case "activo":
+      return row.activo ? "1" : "0";
+    case "enviado":
+      return row.enviado ? "1" : "0";
+    case "gestionado":
+      return row.gestionado ? "1" : "0";
+    case "tramitado":
+      return row.tramitado ? "1" : "0";
+    default:
+      return String(row[field] ?? "").trim();
+  }
+}
+
+function compareHistorialValues(left, right, field) {
+  const leftValue = getSortableHistorialValue(left, field);
+  const rightValue = getSortableHistorialValue(right, field);
+
+  if (typeof leftValue === "number" || typeof rightValue === "number") {
+    const leftNumber = Number(leftValue);
+    const rightNumber = Number(rightValue);
+    const leftEmpty = !Number.isFinite(leftNumber);
+    const rightEmpty = !Number.isFinite(rightNumber);
+    if (leftEmpty && rightEmpty) return 0;
+    // Vacío = menor (orden natural): primero en ascendente, último en descendente.
+    if (leftEmpty) return -1;
+    if (rightEmpty) return 1;
+    return leftNumber - rightNumber;
+  }
+
+  return String(leftValue).localeCompare(String(rightValue), "es", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function sortHistorialRows(rows) {
+  const directionMultiplier = currentHistorialSort.direction === "asc" ? 1 : -1;
+  return [...rows].sort((left, right) => {
+    const result = compareHistorialValues(left, right, currentHistorialSort.field);
+    if (result !== 0) {
+      return result * directionMultiplier;
+    }
+    // Desempate estable: fecha de alta descendente y luego id descendente.
+    const byDate = compareHistorialValues(left, right, "fecha_alta");
+    if (byDate !== 0) {
+      return -byDate;
+    }
+    return String(right.id ?? "").localeCompare(String(left.id ?? ""), "es", { numeric: true });
+  });
+}
+
+function syncHistorialSortButtons() {
+  syncSortButtonsBySelector("[data-historial-sort-field]", "historialSortField", currentHistorialSort);
+}
+
 function renderHistorialTable(rows) {
   if (!historialTableBody) {
     return;
   }
 
-  if (!rows.length) {
+  const sortedRows = sortHistorialRows(rows);
+
+  if (!sortedRows.length) {
     historialTableBody.innerHTML =
-      '<tr><td colspan="12" class="empty-state">No hay periodos que coincidan con los filtros.</td></tr>';
+      '<tr><td colspan="13" class="empty-state">No hay periodos que coincidan con los filtros.</td></tr>';
+    syncHistorialSortButtons();
     return;
   }
 
-  historialTableBody.innerHTML = rows
+  historialTableBody.innerHTML = sortedRows
     .map((row) => {
       const cells = [
         row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : ""),
-        row.empresa || "",
+        row.tipo_contratacion || "",
         formatDisplayDate(row.fecha_alta),
         formatDisplayDate(row.fecha_baja),
         row.dias_periodo ?? "",
         formatHistorialJornada(row),
-        row.puesto || row.puesto_texto || "",
+        row.enviado ? "Sí" : "",
+        row.gestionado ? "Sí" : "",
         row.contrato_laboral_clave || "",
-        row.tipo_contratacion || "",
+        row.tramitado ? "Sí" : "",
         row.motivo_baja || "",
         row.activo ? "Sí" : "",
       ];
@@ -14147,6 +14370,7 @@ function renderHistorialTable(rows) {
       return `<tr data-historial-id="${escapeHtml(row.id)}">${dataCells}${actionCell}</tr>`;
     })
     .join("");
+  syncHistorialSortButtons();
 }
 
 async function loadHistorial() {
@@ -14155,7 +14379,7 @@ async function loadHistorial() {
   }
   if (historialTableBody) {
     historialTableBody.innerHTML =
-      '<tr><td colspan="12" class="empty-state">Cargando historial laboral...</td></tr>';
+      '<tr><td colspan="13" class="empty-state">Cargando historial laboral...</td></tr>';
   }
 
   try {
@@ -14174,14 +14398,20 @@ async function loadHistorial() {
     if (filters.fechaAltaDesde) {
       query = query.gte("fecha_alta", filters.fechaAltaDesde);
     }
-    if (filters.fechaAltaHasta) {
-      query = query.lte("fecha_alta", filters.fechaAltaHasta);
-    }
-    if (filters.fechaBajaDesde) {
-      query = query.gte("fecha_baja", filters.fechaBajaDesde);
-    }
     if (filters.fechaBajaHasta) {
       query = query.lte("fecha_baja", filters.fechaBajaHasta);
+    }
+    if (filters.tipoContratacionId) {
+      query = query.eq("tipo_contratacion_id", filters.tipoContratacionId);
+    }
+    if (filters.enviado) {
+      query = query.eq("enviado", filters.enviado === "true");
+    }
+    if (filters.gestionado) {
+      query = query.eq("gestionado", filters.gestionado === "true");
+    }
+    if (filters.tramitado) {
+      query = query.eq("tramitado", filters.tramitado === "true");
     }
     if (filters.personalId) {
       query = query.eq("personal_id", filters.personalId);
@@ -14194,6 +14424,7 @@ async function loadHistorial() {
 
     await personalOptionsPromise;
     await relationOptionsPromise;
+    populateHistorialTipoContratacionFilter();
     historialRows = data ?? [];
     renderHistorialTable(historialRows);
     updateHistorialBulkMatchCount();
@@ -14210,7 +14441,7 @@ async function loadHistorial() {
     }
     if (historialTableBody) {
       historialTableBody.innerHTML =
-        '<tr><td colspan="12" class="empty-state">Error cargando el historial laboral.</td></tr>';
+        '<tr><td colspan="13" class="empty-state">Error cargando el historial laboral.</td></tr>';
     }
     setStatus(`No se pudo cargar el historial laboral: ${error.message}`, "error");
   }
@@ -14281,6 +14512,7 @@ async function openHistorialDetail(historialId) {
   if (historialDetailDuplicateButton) historialDetailDuplicateButton.classList.remove("hidden");
   if (historialDetailDeleteButton) historialDetailDeleteButton.classList.remove("hidden");
   renderHistorialDetailForm(row);
+  markFormPristine(historialDetailForm);
   historialDetailPanel.classList.remove("hidden");
 }
 
@@ -14298,13 +14530,18 @@ async function openHistorialNew(seedRow = null) {
   if (historialDetailDuplicateButton) historialDetailDuplicateButton.classList.add("hidden");
   if (historialDetailDeleteButton) historialDetailDeleteButton.classList.add("hidden");
   renderHistorialDetailForm(historialDetailSnapshot);
+  markFormPristine(historialDetailForm);
   historialDetailPanel.classList.remove("hidden");
 }
 
-function closeHistorialDetail() {
+async function closeHistorialDetail(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(historialDetailForm, () => saveHistorialDetail()))) {
+    return false;
+  }
   historialDetailSnapshot = null;
   historialDetailMode = "edit";
   historialDetailPanel?.classList.add("hidden");
+  return true;
 }
 
 function collectHistorialDetailPayload({ full = false } = {}) {
@@ -14352,7 +14589,7 @@ async function saveHistorialDetail(event) {
         .select("id")
         .single();
       if (error) throw error;
-      closeHistorialDetail();
+      closeHistorialDetail({ force: true });
       await loadHistorial();
       if (data?.id != null) {
         await openHistorialDetail(data.id);
@@ -14366,7 +14603,7 @@ async function saveHistorialDetail(event) {
     }
     const payload = collectHistorialDetailPayload();
     if (!Object.keys(payload).length) {
-      closeHistorialDetail();
+      closeHistorialDetail({ force: true });
       return;
     }
     const { error } = await supabase
@@ -14375,7 +14612,7 @@ async function saveHistorialDetail(event) {
       .eq("id", historialDetailSnapshot.id);
     if (error) throw error;
     const savedId = historialDetailSnapshot.id;
-    closeHistorialDetail();
+    closeHistorialDetail({ force: true });
     await loadHistorial();
     await openHistorialDetail(savedId);
     setStatus("Periodo guardado.", "success");
@@ -14397,7 +14634,7 @@ async function deleteHistorialDetail() {
     const supabase = await getSupabaseClient();
     const { error } = await supabase.from(HISTORIAL_TABLE).delete().eq("id", historialDetailSnapshot.id);
     if (error) throw error;
-    closeHistorialDetail();
+    closeHistorialDetail({ force: true });
     await loadHistorial();
     setStatus("Periodo eliminado.", "success");
   } catch (error) {
@@ -14920,8 +15157,8 @@ function openCandidateCreatePanel() {
   privateTabPanelNew?.classList.remove("hidden");
 }
 
-function closeCandidateCreatePanel(options = {}) {
-  if (!options.force && !confirmDiscardFormChanges(candidateForm)) {
+async function closeCandidateCreatePanel(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(candidateForm, () => handlePrivateCandidateSubmit()))) {
     return false;
   }
 
@@ -15734,8 +15971,8 @@ function openEventPanel(event = null) {
   eventPanel?.classList.remove("hidden");
 }
 
-function closeEventPanel(options = {}) {
-  if (!options.force && !confirmDiscardFormChanges(eventForm)) {
+async function closeEventPanel(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(eventForm, () => saveEvent()))) {
     return false;
   }
 
@@ -15820,8 +16057,8 @@ function openEventSchedulePanel(eventId, scheduleId = "") {
   eventSchedulePanel?.classList.remove("hidden");
 }
 
-function closeEventSchedulePanel(options = {}) {
-  if (!options.force && !confirmDiscardFormChanges(eventScheduleForm)) {
+async function closeEventSchedulePanel(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(eventScheduleForm, () => saveEventSchedule()))) {
     return false;
   }
 
@@ -16034,7 +16271,7 @@ async function selectEvent(eventId) {
 }
 
 async function saveEvent(event) {
-  event.preventDefault();
+  event?.preventDefault();
 
   const payload = {
     nombre: eventNameInput.value.trim(),
@@ -16159,7 +16396,7 @@ async function archiveEvent(eventId, shouldArchive) {
 }
 
 async function saveEventSchedule(event) {
-  event.preventDefault();
+  event?.preventDefault();
 
   const selectedPersonnelIds = [...currentEventScheduleSelectedPersonnelIds];
   const payload = {
@@ -16443,7 +16680,7 @@ async function init() {
         if (!currentUserIsAccessAdmin) {
           return;
         }
-        closeSettingsDetail();
+        closeSettingsDetail({ force: true });
         switchSettingsView("access");
         void loadAccessManagement().catch((error) => {
           setAccessStatus(error?.message || "No se pudieron cargar los accesos.", "error");
@@ -16458,7 +16695,7 @@ async function init() {
       switchSettingsView("catalog");
       currentSettingsCatalog = catalog;
       resetSettingsSort();
-      closeSettingsDetail();
+      closeSettingsDetail({ force: true });
       void loadSettingsManagement();
     });
   });
@@ -16968,6 +17205,22 @@ async function init() {
   });
   historialNewButton?.addEventListener("click", () => {
     void openHistorialNew();
+  });
+  historialTable?.addEventListener("click", (event) => {
+    const sortField = event.target.closest("[data-historial-sort-field]")?.dataset
+      .historialSortField;
+    if (!sortField) {
+      return;
+    }
+    if (currentHistorialSort.field === sortField) {
+      currentHistorialSort.direction = currentHistorialSort.direction === "asc" ? "desc" : "asc";
+    } else {
+      currentHistorialSort = {
+        field: sortField,
+        direction: sortField === "fecha_alta" || sortField === "fecha_baja" ? "desc" : "asc",
+      };
+    }
+    renderHistorialTable(historialRows);
   });
   historialTableBody?.addEventListener("click", (event) => {
     const editButton = event.target.closest("[data-historial-edit]");

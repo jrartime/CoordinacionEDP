@@ -2558,6 +2558,43 @@ th {
   background: rgba(20, 40, 75, 0.28);
 }
 
+.unsaved-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(20, 40, 75, 0.4);
+}
+
+.unsaved-dialog {
+  width: min(440px, 100%);
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 24px 60px rgba(20, 40, 75, 0.28);
+}
+
+.unsaved-dialog h3 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.unsaved-dialog p {
+  margin: 0 0 20px;
+  color: #35507a;
+  line-height: 1.45;
+}
+
+.unsaved-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .detail-drawer {
   position: absolute;
   top: 0;

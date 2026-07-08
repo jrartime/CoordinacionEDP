@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260706-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260708-1" />
   </head>
   <body>
     <script>
@@ -853,16 +853,38 @@
                     <input id="historial-filter-alta-desde" name="fecha_alta_desde" type="date" />
                   </label>
                   <label class="filter-field">
-                    Alta hasta
-                    <input id="historial-filter-alta-hasta" name="fecha_alta_hasta" type="date" />
-                  </label>
-                  <label class="filter-field">
-                    Baja desde
-                    <input id="historial-filter-baja-desde" name="fecha_baja_desde" type="date" />
-                  </label>
-                  <label class="filter-field">
                     Baja hasta
                     <input id="historial-filter-baja-hasta" name="fecha_baja_hasta" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Tipo contratación
+                    <select id="historial-filter-tipo-contratacion" name="tipo_contratacion_id">
+                      <option value="">Todos</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Enviado
+                    <select id="historial-filter-enviado" name="enviado">
+                      <option value="">Todos</option>
+                      <option value="true">Sí</option>
+                      <option value="false">No</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Gestionado
+                    <select id="historial-filter-gestionado" name="gestionado">
+                      <option value="">Todos</option>
+                      <option value="true">Sí</option>
+                      <option value="false">No</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Tramitado
+                    <select id="historial-filter-tramitado" name="tramitado">
+                      <option value="">Todos</option>
+                      <option value="true">Sí</option>
+                      <option value="false">No</option>
+                    </select>
                   </label>
                   <label class="filter-field">
                     Personal
@@ -905,6 +927,9 @@
                         <option value="jornada_maxima">Jornada máxima</option>
                         <option value="grupo_cotizacion">Grupo cotización</option>
                         <option value="activo">Activo</option>
+                        <option value="enviado">Enviado</option>
+                        <option value="gestionado">Gestionado</option>
+                        <option value="tramitado">Tramitado</option>
                       </select>
                     </label>
                     <label>
@@ -936,23 +961,24 @@
                   <table id="historial-table" class="records-table">
                     <thead>
                       <tr>
-                        <th>Personal</th>
-                        <th>Empresa</th>
-                        <th>Fecha alta</th>
-                        <th>Fecha baja</th>
-                        <th>Días</th>
-                        <th>Jornada</th>
-                        <th>Puesto</th>
-                        <th>Contrato</th>
-                        <th>Tipo contratación</th>
-                        <th>Motivo baja</th>
-                        <th>Activo</th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="personal">Personal</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="tipo_contratacion">Tipo contratación</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="fecha_alta">Fecha alta</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="fecha_baja">Fecha baja</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="dias">Días</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="jornada">Jornada</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="enviado">Enviado</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="gestionado">Gestionado</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="contrato">Contrato</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="tramitado">Tramitado</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="motivo_baja">Motivo baja</button></th>
+                        <th><button type="button" class="sort-button" data-historial-sort-field="activo">Activo</button></th>
                         <th aria-label="Acciones"></th>
                       </tr>
                     </thead>
                     <tbody id="historial-table-body">
                       <tr>
-                        <td colspan="12" class="empty-state">Cargando historial laboral...</td>
+                        <td colspan="13" class="empty-state">Cargando historial laboral...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -6104,7 +6130,7 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260707-1" defer></script>
-    <script src="./app.js?v=20260707-1" defer></script>
+    <script src="./concilia-integrated.js?v=20260708-1" defer></script>
+    <script src="./app.js?v=20260708-3" defer></script>
   </body>
 </html>

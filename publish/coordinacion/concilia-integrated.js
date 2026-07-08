@@ -4039,13 +4039,30 @@
     activityEditTitle.textContent = activity.personal || "Actividad seleccionada";
     activityEditPanel.classList.remove("hidden");
     activityEditPanelBackdrop.classList.remove("hidden");
+    markConciliaPristine(activityEditForm);
   }
 
-  function closeActivityEdit() {
+  // Aviso de cambios sin guardar reutilizando el modal compartido de Coordinación.
+  async function confirmConciliaClose(form, saveFn) {
+    const api = window.CoordinacionUnsaved;
+    if (!api) return true;
+    return api.confirmCloseWithSave(form, saveFn);
+  }
+
+  function markConciliaPristine(form) {
+    window.CoordinacionUnsaved?.markFormPristine(form);
+  }
+
+  async function closeActivityEdit(options = {}) {
+    if (!options.force && !(await confirmConciliaClose(activityEditForm, () => handleActivityEditSubmit()))) {
+      return false;
+    }
     activityEditForm.reset();
     editActivityId.value = "";
     activityEditPanel.classList.add("hidden");
     activityEditPanelBackdrop.classList.add("hidden");
+    markConciliaPristine(activityEditForm);
+    return true;
   }
 
   function openActivityCreatePanel() {
@@ -4053,12 +4070,18 @@
       applyActivityFormDefaults();
       activityCreatePanel.classList.remove("hidden");
       activityPanelBackdrop.classList.remove("hidden");
+      markConciliaPristine(activityForm);
     });
   }
 
-  function closeActivityCreatePanel() {
+  async function closeActivityCreatePanel(options = {}) {
+    if (!options.force && !(await confirmConciliaClose(activityForm, () => handleActivitySubmit()))) {
+      return false;
+    }
     activityCreatePanel.classList.add("hidden");
     activityPanelBackdrop.classList.add("hidden");
+    markConciliaPristine(activityForm);
+    return true;
   }
 
   function duplicateActivityToCreateForm() {
@@ -4091,12 +4114,12 @@
     activityCreatePanel.classList.remove("hidden");
     activityPanelBackdrop.classList.remove("hidden");
     activityPersonal.focus();
-    closeActivityEdit();
+    closeActivityEdit({ force: true });
     setStatus("Actividad duplicada. Selecciona el personal y guarda el nuevo registro.", "success");
   }
 
   async function handleActivitySubmit(event) {
-    event.preventDefault();
+    event?.preventDefault();
 
     const payload = getActivityPayload(activityForm);
 
@@ -4118,7 +4141,7 @@
 
       activityForm.reset();
       activitiesSummary.textContent = "Actividad guardada. Puedes crear otra actividad.";
-      closeActivityCreatePanel();
+      closeActivityCreatePanel({ force: true });
       await loadActivities();
       setStatus("Actividad guardada.", "success");
     } catch (error) {
@@ -4131,7 +4154,7 @@
   }
 
   async function handleActivityEditSubmit(event) {
-    event.preventDefault();
+    event?.preventDefault();
 
     const activityId = editActivityId.value;
     const payload = getActivityPayload(activityEditForm);
@@ -4151,7 +4174,7 @@
         throw error;
       }
 
-      closeActivityEdit();
+      closeActivityEdit({ force: true });
       await loadActivities();
       setStatus("Actividad actualizada.", "success");
     } catch (error) {
@@ -4184,7 +4207,7 @@
         throw error;
       }
 
-      closeActivityEdit();
+      closeActivityEdit({ force: true });
       await loadActivities();
       setStatus("Actividad borrada.", "success");
     } catch (error) {
@@ -4819,11 +4842,17 @@
     studentPanelBackdrop.classList.remove("hidden");
     studentPanel.classList.remove("hidden");
     studentAlumnado.focus();
+    markConciliaPristine(studentForm);
   }
 
-  function closeStudentPanel() {
+  async function closeStudentPanel(options = {}) {
+    if (!options.force && !(await confirmConciliaClose(studentForm, () => handleStudentSubmit()))) {
+      return false;
+    }
     studentPanelBackdrop.classList.add("hidden");
     studentPanel.classList.add("hidden");
+    markConciliaPristine(studentForm);
+    return true;
   }
 
   function openSummaryPanel() {
@@ -4881,7 +4910,7 @@
   }
 
   async function handleStudentSubmit(event) {
-    event.preventDefault();
+    event?.preventDefault();
     syncGeneratedStudentFields();
     const payload = buildStudentPayload();
 
@@ -4907,7 +4936,7 @@
         throw error;
       }
 
-      closeStudentPanel();
+      closeStudentPanel({ force: true });
       setStatus(id ? "Alumno actualizado." : "Alumno creado.", "success");
       await loadStudents();
     } catch (error) {
