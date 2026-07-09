@@ -84,6 +84,18 @@ El CSV limpio se genera desde el CSV original con:
 python scripts\convert_concilia_usuarios_csv.py "d:\Dropbox\EDP\Coordinación ConciliaOviedo\APERTURA Colegios\0. VERANO 2026\cargar.csv" exports\concilia_usuarios_import.csv --csv
 ```
 
+## Supabase Coordinacion
+
+Las migraciones SQL de Coordinacion viven en `supabase/tables/` y `supabase/policies/`.
+Los cambios recientes de Registros dependen de:
+
+- `supabase/tables/registros_filter_facets.sql`: RPC para filtros cruzados de Registros.
+- `supabase/tables/registros_servicio_contrato_validation.sql`: trigger que impide servicios fuera del contrato del registro.
+- `supabase/tables/actividades.sql`: trigger equivalente en Actividades, con comparacion estricta de contrato/servicio.
+
+Cuando se cambie SQL, ejecuta el archivo correspondiente en el SQL Editor de Supabase
+y deja constancia en `contexto-previo.md`.
+
 ## Desarrollo local
 
 ```powershell

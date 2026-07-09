@@ -1994,6 +1994,12 @@ button.tag-chip.warm-button:hover {
   grid-template-columns: 120px 120px 140px 90px minmax(80px, 1fr) minmax(80px, 1fr) 100px auto;
 }
 
+/* Registros: contrato y servicio algo más anchos; personal e instalación más
+   estrechos. (Historial comparte la clase, por eso se escopa al form de registros.) */
+.private-tab-panel #records-filters-form.records-filters-compact {
+  grid-template-columns: 120px 120px 190px 150px 120px 110px minmax(120px, 1fr) auto;
+}
+
 .records-filters-compact label,
 .records-filters-compact .filter-field {
   gap: 1px;
@@ -2070,9 +2076,59 @@ button.tag-chip.warm-button:hover {
   cursor: pointer;
 }
 
+/* Columnas fijas al hacer scroll horizontal: Personal (1ª) y Fecha (2ª). */
+.records-table th[data-record-col="personal_id"],
+.records-table td[data-record-field-read="personal_id"] {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 160px;
+  min-width: 160px;
+  max-width: 160px;
+  background: #ffffff;
+}
+.records-table th[data-record-col="fecha"],
+.records-table td[data-record-field-read="fecha"] {
+  position: sticky;
+  left: 160px;
+  z-index: 2;
+  width: 92px;
+  min-width: 92px;
+  max-width: 92px;
+  background: #ffffff;
+}
+.records-table thead th[data-record-col="personal_id"],
+.records-table thead th[data-record-col="fecha"] {
+  z-index: 3;
+}
+/* Conservar el color de la fila también en las celdas fijas. */
+.records-table tr.selected-row td[data-record-field-read="personal_id"],
+.records-table tr.selected-row td[data-record-field-read="fecha"] {
+  background: #eef6ff;
+}
+.records-table tr.record-row-sustituto td[data-record-field-read="personal_id"],
+.records-table tr.record-row-sustituto td[data-record-field-read="fecha"] {
+  background: #f1fafe;
+}
+.records-table tr.record-row-sustituido td[data-record-field-read="personal_id"],
+.records-table tr.record-row-sustituido td[data-record-field-read="fecha"] {
+  background: #fef8ee;
+}
+
 .records-table td.records-row-actions {
   white-space: nowrap;
   text-align: center;
+}
+
+.records-table th.records-row-select,
+.records-table td.records-row-select {
+  width: 44px;
+  min-width: 44px;
+  text-align: center;
+}
+
+.records-table tr.record-row-bulk-selected td {
+  background: #fff7d6;
 }
 
 .records-table .compact-button {

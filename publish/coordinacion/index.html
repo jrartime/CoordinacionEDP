@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260708-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260709-1" />
   </head>
   <body>
     <script>
@@ -717,8 +717,23 @@
                     <button id="records-bulk-apply-button" type="button">
                       Aplicar
                     </button>
+                    <button id="records-bulk-clear-fields-button" type="button" class="secondary-button">
+                      Limpiar campos
+                    </button>
+                    <button id="records-bulk-select-button" type="button" class="secondary-button">
+                      Seleccionar
+                    </button>
+                    <button id="records-bulk-clear-selection-button" type="button" class="secondary-button hidden">
+                      Limpiar selección
+                    </button>
+                    <button id="records-bulk-delete-button" type="button" class="danger-button hidden">
+                      Borrar seleccionados
+                    </button>
                     <span id="records-bulk-match-count" class="control-selected-delete-count">
                       0 coincidencias
+                    </span>
+                    <span id="records-bulk-selection-count" class="control-selected-delete-count hidden">
+                      0 seleccionados
                     </span>
                   </div>
                 </details>
@@ -945,8 +960,17 @@
                     <button id="historial-bulk-apply-button" type="button">
                       Aplicar
                     </button>
+                    <button id="historial-bulk-select-button" type="button" class="secondary-button">
+                      Seleccionar
+                    </button>
+                    <button id="historial-bulk-clear-selection-button" type="button" class="secondary-button hidden">
+                      Limpiar selección
+                    </button>
                     <span id="historial-bulk-match-count" class="control-selected-delete-count">
                       0 coincidencias
+                    </span>
+                    <span id="historial-bulk-selection-count" class="control-selected-delete-count hidden">
+                      0 seleccionados
                     </span>
                   </div>
                 </details>
@@ -961,6 +985,13 @@
                   <table id="historial-table" class="records-table">
                     <thead>
                       <tr>
+                        <th id="historial-bulk-select-header" class="records-row-select hidden">
+                          <input
+                            id="historial-bulk-select-all-checkbox"
+                            type="checkbox"
+                            aria-label="Seleccionar todos los periodos filtrados"
+                          />
+                        </th>
                         <th><button type="button" class="sort-button" data-historial-sort-field="personal">Personal</button></th>
                         <th><button type="button" class="sort-button" data-historial-sort-field="tipo_contratacion">Tipo contratación</button></th>
                         <th><button type="button" class="sort-button" data-historial-sort-field="fecha_alta">Fecha alta</button></th>
@@ -4320,6 +4351,9 @@
                 <button id="activities-bulk-apply-button" type="button">
                   Aplicar
                 </button>
+                <button id="activities-bulk-select-button" type="button" class="secondary-button">
+                  Seleccionar
+                </button>
                 <span id="activities-bulk-match-count" class="control-selected-delete-count">
                   0 coincidencias
                 </span>
@@ -6131,6 +6165,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260708-1" defer></script>
-    <script src="./app.js?v=20260708-3" defer></script>
+    <script src="./app.js?v=20260709-3" defer></script>
   </body>
 </html>

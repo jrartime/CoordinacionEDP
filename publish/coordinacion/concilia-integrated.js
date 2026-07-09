@@ -183,6 +183,7 @@
   const activitiesBulkCurrentSelect = document.querySelector("#activities-bulk-current-select");
   const activitiesBulkNewSelect = document.querySelector("#activities-bulk-new-select");
   const activitiesBulkApplyButton = document.querySelector("#activities-bulk-apply-button");
+  const activitiesBulkSelectButton = document.querySelector("#activities-bulk-select-button");
   const activitiesBulkMatchCount = document.querySelector("#activities-bulk-match-count");
   const activitiesSelectRecordsButton = document.querySelector("#activities-select-records-button");
   const activitiesRecordsSelectHeader = document.querySelector(
@@ -2992,6 +2993,14 @@
     return filteredActivitiesRows;
   }
 
+  function getActivityBulkTargetRows() {
+    if (!activitiesRecordsSelectionMode) {
+      return getActivityBulkMatchingRows();
+    }
+    const selectedIds = new Set(getSelectedActivityRecordGeneratorIds());
+    return filteredActivitiesRows.filter((activity) => selectedIds.has(String(activity.id)));
+  }
+
   function syncActivitiesBulkAssignmentUi() {
     if (!activitiesBulkFieldSelect || !activitiesBulkCurrentValueInput || !activitiesBulkNewValueInput) {
       return;
@@ -3047,7 +3056,9 @@
         : "Indica valor actual";
     }
     if (activitiesBulkApplyButton) {
-      activitiesBulkApplyButton.disabled = matches.length === 0;
+      activitiesBulkApplyButton.disabled = activitiesRecordsSelectionMode
+        ? getSelectedActivityRecordGeneratorIds().length === 0
+        : matches.length === 0;
     }
   }
 
@@ -3063,9 +3074,14 @@
       await loadActivityCatalogs();
     }
 
-    const matches = getActivityBulkMatchingRows();
+    const matches = getActivityBulkTargetRows();
     if (!matches.length) {
-      setStatus("No hay actividades filtradas con ese valor actual.", "error");
+      setStatus(
+        activitiesRecordsSelectionMode
+          ? "Selecciona al menos una actividad para aplicar la asignacion masiva."
+          : "No hay actividades filtradas con ese valor actual.",
+        "error"
+      );
       return;
     }
 
@@ -3087,9 +3103,9 @@
     }
 
     const confirmed = window.confirm(
-      `Vas a cambiar ${config.label} de ${formatActivityBulkValue(currentValue, config)} a ${formatActivityBulkValue(newValue, config)} en ${matches.length} actividad${
-        matches.length === 1 ? "" : "es"
-      } filtrada${matches.length === 1 ? "" : "s"}.`
+      activitiesRecordsSelectionMode
+        ? `Vas a cambiar ${config.label} a ${formatActivityBulkValue(newValue, config)} en ${matches.length} actividad${matches.length === 1 ? "" : "es"} seleccionada${matches.length === 1 ? "" : "s"}.`
+        : `Vas a cambiar ${config.label} de ${formatActivityBulkValue(currentValue, config)} a ${formatActivityBulkValue(newValue, config)} en ${matches.length} actividad${matches.length === 1 ? "" : "es"} filtrada${matches.length === 1 ? "" : "s"}.`
     );
     if (!confirmed) {
       return;
@@ -3934,6 +3950,7 @@
     if (activitiesGenerateRecordsDialogButton) {
       activitiesGenerateRecordsDialogButton.disabled = selectedCount === 0;
     }
+    syncActivitiesBulkAssignmentUi();
   }
 
   function setActivitiesRecordsSelectionMode(enabled) {
@@ -6486,6 +6503,9 @@
     activitiesBulkNewSelect?.addEventListener("change", syncActivitiesBulkAssignmentUi);
     activitiesBulkApplyButton?.addEventListener("click", () => {
       void applyActivitiesBulkAssignment();
+    });
+    activitiesBulkSelectButton?.addEventListener("click", () => {
+      setActivitiesRecordsSelectionMode(true);
     });
     activitiesSelectRecordsButton?.addEventListener("click", () => {
       setActivitiesRecordsSelectionMode(true);

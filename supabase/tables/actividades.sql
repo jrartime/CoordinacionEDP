@@ -183,7 +183,7 @@ begin
     raise exception 'El servicio indicado no existe.';
   end if;
 
-  if service_contract_id <> new.contrato_id then
+  if new.contrato_id is distinct from service_contract_id then
     raise exception 'El servicio indicado no pertenece al contrato de la actividad.';
   end if;
 

@@ -43,6 +43,7 @@ exports/               # CSVs exportados de Supabase para importación/referenci
 - **Personal** — Fichas de `tbl_personal`.
 - **Contratos** — `tbl_contratos`.
 - **Actividades** — Actividades laborales por contrato (compartido con Concilia).
+- **Registros** — Detalle de jornadas generado desde actividades. Filtros cruzados por contrato/servicio/personal/instalación, edición tipo Excel, selección manual para asignación/borrado masivo y coherencia servicio/contrato.
 - **Accesos** — Usuarios, roles y servicios.
 - **Concilia** (integrado) — Las 5 pestañas de Concilia dentro de Coordinación vía `concilia-integrated.js`.
 
@@ -78,6 +79,18 @@ window.APP_CONFIG = {
 ```
 
 El login usa Supabase Auth. No hay contraseñas locales en el código.
+
+### Supabase Coordinación
+
+- `registros` está scoped por contrato asignado mediante RLS (`supabase/policies/registros_write.sql`) y funciones SET en `supabase/tables/coordinacion_contrato_id_sets.sql`.
+- Los filtros de la pestaña Registros usan:
+  - `get_records_filter_contratos()` para contratos activos visibles/asignados.
+  - `get_records_facets(date,date,bigint)` para combinaciones reales de contrato/servicio/personal/instalación.
+  Fuente: `supabase/tables/registros_filter_facets.sql`.
+- `registros.servicio_id` debe pertenecer al mismo contrato que `registros.contrato_id`. El blindaje de base de datos está en `supabase/tables/registros_servicio_contrato_validation.sql`.
+- `actividades.servicio_id` tiene validación equivalente en `supabase/tables/actividades.sql`; debe usar comparación estricta `new.contrato_id is distinct from service_contract_id`.
+- En frontend, el modo edición tipo Excel de Registros carga opciones de selects relacionales bajo demanda para evitar renderizar miles de `<option>` por celda.
+- Las asignaciones masivas de Registros, Actividades e Historial laboral soportan selección manual por ticks; cuando está activa, `Aplicar` actúa solo sobre los elementos seleccionados.
 
 ## Desarrollo local
 
