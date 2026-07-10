@@ -137,6 +137,9 @@ const RECORD_SELECT_COLUMNS = Array.from(
   new Set([...RECORD_COLUMNS.map((column) => column.key), ...RECORD_DETAIL_LABEL_COLUMNS])
 ).join(",");
 const RECORDS_LOAD_LIMIT = 5000;
+const RECORD_EMPTY_FILTER_VALUE = "__record_filter_empty__";
+const RECORD_BULK_UNSET_VALUE = "__unset__";
+const RECORD_BULK_EMPTY_VALUE = "__empty__";
 const RECORD_NUMERIC_FIELDS = new Set(
   RECORD_COLUMNS.filter((column) => ["number", "decimal"].includes(column.type)).map(
     (column) => column.key
@@ -12691,7 +12694,17 @@ function applyRecordsQueryFilters(query, filters) {
   }
 
   if (filters.contratoIds.length) {
-    nextQuery = nextQuery.in("contrato_id", filters.contratoIds.map(Number));
+    const emptySelected = filters.contratoIds.includes(RECORD_EMPTY_FILTER_VALUE);
+    const numericContractIds = filters.contratoIds
+      .filter((value) => value !== RECORD_EMPTY_FILTER_VALUE)
+      .map(Number);
+    if (emptySelected && numericContractIds.length) {
+      nextQuery = nextQuery.or(`contrato_id.is.null,contrato_id.in.(${numericContractIds.join(",")})`);
+    } else if (emptySelected) {
+      nextQuery = nextQuery.is("contrato_id", null);
+    } else {
+      nextQuery = nextQuery.in("contrato_id", numericContractIds);
+    }
   } else if (recordsFilterContratos) {
     const activeContractIds = recordsFilterContratos.map((item) => Number(item.value));
     nextQuery = activeContractIds.length
@@ -12706,7 +12719,10 @@ function applyRecordsQueryFilters(query, filters) {
     ["actividad_id", filters.actividadId],
   ].forEach(([column, value]) => {
     if (value !== "") {
-      nextQuery = nextQuery.eq(column, Number(value));
+      nextQuery =
+        value === RECORD_EMPTY_FILTER_VALUE
+          ? nextQuery.is(column, null)
+          : nextQuery.eq(column, Number(value));
     }
   });
 
@@ -13100,6 +13116,12 @@ function getSelectValues(select) {
     .filter(Boolean);
 }
 
+function recordFilterValueMatches(rowValue, filterValue) {
+  return filterValue === RECORD_EMPTY_FILTER_VALUE
+    ? rowValue === null || rowValue === undefined || rowValue === ""
+    : String(rowValue) === filterValue;
+}
+
 function getMultiCheckDropdown(select, emptyLabel) {
   if (!select?.multiple) {
     return null;
@@ -13210,9 +13232,9 @@ function syncMultiCheckDropdown(select, emptyLabel) {
 
 function recordsFilterMatchesValue(row, idKey, filterValue, isMultiple) {
   if (isMultiple) {
-    return !filterValue.length || filterValue.includes(String(row[idKey]));
+    return !filterValue.length || filterValue.some((value) => recordFilterValueMatches(row[idKey], value));
   }
-  return !filterValue || String(row[idKey]) === filterValue;
+  return !filterValue || recordFilterValueMatches(row[idKey], filterValue);
 }
 
 function resetRecordsNamedFilterControl(form, controlName) {
@@ -13291,7 +13313,10 @@ function updateRecordsFilterOptions() {
       if (hasPeerFilters || !allowedContracts.size) {
         for (const row of getRecordsCompatibleFacetRows(idKey, currentValues)) {
           const val = row[idKey];
-          if (val == null) continue;
+          if (val == null || val === "") {
+            ids.add(RECORD_EMPTY_FILTER_VALUE);
+            continue;
+          }
           const key = String(val);
           if (!allowedContracts.size || allowedContracts.has(key)) {
             ids.add(key);
@@ -13303,15 +13328,17 @@ function updateRecordsFilterOptions() {
         }
       }
       sorted = Array.from(ids)
-        .map((val) => [val, allowedContracts.get(val) || labelFor(idKey, val)])
+        .map((val) => [
+          val,
+          val === RECORD_EMPTY_FILTER_VALUE ? "Vacío" : allowedContracts.get(val) || labelFor(idKey, val),
+        ])
         .sort((a, b) => a[1].localeCompare(b[1], "es", { sensitivity: "base" }));
     } else {
       ids = new Set();
       const compatibleRows = getRecordsCompatibleFacetRows(idKey, currentValues);
       for (const row of compatibleRows) {
         const val = row[idKey];
-        if (val == null) continue;
-        ids.add(String(val));
+        ids.add(val == null || val === "" ? RECORD_EMPTY_FILTER_VALUE : String(val));
       }
       if (!ids.size && !recordsFacetRows.length && !recordsRows.length) {
         for (const o of recordRelationOptionsCache[idKey] || []) {
@@ -13319,7 +13346,7 @@ function updateRecordsFilterOptions() {
         }
       }
       sorted = Array.from(ids)
-        .map((val) => [val, labelFor(idKey, val)])
+        .map((val) => [val, val === RECORD_EMPTY_FILTER_VALUE ? "Vacío" : labelFor(idKey, val)])
         .sort((a, b) => a[1].localeCompare(b[1], "es", { sensitivity: "base" }));
     }
 
@@ -13347,7 +13374,7 @@ function updateRecordsFilterOptions() {
       // Conservar los ya seleccionados aunque no estén en las facetas actuales.
       for (const selId of currentIds) {
         if (!sorted.some(([v]) => v === selId)) {
-          sorted.push([selId, labelFor(idKey, selId)]);
+          sorted.push([selId, selId === RECORD_EMPTY_FILTER_VALUE ? "Vacío" : labelFor(idKey, selId)]);
         }
       }
       sorted.sort((a, b) => a[1].localeCompare(b[1], "es", { sensitivity: "base" }));
@@ -14043,18 +14070,11 @@ function getRecordsBulkFieldConfig() {
   return RECORD_BULK_FIELDS[recordsBulkFieldSelect?.value] || RECORD_BULK_FIELDS.fecha;
 }
 
-function getRecordBulkServiceScopeContractIds() {
-  if (recordsBulkFieldSelect?.value !== "servicio_id") {
-    return null;
-  }
-
-  const targetRows = recordsSelectionMode
-    ? getSelectedRecordRowsForBulkAction()
-    : getRecordBulkMatchingRows();
-  const contractIds = new Set(
-    targetRows.map((row) => Number(row.contrato_id)).filter(Number.isFinite)
+function getRecordBulkContractLabel(contractId) {
+  const option = (recordsFilterContratos || recordRelationOptionsCache.contrato_id || []).find(
+    (item) => String(item.value) === String(contractId)
   );
-  return contractIds.size ? contractIds : null;
+  return option?.label || `Contrato ${contractId}`;
 }
 
 function getRecordBulkSelectOptions(source, options = {}) {
@@ -14068,14 +14088,11 @@ function getRecordBulkSelectOptions(source, options = {}) {
   }
 
   if (source === "servicio_id") {
-    const scopeContractIds =
-      options.kind === "new" ? getRecordBulkServiceScopeContractIds() : null;
     return (recordRelationOptionsCache.servicio_id || [])
-      .filter(
-        (service) =>
-          !scopeContractIds || scopeContractIds.has(Number(service.contrato_id))
-      )
-      .map((service) => ({ value: service.value, label: service.label || String(service.value) }))
+      .map((service) => ({
+        value: service.value,
+        label: `${service.label || String(service.value)} · ${getRecordBulkContractLabel(service.contrato_id)}`,
+      }))
       .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
   }
 
@@ -14102,7 +14119,11 @@ function renderRecordsBulkSelectOptions(
   if (!select || config.type !== "select") return;
   const selectOptions = getRecordBulkSelectOptions(config.source, options);
   const rendered = includeUnset
-    ? [{ value: "__unset__", label: "Selecciona valor" }, { value: "__empty__", label: "Vacio" }, ...selectOptions]
+    ? [
+        { value: RECORD_BULK_UNSET_VALUE, label: "Selecciona valor" },
+        { value: RECORD_BULK_EMPTY_VALUE, label: "Vacío" },
+        ...selectOptions,
+      ]
     : selectOptions;
   select.innerHTML = rendered
     .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
@@ -14112,7 +14133,7 @@ function renderRecordsBulkSelectOptions(
 }
 
 function normalizeRecordBulkValue(value, config) {
-  if (value === null || value === undefined || value === "" || value === "__empty__") return "";
+  if (value === null || value === undefined || value === "" || value === RECORD_BULK_EMPTY_VALUE) return "";
   if (config.type === "boolean") return value === true || value === "true" ? "true" : "false";
   if (config.type === "number") { const n = Number(value); return Number.isFinite(n) ? String(n) : ""; }
   return String(value).trim();
@@ -14133,6 +14154,9 @@ function getRecordBulkMatchingRows() {
   const field = recordsBulkFieldSelect?.value;
   const config = getRecordsBulkFieldConfig();
   if (!field) return [];
+  if (config.type === "select" && getRecordBulkControlValue("current") === RECORD_BULK_UNSET_VALUE) {
+    return [];
+  }
   const currentValue = normalizeRecordBulkValue(getRecordBulkControlValue("current"), config);
   return filteredRecordsRows.filter((row) => normalizeRecordBulkValue(row[field], config) === currentValue);
 }
@@ -14156,8 +14180,8 @@ function syncRecordsBulkUi() {
       renderRecordsBulkSelectOptions(
         recordsBulkCurrentSelect,
         config,
-        recordsBulkCurrentSelect?.value || "",
-        false,
+        recordsBulkCurrentSelect?.value || RECORD_BULK_UNSET_VALUE,
+        true,
         { kind: "current" }
       );
       renderRecordsBulkSelectOptions(
@@ -14296,33 +14320,33 @@ async function applyRecordsBulkAssignment() {
   }
 
   const rawNewValue = getRecordBulkControlValue("new");
-  if (rawNewValue === "__unset__") {
+  if (rawNewValue === RECORD_BULK_UNSET_VALUE) {
     setStatus("Selecciona un nuevo valor.", "error");
     return;
   }
 
-  const newValue = rawNewValue === "__empty__" ? null
+  const newValue = rawNewValue === RECORD_BULK_EMPTY_VALUE ? null
     : config.type === "boolean" ? (rawNewValue === "true")
     : config.type === "number" ? (Number(rawNewValue) || null)
     : ["select"].includes(config.type) ? (Number(rawNewValue) || rawNewValue || null)
     : rawNewValue || null;
 
   const currentLabel = normalizeRecordBulkValue(getRecordBulkControlValue("current"), config);
-  const newLabel = rawNewValue === "__empty__" ? "Vacio" : normalizeRecordBulkValue(rawNewValue, config);
-  if (field === "servicio_id") {
-    const incompatibleService = matches.some((row) => !recordServiceMatchesContract(newValue, row.contrato_id));
-    if (incompatibleService) {
-      setStatus(
-        "El servicio seleccionado no pertenece al contrato de algun registro objetivo. Filtra o selecciona registros del mismo contrato.",
-        "error"
-      );
-      return;
-    }
+  const newLabel = rawNewValue === RECORD_BULK_EMPTY_VALUE ? "Vacío" : normalizeRecordBulkValue(rawNewValue, config);
+  const newServiceContractId =
+    field === "servicio_id" && newValue !== null
+      ? Number(getRecordServiceOption(newValue)?.contrato_id)
+      : null;
+  if (field === "servicio_id" && newValue !== null && !Number.isFinite(newServiceContractId)) {
+    setStatus("Selecciona un servicio valido.", "error");
+    return;
   }
 
   const warning =
     field === "contrato_id"
       ? "\n\nAviso: al cambiar el contrato se dejará el servicio sin asignar en esos registros. Después tendrás que asignar un servicio del nuevo contrato."
+      : field === "servicio_id" && newValue !== null
+        ? "\n\nAviso: si el servicio pertenece a otro contrato, se actualizará también el contrato de esos registros."
       : "";
   const confirmText =
     (recordsSelectionMode
@@ -14335,7 +14359,11 @@ async function applyRecordsBulkAssignment() {
     const supabase = await getSupabaseClient();
     const ids = matches.map((row) => row.id);
     const updatePayload =
-      field === "contrato_id" ? { contrato_id: newValue, servicio_id: null } : { [field]: newValue };
+      field === "contrato_id"
+        ? { contrato_id: newValue, servicio_id: null }
+        : field === "servicio_id" && newValue !== null
+          ? { servicio_id: newValue, contrato_id: newServiceContractId }
+          : { [field]: newValue };
     const { error } = await supabase.from("registros").update(updatePayload).in("id", ids);
     if (error) throw error;
     await loadRecords();

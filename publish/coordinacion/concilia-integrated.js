@@ -422,6 +422,7 @@
   ];
   const ACTIVITY_BULK_UNSET_VALUE = "__activity_bulk_unset__";
   const ACTIVITY_BULK_EMPTY_VALUE = "__activity_bulk_empty__";
+  const ACTIVITY_FILTER_EMPTY_VALUE = "__activity_filter_empty__";
   const STUDENTS_BULK_ANY_VALUE = "__students_bulk_any__";
   const STUDENTS_BULK_UNSET_VALUE = "__students_bulk_unset__";
   const STUDENTS_BULK_FIELDS = {
@@ -1386,11 +1387,19 @@
     const isMultiple = Boolean(select.multiple);
     const currentValues = isMultiple ? getSelectValues(select) : [String(select.value || "")];
     const currentValueSet = new Set(currentValues);
-    const optionRows = rows.map((row) => {
+    const hasEmptyRows = rows.some(
+      (row) => row[valueField] === null || row[valueField] === undefined || row[valueField] === ""
+    );
+    const optionRows = rows
+      .filter((row) => row[valueField] !== null && row[valueField] !== undefined && row[valueField] !== "")
+      .map((row) => {
       const value = row[valueField];
       const label = row[labelField] || `ID ${value}`;
       return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
     });
+    if (hasEmptyRows) {
+      optionRows.unshift(`<option value="${ACTIVITY_FILTER_EMPTY_VALUE}">Vacío</option>`);
+    }
     const options = isMultiple
       ? optionRows
       : [`<option value="">${escapeHtml(emptyLabel)}</option>`].concat(optionRows);
@@ -1409,7 +1418,11 @@
     }
 
     const currentValue = currentValues[0] || "";
-    select.value = rows.some((row) => String(row[valueField]) === currentValue) ? currentValue : "";
+    select.value =
+      (currentValue === ACTIVITY_FILTER_EMPTY_VALUE && hasEmptyRows) ||
+      rows.some((row) => String(row[valueField]) === currentValue)
+        ? currentValue
+        : "";
     return select.value !== currentValue;
   }
 
@@ -1624,18 +1637,22 @@
   }
 
   function activityMatchesFilterValues(activity, filters, excludedFilter = "") {
+    const matchesNullable = (value, filterValue) =>
+      filterValue === ACTIVITY_FILTER_EMPTY_VALUE
+        ? value === null || value === undefined || value === ""
+        : String(value) === filterValue;
     const matchesContrato =
       excludedFilter === "contrato" ||
       !filters.contrato.length ||
-      filters.contrato.includes(String(activity.contrato_id));
+      filters.contrato.some((value) => matchesNullable(activity.contrato_id, value));
     const matchesServicio =
       excludedFilter === "servicio" ||
       !filters.servicio ||
-      String(activity.servicio_id) === filters.servicio;
+      matchesNullable(activity.servicio_id, filters.servicio);
     const matchesPuesto =
       excludedFilter === "puesto" ||
       !filters.puesto ||
-      String(activity.puesto_id) === filters.puesto;
+      matchesNullable(activity.puesto_id, filters.puesto);
     const matchesPersonal =
       excludedFilter === "personal" ||
       !filters.personal ||
@@ -1643,7 +1660,7 @@
     const matchesInstalacion =
       excludedFilter === "instalacion" ||
       !filters.instalacion ||
-      String(activity.instalacion_id) === filters.instalacion;
+      matchesNullable(activity.instalacion_id, filters.instalacion);
 
     return matchesContrato && matchesServicio && matchesPuesto && matchesPersonal && matchesInstalacion;
   }
@@ -2835,22 +2852,11 @@
     return ACTIVITY_BULK_FIELDS[activitiesBulkFieldSelect?.value] || ACTIVITY_BULK_FIELDS.fecha_inicio;
   }
 
-  function getActivityBulkServiceScopeContractIds() {
-    if (activitiesBulkFieldSelect?.value !== "servicio_id") {
-      return null;
-    }
-
-    const selectedIds = new Set(getSelectedActivityRecordGeneratorIds());
-    const targetRows =
-      activitiesRecordsSelectionMode && selectedIds.size
-        ? filteredActivitiesRows.filter((activity) => selectedIds.has(String(activity.id)))
-        : hasActivityBulkCurrentFilter()
-          ? getActivityBulkTargetRows()
-          : [];
-    const contractIds = new Set(
-      targetRows.map((activity) => Number(activity.contrato_id)).filter(Number.isFinite)
+  function getActivityBulkContractLabel(contractId) {
+    const option = Array.from(activityContrato?.options || []).find(
+      (item) => String(item.value) === String(contractId)
     );
-    return contractIds.size ? contractIds : null;
+    return option?.textContent?.trim() || `Contrato ${contractId}`;
   }
 
   function getActivityBulkSelectOptions(source, options = {}) {
@@ -2865,14 +2871,11 @@
     }
 
     if (source === "servicio") {
-      const scopeContractIds =
-        options.kind === "new" ? getActivityBulkServiceScopeContractIds() : null;
       return activityServiceRows
-        .filter(
-          (service) =>
-            !scopeContractIds || scopeContractIds.has(Number(service.contrato_id))
-        )
-        .map((service) => ({ value: service.id, label: service.servicio }));
+        .map((service) => ({
+          value: service.id,
+          label: `${service.servicio} · ${getActivityBulkContractLabel(service.contrato_id)}`,
+        }));
     }
 
     if (source === "instalacion") {
@@ -3055,10 +3058,20 @@
 
   function getActivityBulkUpdatePayload(field, config, newValue) {
     const updateValue =
-      (config.type === "text" || config.source === "respuesta") && newValue === "" ? null : newValue;
+      newValue === ACTIVITY_BULK_EMPTY_VALUE ||
+      ((config.type === "text" || config.source === "respuesta") && newValue === "")
+        ? null
+        : newValue;
 
     if (field === "contrato_id") {
       return { contrato_id: updateValue, servicio_id: null };
+    }
+
+    if (field === "servicio_id") {
+      const serviceContractId = getActivityServiceContractId(updateValue);
+      return updateValue === null
+        ? { servicio_id: null }
+        : { servicio_id: updateValue, contrato_id: serviceContractId };
     }
 
     return { [field]: updateValue };
@@ -3124,7 +3137,7 @@
         true,
         { kind: "current" }
       );
-      renderActivitiesBulkSelectOptions(activitiesBulkNewSelect, config, undefined, false, {
+      renderActivitiesBulkSelectOptions(activitiesBulkNewSelect, config, undefined, true, {
         kind: "new",
       });
     } else {
@@ -3169,6 +3182,11 @@
     }
 
     const currentValue = normalizeActivityBulkValue(getActivityBulkControlValue("current"), config);
+    const rawNewValue = getActivityBulkControlValue("new");
+    if ((config.type === "select" || config.type === "boolean") && rawNewValue === ACTIVITY_BULK_UNSET_VALUE) {
+      setStatus("Selecciona un nuevo valor.", "error");
+      return;
+    }
     const newValue = normalizeActivityBulkValue(getActivityBulkControlValue("new"), config);
     const invalidSchedule = matches.some((activity) => {
       const next = { ...activity, [field]: newValue };
@@ -3187,19 +3205,8 @@
 
     if (field === "servicio_id") {
       const serviceContractId = getActivityServiceContractId(newValue);
-      if (!Number.isFinite(serviceContractId)) {
+      if (newValue !== ACTIVITY_BULK_EMPTY_VALUE && !Number.isFinite(serviceContractId)) {
         setStatus("Selecciona un servicio valido.", "error");
-        return;
-      }
-
-      const hasDifferentContract = matches.some(
-        (activity) => Number(activity.contrato_id) !== serviceContractId
-      );
-      if (hasDifferentContract) {
-        setStatus(
-          "El servicio seleccionado no pertenece al contrato de alguna actividad objetivo. Filtra o selecciona actividades del mismo contrato.",
-          "error"
-        );
         return;
       }
     }
@@ -3207,6 +3214,8 @@
     const warning =
       field === "contrato_id"
         ? "\n\nAviso: al cambiar el contrato se dejará el servicio sin asignar en esas actividades. Después tendrás que asignar un servicio del nuevo contrato."
+        : field === "servicio_id" && newValue !== ACTIVITY_BULK_EMPTY_VALUE
+          ? "\n\nAviso: si el servicio pertenece a otro contrato, se actualizará también el contrato de esas actividades."
         : "";
     const confirmed = window.confirm(
       (activitiesRecordsSelectionMode
