@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260709-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260710-3" />
   </head>
   <body>
     <script>
@@ -616,27 +616,16 @@
                     Hasta
                     <input id="records-filter-date-to" name="fecha_hasta" type="date" />
                   </label>
-                  <label class="filter-field">
+                  <label class="filter-field records-contrato-field">
                     Contratos
-                    <div class="filter-control-row">
-                      <select
-                        id="records-filter-contrato"
-                        name="contrato_id"
-                        multiple
-                        size="4"
-                        aria-label="Filtrar por contratos"
-                        data-multi-check-selected-label="contratos seleccionados"
-                      ></select>
-                      <button
-                        type="button"
-                        class="filter-reset-button"
-                        data-reset-filter="contrato_id"
-                        aria-label="Restablecer contrato"
-                        title="Restablecer"
-                      >
-                        x
-                      </button>
-                    </div>
+                    <select
+                      id="records-filter-contrato"
+                      name="contrato_id"
+                      multiple
+                      size="4"
+                      aria-label="Filtrar por contratos"
+                      data-multi-check-selected-label="contratos seleccionados"
+                    ></select>
                   </label>
                   <label class="filter-field">
                     Servicio

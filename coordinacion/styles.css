@@ -1997,7 +1997,31 @@ button.tag-chip.warm-button:hover {
 /* Registros: contrato y servicio algo más anchos; personal e instalación más
    estrechos. (Historial comparte la clase, por eso se escopa al form de registros.) */
 .private-tab-panel #records-filters-form.records-filters-compact {
-  grid-template-columns: 120px 120px 190px 150px 120px 110px minmax(120px, 1fr) auto;
+  grid-template-columns: 120px 120px 250px 150px 120px 110px minmax(120px, 1fr) auto;
+}
+
+/* El toggle del multiselect de contratos es un <button>, así que no lo alcanza
+   la regla compacta de input/select/textarea; lo igualamos a mano. */
+.records-filters-compact .multi-check-toggle {
+  min-height: 28px;
+  padding: 3px 26px 3px 6px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* El menu del multiselect vive dentro del .filter-field, asi que hereda por
+   error las reglas compactas de input/label del form de Registros, que estiran
+   los checkboxes y comprimen las opciones. Lo devolvemos al estilo base (igual
+   que el filtro de Actividades). */
+.records-filters-compact .multi-check-option {
+  gap: 8px;
+}
+
+.private-tab-panel .records-filters-compact .filter-field .multi-check-option input {
+  height: auto;
+  padding: 0;
+  line-height: normal;
 }
 
 .records-filters-compact label,
