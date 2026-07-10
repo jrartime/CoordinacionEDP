@@ -742,7 +742,53 @@
                   <div class="results-summary">
                     <p id="records-summary" class="summary-chip">Cargando registros...</p>
                   </div>
+                  <div class="results-actions">
+                    <button id="records-report-preview-button" type="button" class="secondary-button">
+                      Previsualizar informe
+                    </button>
+                  </div>
                 </div>
+
+                <div id="records-report-preview-backdrop" class="panel-backdrop hidden"></div>
+                <aside
+                  id="records-report-preview-panel"
+                  class="report-panel records-report-preview-panel hidden"
+                  aria-labelledby="records-report-preview-title"
+                >
+                  <div class="side-panel-header">
+                    <div class="section-heading">
+                      <p class="eyebrow">Previsualizacion</p>
+                      <h2 id="records-report-preview-title">Informe de registros</h2>
+                      <p id="records-report-preview-summary">Usa los filtros del listado actual.</p>
+                    </div>
+                    <div class="header-actions">
+                      <button
+                        id="records-report-pdf-button"
+                        type="button"
+                        class="warm-button compact-button"
+                      >
+                        Descargar PDF
+                      </button>
+                      <button
+                        id="records-report-compact-pdf-button"
+                        type="button"
+                        class="warm-button compact-button"
+                      >
+                        Descargar compacto
+                      </button>
+                      <button
+                        id="records-report-preview-close-button"
+                        type="button"
+                        class="secondary-button compact-button"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                  <div id="records-report-preview-content" class="records-report-preview-content">
+                    <p class="empty-state">Abre la previsualizacion para revisar el informe.</p>
+                  </div>
+                </aside>
 
                 <div class="table-wrapper records-table-wrapper">
                   <table id="records-table" class="records-table">
@@ -4004,6 +4050,13 @@
               >
                 Informe personal
               </button>
+              <button
+                id="open-activities-schedule-report-button"
+                class="secondary-button"
+                type="button"
+              >
+                Informe horarios
+              </button>
             </div>
             <p id="activities-list-summary" class="summary-chip activities-count-chip">Cargando actividades...</p>
           </div>
@@ -4046,6 +4099,40 @@
               </div>
             </div>
             <div id="activities-report-content" class="activities-report-content"></div>
+          </aside>
+          <div id="activities-schedule-report-backdrop" class="panel-backdrop hidden"></div>
+          <aside
+            id="activities-schedule-report-panel"
+            class="report-panel hidden"
+            aria-labelledby="activities-schedule-report-title"
+          >
+            <div class="side-panel-header">
+              <div class="section-heading">
+                <p class="eyebrow">Previsualizacion</p>
+                <h2 id="activities-schedule-report-title">Horarios de actividades</h2>
+                <p id="activities-schedule-report-summary">Usa los filtros del listado actual.</p>
+              </div>
+              <div class="header-actions">
+                <button
+                  id="download-activities-schedule-report-pdf-button"
+                  class="warm-button compact-button"
+                  type="button"
+                >
+                  Descargar PDF
+                </button>
+                <button
+                  id="close-activities-schedule-report-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+            <div
+              id="activities-schedule-report-content"
+              class="activities-schedule-report-content"
+            ></div>
           </aside>
           <aside
             id="activity-create-panel"
@@ -4325,6 +4412,8 @@
                     <option value="fecha_fin">Fecha fin</option>
                     <option value="hora_inicio">Hora inicio</option>
                     <option value="hora_fin">Hora fin</option>
+                    <option value="contrato_id">Contrato</option>
+                    <option value="servicio_id">Servicio</option>
                     <option value="personal_id">Personal</option>
                     <option value="empresa_id">Empresa</option>
                     <option value="instalacion_id">Instalación</option>

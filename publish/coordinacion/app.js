@@ -136,6 +136,7 @@ const RECORD_DETAIL_LABEL_COLUMNS = [
 const RECORD_SELECT_COLUMNS = Array.from(
   new Set([...RECORD_COLUMNS.map((column) => column.key), ...RECORD_DETAIL_LABEL_COLUMNS])
 ).join(",");
+const RECORDS_LOAD_LIMIT = 5000;
 const RECORD_NUMERIC_FIELDS = new Set(
   RECORD_COLUMNS.filter((column) => ["number", "decimal"].includes(column.type)).map(
     (column) => column.key
@@ -1155,6 +1156,7 @@ let recordsSelectionMode = false;
 let selectedRecordIds = new Set();
 let recordDetailSnapshot = null;
 let recordsExternalActivityFilter = "";
+let recordsReportPreviewRows = null;
 let recordsSort = { field: "fecha", direction: "desc" };
 // Facetas para los desplegables de filtro: valores distintos (contrato/servicio/
 // personal/instalacion) presentes en registros dentro del rango fecha/actividad.
@@ -12712,6 +12714,7 @@ function applyRecordsQueryFilters(query, filters) {
 }
 
 function applyRecordsClientFilters() {
+  invalidateRecordsReportPreview();
   const filters = getRecordsFilterValues();
   filteredRecordsRows = recordsRows.filter((row) => {
     if (!filters.search) {
@@ -13379,6 +13382,620 @@ function updateRecordsFilterOptions() {
   return changed;
 }
 
+function getRecordsReportDateRange(rows = filteredRecordsRows) {
+  const filters = getRecordsFilterValues();
+  const dates = rows
+    .map((row) => String(row.fecha || ""))
+    .filter(Boolean)
+    .sort();
+  return {
+    from: filters.fechaDesde || dates[0] || "",
+    to: filters.fechaHasta || dates[dates.length - 1] || "",
+  };
+}
+
+function addRecordReportHours(target, row) {
+  const tipo = normalizeSearchText(row.tipo_hora || "");
+  const horas = Number(row.horas) || 0;
+  const noct = Number(row.horas_nocturnas) || 0;
+
+  if (tipo.includes("pnr")) {
+    target.pnr += horas;
+  } else if (tipo.includes("fest") || tipo.includes("ftrab")) {
+    target.hfest += horas;
+  } else if (tipo.includes("mont") || tipo.includes("hmon")) {
+    target.hmon += horas;
+  } else if (tipo.includes("hcomp") || tipo === "hc") {
+    target.hc += horas;
+  } else {
+    target.horas += horas;
+  }
+  target.noct += noct;
+}
+
+function formatRecordReportContractService(row) {
+  const contract = String(row.contrato || row.contrato_id || "-").trim();
+  const service = String(row.servicio || row.servicio_id || "").trim();
+  return service ? `${contract} · ${service}` : contract;
+}
+
+function buildRecordsReportGroups(rows = filteredRecordsRows) {
+  const people = new Map();
+  for (const row of rows) {
+    const personKey = String(row.personal_id ?? row.personal ?? "sin-persona");
+    if (!people.has(personKey)) {
+      people.set(personKey, {
+        name: String(row.personal || `ID ${row.personal_id ?? ""}`).trim() || "Sin personal",
+        dates: new Set(),
+        rows: new Map(),
+      });
+    }
+    const person = people.get(personKey);
+    if (row.fecha) person.dates.add(String(row.fecha));
+    const key = [
+      row.contrato || row.contrato_id || "",
+      row.servicio || row.servicio_id || "",
+      row.puesto || row.puesto_id || "",
+      row.situacion || row.situacion_id || "",
+    ].join("||");
+    if (!person.rows.has(key)) {
+      person.rows.set(key, {
+        contrato: formatRecordReportContractService(row),
+        puesto: String(row.puesto || row.puesto_id || ""),
+        situacion: String(row.situacion || row.situacion_id || ""),
+        horas: 0,
+        hc: 0,
+        hfest: 0,
+        hmon: 0,
+        pnr: 0,
+        noct: 0,
+      });
+    }
+    addRecordReportHours(person.rows.get(key), row);
+  }
+
+  return Array.from(people.values())
+    .map((person) => ({
+      ...person,
+      rows: Array.from(person.rows.values()).sort((a, b) =>
+        `${a.contrato} ${a.puesto} ${a.situacion}`.localeCompare(
+          `${b.contrato} ${b.puesto} ${b.situacion}`,
+          "es",
+          { sensitivity: "base" }
+        )
+      ),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
+}
+
+function filterRecordRowsBySearch(rows, search) {
+  if (!search) {
+    return rows;
+  }
+  return rows.filter((row) =>
+    RECORD_COLUMNS.some((column) =>
+      normalizeRecordText(formatRecordDisplayValue(row, column)).includes(search)
+    )
+  );
+}
+
+async function fetchRecordsForReport() {
+  const supabase = await getSupabaseClient();
+  const filters = getRecordsFilterValues();
+  const buildBaseQuery = (columns, options = {}) => {
+    let query = supabase
+      .from("registros_detalle")
+      .select(columns, options)
+      .order("fecha", { ascending: false })
+      .order("hora_inicio", { ascending: true });
+    return applyRecordsQueryFilters(query, filters);
+  };
+
+  const { count, error: countError } = await buildBaseQuery("id", {
+    count: "exact",
+    head: true,
+  });
+  if (countError) {
+    throw countError;
+  }
+  if (!count) {
+    return [];
+  }
+  if (count > RECORDS_LOAD_LIMIT) {
+    const confirmed = confirm(
+      `El filtro devuelve ${count.toLocaleString("es-ES")} registros. Generar el informe puede tardar. ¿Quieres continuar de todas maneras?`
+    );
+    if (!confirmed) {
+      return null;
+    }
+  }
+
+  const rows = [];
+  const pageSize = 1000;
+  for (let from = 0; from < count; from += pageSize) {
+    const to = Math.min(from + pageSize - 1, count - 1);
+    const { data, error } = await buildBaseQuery(RECORD_SELECT_COLUMNS).range(from, to);
+    if (error) {
+      throw error;
+    }
+    rows.push(...(data || []));
+  }
+  return filterRecordRowsBySearch(rows, filters.search);
+}
+
+function formatReportNumber(value) {
+  const n = Number(value) || 0;
+  if (!n) return "";
+  return n.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function getReportRowTotal(row) {
+  return row.horas + row.hc + row.hfest + row.hmon + row.pnr + row.noct;
+}
+
+function setRecordsReportPreviewDownloadsEnabled(enabled) {
+  if (recordsReportPdfButton) {
+    recordsReportPdfButton.disabled = !enabled;
+  }
+  if (recordsReportCompactPdfButton) {
+    recordsReportCompactPdfButton.disabled = !enabled;
+  }
+}
+
+function invalidateRecordsReportPreview(message = "La previsualizacion se actualizara al volver a abrirla.") {
+  recordsReportPreviewRows = null;
+  setRecordsReportPreviewDownloadsEnabled(false);
+  if (!recordsReportPreviewPanel?.classList.contains("hidden")) {
+    if (recordsReportPreviewSummary) {
+      recordsReportPreviewSummary.textContent = message;
+    }
+    if (recordsReportPreviewContent) {
+      recordsReportPreviewContent.innerHTML =
+        '<p class="empty-state">Los filtros han cambiado. Pulsa Previsualizar informe para regenerar la vista.</p>';
+    }
+  }
+}
+
+function renderRecordsReportPreview(rows) {
+  const range = getRecordsReportDateRange(rows);
+  const groups = buildRecordsReportGroups(rows);
+  recordsReportPreviewRows = rows;
+  setRecordsReportPreviewDownloadsEnabled(Boolean(rows.length));
+
+  if (recordsReportPreviewSummary) {
+    recordsReportPreviewSummary.textContent = `${rows.length.toLocaleString(
+      "es-ES"
+    )} registros filtrados. Periodo: ${formatDisplayDate(range.from) || "-"} - ${
+      formatDisplayDate(range.to) || "-"
+    }.`;
+  }
+
+  if (!recordsReportPreviewContent) {
+    return;
+  }
+
+  if (!groups.length) {
+    recordsReportPreviewContent.innerHTML =
+      '<p class="empty-state">No hay registros con los filtros actuales.</p>';
+    return;
+  }
+
+  recordsReportPreviewContent.innerHTML = groups
+    .map((group) => {
+      const totals = { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0, total: 0 };
+      const rowsHtml = group.rows
+        .map((row) => {
+          const total = getReportRowTotal(row);
+          totals.horas += row.horas;
+          totals.hc += row.hc;
+          totals.hfest += row.hfest;
+          totals.hmon += row.hmon;
+          totals.pnr += row.pnr;
+          totals.noct += row.noct;
+          totals.total += total;
+          return `
+            <tr>
+              <td>${escapeHtml(row.contrato || "-")}</td>
+              <td>${escapeHtml(row.puesto || "-")}</td>
+              <td>${escapeHtml(row.situacion || "-")}</td>
+              <td class="numeric-cell">${escapeHtml(formatReportNumber(row.horas))}</td>
+              <td class="numeric-cell">${escapeHtml(formatReportNumber(row.hc))}</td>
+              <td class="numeric-cell">${escapeHtml(formatReportNumber(row.hfest))}</td>
+              <td class="numeric-cell">${escapeHtml(formatReportNumber(row.hmon))}</td>
+              <td class="numeric-cell">${escapeHtml(formatReportNumber(row.pnr))}</td>
+              <td class="numeric-cell">${escapeHtml(formatReportNumber(row.noct))}</td>
+              <td class="numeric-cell">${escapeHtml(formatReportNumber(total))}</td>
+            </tr>
+          `;
+        })
+        .join("");
+
+      return `
+        <section class="records-report-preview-section">
+          <div class="records-report-preview-person">
+            <h3>${escapeHtml(group.name)}</h3>
+            <p>${escapeHtml(String(group.dates.size))} desplazamiento${
+              group.dates.size === 1 ? "" : "s"
+            }</p>
+          </div>
+          <div class="table-wrap records-report-preview-table-wrap">
+            <table class="records-report-preview-table">
+              <thead>
+                <tr>
+                  <th>Contrato / Servicio</th>
+                  <th>Puesto</th>
+                  <th>Situacion</th>
+                  <th>Horas</th>
+                  <th>HC</th>
+                  <th>HFest</th>
+                  <th>HMon</th>
+                  <th>PNR</th>
+                  <th>Noct</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+                <tr class="report-totals-row">
+                  <th colspan="3" scope="row">Subtotal</th>
+                  <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.horas))}</td>
+                  <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.hc))}</td>
+                  <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.hfest))}</td>
+                  <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.hmon))}</td>
+                  <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.pnr))}</td>
+                  <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.noct))}</td>
+                  <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.total))}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+}
+
+async function openRecordsReportPreview() {
+  recordsReportPreviewPanel?.classList.remove("hidden");
+  recordsReportPreviewBackdrop?.classList.remove("hidden");
+  setRecordsReportPreviewDownloadsEnabled(false);
+  if (recordsReportPreviewSummary) {
+    recordsReportPreviewSummary.textContent = "Preparando previsualizacion con los filtros actuales...";
+  }
+  if (recordsReportPreviewContent) {
+    recordsReportPreviewContent.innerHTML =
+      '<p class="empty-state">Cargando registros filtrados para el informe...</p>';
+  }
+
+  try {
+    const rows = await fetchRecordsForReport();
+    if (rows === null) {
+      invalidateRecordsReportPreview("Generacion de previsualizacion cancelada.");
+      return;
+    }
+    renderRecordsReportPreview(rows);
+  } catch (error) {
+    recordsReportPreviewRows = null;
+    setRecordsReportPreviewDownloadsEnabled(false);
+    if (recordsReportPreviewSummary) {
+      recordsReportPreviewSummary.textContent = "No se pudo preparar la previsualizacion.";
+    }
+    if (recordsReportPreviewContent) {
+      recordsReportPreviewContent.innerHTML =
+        '<p class="empty-state">Error cargando los registros filtrados del informe.</p>';
+    }
+    setStatus(`No se pudo preparar la previsualizacion: ${error?.message ?? "error desconocido"}`, "error");
+  }
+}
+
+function closeRecordsReportPreview() {
+  recordsReportPreviewPanel?.classList.add("hidden");
+  recordsReportPreviewBackdrop?.classList.add("hidden");
+}
+
+function drawRecordsReportFooter(doc, pageNumber) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const now = new Date();
+  doc.setDrawColor(180);
+  doc.line(12, pageHeight - 13, pageWidth - 12, pageHeight - 13);
+  doc.setFont("times", "italic");
+  doc.setFontSize(8);
+  doc.text(now.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }), 12, pageHeight - 7);
+  doc.text(now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }), pageWidth / 2, pageHeight - 7, { align: "center" });
+  doc.text(`Pagina ${pageNumber}`, pageWidth - 12, pageHeight - 7, { align: "right" });
+}
+
+function drawRecordsReportHeader(doc, range) {
+  doc.setFont("times", "bolditalic");
+  doc.setFontSize(10);
+  doc.rect(12, 10, 96, 8);
+  doc.text("Fecha Inicio", 14, 15.5);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text(formatDisplayDate(range.from), 48, 15.5);
+  doc.setFont("times", "bolditalic");
+  doc.setFontSize(10);
+  doc.text("Fecha Fin", 64, 15.5);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text(formatDisplayDate(range.to), 92, 15.5);
+}
+
+async function exportRecordsReportPdf(previewRows = null) {
+  try {
+    setStatus("Preparando informe PDF de registros...");
+    const reportRows = previewRows || (await fetchRecordsForReport());
+    if (reportRows === null) {
+      setStatus("Generación de informe cancelada.", "error");
+      return;
+    }
+    if (!reportRows.length) {
+      alert("No hay datos filtrados para generar el informe.");
+      return;
+    }
+
+    const { jsPDF } = await getJsPdfClient();
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const range = getRecordsReportDateRange(reportRows);
+    const groups = buildRecordsReportGroups(reportRows);
+    const columns = [
+      { key: "contrato", label: "Contrato / Servicio", x: 12, w: 40, align: "left" },
+      { key: "puesto", label: "Puesto", x: 52, w: 38, align: "left" },
+      { key: "horas", label: "Horas", x: 90, w: 13, align: "right" },
+      { key: "hc", label: "HC", x: 103, w: 12, align: "right" },
+      { key: "hfest", label: "HFest", x: 115, w: 13, align: "right" },
+      { key: "hmon", label: "HMon", x: 128, w: 13, align: "right" },
+      { key: "pnr", label: "PNR", x: 141, w: 12, align: "right" },
+      { key: "noct", label: "Noct", x: 153, w: 12, align: "right" },
+      { key: "total", label: "Total", x: 165, w: 14, align: "right" },
+      { key: "situacion", label: "Situacio", x: 179, w: 19, align: "left" },
+    ];
+
+    let page = 1;
+    let y = 22;
+    const ensureSpace = (needed = 24) => {
+      if (y + needed <= pageHeight - 18) return false;
+      drawRecordsReportFooter(doc, page);
+      doc.addPage();
+      page += 1;
+      drawRecordsReportHeader(doc, range);
+      y = 22;
+      return true;
+    };
+    const drawTableHeader = () => {
+      doc.setFont("times", "bolditalic");
+      doc.setFontSize(9);
+      columns.forEach((col) => {
+        doc.rect(col.x, y, col.w, 7);
+        doc.text(col.label, col.align === "right" ? col.x + col.w - 1.5 : col.x + 1.2, y + 4.8, { align: col.align });
+      });
+      y += 7;
+    };
+
+    drawRecordsReportHeader(doc, range);
+    for (const group of groups) {
+      ensureSpace(18 + group.rows.length * 6);
+      doc.setFillColor(214, 217, 226);
+      doc.rect(12, y, 96, 7, "F");
+      doc.rect(148, y, 50, 7, "F");
+      doc.setFont("times", "bolditalic");
+      doc.setFontSize(12);
+      doc.text("Personal", 13, y + 5);
+      doc.setFont("helvetica", "bold");
+      doc.text(group.name.slice(0, 42), 34, y + 5);
+      doc.setFont("times", "bolditalic");
+      doc.text("Desplazamientos:", 151, y + 5);
+      doc.setFont("helvetica", "bold");
+      doc.text(String(group.dates.size), 195, y + 5, { align: "right" });
+      y += 8;
+      drawTableHeader();
+
+      const totals = { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0, total: 0 };
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      for (const row of group.rows) {
+        if (ensureSpace(13)) {
+          drawTableHeader();
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7.5);
+        }
+        const total = getReportRowTotal(row);
+        totals.horas += row.horas;
+        totals.hc += row.hc;
+        totals.hfest += row.hfest;
+        totals.hmon += row.hmon;
+        totals.pnr += row.pnr;
+        totals.noct += row.noct;
+        totals.total += total;
+        const values = { ...row, total };
+        columns.forEach((col) => {
+          doc.rect(col.x, y, col.w, 6);
+          const raw = col.key === "contrato" || col.key === "puesto" || col.key === "situacion"
+            ? String(values[col.key] || "").slice(0, col.key === "situacion" ? 10 : 28)
+            : formatReportNumber(values[col.key]);
+          doc.text(raw, col.align === "right" ? col.x + col.w - 1.2 : col.x + 1, y + 4.2, { align: col.align });
+        });
+        y += 6;
+      }
+      doc.line(90, y + 2, 179, y + 2);
+      y += 6;
+      columns.forEach((col) => {
+        if (!["horas", "hc", "hfest", "hmon", "pnr", "noct", "total"].includes(col.key)) return;
+        doc.text(formatReportNumber(totals[col.key]), col.x + col.w - 1.2, y, { align: "right" });
+      });
+      y += 8;
+    }
+    drawRecordsReportFooter(doc, page);
+
+    const suffix = `${range.from || "inicio"}-${range.to || "fin"}`.replaceAll("/", "-");
+    doc.save(`informe-registros-${suffix}.pdf`);
+    setStatus("Informe PDF de registros generado correctamente.", "success");
+  } catch (error) {
+    setStatus(`No se pudo generar el informe de registros: ${error?.message ?? "error desconocido"}`, "error");
+  }
+}
+
+function drawRecordsCompactReportFooter(doc, pageNumber) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const now = new Date();
+  doc.setDrawColor(180);
+  doc.line(10, pageHeight - 11, pageWidth - 10, pageHeight - 11);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.text(now.toLocaleString("es-ES"), 10, pageHeight - 6);
+  doc.text(`Pagina ${pageNumber}`, pageWidth - 10, pageHeight - 6, { align: "right" });
+}
+
+function drawRecordsCompactReportHeader(doc, range, rowCount) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("Resumen de horas por persona", 10, 12);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text(`Periodo: ${formatDisplayDate(range.from) || "-"} - ${formatDisplayDate(range.to) || "-"}`, 10, 18);
+  doc.text(`Registros incluidos: ${rowCount.toLocaleString("es-ES")}`, pageWidth - 10, 18, { align: "right" });
+}
+
+async function exportRecordsCompactReportPdf(previewRows = null) {
+  try {
+    setStatus("Preparando informe compacto de registros...");
+    const reportRows = previewRows || (await fetchRecordsForReport());
+    if (reportRows === null) {
+      setStatus("Generación de informe cancelada.", "error");
+      return;
+    }
+    if (!reportRows.length) {
+      alert("No hay datos filtrados para generar el informe.");
+      return;
+    }
+
+    const { jsPDF } = await getJsPdfClient();
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const range = getRecordsReportDateRange(reportRows);
+    const groups = buildRecordsReportGroups(reportRows);
+    const columns = [
+      { key: "personal", label: "Personal", x: 10, w: 52, align: "left" },
+      { key: "contrato", label: "Contrato / Servicio", x: 62, w: 33, align: "left" },
+      { key: "puesto", label: "Puesto", x: 95, w: 38, align: "left" },
+      { key: "situacion", label: "Sit.", x: 133, w: 18, align: "left" },
+      { key: "horas", label: "Horas", x: 151, w: 18, align: "right" },
+      { key: "hc", label: "HC", x: 169, w: 16, align: "right" },
+      { key: "hfest", label: "HFest", x: 185, w: 16, align: "right" },
+      { key: "hmon", label: "HMon", x: 201, w: 16, align: "right" },
+      { key: "pnr", label: "PNR", x: 217, w: 16, align: "right" },
+      { key: "noct", label: "Noct", x: 233, w: 16, align: "right" },
+      { key: "total", label: "Total", x: 249, w: 18, align: "right" },
+      { key: "despl", label: "Despl.", x: 267, w: 20, align: "right" },
+    ];
+
+    let page = 1;
+    let y = 24;
+    const drawHeader = () => {
+      drawRecordsCompactReportHeader(doc, range, reportRows.length);
+      doc.setFillColor(232, 235, 242);
+      doc.rect(10, y, 277, 7, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      columns.forEach((col) => {
+        doc.text(col.label, col.align === "right" ? col.x + col.w - 1 : col.x + 1, y + 4.8, { align: col.align });
+      });
+      y += 8;
+    };
+    const ensureSpace = (needed = 7) => {
+      if (y + needed <= pageHeight - 14) return;
+      drawRecordsCompactReportFooter(doc, page);
+      doc.addPage();
+      page += 1;
+      y = 24;
+      drawHeader();
+    };
+    const drawCell = (col, value, rowY, bold = false) => {
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      const text = String(value || "");
+      doc.text(text.slice(0, col.key === "personal" ? 34 : 24), col.align === "right" ? col.x + col.w - 1 : col.x + 1, rowY + 4.2, { align: col.align });
+    };
+
+    drawHeader();
+    const grandTotals = { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0, total: 0, desplazamientos: 0 };
+    doc.setFontSize(7.2);
+    for (const group of groups) {
+      const personTotals = { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0, total: 0 };
+      group.rows.forEach((row) => {
+        personTotals.horas += row.horas;
+        personTotals.hc += row.hc;
+        personTotals.hfest += row.hfest;
+        personTotals.hmon += row.hmon;
+        personTotals.pnr += row.pnr;
+        personTotals.noct += row.noct;
+        personTotals.total += getReportRowTotal(row);
+      });
+      grandTotals.horas += personTotals.horas;
+      grandTotals.hc += personTotals.hc;
+      grandTotals.hfest += personTotals.hfest;
+      grandTotals.hmon += personTotals.hmon;
+      grandTotals.pnr += personTotals.pnr;
+      grandTotals.noct += personTotals.noct;
+      grandTotals.total += personTotals.total;
+      grandTotals.desplazamientos += group.dates.size;
+
+      let first = true;
+      for (const row of group.rows) {
+        ensureSpace(6);
+        const total = getReportRowTotal(row);
+        if (first) {
+          drawCell(columns[0], group.name, y);
+        }
+        drawCell(columns[1], row.contrato, y);
+        drawCell(columns[2], row.puesto, y);
+        drawCell(columns[3], row.situacion, y);
+        ["horas", "hc", "hfest", "hmon", "pnr", "noct"].forEach((key, idx) => {
+          drawCell(columns[4 + idx], formatReportNumber(row[key]), y);
+        });
+        drawCell(columns[10], formatReportNumber(total), y);
+        if (first) {
+          drawCell(columns[11], String(group.dates.size), y);
+        }
+        y += 5.5;
+        first = false;
+      }
+
+      ensureSpace(6);
+      doc.setFillColor(245, 246, 248);
+      doc.rect(10, y - 1, 277, 6, "F");
+      drawCell(columns[0], `Subtotal ${group.name}`.slice(0, 42), y, true);
+      ["horas", "hc", "hfest", "hmon", "pnr", "noct"].forEach((key, idx) => {
+        drawCell(columns[4 + idx], formatReportNumber(personTotals[key]), y, true);
+      });
+      drawCell(columns[10], formatReportNumber(personTotals.total), y, true);
+      drawCell(columns[11], String(group.dates.size), y, true);
+      y += 7;
+    }
+
+    ensureSpace(8);
+    doc.setFillColor(218, 224, 235);
+    doc.rect(10, y - 1, 277, 7, "F");
+    drawCell(columns[0], "TOTAL GENERAL", y, true);
+    ["horas", "hc", "hfest", "hmon", "pnr", "noct"].forEach((key, idx) => {
+      drawCell(columns[4 + idx], formatReportNumber(grandTotals[key]), y, true);
+    });
+    drawCell(columns[10], formatReportNumber(grandTotals.total), y, true);
+    drawCell(columns[11], String(grandTotals.desplazamientos), y, true);
+
+    drawRecordsCompactReportFooter(doc, page);
+    const suffix = `${range.from || "inicio"}-${range.to || "fin"}`.replaceAll("/", "-");
+    doc.save(`informe-registros-compacto-${suffix}.pdf`);
+    setStatus("Informe compacto de registros generado correctamente.", "success");
+  } catch (error) {
+    setStatus(`No se pudo generar el informe compacto: ${error?.message ?? "error desconocido"}`, "error");
+  }
+}
+
 const RECORD_BULK_FIELDS = {
   fecha: { label: "Fecha", type: "date" },
   empresa_id: { label: "Empresa", type: "select", source: "empresa_id" },
@@ -13413,12 +14030,55 @@ const recordsBulkClearSelectionButton = document.querySelector("#records-bulk-cl
 const recordsBulkDeleteButton = document.querySelector("#records-bulk-delete-button");
 const recordsBulkMatchCount = document.querySelector("#records-bulk-match-count");
 const recordsBulkSelectionCount = document.querySelector("#records-bulk-selection-count");
+const recordsReportPreviewButton = document.querySelector("#records-report-preview-button");
+const recordsReportPreviewBackdrop = document.querySelector("#records-report-preview-backdrop");
+const recordsReportPreviewPanel = document.querySelector("#records-report-preview-panel");
+const recordsReportPreviewSummary = document.querySelector("#records-report-preview-summary");
+const recordsReportPreviewContent = document.querySelector("#records-report-preview-content");
+const recordsReportPreviewCloseButton = document.querySelector("#records-report-preview-close-button");
+const recordsReportPdfButton = document.querySelector("#records-report-pdf-button");
+const recordsReportCompactPdfButton = document.querySelector("#records-report-compact-pdf-button");
 
 function getRecordsBulkFieldConfig() {
   return RECORD_BULK_FIELDS[recordsBulkFieldSelect?.value] || RECORD_BULK_FIELDS.fecha;
 }
 
-function getRecordBulkSelectOptions(source) {
+function getRecordBulkServiceScopeContractIds() {
+  if (recordsBulkFieldSelect?.value !== "servicio_id") {
+    return null;
+  }
+
+  const targetRows = recordsSelectionMode
+    ? getSelectedRecordRowsForBulkAction()
+    : getRecordBulkMatchingRows();
+  const contractIds = new Set(
+    targetRows.map((row) => Number(row.contrato_id)).filter(Number.isFinite)
+  );
+  return contractIds.size ? contractIds : null;
+}
+
+function getRecordBulkSelectOptions(source, options = {}) {
+  if (source === "contrato_id") {
+    const optionRows = recordsFilterContratos?.length
+      ? recordsFilterContratos
+      : recordRelationOptionsCache.contrato_id || [];
+    return optionRows
+      .map((row) => ({ value: row.value, label: row.label || String(row.value) }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
+  }
+
+  if (source === "servicio_id") {
+    const scopeContractIds =
+      options.kind === "new" ? getRecordBulkServiceScopeContractIds() : null;
+    return (recordRelationOptionsCache.servicio_id || [])
+      .filter(
+        (service) =>
+          !scopeContractIds || scopeContractIds.has(Number(service.contrato_id))
+      )
+      .map((service) => ({ value: service.value, label: service.label || String(service.value) }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
+  }
+
   const col = RECORD_COLUMNS.find((c) => c.key === source);
   const labelKey = col?.relationLabelKey;
   const seen = new Map();
@@ -13432,12 +14092,18 @@ function getRecordBulkSelectOptions(source) {
     .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" }));
 }
 
-function renderRecordsBulkSelectOptions(select, config, selectedValue = "", includeUnset = false) {
+function renderRecordsBulkSelectOptions(
+  select,
+  config,
+  selectedValue = select?.value || "",
+  includeUnset = false,
+  options = {}
+) {
   if (!select || config.type !== "select") return;
-  const options = getRecordBulkSelectOptions(config.source);
+  const selectOptions = getRecordBulkSelectOptions(config.source, options);
   const rendered = includeUnset
-    ? [{ value: "__unset__", label: "Selecciona valor" }, { value: "__empty__", label: "Vacio" }, ...options]
-    : options;
+    ? [{ value: "__unset__", label: "Selecciona valor" }, { value: "__empty__", label: "Vacio" }, ...selectOptions]
+    : selectOptions;
   select.innerHTML = rendered
     .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
     .join("");
@@ -13487,8 +14153,20 @@ function syncRecordsBulkUi() {
         if (sel) sel.innerHTML = boolOpts.map((o) => `<option value="${o.value}">${o.label}</option>`).join("");
       });
     } else {
-      renderRecordsBulkSelectOptions(recordsBulkCurrentSelect, config);
-      renderRecordsBulkSelectOptions(recordsBulkNewSelect, config, "", true);
+      renderRecordsBulkSelectOptions(
+        recordsBulkCurrentSelect,
+        config,
+        recordsBulkCurrentSelect?.value || "",
+        false,
+        { kind: "current" }
+      );
+      renderRecordsBulkSelectOptions(
+        recordsBulkNewSelect,
+        config,
+        recordsBulkNewSelect?.value || "",
+        true,
+        { kind: "new" }
+      );
     }
   } else {
     const inputType = config.type === "date" ? "date" : config.type === "time" ? "time" : config.type === "number" ? "number" : "text";
@@ -13631,25 +14309,49 @@ async function applyRecordsBulkAssignment() {
 
   const currentLabel = normalizeRecordBulkValue(getRecordBulkControlValue("current"), config);
   const newLabel = rawNewValue === "__empty__" ? "Vacio" : normalizeRecordBulkValue(rawNewValue, config);
+  if (field === "servicio_id") {
+    const incompatibleService = matches.some((row) => !recordServiceMatchesContract(newValue, row.contrato_id));
+    if (incompatibleService) {
+      setStatus(
+        "El servicio seleccionado no pertenece al contrato de algun registro objetivo. Filtra o selecciona registros del mismo contrato.",
+        "error"
+      );
+      return;
+    }
+  }
 
-  const confirmText = recordsSelectionMode
-    ? `Cambiar ${config.label} a "${newLabel}" en ${matches.length} registro${matches.length !== 1 ? "s" : ""} seleccionado${matches.length !== 1 ? "s" : ""}?`
-    : `Cambiar ${config.label} de "${currentLabel}" a "${newLabel}" en ${matches.length} registro${matches.length !== 1 ? "s" : ""}?`;
+  const warning =
+    field === "contrato_id"
+      ? "\n\nAviso: al cambiar el contrato se dejará el servicio sin asignar en esos registros. Después tendrás que asignar un servicio del nuevo contrato."
+      : "";
+  const confirmText =
+    (recordsSelectionMode
+      ? `Cambiar ${config.label} a "${newLabel}" en ${matches.length} registro${matches.length !== 1 ? "s" : ""} seleccionado${matches.length !== 1 ? "s" : ""}?`
+      : `Cambiar ${config.label} de "${currentLabel}" a "${newLabel}" en ${matches.length} registro${matches.length !== 1 ? "s" : ""}?`) +
+    warning;
   if (!confirm(confirmText)) return;
 
   try {
     const supabase = await getSupabaseClient();
     const ids = matches.map((row) => row.id);
-    const { error } = await supabase.from("registros").update({ [field]: newValue }).in("id", ids);
+    const updatePayload =
+      field === "contrato_id" ? { contrato_id: newValue, servicio_id: null } : { [field]: newValue };
+    const { error } = await supabase.from("registros").update(updatePayload).in("id", ids);
     if (error) throw error;
     await loadRecords();
-    setStatus(`${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}.`, "success");
+    setStatus(
+      field === "contrato_id"
+        ? `${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}. El servicio se ha dejado sin asignar.`
+        : `${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}.`,
+      "success"
+    );
   } catch (error) {
     setStatus(`Error en asignación masiva: ${error.message}`, "error");
   }
 }
 
 async function loadRecords() {
+  invalidateRecordsReportPreview();
   if (recordsSummary) {
     recordsSummary.textContent = "Cargando registros...";
   }
@@ -13667,7 +14369,7 @@ async function loadRecords() {
         .select(columns)
         .order("fecha", { ascending: false })
         .order("hora_inicio", { ascending: true })
-        .limit(1000);
+        .limit(RECORDS_LOAD_LIMIT);
 
       return applyRecordsQueryFilters(nextQuery, filters);
     };
@@ -17753,12 +18455,27 @@ async function init() {
   });
   recordsBulkFieldSelect?.addEventListener("change", syncRecordsBulkUi);
   recordsBulkCurrentValueInput?.addEventListener("input", updateRecordsBulkMatchCount);
-  recordsBulkCurrentSelect?.addEventListener("change", updateRecordsBulkMatchCount);
+  recordsBulkCurrentSelect?.addEventListener("change", () => {
+    if (recordsBulkFieldSelect?.value === "servicio_id") {
+      syncRecordsBulkUi();
+      return;
+    }
+    updateRecordsBulkMatchCount();
+  });
   recordsBulkApplyButton?.addEventListener("click", () => void applyRecordsBulkAssignment());
   recordsBulkClearFieldsButton?.addEventListener("click", clearRecordsBulkFields);
   recordsBulkSelectButton?.addEventListener("click", enableRecordsBulkSelection);
   recordsBulkClearSelectionButton?.addEventListener("click", clearRecordsBulkSelection);
   recordsBulkDeleteButton?.addEventListener("click", () => void deleteSelectedBulkRecords());
+  recordsReportPreviewButton?.addEventListener("click", () => void openRecordsReportPreview());
+  recordsReportPreviewCloseButton?.addEventListener("click", closeRecordsReportPreview);
+  recordsReportPreviewBackdrop?.addEventListener("click", closeRecordsReportPreview);
+  recordsReportPdfButton?.addEventListener("click", () =>
+    void exportRecordsReportPdf(recordsReportPreviewRows)
+  );
+  recordsReportCompactPdfButton?.addEventListener("click", () =>
+    void exportRecordsCompactReportPdf(recordsReportPreviewRows)
+  );
   recordsRefreshButton?.addEventListener("click", () => {
     void loadRecords();
   });
@@ -17783,6 +18500,9 @@ async function init() {
       visibleIds.forEach((id) => selectedRecordIds.delete(id));
     }
     updateRecordsBulkSelectionUi();
+    if (recordsBulkFieldSelect?.value === "servicio_id") {
+      syncRecordsBulkUi();
+    }
     renderRecordsTable();
   });
   recordsTableBody?.addEventListener("click", (event) => {
@@ -17833,6 +18553,9 @@ async function init() {
         selectedRecordIds.delete(id);
       }
       updateRecordsBulkSelectionUi();
+      if (recordsBulkFieldSelect?.value === "servicio_id") {
+        syncRecordsBulkUi();
+      }
       renderRecordsTable();
       return;
     }

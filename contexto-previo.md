@@ -55,19 +55,27 @@ Resumen de los cambios completados, decisiones clave y estado actual del proyect
 - **Coherencia servicio/contrato en DB**: se añadió `validate_registros_servicio_contrato` (`supabase/tables/registros_servicio_contrato_validation.sql`) y se aplicó en producción. Bloquea `INSERT/UPDATE` en `registros` cuando `servicio_id` no pertenece al `contrato_id` del registro, incluyendo el caso de `contrato_id` nulo.
 - **Actividades**: ya tenía trigger equivalente `validate_actividades_servicio_contrato`; se actualizó el SQL fuente para usar la comparación estricta `new.contrato_id is distinct from service_contract_id`. Pendiente de confirmar/aplicar en producción si no se ha ejecutado aún.
 
+## 6. Informes PDF, previsualizacion y reglas masivas contrato/servicio (10/07/2026)
+
+- **Registros: informes filtrados**: se añadio `Previsualizar informe` como panel flotante con backdrop. Consulta todos los registros filtrados mediante `fetchRecordsForReport`, no solo los visibles en tabla, mantiene advertencia si supera `RECORDS_LOAD_LIMIT = 5000` y permite continuar o cancelar. Desde la previsualizacion se descargan el PDF clasico y el PDF compacto reutilizando las filas ya cargadas.
+- **Registros: PDF clasico y compacto**: ambos informes usan todos los registros filtrados, paginados en bloques de 1000 desde Supabase. El PDF clasico mantiene el formato tipo resumen por persona; el compacto usa formato horizontal optimizado para comparar totales.
+- **Actividades: informe horarios**: nuevo boton `Informe horarios` abre previsualizacion flotante agrupada por personal y permite descargar PDF. El informe muestra contrato, fechas, dias, horario, puesto, instalacion, horas y horas semanales.
+- **Contrato + servicio en informes**: en Registros y Actividades, la columna de contrato pasa a mostrarse como `Contrato / Servicio` y el valor se renderiza como `Contrato · Servicio`. En Registros, el agrupado separa servicios distintos aunque compartan contrato para no mezclar horas.
+- **Asignacion masiva Actividades**: se añadieron los campos `contrato_id` y `servicio_id`. Cambiar contrato guarda `servicio_id = null` con aviso en el confirm y mensaje final. Cambiar servicio valida que el servicio pertenezca al contrato de todas las actividades objetivo; las opciones de nuevo servicio se acotan al contrato cuando hay valor actual o seleccion manual suficiente.
+- **Asignacion masiva Registros**: se aplico la misma logica que en Actividades. Cambiar contrato limpia `servicio_id`, cambiar servicio valida compatibilidad con contrato y las opciones de nuevo servicio se acotan al contrato de los registros objetivo cuando procede.
+- **Publicacion/verificacion**: tras los cambios se ejecuto `.\scripts\publish.ps1 -SkipConfig` y `.\scripts\check.ps1` correctamente.
+
 ---
 
 ## Estado actual
 
-- **Git**: rama `main`, último commit confirmado **`e7e6508`**, **pusheado** a GitHub (`jrartime/CoordinacionEDP`). Hay cambios locales posteriores en `coordinacion/`, `publish/coordinacion/`, `supabase/tables/actividades.sql` y dos SQL nuevos de `registros`.
-- **Base de datos de producción**: aplicadas las migraciones anteriores (nocturnidad, estados de historial, RLS de registros) y aplicado `registros_servicio_contrato_validation.sql`. Las RPC de facetas de Registros existen y responden en producción.
+- **Git**: rama `main`, último commit confirmado antes de esta tanda **`a4d2397`**, **pusheado** a GitHub (`jrartime/CoordinacionEDP`). Hay cambios locales posteriores en `coordinacion/`, `publish/coordinacion/`, `README.md` y `contexto-previo.md` pendientes de commit/push.
+- **Base de datos de producción**: aplicadas las migraciones anteriores (nocturnidad, estados de historial, RLS de registros), aplicado `registros_servicio_contrato_validation.sql` y confirmada la version estricta de Actividades segun la conversacion. Las RPC de facetas de Registros existen y responden en producción.
 - **Web (IONOS)**: `publish/coordinacion/` **subido** al subdominio `coordinacion.edpsl.es`. En vivo.
-- **Verificación**: `node --check coordinacion/app.js`, `.\scripts\publish.ps1 -SkipConfig`, `.\scripts\check.ps1` OK. Filtros de Registros probados por el usuario: OK.
+- **Verificación**: `node --check coordinacion/app.js`, `node --check coordinacion/concilia-integrated.js`, `.\scripts\publish.ps1 -SkipConfig`, `.\scripts\check.ps1` OK.
 
 ## Pendientes / posibles siguientes pasos
 
-- **Aplicar en Supabase la versión estricta de `validate_actividades_servicio_contrato`** si no se ha ejecutado todavía: basta con `create or replace function` de `supabase/tables/actividades.sql`.
-- **Commit de los cambios locales** y decidir si `contexto-previo.md` entra versionado.
 - **Aclarar carpeta canónica**: `README.md` sigue diciendo que `D:\Respaldo programacion\CoordinacionEDP` es la copia recomendada, pero esta carpeta contiene trabajo vigente del 09/07/2026.
 - **Limpieza de columnas muertas** de `registros`: `DROP COLUMN hc/hf/hm/hd/clases/horas_2` (y valorar `horas_diurnas`). Decidido "solo ocultar" por ahora.
 - **Modelo de horas por apuntes, paso 2 restante**: bolsa de horas (BIN/BOUT) y panel de saldo (vista `bolsa_horas_saldo`).

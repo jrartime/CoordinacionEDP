@@ -96,6 +96,14 @@ Los cambios recientes de Registros dependen de:
 Cuando se cambie SQL, ejecuta el archivo correspondiente en el SQL Editor de Supabase
 y deja constancia en `contexto-previo.md`.
 
+## Informes y asignacion masiva
+
+- Registros incluye previsualizacion flotante de informe con dos salidas: PDF clasico y PDF compacto. La previsualizacion consulta todos los registros filtrados y muestra advertencia si el volumen supera el limite configurado.
+- Actividades incluye previsualizacion flotante del informe de horarios filtrado, agrupado por personal, con descarga PDF posterior.
+- En los informes de Registros y Actividades, la celda de contrato muestra tambien el servicio asociado.
+- En la asignacion masiva de Registros y Actividades, si se cambia `contrato_id` se limpia `servicio_id` y se muestra aviso. Si se cambia `servicio_id`, el frontend valida que el servicio pertenezca al contrato de todos los elementos objetivo.
+- El blindaje anterior se complementa con triggers SQL en Supabase para evitar incoherencias aunque un cambio no pase por la interfaz.
+
 ## Desarrollo local
 
 ```powershell

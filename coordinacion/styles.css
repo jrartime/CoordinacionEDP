@@ -2030,6 +2030,78 @@ button.tag-chip.warm-button:hover {
   overflow: auto;
 }
 
+#records-report-preview-backdrop {
+  z-index: 80;
+  background: rgba(244, 246, 249, 0.72);
+}
+
+.records-report-preview-content {
+  display: grid;
+  gap: 18px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.records-report-preview-section {
+  display: grid;
+  gap: 8px;
+}
+
+.records-report-preview-person {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.records-report-preview-person h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.records-report-preview-person p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.records-report-preview-table-wrap {
+  overflow-x: auto;
+}
+
+.records-report-preview-table {
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.records-report-preview-table th,
+.records-report-preview-table td {
+  padding: 6px 7px;
+  font-size: 0.78rem;
+}
+
+.records-report-preview-table th:nth-child(1),
+.records-report-preview-table td:nth-child(1) {
+  width: 280px;
+}
+
+.records-report-preview-table th:nth-child(2),
+.records-report-preview-table td:nth-child(2) {
+  width: 190px;
+}
+
+.records-report-preview-table .numeric-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.records-report-preview-table .report-totals-row th,
+.records-report-preview-table .report-totals-row td {
+  background: #f8fafc;
+  font-weight: 800;
+}
+
 .records-table {
   min-width: 1800px;
   table-layout: auto;
@@ -2357,6 +2429,76 @@ th {
   font-size: 0.78rem;
   letter-spacing: 0.03em;
   color: var(--muted);
+}
+
+.activities-schedule-report-content {
+  display: grid;
+  gap: 18px;
+}
+
+.activities-schedule-report-section {
+  display: grid;
+  gap: 8px;
+}
+
+.activities-schedule-report-person {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.activities-schedule-report-person h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.activities-schedule-report-person p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.activities-schedule-report-table-wrap {
+  overflow-x: auto;
+}
+
+.activities-schedule-report-table {
+  min-width: 1180px;
+  table-layout: fixed;
+}
+
+.activities-schedule-report-table th,
+.activities-schedule-report-table td {
+  padding: 6px 7px;
+  font-size: 0.78rem;
+}
+
+.activities-schedule-report-table th:nth-child(1),
+.activities-schedule-report-table td:nth-child(1) {
+  width: 210px;
+}
+
+.activities-schedule-report-table th:nth-child(6),
+.activities-schedule-report-table td:nth-child(6) {
+  width: 150px;
+}
+
+.activities-schedule-report-table th:nth-child(7),
+.activities-schedule-report-table td:nth-child(7) {
+  width: 280px;
+}
+
+.activities-schedule-report-table .numeric-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.activities-schedule-report-table .report-totals-row th,
+.activities-schedule-report-table .report-totals-row td {
+  background: #f8fafc;
+  font-weight: 800;
 }
 
 #control-records-table .weekday-marker-cell,

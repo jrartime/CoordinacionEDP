@@ -155,6 +155,27 @@
   const openActivitiesPersonalReportButton = document.querySelector(
     "#open-activities-personal-report-button"
   );
+  const openActivitiesScheduleReportButton = document.querySelector(
+    "#open-activities-schedule-report-button"
+  );
+  const downloadActivitiesScheduleReportPdfButton = document.querySelector(
+    "#download-activities-schedule-report-pdf-button"
+  );
+  const closeActivitiesScheduleReportButton = document.querySelector(
+    "#close-activities-schedule-report-button"
+  );
+  const activitiesScheduleReportBackdrop = document.querySelector(
+    "#activities-schedule-report-backdrop"
+  );
+  const activitiesScheduleReportPanel = document.querySelector(
+    "#activities-schedule-report-panel"
+  );
+  const activitiesScheduleReportSummary = document.querySelector(
+    "#activities-schedule-report-summary"
+  );
+  const activitiesScheduleReportContent = document.querySelector(
+    "#activities-schedule-report-content"
+  );
   const closeActivitiesReportButton = document.querySelector("#close-activities-report-button");
   const downloadActivitiesReportPdfButton = document.querySelector(
     "#download-activities-report-pdf-button"
@@ -413,6 +434,8 @@
     fecha_fin: { label: "Fecha fin", type: "date" },
     hora_inicio: { label: "Hora inicio", type: "time" },
     hora_fin: { label: "Hora fin", type: "time" },
+    contrato_id: { label: "Contrato", type: "select", source: "contrato" },
+    servicio_id: { label: "Servicio", type: "select", source: "servicio" },
     personal_id: { label: "Personal", type: "select", source: "personal" },
     empresa_id: { label: "Empresa", type: "select", source: "empresa" },
     instalacion_id: { label: "Instalación", type: "select", source: "instalacion" },
@@ -2802,15 +2825,54 @@
     if (!activitiesReportPanel.classList.contains("hidden")) {
       renderActivitiesReport();
     }
+
+    if (!activitiesScheduleReportPanel?.classList.contains("hidden")) {
+      renderActivitiesScheduleReportPreview();
+    }
   }
 
   function getActivitiesBulkFieldConfig() {
     return ACTIVITY_BULK_FIELDS[activitiesBulkFieldSelect?.value] || ACTIVITY_BULK_FIELDS.fecha_inicio;
   }
 
-  function getActivityBulkSelectOptions(source) {
+  function getActivityBulkServiceScopeContractIds() {
+    if (activitiesBulkFieldSelect?.value !== "servicio_id") {
+      return null;
+    }
+
+    const selectedIds = new Set(getSelectedActivityRecordGeneratorIds());
+    const targetRows =
+      activitiesRecordsSelectionMode && selectedIds.size
+        ? filteredActivitiesRows.filter((activity) => selectedIds.has(String(activity.id)))
+        : hasActivityBulkCurrentFilter()
+          ? getActivityBulkTargetRows()
+          : [];
+    const contractIds = new Set(
+      targetRows.map((activity) => Number(activity.contrato_id)).filter(Number.isFinite)
+    );
+    return contractIds.size ? contractIds : null;
+  }
+
+  function getActivityBulkSelectOptions(source, options = {}) {
     if (source === "personal") {
       return activityAllPersonalRows.map((row) => ({ value: row.id, label: row.personal }));
+    }
+
+    if (source === "contrato") {
+      return Array.from(activityContrato?.options || [])
+        .filter((option) => option.value)
+        .map((option) => ({ value: option.value, label: option.textContent }));
+    }
+
+    if (source === "servicio") {
+      const scopeContractIds =
+        options.kind === "new" ? getActivityBulkServiceScopeContractIds() : null;
+      return activityServiceRows
+        .filter(
+          (service) =>
+            !scopeContractIds || scopeContractIds.has(Number(service.contrato_id))
+        )
+        .map((service) => ({ value: service.id, label: service.servicio }));
     }
 
     if (source === "instalacion") {
@@ -2868,20 +2930,21 @@
     select,
     config,
     selectedValue = select?.value || "",
-    includeUnsetOption = false
+    includeUnsetOption = false,
+    options = {}
   ) {
     if (!select || config.type !== "select") {
       return;
     }
 
-    const options = getActivityBulkSelectOptions(config.source);
+    const selectOptions = getActivityBulkSelectOptions(config.source, options);
     const renderedOptions = includeUnsetOption
       ? [
           { value: ACTIVITY_BULK_UNSET_VALUE, label: "Selecciona valor" },
           { value: ACTIVITY_BULK_EMPTY_VALUE, label: "Vacio" },
-          ...options,
+          ...selectOptions,
         ]
-      : options;
+      : selectOptions;
     select.innerHTML = renderedOptions
       .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
       .join("");
@@ -2984,6 +3047,23 @@
     return String(value ?? "").trim() || "vacío";
   }
 
+  function getActivityServiceContractId(serviceId) {
+    return Number(
+      activityServiceRows.find((service) => String(service.id) === String(serviceId))?.contrato_id
+    );
+  }
+
+  function getActivityBulkUpdatePayload(field, config, newValue) {
+    const updateValue =
+      (config.type === "text" || config.source === "respuesta") && newValue === "" ? null : newValue;
+
+    if (field === "contrato_id") {
+      return { contrato_id: updateValue, servicio_id: null };
+    }
+
+    return { [field]: updateValue };
+  }
+
   function getActivityBulkMatchingRows() {
     const field = activitiesBulkFieldSelect?.value;
     if (!field || !ACTIVITY_BULK_FIELDS[field] || !hasActivityBulkCurrentFilter()) {
@@ -3041,9 +3121,12 @@
         activitiesBulkCurrentSelect,
         config,
         activitiesBulkCurrentSelect?.value || ACTIVITY_BULK_UNSET_VALUE,
-        true
+        true,
+        { kind: "current" }
       );
-      renderActivitiesBulkSelectOptions(activitiesBulkNewSelect, config);
+      renderActivitiesBulkSelectOptions(activitiesBulkNewSelect, config, undefined, false, {
+        kind: "new",
+      });
     } else {
       activitiesBulkCurrentValueInput.type = config.type;
       activitiesBulkNewValueInput.type = config.type;
@@ -3102,21 +3185,44 @@
       return;
     }
 
+    if (field === "servicio_id") {
+      const serviceContractId = getActivityServiceContractId(newValue);
+      if (!Number.isFinite(serviceContractId)) {
+        setStatus("Selecciona un servicio valido.", "error");
+        return;
+      }
+
+      const hasDifferentContract = matches.some(
+        (activity) => Number(activity.contrato_id) !== serviceContractId
+      );
+      if (hasDifferentContract) {
+        setStatus(
+          "El servicio seleccionado no pertenece al contrato de alguna actividad objetivo. Filtra o selecciona actividades del mismo contrato.",
+          "error"
+        );
+        return;
+      }
+    }
+
+    const warning =
+      field === "contrato_id"
+        ? "\n\nAviso: al cambiar el contrato se dejará el servicio sin asignar en esas actividades. Después tendrás que asignar un servicio del nuevo contrato."
+        : "";
     const confirmed = window.confirm(
-      activitiesRecordsSelectionMode
+      (activitiesRecordsSelectionMode
         ? `Vas a cambiar ${config.label} a ${formatActivityBulkValue(newValue, config)} en ${matches.length} actividad${matches.length === 1 ? "" : "es"} seleccionada${matches.length === 1 ? "" : "s"}.`
-        : `Vas a cambiar ${config.label} de ${formatActivityBulkValue(currentValue, config)} a ${formatActivityBulkValue(newValue, config)} en ${matches.length} actividad${matches.length === 1 ? "" : "es"} filtrada${matches.length === 1 ? "" : "s"}.`
+        : `Vas a cambiar ${config.label} de ${formatActivityBulkValue(currentValue, config)} a ${formatActivityBulkValue(newValue, config)} en ${matches.length} actividad${matches.length === 1 ? "" : "es"} filtrada${matches.length === 1 ? "" : "s"}.`) +
+        warning
     );
     if (!confirmed) {
       return;
     }
 
-    const updateValue =
-      (config.type === "text" || config.source === "respuesta") && newValue === "" ? null : newValue;
+    const updatePayload = getActivityBulkUpdatePayload(field, config, newValue);
     const supabase = await getSupabaseClient();
     const { error } = await supabase
       .from("actividades")
-      .update({ [field]: updateValue })
+      .update(updatePayload)
       .in(
         "id",
         matches.map((activity) => Number(activity.id))
@@ -3129,7 +3235,12 @@
 
     resetActivitiesBulkCurrentFilter();
     await loadActivities();
-    setStatus(`Asignacion masiva aplicada a ${matches.length} actividad${matches.length === 1 ? "" : "es"}.`, "success");
+    setStatus(
+      field === "contrato_id"
+        ? `Asignacion masiva aplicada a ${matches.length} actividad${matches.length === 1 ? "" : "es"}. El servicio se ha dejado sin asignar.`
+        : `Asignacion masiva aplicada a ${matches.length} actividad${matches.length === 1 ? "" : "es"}.`,
+      "success"
+    );
   }
 
   function getWorkedDaysInWeek(activity, week) {
@@ -3574,6 +3685,333 @@
       setStatus("PDF de informe de actividades generado correctamente.", "success");
     } catch (error) {
       setStatus(`No se pudo generar el PDF: ${error?.message ?? "error desconocido"}`, "error");
+    }
+  }
+
+  function getActivityScheduleReportGroups() {
+    const byPerson = new Map();
+
+    filteredActivitiesRows.forEach((activity) => {
+      const personId = String(activity.personal_id ?? activity.personal ?? "sin-personal");
+      if (!byPerson.has(personId)) {
+        byPerson.set(personId, {
+          personalId: Number(activity.personal_id) || 0,
+          person: String(activity.personal || "Sin personal"),
+          dni: activity.dni || "",
+          fechaNacimiento: activity.fecha_nacimiento || "",
+          ss: activity.ss || "",
+          rows: [],
+        });
+      }
+
+      byPerson.get(personId).rows.push(activity);
+    });
+
+    return Array.from(byPerson.values())
+      .map((group) => ({
+        ...group,
+        rows: group.rows.sort((left, right) =>
+          [
+            String(left.contrato || "").localeCompare(String(right.contrato || ""), "es", {
+              sensitivity: "base",
+            }),
+            String(left.servicio || "").localeCompare(String(right.servicio || ""), "es", {
+              sensitivity: "base",
+            }),
+            String(left.fecha_inicio || "").localeCompare(String(right.fecha_inicio || "")),
+            String(left.hora_inicio || "").localeCompare(String(right.hora_inicio || "")),
+            String(left.instalacion || "").localeCompare(String(right.instalacion || ""), "es", {
+              sensitivity: "base",
+            }),
+          ].find((result) => result !== 0) || 0
+        ),
+      }))
+      .sort((left, right) =>
+        String(left.person).localeCompare(String(right.person), "es", { sensitivity: "base" })
+      );
+  }
+
+  function getActivityScheduleWeekdays(activity) {
+    const labels = {
+      1: "L",
+      2: "M",
+      3: "X",
+      4: "J",
+      5: "V",
+      6: "S",
+      7: "D",
+    };
+    const days = Array.isArray(activity.dias_semana) ? activity.dias_semana : [];
+    return days.length ? days.map((day) => labels[Number(day)] || day).join("") : "-";
+  }
+
+  function getActivityScheduleWeeklyHours(activity) {
+    const days = Array.isArray(activity.dias_semana)
+      ? new Set(activity.dias_semana.map(Number).filter(Number.isFinite)).size
+      : 0;
+    return getActivityGeneratedHours(activity) * days;
+  }
+
+  function formatActivityContractServiceLabel(activity) {
+    const contract = String(activity.contrato || "-").trim();
+    const service = String(activity.servicio || "").trim();
+    return service ? `${contract} · ${service}` : contract;
+  }
+
+  function getActivityScheduleReportRow(activity) {
+    const dailyHours = getActivityGeneratedHours(activity);
+    const weeklyHours = getActivityScheduleWeeklyHours(activity);
+    return {
+      contrato: formatActivityContractServiceLabel(activity),
+      inicio: formatDate(activity.fecha_inicio),
+      fin: formatDate(activity.fecha_fin),
+      dias: getActivityScheduleWeekdays(activity),
+      horario: `${formatTime(activity.hora_inicio)}-${formatTime(activity.hora_fin)}`,
+      puesto: activity.puesto || "-",
+      instalacion: activity.instalacion || "-",
+      horas: formatHours(dailyHours),
+      horasSemana: formatHours(weeklyHours),
+      weeklyHours,
+    };
+  }
+
+  function renderActivitiesScheduleReportPreview() {
+    const groups = getActivityScheduleReportGroups();
+    activitiesScheduleReportSummary.textContent = `${filteredActivitiesRows.length} actividades filtradas. Previsualizacion del informe antes de generar el PDF.`;
+
+    if (!groups.length) {
+      activitiesScheduleReportContent.innerHTML =
+        '<p class="empty-state">No hay actividades con los filtros actuales.</p>';
+      return;
+    }
+
+    activitiesScheduleReportContent.innerHTML = groups
+      .map((group) => {
+        let groupWeeklyTotal = 0;
+        const personDetails = [
+          group.dni ? `DNI: ${group.dni}` : "",
+          group.ss ? `SS: ${group.ss}` : "",
+          group.fechaNacimiento ? `Nacimiento: ${formatDate(group.fechaNacimiento)}` : "",
+        ].filter(Boolean);
+        const rows = group.rows
+          .map((activity) => {
+            const row = getActivityScheduleReportRow(activity);
+            groupWeeklyTotal += row.weeklyHours;
+            return `
+              <tr>
+                <td>${escapeHtml(row.contrato)}</td>
+                <td>${escapeHtml(row.inicio)}</td>
+                <td>${escapeHtml(row.fin)}</td>
+                <td>${escapeHtml(row.dias)}</td>
+                <td>${escapeHtml(row.horario)}</td>
+                <td>${escapeHtml(row.puesto)}</td>
+                <td>${escapeHtml(row.instalacion)}</td>
+                <td class="numeric-cell">${escapeHtml(row.horas)}</td>
+                <td class="numeric-cell">${escapeHtml(row.horasSemana)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        return `
+          <section class="activities-schedule-report-section">
+            <div class="activities-schedule-report-person">
+              <h3>${escapeHtml(group.person)}</h3>
+              ${personDetails.length ? `<p>${escapeHtml(personDetails.join("   "))}</p>` : ""}
+            </div>
+            <div class="table-wrap activities-schedule-report-table-wrap">
+              <table class="activities-schedule-report-table">
+                <thead>
+                  <tr>
+                    <th>Contrato / Servicio</th>
+                    <th>Inicio</th>
+                    <th>Fin</th>
+                    <th>Dias</th>
+                    <th>Horario</th>
+                    <th>Puesto</th>
+                    <th>Instalacion</th>
+                    <th>Horas</th>
+                    <th>H. Se</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows}
+                  <tr class="report-totals-row">
+                    <th colspan="8" scope="row">Total semanal</th>
+                    <td class="numeric-cell">${escapeHtml(formatHours(groupWeeklyTotal))}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        `;
+      })
+      .join("");
+  }
+
+  function openActivitiesScheduleReportPreview() {
+    renderActivitiesScheduleReportPreview();
+    activitiesScheduleReportPanel?.classList.remove("hidden");
+    activitiesScheduleReportBackdrop?.classList.remove("hidden");
+  }
+
+  function closeActivitiesScheduleReportPreview() {
+    activitiesScheduleReportPanel?.classList.add("hidden");
+    activitiesScheduleReportBackdrop?.classList.add("hidden");
+  }
+
+  async function downloadActivitiesScheduleReportPdf() {
+    try {
+      const groups = getActivityScheduleReportGroups();
+      if (!groups.length) {
+        setStatus("No hay actividades filtradas para generar el informe de horarios.", "error");
+        return;
+      }
+
+      const { jsPDF } = await getJsPdfClient();
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const marginX = 9;
+      const marginTop = 10;
+      const marginBottom = 12;
+      const lineHeight = 4;
+      const headerHeight = 7;
+      const columns = [
+        { key: "contrato", label: "Contrato / Servicio", width: 45 },
+        { key: "inicio", label: "Inicio", width: 18 },
+        { key: "fin", label: "Fin", width: 18 },
+        { key: "dias", label: "Dias", width: 13 },
+        { key: "horario", label: "Horario", width: 23 },
+        { key: "puesto", label: "Puesto", width: 35 },
+        { key: "instalacion", label: "Instalacion", width: 80 },
+        { key: "horas", label: "Horas", width: 14 },
+        { key: "horasSemana", label: "H. Se", width: 15 },
+      ];
+      let y = marginTop;
+
+      const drawPageHeader = () => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("Horarios de actividades filtradas", marginX, y);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text(`${filteredActivitiesRows.length} actividades filtradas`, pageWidth - marginX, y, {
+          align: "right",
+        });
+        y += 7;
+      };
+
+      const drawTableHeader = () => {
+        let x = marginX;
+        doc.setFillColor(236, 240, 244);
+        doc.rect(marginX, y - 4.5, pageWidth - marginX * 2, headerHeight, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        columns.forEach((column) => {
+          doc.text(column.label, x + 1, y, { maxWidth: column.width - 2 });
+          x += column.width;
+        });
+        y += headerHeight;
+      };
+
+      const ensureSpace = (neededHeight) => {
+        if (y + neededHeight <= pageHeight - marginBottom) {
+          return;
+        }
+        doc.addPage();
+        y = marginTop;
+        drawPageHeader();
+      };
+
+      const drawCell = (text, x, rowTop, width, maxLines = 2, align = "left") => {
+        const lines = doc.splitTextToSize(String(text || "-"), width - 2).slice(0, maxLines);
+        lines.forEach((line, index) => {
+          doc.text(line, align === "right" ? x + width - 1 : x + 1, rowTop + 4 + index * 3.4, {
+            maxWidth: width - 2,
+            align,
+          });
+        });
+      };
+
+      drawPageHeader();
+
+      groups.forEach((group) => {
+        const personDetails = [
+          group.dni ? `DNI: ${group.dni}` : "",
+          group.ss ? `SS: ${group.ss}` : "",
+          group.fechaNacimiento ? `Nacimiento: ${formatDate(group.fechaNacimiento)}` : "",
+        ].filter(Boolean);
+        ensureSpace(18);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.text(group.person, marginX, y, { maxWidth: pageWidth - marginX * 2 });
+        if (personDetails.length) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7);
+          doc.text(personDetails.join("   "), pageWidth - marginX, y, { align: "right" });
+        }
+        y += 5;
+        drawTableHeader();
+
+        let groupWeeklyTotal = 0;
+        group.rows.forEach((activity) => {
+          const row = getActivityScheduleReportRow(activity);
+          groupWeeklyTotal += row.weeklyHours;
+          const rowHeight = Math.max(
+            6,
+            Math.min(
+              13,
+              Math.max(
+                doc.splitTextToSize(String(row.contrato), columns[0].width - 2).length,
+                doc.splitTextToSize(String(row.puesto), columns[5].width - 2).length,
+                doc.splitTextToSize(String(row.instalacion), columns[6].width - 2).length
+              ) * lineHeight
+            )
+          );
+
+          ensureSpace(rowHeight + 2);
+          doc.setDrawColor(224, 228, 234);
+          doc.line(marginX, y - 2, pageWidth - marginX, y - 2);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7);
+          let x = marginX;
+          columns.forEach((column) => {
+            const isNumeric = column.key === "horas" || column.key === "horasSemana";
+            drawCell(row[column.key], x, y - 1, column.width, 2, isNumeric ? "right" : "left");
+            x += column.width;
+          });
+          y += rowHeight;
+        });
+
+        ensureSpace(8);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        doc.text(`Total semanal: ${formatHours(groupWeeklyTotal)} h`, pageWidth - marginX, y, {
+          align: "right",
+        });
+        y += 8;
+      });
+
+      const pageCount = doc.getNumberOfPages();
+      const today = new Date().toISOString().slice(0, 10);
+      for (let page = 1; page <= pageCount; page += 1) {
+        doc.setPage(page);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.text(formatDate(today), marginX, pageHeight - 5);
+        doc.text(`Pagina ${page} de ${pageCount}`, pageWidth - marginX, pageHeight - 5, {
+          align: "right",
+        });
+      }
+
+      doc.save(`informe-horarios-actividades-${today}.pdf`);
+      setStatus("PDF de horarios de actividades generado correctamente.", "success");
+    } catch (error) {
+      setStatus(
+        `No se pudo generar el informe de horarios: ${error?.message ?? "error desconocido"}`,
+        "error"
+      );
     }
   }
 
@@ -6456,6 +6894,15 @@
     });
     openActivitiesReportButton.addEventListener("click", () => openActivitiesReport("installation"));
     openActivitiesPersonalReportButton.addEventListener("click", () => openActivitiesReport("personal"));
+    openActivitiesScheduleReportButton?.addEventListener("click", openActivitiesScheduleReportPreview);
+    downloadActivitiesScheduleReportPdfButton?.addEventListener("click", () => {
+      void downloadActivitiesScheduleReportPdf();
+    });
+    closeActivitiesScheduleReportButton?.addEventListener(
+      "click",
+      closeActivitiesScheduleReportPreview
+    );
+    activitiesScheduleReportBackdrop?.addEventListener("click", closeActivitiesScheduleReportPreview);
     closeActivitiesReportButton.addEventListener("click", closeActivitiesReport);
     downloadActivitiesReportPdfButton.addEventListener("click", () => {
       void downloadActivitiesReportPdf();
