@@ -436,17 +436,17 @@
     hora_inicio: { label: "Hora inicio", type: "time" },
     hora_fin: { label: "Hora fin", type: "time" },
     contrato_id: { label: "Contrato", type: "select", source: "contrato" },
-    servicio_id: { label: "Servicio", type: "select", source: "servicio" },
+    servicio_id: { label: "Servicio", type: "select", source: "servicio", nullable: true },
     personal_id: { label: "Personal", type: "select", source: "personal" },
     empresa_id: { label: "Empresa", type: "select", source: "empresa" },
     instalacion_id: { label: "Instalación", type: "select", source: "instalacion" },
     puesto_id: { label: "Puesto", type: "select", source: "puesto" },
-    funcion_id: { label: "Funcion", type: "select", source: "funcion" },
-    modalidad_id: { label: "Modalidad", type: "select", source: "modalidad" },
+    funcion_id: { label: "Funcion", type: "select", source: "funcion", nullable: true },
+    modalidad_id: { label: "Modalidad", type: "select", source: "modalidad", nullable: true },
     situacion_id: { label: "Situación", type: "select", source: "situacion" },
     tipo_hora_id: { label: "Tipo de hora", type: "select", source: "tipo_hora" },
     llamamiento_enviado: { label: "Llamamiento enviado", type: "boolean" },
-    respuesta_llamamiento: { label: "Respuesta llamamiento", type: "select", source: "respuesta" },
+    respuesta_llamamiento: { label: "Respuesta llamamiento", type: "select", source: "respuesta", nullable: true },
     observaciones: { label: "Observaciones", type: "text" },
   };
 
@@ -2941,10 +2941,14 @@
     }
 
     const selectOptions = getActivityBulkSelectOptions(config.source, options);
+    // "Vacío" como nuevo valor solo tiene sentido en campos que admiten NULL;
+    // en el filtro de valor actual se conserva para poder buscar filas vacías.
+    const includeEmptyOption =
+      includeUnsetOption && (options.kind !== "new" || config.nullable === true);
     const renderedOptions = includeUnsetOption
       ? [
           { value: ACTIVITY_BULK_UNSET_VALUE, label: "Selecciona valor" },
-          { value: ACTIVITY_BULK_EMPTY_VALUE, label: "Vacio" },
+          ...(includeEmptyOption ? [{ value: ACTIVITY_BULK_EMPTY_VALUE, label: "Vacío" }] : []),
           ...selectOptions,
         ]
       : selectOptions;
@@ -3185,6 +3189,10 @@
     const rawNewValue = getActivityBulkControlValue("new");
     if ((config.type === "select" || config.type === "boolean") && rawNewValue === ACTIVITY_BULK_UNSET_VALUE) {
       setStatus("Selecciona un nuevo valor.", "error");
+      return;
+    }
+    if (rawNewValue === ACTIVITY_BULK_EMPTY_VALUE && !config.nullable) {
+      setStatus(`El campo ${config.label} es obligatorio y no admite un valor vacío.`, "error");
       return;
     }
     const newValue = normalizeActivityBulkValue(getActivityBulkControlValue("new"), config);
