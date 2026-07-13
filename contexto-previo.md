@@ -65,18 +65,33 @@ Resumen de los cambios completados, decisiones clave y estado actual del proyect
 - **Asignacion masiva Registros**: se aplico la misma logica que en Actividades. Cambiar contrato limpia `servicio_id`, cambiar servicio valida compatibilidad con contrato y las opciones de nuevo servicio se acotan al contrato de los registros objetivo cuando procede.
 - **Publicacion/verificacion**: tras los cambios se ejecuto `.\scripts\publish.ps1 -SkipConfig` y `.\scripts\check.ps1` correctamente.
 
+## 7. Gestion y Contabilidad Cronos/Banco (13/07/2026, pendiente de commit)
+
+- **Nuevas pestanas privadas**: `gestion` y `contabilidad` se añadieron a `coordinacion_pestanas.sql`, al catalogo de accesos del frontend y a la navegacion privada.
+- **Gestion**: nueva vista transversal por intervalo. Cruza historiales laborales solapados con el periodo y un pivote de horas de `registros` por puesto, situacion y tipo de hora. Usa `supabase/tables/gestion_resumen.sql` con `get_gestion_personal` y `get_gestion_registros_resumen`; ambas son `SECURITY INVOKER` para respetar el RLS de `registros` y acotan a contratos activos.
+- **Contabilidad / Apuntes**: nueva tabla `cronos` para apuntes exportados de Cronos, con datos personales y RLS de lectura para admin o pestana `contabilidad`; escritura solo admin. RPC `get_cronos_filtros`, `get_cronos_resumen` y `get_cronos_page` para filtros, totales y paginacion sin `count:'exact'`.
+- **Apuntes / filtros estrechos**: `get_cronos_filtros` recibe los filtros activos y devuelve `forma_pago` y `anulado` facetados, para que no aparezcan opciones sin resultados bajo el contexto actual.
+- **Contabilidad / Banco**: nueva tabla `cronos_banco` para movimientos TPV, mismo modelo de RLS/escritura admin. RPC `get_cronos_banco_filtros`, `get_cronos_banco_resumen` y `get_cronos_banco_page`.
+- **Ajustes UI finales de Contabilidad**: Apuntes compacta filtros para evitar desbordes y oculta `numero_factura` en el listado. Banco elimina filtro `terminal` y oculta columnas `terminal`/`tipo_operacion`; `get_cronos_banco_page` se recrea con `DROP FUNCTION` previo porque cambió el `returns table`.
+- **Resultados Banco/Cronos**: `get_cronos_resultados` toma Banco como base y enlaza `cronos_banco.cod_pedido` con `cronos.identificador`, normalizando ceros a la izquierda con `ltrim(trim(identificador), '0')`. La UI tiene vista detalle y vista resumen; el resumen agrupa por mes/tarifa y exporta Excel/PDF.
+- **Conciliacion Cronos/Banco**: `get_cronos_conciliacion` compara `cronos.identificador` normalizado sin ceros a la izquierda con `cronos_banco.cod_pedido` y devuelve apuntes/movimientos sin pareja por intervalo, con limite de filas mostrado y totales exactos.
+- **Rendimiento/RLS**: las RPC de Contabilidad son `SECURITY DEFINER` con `set search_path = public` y guard de autorizacion evaluado una vez. Decision deliberada para evitar timeouts por RLS fila a fila sobre volumen grande; no convertir a `SECURITY INVOKER`.
+- **Carga desde UI**: botones "Cargar CSV" en Apuntes y Banco. El frontend detecta codificacion, parsea `;`, convierte fechas/horas/numeros y hace reemplazo por rango de fechas (delete min-max + insert por lotes), porque los exports nuevos no garantizan clave unica fiable.
+- **Carga CLI inicial**: nuevos scripts `scripts/import_cronos.py` y `scripts/import_cronos_banco.py`, con `--dry-run`, lotes de 5000 y escritura con `SUPABASE_SERVICE_ROLE_KEY` o `--service-role-key`.
+- **UI de filtros**: se unifico el selector de personal con boton de limpiar y desplegable en Programacion/Control/Actividades/Registros, y se movieron las "x" de filtros dentro del control con visibilidad segun valor.
+
 ---
 
 ## Estado actual
 
-- **Git**: rama `main`, último commit confirmado antes de esta tanda **`a4d2397`**, **pusheado** a GitHub (`jrartime/CoordinacionEDP`). Hay cambios locales posteriores en `coordinacion/`, `publish/coordinacion/`, `README.md` y `contexto-previo.md` pendientes de commit/push.
+- **Git**: rama `main`, último commit confirmado antes de esta tanda **`a4d2397`**, **pusheado** a GitHub (`jrartime/CoordinacionEDP`). Hay cambios locales posteriores en `coordinacion/`, `publish/coordinacion/`, `scripts/`, `supabase/tables/`, `README.md`, `CLAUDE.md` y `contexto-previo.md` pendientes de commit/push.
 - **Base de datos de producción**: aplicadas las migraciones anteriores (nocturnidad, estados de historial, RLS de registros), aplicado `registros_servicio_contrato_validation.sql` y confirmada la version estricta de Actividades segun la conversacion. Las RPC de facetas de Registros existen y responden en producción.
 - **Web (IONOS)**: `publish/coordinacion/` **subido** al subdominio `coordinacion.edpsl.es`. En vivo.
 - **Verificación**: `node --check coordinacion/app.js`, `node --check coordinacion/concilia-integrated.js`, `.\scripts\publish.ps1 -SkipConfig`, `.\scripts\check.ps1` OK.
 
 ## Pendientes / posibles siguientes pasos
 
-- **Aclarar carpeta canónica**: `README.md` sigue diciendo que `D:\Respaldo programacion\CoordinacionEDP` es la copia recomendada, pero esta carpeta contiene trabajo vigente del 09/07/2026.
+- **Carpeta canonica**: `README.md` ya marca `D:\Programacion\CoordinacionEDP` como copia activa.
 - **Limpieza de columnas muertas** de `registros`: `DROP COLUMN hc/hf/hm/hd/clases/horas_2` (y valorar `horas_diurnas`). Decidido "solo ocultar" por ahora.
 - **Modelo de horas por apuntes, paso 2 restante**: bolsa de horas (BIN/BOUT) y panel de saldo (vista `bolsa_horas_saldo`).
 - Confirmar que `registro_apuntes` está backfilled para las 341k filas (el comentario original hablaba de 436).

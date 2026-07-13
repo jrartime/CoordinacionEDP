@@ -59,6 +59,8 @@ const PRIVATE_TAB_TARGETS = new Set([
   "actividades",
   "registros",
   "historial",
+  "gestion",
+  "contabilidad",
   "settings",
 ]);
 let ACCESS_ASSIGNABLE_TABS = [
@@ -72,6 +74,8 @@ let ACCESS_ASSIGNABLE_TABS = [
   { key: "actividades", label: "Actividades" },
   { key: "registros", label: "Registros" },
   { key: "historial", label: "Historial laboral" },
+  { key: "gestion", label: "Gestión" },
+  { key: "contabilidad", label: "Contabilidad" },
   { key: "settings", label: "Configuración" },
 ];
 const ACCESS_ASSIGNABLE_TABS_FALLBACK = [...ACCESS_ASSIGNABLE_TABS];
@@ -534,6 +538,8 @@ const privateTabConciliaButton = document.querySelector("#private-tab-concilia")
 const privateTabActividadesButton = document.querySelector("#private-tab-actividades");
 const privateTabRegistrosButton = document.querySelector("#private-tab-registros");
 const privateTabHistorialButton = document.querySelector("#private-tab-historial");
+const privateTabGestionButton = document.querySelector("#private-tab-gestion");
+const privateTabContabilidadButton = document.querySelector("#private-tab-contabilidad");
 const privateTabContractsButton = document.querySelector("#private-tab-contracts");
 const privateTabPersonalButton = document.querySelector("#private-tab-personal");
 const privateTabProgrammingButton = document.querySelector("#private-tab-programming");
@@ -547,6 +553,8 @@ const privateTabPanelPersonal = document.querySelector("#private-tab-panel-perso
 const privateTabPanelProgramming = document.querySelector("#private-tab-panel-programming");
 const privateTabPanelRegistros = document.querySelector("#private-tab-panel-registros");
 const privateTabPanelHistorial = document.querySelector("#private-tab-panel-historial");
+const privateTabPanelGestion = document.querySelector("#private-tab-panel-gestion");
+const privateTabPanelContabilidad = document.querySelector("#private-tab-panel-contabilidad");
 const privateTabPanelSettings = document.querySelector("#private-tab-panel-settings");
 const settingsCatalogView = document.querySelector("#settings-catalog-view");
 const settingsAccessView = document.querySelector("#settings-access-view");
@@ -630,6 +638,8 @@ const controlDateFromInput = document.querySelector("#control-date-from");
 const controlDateToInput = document.querySelector("#control-date-to");
 const controlPersonalInput = document.querySelector("#control-personal");
 const controlPersonalSuggestions = document.querySelector("#control-personal-suggestions");
+const controlPersonalClearButton = document.querySelector("[data-control-personal-clear]");
+const controlPersonalToggleButton = document.querySelector("[data-control-personal-toggle]");
 const controlCentroInput = document.querySelector("#control-centro");
 const controlPuestoInput = document.querySelector("#control-puesto");
 const controlRecordsTable = document.querySelector("#control-records-table");
@@ -1468,6 +1478,14 @@ function enrichControlRecord(row) {
   };
 }
 
+// La ✕ del buscador de personal de Control aparece solo cuando hay texto.
+function updateControlPersonalClear() {
+  if (!controlPersonalClearButton || !controlPersonalInput) {
+    return;
+  }
+  controlPersonalClearButton.classList.toggle("hidden", !controlPersonalInput.value.trim());
+}
+
 function renderControlPersonalSuggestions() {
   if (!controlPersonalSuggestions) {
     return;
@@ -1802,6 +1820,8 @@ function syncAccessTabVisibility() {
     actividades: privateTabActividadesButton,
     registros: privateTabRegistrosButton,
     historial: privateTabHistorialButton,
+    gestion: privateTabGestionButton,
+    contabilidad: privateTabContabilidadButton,
     programming: privateTabProgrammingButton,
     contracts: privateTabContractsButton,
     personal: privateTabPersonalButton,
@@ -1934,6 +1954,8 @@ function switchPrivateTab(target) {
   const showPersonal = normalizedTarget === "personal";
   const showRegistros = normalizedTarget === "registros";
   const showHistorial = normalizedTarget === "historial";
+  const showGestion = normalizedTarget === "gestion";
+  const showContabilidad = normalizedTarget === "contabilidad";
   const showSettings = normalizedTarget === "settings";
   const showConcilia = normalizedTarget === "concilia" || normalizedTarget === "actividades";
   const hasAnyAccess = currentAllowedPrivateTabs.size > 0;
@@ -1946,6 +1968,8 @@ function switchPrivateTab(target) {
   privateTabPanelPersonal?.classList.toggle("hidden", !hasAnyAccess || !showPersonal);
   privateTabPanelRegistros?.classList.toggle("hidden", !hasAnyAccess || !showRegistros);
   privateTabPanelHistorial?.classList.toggle("hidden", !hasAnyAccess || !showHistorial);
+  privateTabPanelGestion?.classList.toggle("hidden", !hasAnyAccess || !showGestion);
+  privateTabPanelContabilidad?.classList.toggle("hidden", !hasAnyAccess || !showContabilidad);
   privateTabPanelSettings?.classList.toggle("hidden", !hasAnyAccess || !showSettings);
   privateTabPanelConciliaIntegrated?.classList.toggle("hidden", !hasAnyAccess || !showConcilia);
   if (showConcilia) {
@@ -1961,6 +1985,8 @@ function switchPrivateTab(target) {
   privateTabPersonalButton?.classList.toggle("active", showPersonal);
   privateTabRegistrosButton?.classList.toggle("active", showRegistros);
   privateTabHistorialButton?.classList.toggle("active", showHistorial);
+  privateTabGestionButton?.classList.toggle("active", showGestion);
+  privateTabContabilidadButton?.classList.toggle("active", showContabilidad);
   privateTabSettingsButton?.classList.toggle("active", showSettings);
   privateTabSearchButton.setAttribute("aria-pressed", String(showSearch));
   privateTabControlButton.setAttribute("aria-pressed", String(showControl));
@@ -1972,6 +1998,8 @@ function switchPrivateTab(target) {
   privateTabPersonalButton?.setAttribute("aria-pressed", String(showPersonal));
   privateTabRegistrosButton?.setAttribute("aria-pressed", String(showRegistros));
   privateTabHistorialButton?.setAttribute("aria-pressed", String(showHistorial));
+  privateTabGestionButton?.setAttribute("aria-pressed", String(showGestion));
+  privateTabContabilidadButton?.setAttribute("aria-pressed", String(showContabilidad));
   privateTabSettingsButton?.setAttribute("aria-pressed", String(showSettings));
   syncProgrammingTypeUi();
 }
@@ -6241,9 +6269,10 @@ function renderProgrammingFilters(rows) {
       )
     )
     .join("");
-  programmingFilterPersonal.innerHTML = ['<option value="">Todo el personal</option>']
-    .concat(people.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`))
-    .join("");
+  setPersonalPickerOptions(
+    "programming-filter",
+    people.map((value) => ({ value, label: value }))
+  );
   programmingFilterSport.innerHTML = ['<option value="">Todos los deportes</option>']
     .concat(sports.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`))
     .join("");
@@ -6252,8 +6281,10 @@ function renderProgrammingFilters(rows) {
   programmingFilterInstallation.value = installations.includes(currentValues.installation)
     ? currentValues.installation
     : "";
-  programmingFilterPersonal.value = people.includes(currentValues.personal) ? currentValues.personal : "";
+  const keepPersonal = people.includes(currentValues.personal) ? currentValues.personal : "";
+  setPersonalPickerSelection("programming-filter", keepPersonal, keepPersonal);
   programmingFilterSport.value = sports.includes(currentValues.sport) ? currentValues.sport : "";
+  syncFilterResetButtons(programmingFiltersForm);
 }
 
 function syncProgrammingDateScopedFilters() {
@@ -6338,6 +6369,23 @@ function suggestBulkInstallationFromCurrentFilter() {
   syncProgrammingBulkAssignmentUi();
 }
 
+// Muestra la ✕ (filter-reset-button) de un formulario de filtros solo cuando su
+// control asociado tiene valor. Se usa en Programación y Control personal.
+function syncFilterResetButtons(form) {
+  if (!form) {
+    return;
+  }
+  form.querySelectorAll(".filter-reset-button").forEach((button) => {
+    const row = button.closest(".filter-control-row");
+    const control = row?.querySelector("input, select, textarea");
+    const hasValue =
+      control?.type === "checkbox"
+        ? control.checked
+        : Boolean(String(control?.value ?? "").trim());
+    button.classList.toggle("is-empty", !hasValue);
+  });
+}
+
 function resetSingleProgrammingFilter(filterName) {
   const resetMap = {
     date: programmingFilterDate,
@@ -6357,6 +6405,10 @@ function resetSingleProgrammingFilter(filterName) {
     control.checked = false;
   } else {
     control.value = "";
+  }
+
+  if (control === programmingFilterPersonal) {
+    clearPersonalPicker("programming-filter");
   }
 
   if (control === programmingFilterDate || control === programmingFilterIncludeArchived) {
@@ -13366,6 +13418,7 @@ function updateRecordsFilterOptions() {
           changed = true;
         }
       }
+      personalPickers.get("records-filter")?.updateClearVisibility?.();
       continue;
     }
 
@@ -13406,6 +13459,7 @@ function updateRecordsFilterOptions() {
       changed = true;
     }
   }
+  syncFilterResetButtons(recordsFiltersForm);
   return changed;
 }
 
@@ -15029,9 +15083,51 @@ function setupPersonalPicker(key, { inputId, hiddenId, suggestionsId, onChange }
     inputEl.value = label;
     if (hiddenEl) hiddenEl.value = value;
     suggestionsEl.classList.add("hidden");
+    updateClearVisibility();
     if (typeof onChange === "function") onChange(value, label);
   });
 
+  // Botones opcionales dentro del mismo .filter-field-stack: X para limpiar solo
+  // este campo y una flecha para desplegar la lista sin escribir.
+  const stackEl = inputEl.closest(".filter-field-stack");
+  const clearButton = stackEl?.querySelector("[data-personal-clear]");
+  const toggleButton = stackEl?.querySelector("[data-personal-toggle]");
+
+  const updateClearVisibility = () => {
+    if (!clearButton) return;
+    const hasValue = Boolean(inputEl.value.trim() || (hiddenEl && hiddenEl.value));
+    clearButton.classList.toggle("hidden", !hasValue);
+  };
+  state.updateClearVisibility = updateClearVisibility;
+
+  inputEl.addEventListener("input", updateClearVisibility);
+
+  if (clearButton) {
+    clearButton.addEventListener("mousedown", (event) => {
+      // mousedown + preventDefault evita que el blur del input oculte la lista
+      // antes de procesar el click.
+      event.preventDefault();
+      inputEl.value = "";
+      if (hiddenEl) hiddenEl.value = "";
+      suggestionsEl.classList.add("hidden");
+      updateClearVisibility();
+      if (typeof onChange === "function") onChange("", "");
+    });
+  }
+
+  if (toggleButton) {
+    toggleButton.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      if (suggestionsEl.classList.contains("hidden")) {
+        inputEl.focus();
+        renderPersonalPickerSuggestions(state);
+      } else {
+        suggestionsEl.classList.add("hidden");
+      }
+    });
+  }
+
+  updateClearVisibility();
   return state;
 }
 
@@ -15045,6 +15141,7 @@ function setPersonalPickerSelection(key, value, label) {
   if (!state) return;
   state.inputEl.value = label || "";
   if (state.hiddenEl) state.hiddenEl.value = value != null ? String(value) : "";
+  state.updateClearVisibility?.();
 }
 
 function clearPersonalPicker(key) {
@@ -15161,6 +15258,1670 @@ window.CoordinacionRegistros = {
     void loadRecords();
   },
 };
+
+// --- Gestión ---
+// Pestaña transversal: cruza historiales laborales y registros dentro de un
+// intervalo de fechas. Diseño compacto pensado para ir añadiendo más bloques.
+const gestionFiltersForm = document.querySelector("#gestion-filters-form");
+const gestionFilterDesde = document.querySelector("#gestion-filter-desde");
+const gestionFilterHasta = document.querySelector("#gestion-filter-hasta");
+const gestionFilterPersonalHidden = document.querySelector("#gestion-filter-personal");
+const gestionRefreshButton = document.querySelector("#gestion-refresh-button");
+const gestionClearFiltersButton = document.querySelector("#gestion-clear-filters-button");
+const gestionSummary = document.querySelector("#gestion-summary");
+const gestionHistorialCount = document.querySelector("#gestion-historial-count");
+const gestionHistorialTableBody = document.querySelector("#gestion-historial-table-body");
+const gestionTotalHoras = document.querySelector("#gestion-total-horas");
+const gestionPivotHead = document.querySelector("#gestion-pivot-head");
+const gestionPivotBody = document.querySelector("#gestion-pivot-body");
+
+// Token para descartar respuestas obsoletas si el usuario cambia el filtro
+// mientras hay una carga en vuelo.
+let gestionRequestToken = 0;
+
+function getGestionFilters() {
+  return {
+    desde: gestionFilterDesde?.value || "",
+    hasta: gestionFilterHasta?.value || "",
+    personalId: gestionFilterPersonalHidden?.value || "",
+  };
+}
+
+function formatGestionHoras(value, blankZero = false) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return "";
+  }
+  if (blankZero && number === 0) {
+    return "";
+  }
+  return number.toLocaleString("es-ES", { maximumFractionDigits: 2 });
+}
+
+function formatGestionDate(value) {
+  if (!value) {
+    return "";
+  }
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(value);
+}
+
+function renderGestionPersonalOptions(rows) {
+  const map = new Map();
+  for (const row of rows) {
+    if (row.personal_id == null) {
+      continue;
+    }
+    const key = String(row.personal_id);
+    if (!map.has(key)) {
+      map.set(key, row.personal || `ID ${row.personal_id}`);
+    }
+  }
+  const options = Array.from(map, ([value, label]) => ({ value, label })).sort((left, right) =>
+    left.label.localeCompare(right.label, "es", { sensitivity: "base" })
+  );
+  setPersonalPickerOptions("gestion-filter", options);
+
+  const selected = gestionFilterPersonalHidden?.value || "";
+  if (selected && !map.has(String(selected))) {
+    clearPersonalPicker("gestion-filter");
+  }
+  return map.size;
+}
+
+function renderGestionHistorial(rows) {
+  if (gestionHistorialCount) {
+    gestionHistorialCount.textContent = `${rows.length} ${rows.length === 1 ? "periodo" : "periodos"}`;
+  }
+  if (!gestionHistorialTableBody) {
+    return;
+  }
+  if (!rows.length) {
+    gestionHistorialTableBody.innerHTML =
+      '<tr><td colspan="5" class="empty-state">Sin historiales en el intervalo.</td></tr>';
+    return;
+  }
+
+  gestionHistorialTableBody.innerHTML = rows
+    .map((row) => {
+      const jornada = row.jornada != null ? Number(row.jornada) : NaN;
+      const maxima = row.jornada_maxima != null ? Number(row.jornada_maxima) : NaN;
+      let jornadaLabel = "";
+      if (Number.isFinite(jornada)) {
+        jornadaLabel = formatGestionHoras(jornada);
+        if (Number.isFinite(maxima) && maxima > 0) {
+          jornadaLabel += ` / ${formatGestionHoras(maxima)}`;
+        }
+      }
+      let coef = "";
+      if (row.coeficiente_temporalidad_miles != null) {
+        coef = String(row.coeficiente_temporalidad_miles);
+      } else if (Number.isFinite(jornada) && Number.isFinite(maxima) && maxima > 0) {
+        coef = String(Math.round((jornada / maxima) * 1000));
+      }
+      const personalLabel = row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : "");
+      return `<tr>
+        <td>${escapeHtml(personalLabel)}</td>
+        <td>${escapeHtml(formatGestionDate(row.fecha_alta))}</td>
+        <td>${escapeHtml(formatGestionDate(row.fecha_baja) || "—")}</td>
+        <td class="num">${escapeHtml(jornadaLabel)}</td>
+        <td class="num">${escapeHtml(coef)}</td>
+      </tr>`;
+    })
+    .join("");
+}
+
+function renderGestionRegistros(rows) {
+  // Filas = puesto × situación; columnas = tipo de hora; celdas = suma de horas.
+  const tipoCols = new Map();
+  const rowMap = new Map();
+  const colTotals = new Map();
+  let grandTotal = 0;
+
+  for (const record of rows) {
+    const horas = Number(record.total_horas ?? record.horas);
+    if (!Number.isFinite(horas)) {
+      continue;
+    }
+    const tipoKey = record.tipo_hora_id != null ? String(record.tipo_hora_id) : "∅";
+    if (!tipoCols.has(tipoKey)) {
+      tipoCols.set(
+        tipoKey,
+        record.tipo_hora || (record.tipo_hora_id != null ? `ID ${record.tipo_hora_id}` : "Sin tipo")
+      );
+    }
+    const puestoLabel =
+      record.puesto || (record.puesto_id != null ? `ID ${record.puesto_id}` : "Sin puesto");
+    const situacionLabel =
+      record.situacion || (record.situacion_id != null ? `ID ${record.situacion_id}` : "Sin situación");
+    const rowKey = `${record.puesto_id ?? "∅"}||${record.situacion_id ?? "∅"}`;
+    let rowObj = rowMap.get(rowKey);
+    if (!rowObj) {
+      rowObj = { puesto: puestoLabel, situacion: situacionLabel, cells: new Map(), total: 0 };
+      rowMap.set(rowKey, rowObj);
+    }
+    rowObj.cells.set(tipoKey, (rowObj.cells.get(tipoKey) || 0) + horas);
+    rowObj.total += horas;
+    colTotals.set(tipoKey, (colTotals.get(tipoKey) || 0) + horas);
+    grandTotal += horas;
+  }
+
+  const columns = Array.from(tipoCols, ([key, label]) => ({ key, label })).sort((left, right) =>
+    left.label.localeCompare(right.label, "es", { sensitivity: "base" })
+  );
+  const bodyRows = Array.from(rowMap.values()).sort(
+    (left, right) =>
+      left.puesto.localeCompare(right.puesto, "es", { sensitivity: "base" }) ||
+      left.situacion.localeCompare(right.situacion, "es", { sensitivity: "base" })
+  );
+
+  if (gestionTotalHoras) {
+    gestionTotalHoras.textContent = `Total: ${formatGestionHoras(grandTotal) || "0"} h`;
+  }
+
+  if (gestionPivotHead) {
+    gestionPivotHead.innerHTML = `<tr><th>Puesto</th><th>Situación</th>${columns
+      .map((column) => `<th class="num">${escapeHtml(column.label)}</th>`)
+      .join("")}<th class="num">Total</th></tr>`;
+  }
+
+  if (!gestionPivotBody) {
+    return;
+  }
+  if (!bodyRows.length) {
+    gestionPivotBody.innerHTML = `<tr><td colspan="${
+      columns.length + 3
+    }" class="empty-state">Sin registros en el intervalo.</td></tr>`;
+    return;
+  }
+
+  const body = bodyRows
+    .map(
+      (row) => `<tr>
+        <td>${escapeHtml(row.puesto)}</td>
+        <td>${escapeHtml(row.situacion)}</td>
+        ${columns
+          .map((column) => `<td class="num">${escapeHtml(formatGestionHoras(row.cells.get(column.key) || 0, true))}</td>`)
+          .join("")}
+        <td class="num gestion-row-total">${escapeHtml(formatGestionHoras(row.total))}</td>
+      </tr>`
+    )
+    .join("");
+  const footer = `<tr class="gestion-total-row">
+      <td>Total</td>
+      <td></td>
+      ${columns
+        .map((column) => `<td class="num">${escapeHtml(formatGestionHoras(colTotals.get(column.key) || 0))}</td>`)
+        .join("")}
+      <td class="num">${escapeHtml(formatGestionHoras(grandTotal))}</td>
+    </tr>`;
+  gestionPivotBody.innerHTML = body + footer;
+}
+
+function renderGestionEmpty(message) {
+  renderGestionPersonalOptions([]);
+  renderGestionHistorial([]);
+  renderGestionRegistros([]);
+  if (gestionSummary) {
+    gestionSummary.textContent = message;
+  }
+  if (gestionTotalHoras) {
+    gestionTotalHoras.textContent = "Total: —";
+  }
+}
+
+async function loadGestion() {
+  const { desde, hasta, personalId } = getGestionFilters();
+  if (!desde || !hasta) {
+    renderGestionEmpty("Selecciona un intervalo de fechas (Desde y Hasta).");
+    return;
+  }
+  if (desde > hasta) {
+    renderGestionEmpty("La fecha «Desde» no puede ser posterior a «Hasta».");
+    return;
+  }
+
+  const token = ++gestionRequestToken;
+  if (gestionSummary) {
+    gestionSummary.textContent = "Cargando…";
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    // Los agregados se calculan en el servidor (funciones SET, sin limite de
+    // filas) para dar totales exactos aunque el intervalo tenga decenas de miles
+    // de registros. Respetan el RLS por contrato igual que la pestaña Registros.
+    const personalPromise = supabase.rpc("get_gestion_personal", {
+      p_desde: desde,
+      p_hasta: hasta,
+    });
+    const resumenPromise = supabase.rpc("get_gestion_registros_resumen", {
+      p_desde: desde,
+      p_hasta: hasta,
+      p_personal_id: personalId ? Number(personalId) : null,
+    });
+
+    let historialQuery = supabase
+      .from(HISTORIAL_DETAIL_VIEW)
+      .select(
+        "id, personal_id, personal, fecha_alta, fecha_baja, jornada, jornada_maxima, coeficiente_temporalidad_miles"
+      )
+      .lte("fecha_alta", hasta)
+      .or(`fecha_baja.is.null,fecha_baja.gte.${desde}`)
+      .order("personal", { ascending: true })
+      .order("fecha_alta", { ascending: true })
+      .limit(HISTORIAL_FETCH_LIMIT);
+    if (personalId) {
+      historialQuery = historialQuery.eq("personal_id", personalId);
+    }
+
+    const [personalRes, resumenRes, historialRes] = await Promise.all([
+      personalPromise,
+      resumenPromise,
+      historialQuery,
+    ]);
+    if (token !== gestionRequestToken) {
+      return;
+    }
+    if (personalRes.error) {
+      throw personalRes.error;
+    }
+    if (resumenRes.error) {
+      throw resumenRes.error;
+    }
+    if (historialRes.error) {
+      throw historialRes.error;
+    }
+
+    const personalCount = renderGestionPersonalOptions(personalRes.data ?? []);
+    renderGestionHistorial(historialRes.data ?? []);
+    renderGestionRegistros(resumenRes.data ?? []);
+
+    if (gestionSummary) {
+      const scope = personalId ? "1 persona" : `${personalCount} personas`;
+      gestionSummary.textContent = `${formatGestionDate(desde)} – ${formatGestionDate(hasta)} · ${scope}`;
+    }
+  } catch (error) {
+    if (token !== gestionRequestToken) {
+      return;
+    }
+    renderGestionEmpty("No se pudo cargar la gestión.");
+    setStatus(`No se pudo cargar la gestión: ${error.message}`, "error");
+  }
+}
+
+// --- Contabilidad (tabla cronos) ---
+// 87k+ apuntes -> paginacion y agregados en servidor. Los desplegables de
+// filtro y los totales se calculan con RPCs (get_cronos_filtros/resumen).
+const contabilidadFiltersForm = document.querySelector("#contabilidad-filters-form");
+const contabilidadFilterDesde = document.querySelector("#contabilidad-filter-desde");
+const contabilidadFilterHasta = document.querySelector("#contabilidad-filter-hasta");
+const contabilidadFilterCentro = document.querySelector("#contabilidad-filter-centro");
+const contabilidadFilterTipoServicio = document.querySelector("#contabilidad-filter-tipo-servicio");
+const contabilidadFilterFormaPago = document.querySelector("#contabilidad-filter-forma-pago");
+const contabilidadFilterAnulado = document.querySelector("#contabilidad-filter-anulado");
+const contabilidadFilterVinculacion = document.querySelector("#contabilidad-filter-vinculacion");
+const contabilidadFilterServicio = document.querySelector("#contabilidad-filter-servicio");
+const contabilidadFilterSearch = document.querySelector("#contabilidad-filter-search");
+const contabilidadClearFiltersButton = document.querySelector("#contabilidad-clear-filters-button");
+const contabilidadRefreshButton = document.querySelector("#contabilidad-refresh-button");
+const contabilidadSummary = document.querySelector("#contabilidad-summary");
+const contabilidadTableBody = document.querySelector("#contabilidad-table-body");
+const contabilidadPageSizeSelect = document.querySelector("#contabilidad-page-size");
+const contabilidadPrevButton = document.querySelector("#contabilidad-prev-page");
+const contabilidadNextButton = document.querySelector("#contabilidad-next-page");
+const contabilidadPageInfo = document.querySelector("#contabilidad-page-info");
+
+const CONTABILIDAD_SELECT =
+  "id, fecha, hora, centro, servicio, tipo_servicio, tarifa, cantidad, importe, " +
+  "forma_pago, anulado, apellidos, nombre, documento";
+const CONTABILIDAD_COLSPAN = 13;
+let contabilidadPage = 1;
+let contabilidadPageSize = 100;
+let contabilidadTotalCount = 0;
+let contabilidadCatalogFiltersLoaded = false;
+let contabilidadRequestToken = 0;
+
+function getContabilidadFilters() {
+  const anuladoVal = contabilidadFilterAnulado?.value || "";
+  return {
+    desde: contabilidadFilterDesde?.value || "",
+    hasta: contabilidadFilterHasta?.value || "",
+    centro: contabilidadFilterCentro?.value || "",
+    tipoServicio: contabilidadFilterTipoServicio?.value || "",
+    formaPago: contabilidadFilterFormaPago?.value || "",
+    anulado: anuladoVal === "" ? null : anuladoVal === "true",
+    vinculacion: (() => {
+      const value = contabilidadFilterVinculacion?.value || "";
+      return value === "" ? null : value === "true";
+    })(),
+    servicio: contabilidadFilterServicio?.value.trim() || "",
+    search: contabilidadFilterSearch?.value.trim() || "",
+  };
+}
+
+function applyContabilidadQueryFilters(query, filters) {
+  if (filters.desde) query = query.gte("fecha", filters.desde);
+  if (filters.hasta) query = query.lte("fecha", filters.hasta);
+  if (filters.centro) query = query.eq("centro", filters.centro);
+  if (filters.tipoServicio) query = query.eq("tipo_servicio", filters.tipoServicio);
+  if (filters.formaPago) query = query.eq("forma_pago", filters.formaPago);
+  if (filters.anulado !== null) query = query.eq("anulado", filters.anulado);
+  if (filters.vinculacion !== null) query = query.eq("vinculado", filters.vinculacion);
+  if (filters.servicio) query = query.ilike("servicio", `%${filters.servicio}%`);
+  if (filters.search) {
+    // En un filtro .or() de PostgREST el comodin es '*'; saneamos separadores.
+    const term = filters.search.replace(/[,()*]/g, " ").trim();
+    if (term) {
+      query = query.or(
+        `apellidos.ilike.*${term}*,nombre.ilike.*${term}*,documento.ilike.*${term}*,numero_factura.ilike.*${term}*`
+      );
+    }
+  }
+  return query;
+}
+
+async function loadContabilidadFiltros(supabase, filters = getContabilidadFilters()) {
+  const { data, error } = await supabase.rpc("get_cronos_filtros", {
+    p_desde: filters.desde || null,
+    p_hasta: filters.hasta || null,
+    p_centro: filters.centro || null,
+    p_tipo_servicio: filters.tipoServicio || null,
+    p_forma_pago: filters.formaPago || null,
+    p_anulado: filters.anulado,
+    p_servicio: filters.servicio || null,
+    p_search: filters.search || null,
+    p_vinculado: filters.vinculacion,
+  });
+  if (error || !data) {
+    return;
+  }
+  const fillSelect = (select, values, allLabel, formatValue = (value) => value, formatLabel = (value) => value) => {
+    if (!select) return;
+    const previous = select.value;
+    select.innerHTML =
+      `<option value="">${allLabel}</option>` +
+      (values || [])
+        .map((value) => {
+          const optionValue = formatValue(value);
+          return `<option value="${escapeHtml(optionValue)}">${escapeHtml(formatLabel(value))}</option>`;
+        })
+        .join("");
+    select.value = Array.from(select.options).some((option) => option.value === previous) ? previous : "";
+  };
+  if (!contabilidadCatalogFiltersLoaded) {
+    fillSelect(contabilidadFilterCentro, data.centros, "Todos");
+    fillSelect(contabilidadFilterTipoServicio, data.tipos_servicio, "Todos");
+    contabilidadCatalogFiltersLoaded = true;
+  }
+  fillSelect(contabilidadFilterFormaPago, data.formas_pago, "Todas");
+  fillSelect(
+    contabilidadFilterAnulado,
+    data.anulados,
+    "Todos",
+    (value) => String(value),
+    (value) => (value ? "Sí" : "No")
+  );
+}
+
+function formatContabilidadImporte(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return "";
+  }
+  return number.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function renderContabilidadRows(rows) {
+  if (!contabilidadTableBody) {
+    return;
+  }
+  if (!rows.length) {
+    contabilidadTableBody.innerHTML = `<tr><td colspan="${CONTABILIDAD_COLSPAN}" class="empty-state">No hay apuntes con esos filtros.</td></tr>`;
+    return;
+  }
+  contabilidadTableBody.innerHTML = rows
+    .map(
+      (row) => `<tr${row.anulado ? ' class="contabilidad-anulado"' : ""}>
+        <td>${escapeHtml(formatGestionDate(row.fecha))}</td>
+        <td>${escapeHtml((row.hora || "").slice(0, 5))}</td>
+        <td>${escapeHtml(row.centro || "")}</td>
+        <td>${escapeHtml(row.servicio || "")}</td>
+        <td>${escapeHtml(row.tipo_servicio || "")}</td>
+        <td>${escapeHtml(row.tarifa || "")}</td>
+        <td class="num">${escapeHtml(row.cantidad != null ? String(row.cantidad) : "")}</td>
+        <td class="num">${escapeHtml(formatContabilidadImporte(row.importe))}</td>
+        <td>${escapeHtml(row.forma_pago || "")}</td>
+        <td>${row.anulado ? "Sí" : "No"}</td>
+        <td>${escapeHtml(row.apellidos || "")}</td>
+        <td>${escapeHtml(row.nombre || "")}</td>
+        <td>${escapeHtml(row.documento || "")}</td>
+      </tr>`
+    )
+    .join("");
+}
+
+function updateContabilidadPagination() {
+  const totalPages = Math.max(1, Math.ceil(contabilidadTotalCount / contabilidadPageSize));
+  if (contabilidadPage > totalPages) {
+    contabilidadPage = totalPages;
+  }
+  if (contabilidadPageInfo) {
+    contabilidadPageInfo.textContent = `Página ${contabilidadPage} de ${totalPages} · ${contabilidadTotalCount.toLocaleString(
+      "es-ES"
+    )} apuntes`;
+  }
+  if (contabilidadPrevButton) contabilidadPrevButton.disabled = contabilidadPage <= 1;
+  if (contabilidadNextButton) contabilidadNextButton.disabled = contabilidadPage >= totalPages;
+}
+
+async function loadContabilidad() {
+  const token = ++contabilidadRequestToken;
+  if (contabilidadSummary) {
+    contabilidadSummary.textContent = "Cargando apuntes...";
+  }
+  if (contabilidadTableBody) {
+    contabilidadTableBody.innerHTML = `<tr><td colspan="${CONTABILIDAD_COLSPAN}" class="empty-state">Cargando apuntes...</td></tr>`;
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const filters = getContabilidadFilters();
+    await loadContabilidadFiltros(supabase, filters);
+    const refreshedFilters = getContabilidadFilters();
+    const from = (contabilidadPage - 1) * contabilidadPageSize;
+    const to = from + contabilidadPageSize - 1;
+
+    // Listado y resumen van por RPC SECURITY DEFINER para evitar timeouts de RLS
+    // fila a fila sobre tablas grandes.
+    const pagePromise = supabase.rpc("get_cronos_page", {
+      p_desde: refreshedFilters.desde || null,
+      p_hasta: refreshedFilters.hasta || null,
+      p_centro: refreshedFilters.centro || null,
+      p_tipo_servicio: refreshedFilters.tipoServicio || null,
+      p_forma_pago: refreshedFilters.formaPago || null,
+      p_anulado: refreshedFilters.anulado,
+      p_servicio: refreshedFilters.servicio || null,
+      p_search: refreshedFilters.search || null,
+      p_vinculado: refreshedFilters.vinculacion,
+      p_offset: from,
+      p_limit: contabilidadPageSize,
+    });
+
+    const resumenPromise = supabase.rpc("get_cronos_resumen", {
+      p_desde: refreshedFilters.desde || null,
+      p_hasta: refreshedFilters.hasta || null,
+      p_centro: refreshedFilters.centro || null,
+      p_tipo_servicio: refreshedFilters.tipoServicio || null,
+      p_forma_pago: refreshedFilters.formaPago || null,
+      p_anulado: refreshedFilters.anulado,
+      p_servicio: refreshedFilters.servicio || null,
+      p_search: refreshedFilters.search || null,
+      p_vinculado: refreshedFilters.vinculacion,
+    });
+
+    const [pageRes, resumenRes] = await Promise.all([pagePromise, resumenPromise]);
+    if (token !== contabilidadRequestToken) {
+      return;
+    }
+    if (pageRes.error) {
+      throw pageRes.error;
+    }
+
+    const resumen = resumenRes.data?.[0];
+    contabilidadTotalCount =
+      resumen && !resumenRes.error ? Number(resumen.total_apuntes) : (pageRes.data?.length ?? 0);
+    renderContabilidadRows(pageRes.data ?? []);
+    updateContabilidadPagination();
+
+    if (contabilidadSummary) {
+      if (resumen && !resumenRes.error) {
+        contabilidadSummary.textContent =
+          `${Number(resumen.total_apuntes).toLocaleString("es-ES")} apuntes · ` +
+          `Importe ${formatContabilidadImporte(resumen.total_importe)} € ` +
+          `(sin anular ${formatContabilidadImporte(resumen.total_importe_activo)} €)`;
+      } else {
+        contabilidadSummary.textContent = `${contabilidadTotalCount.toLocaleString("es-ES")} apuntes`;
+      }
+    }
+  } catch (error) {
+    if (token !== contabilidadRequestToken) {
+      return;
+    }
+    if (contabilidadSummary) {
+      contabilidadSummary.textContent = "No se pudieron cargar los apuntes.";
+    }
+    if (contabilidadTableBody) {
+      contabilidadTableBody.innerHTML = `<tr><td colspan="${CONTABILIDAD_COLSPAN}" class="empty-state">Error cargando la contabilidad.</td></tr>`;
+    }
+    setStatus(`No se pudo cargar la contabilidad: ${error.message}`, "error");
+  }
+}
+
+function reloadContabilidadFromFilters() {
+  contabilidadPage = 1;
+  void loadContabilidad();
+}
+
+// --- Contabilidad: subpestañas (Apuntes / Banco) ---
+const contabilidadViewApuntes = document.querySelector("#contabilidad-view-apuntes");
+const contabilidadViewBanco = document.querySelector("#contabilidad-view-banco");
+const contabilidadViewResultados = document.querySelector("#contabilidad-view-resultados");
+const contabilidadViewConciliacion = document.querySelector("#contabilidad-view-conciliacion");
+let currentContabilidadSubtab = "apuntes";
+let bancoLoadedOnce = false;
+
+function switchContabilidadSubtab(view) {
+  currentContabilidadSubtab =
+    view === "banco"
+      ? "banco"
+      : view === "resultados"
+        ? "resultados"
+        : view === "conciliacion"
+          ? "conciliacion"
+          : "apuntes";
+  contabilidadViewApuntes?.classList.toggle("hidden", currentContabilidadSubtab !== "apuntes");
+  contabilidadViewBanco?.classList.toggle("hidden", currentContabilidadSubtab !== "banco");
+  contabilidadViewResultados?.classList.toggle("hidden", currentContabilidadSubtab !== "resultados");
+  contabilidadViewConciliacion?.classList.toggle(
+    "hidden",
+    currentContabilidadSubtab !== "conciliacion"
+  );
+  document.querySelectorAll("[data-contabilidad-subtab]").forEach((button) => {
+    const active = button.dataset.contabilidadSubtab === currentContabilidadSubtab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+async function loadContabilidadActive() {
+  if (currentContabilidadSubtab === "banco") {
+    await loadContabilidadBanco();
+    return;
+  }
+  if (currentContabilidadSubtab === "resultados") {
+    await loadResultados();
+    return;
+  }
+  if (currentContabilidadSubtab === "conciliacion") {
+    await loadConciliacion();
+    return;
+  }
+  await loadContabilidad();
+}
+
+// --- Contabilidad: subpestaña Banco (tabla cronos_banco) ---
+const bancoFiltersForm = document.querySelector("#banco-filters-form");
+const bancoFilterDesde = document.querySelector("#banco-filter-desde");
+const bancoFilterHasta = document.querySelector("#banco-filter-hasta");
+const bancoFilterResultado = document.querySelector("#banco-filter-resultado");
+const bancoFilterTipoPago = document.querySelector("#banco-filter-tipo-pago");
+const bancoFilterSearch = document.querySelector("#banco-filter-search");
+const bancoClearFiltersButton = document.querySelector("#banco-clear-filters-button");
+const bancoRefreshButton = document.querySelector("#banco-refresh-button");
+const bancoSummary = document.querySelector("#banco-summary");
+const bancoTableBody = document.querySelector("#banco-table-body");
+const bancoPageSizeSelect = document.querySelector("#banco-page-size");
+const bancoPrevButton = document.querySelector("#banco-prev-page");
+const bancoNextButton = document.querySelector("#banco-next-page");
+const bancoPageInfo = document.querySelector("#banco-page-info");
+
+const BANCO_SELECT =
+  "id, fecha, hora, cod_pedido, resultado, importe_euros, moneda, tipo_pago, tarjeta";
+const BANCO_COLSPAN = 8;
+let bancoPage = 1;
+let bancoPageSize = 100;
+let bancoTotalCount = 0;
+let bancoFiltrosLoaded = false;
+let bancoRequestToken = 0;
+
+function getBancoFilters() {
+  return {
+    desde: bancoFilterDesde?.value || "",
+    hasta: bancoFilterHasta?.value || "",
+    estado: bancoFilterResultado?.value || "",
+    tipoPago: bancoFilterTipoPago?.value || "",
+    terminal: null,
+    search: bancoFilterSearch?.value.trim() || "",
+  };
+}
+
+function applyBancoQueryFilters(query, filters) {
+  if (filters.desde) query = query.gte("fecha", filters.desde);
+  if (filters.hasta) query = query.lte("fecha", filters.hasta);
+  if (filters.estado) query = query.ilike("resultado", `${filters.estado}%`);
+  if (filters.tipoPago) query = query.eq("tipo_pago", filters.tipoPago);
+  if (filters.terminal !== null) query = query.eq("terminal", filters.terminal);
+  if (filters.search) {
+    const term = filters.search.replace(/[,()*]/g, " ").trim();
+    if (term) {
+      const clauses = [`tarjeta.ilike.*${term}*`, `resultado.ilike.*${term}*`];
+      if (/^[0-9]+$/.test(term)) {
+        clauses.push(`cod_pedido.eq.${term}`);
+      }
+      query = query.or(clauses.join(","));
+    }
+  }
+  return query;
+}
+
+async function loadBancoFiltros(supabase) {
+  if (bancoFiltrosLoaded) {
+    return;
+  }
+  const { data, error } = await supabase.rpc("get_cronos_banco_filtros");
+  if (error || !data) {
+    return;
+  }
+  const fillSelect = (select, values, allLabel) => {
+    if (!select) return;
+    const previous = select.value;
+    select.innerHTML =
+      `<option value="">${allLabel}</option>` +
+      (values || [])
+        .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+        .join("");
+    select.value = previous;
+  };
+  // El filtro "Resultado" es estático (Autorizada/Denegada/Cancelada/Sin finalizar).
+  fillSelect(bancoFilterTipoPago, data.tipos_pago, "Todos");
+  bancoFiltrosLoaded = true;
+}
+
+function renderBancoRows(rows) {
+  if (!bancoTableBody) {
+    return;
+  }
+  if (!rows.length) {
+    bancoTableBody.innerHTML = `<tr><td colspan="${BANCO_COLSPAN}" class="empty-state">No hay movimientos con esos filtros.</td></tr>`;
+    return;
+  }
+  bancoTableBody.innerHTML = rows
+    .map(
+      (row) => `<tr>
+        <td>${escapeHtml(formatGestionDate(row.fecha))}</td>
+        <td>${escapeHtml((row.hora || "").slice(0, 5))}</td>
+        <td>${escapeHtml(row.cod_pedido != null ? String(row.cod_pedido) : "")}</td>
+        <td>${escapeHtml(row.resultado || "")}</td>
+        <td class="num">${escapeHtml(formatContabilidadImporte(row.importe_euros))}</td>
+        <td>${escapeHtml(row.moneda || "")}</td>
+        <td>${escapeHtml(row.tipo_pago || "")}</td>
+        <td>${escapeHtml(row.tarjeta || "")}</td>
+      </tr>`
+    )
+    .join("");
+}
+
+function updateBancoPagination() {
+  const totalPages = Math.max(1, Math.ceil(bancoTotalCount / bancoPageSize));
+  if (bancoPage > totalPages) {
+    bancoPage = totalPages;
+  }
+  if (bancoPageInfo) {
+    bancoPageInfo.textContent = `Página ${bancoPage} de ${totalPages} · ${bancoTotalCount.toLocaleString(
+      "es-ES"
+    )} movimientos`;
+  }
+  if (bancoPrevButton) bancoPrevButton.disabled = bancoPage <= 1;
+  if (bancoNextButton) bancoNextButton.disabled = bancoPage >= totalPages;
+}
+
+async function loadContabilidadBanco() {
+  bancoLoadedOnce = true;
+  const token = ++bancoRequestToken;
+  if (bancoSummary) {
+    bancoSummary.textContent = "Cargando movimientos...";
+  }
+  if (bancoTableBody) {
+    bancoTableBody.innerHTML = `<tr><td colspan="${BANCO_COLSPAN}" class="empty-state">Cargando movimientos...</td></tr>`;
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    await loadBancoFiltros(supabase);
+    const filters = getBancoFilters();
+    const from = (bancoPage - 1) * bancoPageSize;
+    const to = from + bancoPageSize - 1;
+
+    // Listado y resumen van por RPC SECURITY DEFINER para evitar timeouts de RLS
+    // fila a fila sobre tablas grandes.
+    const pagePromise = supabase.rpc("get_cronos_banco_page", {
+      p_desde: filters.desde || null,
+      p_hasta: filters.hasta || null,
+      p_estado: filters.estado || null,
+      p_tipo_pago: filters.tipoPago || null,
+      p_terminal: filters.terminal,
+      p_search: filters.search || null,
+      p_offset: from,
+      p_limit: bancoPageSize,
+    });
+
+    const resumenPromise = supabase.rpc("get_cronos_banco_resumen", {
+      p_desde: filters.desde || null,
+      p_hasta: filters.hasta || null,
+      p_estado: filters.estado || null,
+      p_tipo_pago: filters.tipoPago || null,
+      p_terminal: filters.terminal,
+      p_search: filters.search || null,
+    });
+
+    const [pageRes, resumenRes] = await Promise.all([pagePromise, resumenPromise]);
+    if (token !== bancoRequestToken) {
+      return;
+    }
+    if (pageRes.error) {
+      throw pageRes.error;
+    }
+
+    const resumen = resumenRes.data?.[0];
+    bancoTotalCount =
+      resumen && !resumenRes.error ? Number(resumen.total_operaciones) : (pageRes.data?.length ?? 0);
+    renderBancoRows(pageRes.data ?? []);
+    updateBancoPagination();
+
+    if (bancoSummary) {
+      if (resumen && !resumenRes.error) {
+        bancoSummary.textContent =
+          `${Number(resumen.total_operaciones).toLocaleString("es-ES")} movimientos · ` +
+          `Importe ${formatContabilidadImporte(resumen.total_importe)} €`;
+      } else {
+        bancoSummary.textContent = `${bancoTotalCount.toLocaleString("es-ES")} movimientos`;
+      }
+    }
+  } catch (error) {
+    if (token !== bancoRequestToken) {
+      return;
+    }
+    if (bancoSummary) {
+      bancoSummary.textContent = "No se pudieron cargar los movimientos.";
+    }
+    if (bancoTableBody) {
+      bancoTableBody.innerHTML = `<tr><td colspan="${BANCO_COLSPAN}" class="empty-state">Error cargando el banco.</td></tr>`;
+    }
+    setStatus(`No se pudo cargar el banco: ${error.message}`, "error");
+  }
+}
+
+function reloadBancoFromFilters() {
+  bancoPage = 1;
+  void loadContabilidadBanco();
+}
+
+// --- Contabilidad: Resultados (cronos_banco.cod_pedido vs cronos.identificador) ---
+const resultadosFiltersForm = document.querySelector("#resultados-filters-form");
+const resultadosFilterDesde = document.querySelector("#resultados-filter-desde");
+const resultadosFilterHasta = document.querySelector("#resultados-filter-hasta");
+const resultadosFilterResultado = document.querySelector("#resultados-filter-resultado");
+const resultadosFilterAnulado = document.querySelector("#resultados-filter-anulado");
+const resultadosFilterSearch = document.querySelector("#resultados-filter-search");
+const resultadosClearFiltersButton = document.querySelector("#resultados-clear-filters-button");
+const resultadosRefreshButton = document.querySelector("#resultados-refresh-button");
+const resultadosExportExcelButton = document.querySelector("#resultados-export-excel-button");
+const resultadosExportPdfButton = document.querySelector("#resultados-export-pdf-button");
+const resultadosSummary = document.querySelector("#resultados-summary");
+const resultadosTable = document.querySelector("#resultados-table");
+const resultadosTableHead = document.querySelector("#resultados-table-head");
+const resultadosTableBody = document.querySelector("#resultados-table-body");
+const resultadosPageSizeSelect = document.querySelector("#resultados-page-size");
+const resultadosPrevButton = document.querySelector("#resultados-prev-page");
+const resultadosNextButton = document.querySelector("#resultados-next-page");
+const resultadosPageInfo = document.querySelector("#resultados-page-info");
+const RESULTADOS_DETAIL_COLSPAN = 10;
+const RESULTADOS_RESUMEN_COLSPAN = 5;
+let resultadosPage = 1;
+let resultadosPageSize = 100;
+let resultadosTotalCount = 0;
+let resultadosRequestToken = 0;
+let currentResultadosView = "detalle";
+let resultadosCurrentRows = [];
+
+function getResultadosFilters() {
+  const anuladoVal = resultadosFilterAnulado?.value || "";
+  return {
+    desde: resultadosFilterDesde?.value || "",
+    hasta: resultadosFilterHasta?.value || "",
+    resultado: resultadosFilterResultado?.value || "",
+    anulado: anuladoVal === "" ? null : anuladoVal === "true",
+    search: resultadosFilterSearch?.value.trim() || "",
+  };
+}
+
+function getResultadosColspan() {
+  return currentResultadosView === "detalle" ? RESULTADOS_DETAIL_COLSPAN : RESULTADOS_RESUMEN_COLSPAN;
+}
+
+function syncResultadosExportButtons() {
+  const show = currentResultadosView === "resumen";
+  resultadosExportExcelButton?.classList.toggle("hidden", !show);
+  resultadosExportPdfButton?.classList.toggle("hidden", !show);
+}
+
+function renderResultadosHead() {
+  syncResultadosExportButtons();
+  resultadosTable?.classList.toggle("resultados-resumen-table", currentResultadosView === "resumen");
+  if (!resultadosTableHead) {
+    return;
+  }
+  if (currentResultadosView === "detalle") {
+    resultadosTableHead.innerHTML = `<tr>
+      <th>Banco Id</th>
+      <th>Fecha</th>
+      <th>Hora</th>
+      <th>Tipo operación</th>
+      <th>Cód pedido</th>
+      <th>Banco importe</th>
+      <th>Importe euros</th>
+      <th>Tarifa</th>
+      <th>Cantidad</th>
+      <th>Cronos importe</th>
+    </tr>`;
+    return;
+  }
+  resultadosTableHead.innerHTML = `<tr>
+    <th>Fecha por mes</th>
+    <th>Tarifa</th>
+    <th>Unidades</th>
+    <th>Importe</th>
+    <th>Mes</th>
+  </tr>`;
+}
+
+function renderResultadosRows(rows) {
+  if (!resultadosTableBody) {
+    return;
+  }
+  renderResultadosHead();
+  if (!rows.length) {
+    resultadosTableBody.innerHTML = `<tr><td colspan="${getResultadosColspan()}" class="empty-state">No hay resultados con esos filtros.</td></tr>`;
+    return;
+  }
+  if (currentResultadosView === "detalle") {
+    resultadosTableBody.innerHTML = rows
+      .map(
+        (row) => `<tr>
+          <td>${escapeHtml(row.banco_id != null ? String(row.banco_id) : "")}</td>
+          <td>${escapeHtml(formatGestionDate(row.fecha))}</td>
+          <td>${escapeHtml((row.hora || "").slice(0, 5))}</td>
+          <td>${escapeHtml(row.tipo_operacion || "")}</td>
+          <td>${escapeHtml(row.cod_pedido != null ? String(row.cod_pedido) : "")}</td>
+          <td class="num">${escapeHtml(formatContabilidadImporte(row.banco_importe))}</td>
+          <td class="num">${escapeHtml(formatContabilidadImporte(row.importe_euros))}</td>
+          <td>${escapeHtml(row.tarifa || "")}</td>
+          <td class="num">${escapeHtml(row.cantidad != null ? String(row.cantidad) : "")}</td>
+          <td class="num">${escapeHtml(formatContabilidadImporte(row.cronos_importe))}</td>
+        </tr>`
+      )
+      .join("");
+    return;
+  }
+  resultadosTableBody.innerHTML = rows
+    .map(
+      (row) => `<tr>
+        <td>${escapeHtml(row.fecha_por_mes || "")}</td>
+        <td>${escapeHtml(row.tarifa || "")}</td>
+        <td class="num">${escapeHtml(row.unidades != null ? String(row.unidades) : "")}</td>
+        <td class="num">${escapeHtml(formatContabilidadImporte(row.importe))}</td>
+        <td class="num">${escapeHtml(row.mes != null ? String(row.mes) : "")}</td>
+      </tr>`
+    )
+    .join("");
+}
+
+async function fetchResultadosResumenRows(limit = 5000) {
+  const filters = getResultadosFilters();
+  if (!filters.desde || !filters.hasta) {
+    throw new Error("Selecciona un intervalo de fechas (Desde y Hasta).");
+  }
+  if (filters.desde > filters.hasta) {
+    throw new Error("La fecha «Desde» no puede ser posterior a «Hasta».");
+  }
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase.rpc("get_cronos_resultados", {
+    p_desde: filters.desde || null,
+    p_hasta: filters.hasta || null,
+    p_resultado: filters.resultado || null,
+    p_anulado: filters.anulado,
+    p_search: filters.search || null,
+    p_vista: "resumen",
+    p_offset: 0,
+    p_limit: limit,
+  });
+  if (error) {
+    throw error;
+  }
+  return data?.rows ?? [];
+}
+
+function getResultadosResumenExportRows(rows) {
+  return rows.map((row) => ({
+    "Fecha por mes": row.fecha_por_mes || "",
+    Tarifa: row.tarifa || "",
+    Unidades: Number(row.unidades || 0),
+    Importe: Number(row.importe || 0),
+    Mes: Number(row.mes || 0),
+  }));
+}
+
+function buildResultadosResumenStats(rows) {
+  const byMonth = new Map();
+  const byTarifa = new Map();
+  let totalImporte = 0;
+  let totalUnidades = 0;
+
+  for (const row of rows) {
+    const importe = Number(row.importe || 0);
+    const unidades = Number(row.unidades || 0);
+    const monthKey = `${String(row.mes || "").padStart(2, "0")} ${row.fecha_por_mes || ""}`.trim();
+    const tarifaKey = row.tarifa || "Sin tarifa";
+    totalImporte += importe;
+    totalUnidades += unidades;
+
+    const month = byMonth.get(monthKey) || {
+      label: row.fecha_por_mes || "",
+      mes: Number(row.mes || 0),
+      importe: 0,
+      unidades: 0,
+    };
+    month.importe += importe;
+    month.unidades += unidades;
+    byMonth.set(monthKey, month);
+
+    const tarifa = byTarifa.get(tarifaKey) || { tarifa: tarifaKey, importe: 0, unidades: 0 };
+    tarifa.importe += importe;
+    tarifa.unidades += unidades;
+    byTarifa.set(tarifaKey, tarifa);
+  }
+
+  return {
+    totalImporte,
+    totalUnidades,
+    byMonth: Array.from(byMonth.values()).sort((left, right) => left.mes - right.mes),
+    byTarifa: Array.from(byTarifa.values()).sort((left, right) => right.importe - left.importe),
+  };
+}
+
+function ensurePdfSpace(doc, y, needed, margin) {
+  if (y + needed <= 790) {
+    return y;
+  }
+  doc.addPage();
+  return margin;
+}
+
+function drawResultadosMonthlyChart(doc, months, x, y, width, height) {
+  const maxImporte = Math.max(...months.map((month) => month.importe), 1);
+  const barGap = 6;
+  const barWidth = Math.max(12, (width - barGap * Math.max(0, months.length - 1)) / Math.max(months.length, 1));
+  doc.setDrawColor(180);
+  doc.line(x, y + height, x + width, y + height);
+  doc.setFillColor(44, 123, 229);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+
+  months.forEach((month, index) => {
+    const barHeight = (month.importe / maxImporte) * (height - 18);
+    const bx = x + index * (barWidth + barGap);
+    const by = y + height - barHeight;
+    doc.rect(bx, by, barWidth, barHeight, "F");
+    doc.text(String(month.mes || ""), bx + barWidth / 2, y + height + 10, { align: "center" });
+  });
+
+  doc.setFontSize(8);
+  doc.text(`Máximo: ${formatContabilidadImporte(maxImporte)} €`, x, y - 4);
+}
+
+async function exportResultadosResumenExcel() {
+  try {
+    const rows = await fetchResultadosResumenRows();
+    if (!rows.length) {
+      setStatus("No hay resumen para exportar.", "error");
+      return;
+    }
+    const xlsxModule = await getXlsxClient();
+    const XLSX = xlsxModule.default || xlsxModule;
+    const worksheet = XLSX.utils.json_to_sheet(getResultadosResumenExportRows(rows));
+    worksheet["!cols"] = [{ wch: 16 }, { wch: 28 }, { wch: 10 }, { wch: 12 }, { wch: 6 }];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Resumen");
+    const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const suffix = `${getResultadosFilters().desde}_${getResultadosFilters().hasta}`;
+    triggerDownload(
+      new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      `resultados-resumen-${suffix}.xlsx`
+    );
+    setStatus("Resumen exportado a Excel.", "success");
+  } catch (error) {
+    setStatus(`No se pudo exportar el resumen a Excel: ${error.message}`, "error");
+  }
+}
+
+async function exportResultadosResumenPdf() {
+  try {
+    const rows = await fetchResultadosResumenRows();
+    if (!rows.length) {
+      setStatus("No hay resumen para exportar.", "error");
+      return;
+    }
+    const { jsPDF } = await getJsPdfClient();
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    const margin = 36;
+    const lineHeight = 16;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = margin;
+    const filters = getResultadosFilters();
+    const stats = buildResultadosResumenStats(rows);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text("Resultados - Resumen", margin, y);
+    y += lineHeight;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`${formatGestionDate(filters.desde)} - ${formatGestionDate(filters.hasta)}`, margin, y);
+    y += lineHeight + 8;
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Resumen final", margin, y);
+    y += lineHeight;
+    doc.setFont("helvetica", "normal");
+    doc.text(`Ingresos totales del periodo: ${formatContabilidadImporte(stats.totalImporte)} €`, margin, y);
+    y += lineHeight;
+    doc.text(`Unidades totales: ${stats.totalUnidades.toLocaleString("es-ES", { maximumFractionDigits: 2 })}`, margin, y);
+    y += lineHeight + 8;
+
+    y = ensurePdfSpace(doc, y, 130, margin);
+    doc.setFont("helvetica", "bold");
+    doc.text("Evolución mensual de ingresos", margin, y);
+    y += lineHeight;
+    drawResultadosMonthlyChart(doc, stats.byMonth, margin, y + 6, pageWidth - margin * 2, 105);
+    y += 132;
+
+    const colX = [margin, margin + 105, margin + 310, margin + 390, margin + 475];
+    y = ensurePdfSpace(doc, y, 80, margin);
+    doc.setFont("helvetica", "bold");
+    doc.text("Detalle por mes y tarifa", margin, y);
+    y += lineHeight;
+    doc.setFont("helvetica", "bold");
+    ["Fecha por mes", "Tarifa", "Unidades", "Importe", "Mes"].forEach((label, index) => {
+      doc.text(label, colX[index], y);
+    });
+    y += lineHeight;
+    doc.setFont("helvetica", "normal");
+    for (const row of rows) {
+      if (y > 760) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(String(row.fecha_por_mes || ""), colX[0], y);
+      doc.text(String(row.tarifa || "").slice(0, 34), colX[1], y);
+      doc.text(String(row.unidades || 0), colX[2], y, { align: "right" });
+      doc.text(formatContabilidadImporte(row.importe), colX[3], y, { align: "right" });
+      doc.text(String(row.mes || ""), colX[4], y, { align: "right" });
+      y += lineHeight;
+    }
+
+    y = ensurePdfSpace(doc, y, 90, margin);
+    y += 8;
+    doc.setFont("helvetica", "bold");
+    doc.text("Ingresos por mes", margin, y);
+    y += lineHeight;
+    doc.text("Mes", margin, y);
+    doc.text("Unidades", margin + 250, y, { align: "right" });
+    doc.text("Importe", margin + 390, y, { align: "right" });
+    y += lineHeight;
+    doc.setFont("helvetica", "normal");
+    for (const month of stats.byMonth) {
+      y = ensurePdfSpace(doc, y, lineHeight, margin);
+      doc.text(month.label || "", margin, y);
+      doc.text(month.unidades.toLocaleString("es-ES", { maximumFractionDigits: 2 }), margin + 250, y, {
+        align: "right",
+      });
+      doc.text(formatContabilidadImporte(month.importe), margin + 390, y, { align: "right" });
+      y += lineHeight;
+    }
+
+    y = ensurePdfSpace(doc, y, 90, margin);
+    y += 8;
+    doc.setFont("helvetica", "bold");
+    doc.text("Ingresos por tarifa", margin, y);
+    y += lineHeight;
+    doc.text("Tarifa", margin, y);
+    doc.text("Unidades", margin + 330, y, { align: "right" });
+    doc.text("Importe", margin + 475, y, { align: "right" });
+    y += lineHeight;
+    doc.setFont("helvetica", "normal");
+    for (const tarifa of stats.byTarifa) {
+      y = ensurePdfSpace(doc, y, lineHeight, margin);
+      doc.text(String(tarifa.tarifa || "").slice(0, 48), margin, y);
+      doc.text(tarifa.unidades.toLocaleString("es-ES", { maximumFractionDigits: 2 }), margin + 330, y, {
+        align: "right",
+      });
+      doc.text(formatContabilidadImporte(tarifa.importe), margin + 475, y, { align: "right" });
+      y += lineHeight;
+    }
+
+    doc.save(`resultados-resumen-${filters.desde}_${filters.hasta}.pdf`);
+    setStatus("Resumen exportado a PDF.", "success");
+  } catch (error) {
+    setStatus(`No se pudo exportar el resumen a PDF: ${error.message}`, "error");
+  }
+}
+
+function updateResultadosPagination() {
+  const totalPages = Math.max(1, Math.ceil(resultadosTotalCount / resultadosPageSize));
+  if (resultadosPage > totalPages) {
+    resultadosPage = totalPages;
+  }
+  if (resultadosPageInfo) {
+    resultadosPageInfo.textContent = `Página ${resultadosPage} de ${totalPages} · ${resultadosTotalCount.toLocaleString(
+      "es-ES"
+    )} resultados`;
+  }
+  if (resultadosPrevButton) resultadosPrevButton.disabled = resultadosPage <= 1;
+  if (resultadosNextButton) resultadosNextButton.disabled = resultadosPage >= totalPages;
+}
+
+function renderResultadosEmpty(message) {
+  resultadosTotalCount = 0;
+  resultadosCurrentRows = [];
+  if (resultadosSummary) {
+    resultadosSummary.textContent = message;
+  }
+  renderResultadosRows([]);
+  updateResultadosPagination();
+}
+
+async function loadResultados() {
+  const filters = getResultadosFilters();
+  if (!filters.desde || !filters.hasta) {
+    renderResultadosEmpty("Selecciona un intervalo de fechas (Desde y Hasta).");
+    return;
+  }
+  if (filters.desde && filters.hasta && filters.desde > filters.hasta) {
+    renderResultadosEmpty("La fecha «Desde» no puede ser posterior a «Hasta».");
+    return;
+  }
+
+  const token = ++resultadosRequestToken;
+  if (resultadosSummary) {
+    resultadosSummary.textContent = "Cargando resultados...";
+  }
+  if (resultadosTableBody) {
+    renderResultadosHead();
+    resultadosTableBody.innerHTML = `<tr><td colspan="${getResultadosColspan()}" class="empty-state">Cargando resultados...</td></tr>`;
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const from = (resultadosPage - 1) * resultadosPageSize;
+    const { data, error } = await supabase.rpc("get_cronos_resultados", {
+      p_desde: filters.desde || null,
+      p_hasta: filters.hasta || null,
+      p_resultado: filters.resultado || null,
+      p_anulado: filters.anulado,
+      p_search: filters.search || null,
+      p_vista: currentResultadosView,
+      p_offset: from,
+      p_limit: resultadosPageSize,
+    });
+    if (token !== resultadosRequestToken) {
+      return;
+    }
+    if (error) {
+      throw error;
+    }
+
+    const rows = data?.rows ?? [];
+    resultadosCurrentRows = rows;
+    resultadosTotalCount = Number(data?.total || 0);
+    renderResultadosRows(rows);
+    updateResultadosPagination();
+    if (resultadosSummary) {
+      resultadosSummary.textContent =
+        `${resultadosTotalCount.toLocaleString("es-ES")} resultados · ` +
+        `Banco ${formatContabilidadImporte(data?.total_banco_importe)} € · ` +
+        `Cronos ${formatContabilidadImporte(data?.total_cronos_importe)} €`;
+    }
+  } catch (error) {
+    if (token !== resultadosRequestToken) {
+      return;
+    }
+    renderResultadosEmpty("No se pudieron cargar los resultados.");
+    setStatus(`No se pudieron cargar los resultados: ${error.message}`, "error");
+  }
+}
+
+function reloadResultadosFromFilters() {
+  resultadosPage = 1;
+  void loadResultados();
+}
+
+// --- Contabilidad: Conciliacion (cronos.identificador vs cronos_banco.cod_pedido) ---
+const conciliacionFiltersForm = document.querySelector("#conciliacion-filters-form");
+const conciliacionFilterDesde = document.querySelector("#conciliacion-filter-desde");
+const conciliacionFilterHasta = document.querySelector("#conciliacion-filter-hasta");
+const conciliacionClearFiltersButton = document.querySelector("#conciliacion-clear-filters-button");
+const conciliacionRefreshButton = document.querySelector("#conciliacion-refresh-button");
+const conciliacionSummary = document.querySelector("#conciliacion-summary");
+const conciliacionCronosCount = document.querySelector("#conciliacion-cronos-count");
+const conciliacionBancoCount = document.querySelector("#conciliacion-banco-count");
+const conciliacionCronosTableBody = document.querySelector("#conciliacion-cronos-table-body");
+const conciliacionBancoTableBody = document.querySelector("#conciliacion-banco-table-body");
+const CONCILIACION_CRONOS_COLSPAN = 12;
+const CONCILIACION_BANCO_COLSPAN = 10;
+const CONCILIACION_LIMIT = 500;
+let conciliacionRequestToken = 0;
+
+function getConciliacionFilters() {
+  return {
+    desde: conciliacionFilterDesde?.value || "",
+    hasta: conciliacionFilterHasta?.value || "",
+  };
+}
+
+function renderConciliacionCronosRows(rows) {
+  if (!conciliacionCronosTableBody) {
+    return;
+  }
+  if (!rows.length) {
+    conciliacionCronosTableBody.innerHTML = `<tr><td colspan="${CONCILIACION_CRONOS_COLSPAN}" class="empty-state">No hay apuntes viudos en el intervalo.</td></tr>`;
+    return;
+  }
+  conciliacionCronosTableBody.innerHTML = rows
+    .map(
+      (row) => `<tr${row.anulado ? ' class="contabilidad-anulado"' : ""}>
+        <td>${escapeHtml(formatGestionDate(row.fecha))}</td>
+        <td>${escapeHtml((row.hora || "").slice(0, 5))}</td>
+        <td>${escapeHtml(row.identificador || "")}</td>
+        <td class="num">${escapeHtml(formatContabilidadImporte(row.importe))}</td>
+        <td>${escapeHtml(row.forma_pago || "")}</td>
+        <td>${escapeHtml(row.numero_factura || "")}</td>
+        <td>${row.anulado ? "Sí" : "No"}</td>
+        <td>${escapeHtml(row.apellidos || "")}</td>
+        <td>${escapeHtml(row.nombre || "")}</td>
+        <td>${escapeHtml(row.documento || "")}</td>
+        <td>${escapeHtml(row.servicio || "")}</td>
+        <td>${escapeHtml(row.centro || "")}</td>
+      </tr>`
+    )
+    .join("");
+}
+
+function renderConciliacionBancoRows(rows) {
+  if (!conciliacionBancoTableBody) {
+    return;
+  }
+  if (!rows.length) {
+    conciliacionBancoTableBody.innerHTML = `<tr><td colspan="${CONCILIACION_BANCO_COLSPAN}" class="empty-state">No hay movimientos viudos en el intervalo.</td></tr>`;
+    return;
+  }
+  conciliacionBancoTableBody.innerHTML = rows
+    .map(
+      (row) => `<tr>
+        <td>${escapeHtml(formatGestionDate(row.fecha))}</td>
+        <td>${escapeHtml((row.hora || "").slice(0, 5))}</td>
+        <td>${escapeHtml(row.cod_pedido != null ? String(row.cod_pedido) : "")}</td>
+        <td>${escapeHtml(row.terminal != null ? String(row.terminal) : "")}</td>
+        <td>${escapeHtml(row.tipo_operacion || "")}</td>
+        <td>${escapeHtml(row.resultado || "")}</td>
+        <td class="num">${escapeHtml(formatContabilidadImporte(row.importe_euros))}</td>
+        <td>${escapeHtml(row.moneda || "")}</td>
+        <td>${escapeHtml(row.tipo_pago || "")}</td>
+        <td>${escapeHtml(row.tarjeta || "")}</td>
+      </tr>`
+    )
+    .join("");
+}
+
+function renderConciliacionEmpty(message) {
+  if (conciliacionSummary) {
+    conciliacionSummary.textContent = message;
+  }
+  if (conciliacionCronosCount) {
+    conciliacionCronosCount.textContent = "—";
+  }
+  if (conciliacionBancoCount) {
+    conciliacionBancoCount.textContent = "—";
+  }
+  renderConciliacionCronosRows([]);
+  renderConciliacionBancoRows([]);
+}
+
+async function loadConciliacion() {
+  const { desde, hasta } = getConciliacionFilters();
+  if (!desde || !hasta) {
+    renderConciliacionEmpty("Selecciona un intervalo de fechas (Desde y Hasta).");
+    return;
+  }
+  if (desde > hasta) {
+    renderConciliacionEmpty("La fecha «Desde» no puede ser posterior a «Hasta».");
+    return;
+  }
+
+  const token = ++conciliacionRequestToken;
+  if (conciliacionSummary) {
+    conciliacionSummary.textContent = "Cargando conciliación...";
+  }
+  if (conciliacionCronosTableBody) {
+    conciliacionCronosTableBody.innerHTML = `<tr><td colspan="${CONCILIACION_CRONOS_COLSPAN}" class="empty-state">Cargando apuntes...</td></tr>`;
+  }
+  if (conciliacionBancoTableBody) {
+    conciliacionBancoTableBody.innerHTML = `<tr><td colspan="${CONCILIACION_BANCO_COLSPAN}" class="empty-state">Cargando movimientos...</td></tr>`;
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("get_cronos_conciliacion", {
+      p_desde: desde,
+      p_hasta: hasta,
+      p_limit: CONCILIACION_LIMIT,
+    });
+    if (token !== conciliacionRequestToken) {
+      return;
+    }
+    if (error) {
+      throw error;
+    }
+
+    const cronosRows = data?.cronos ?? [];
+    const bancoRows = data?.banco ?? [];
+    const cronosTotal = Number(data?.cronos_total || 0);
+    const bancoTotal = Number(data?.banco_total || 0);
+    const limit = Number(data?.limit || CONCILIACION_LIMIT);
+
+    renderConciliacionCronosRows(cronosRows);
+    renderConciliacionBancoRows(bancoRows);
+    if (conciliacionCronosCount) {
+      conciliacionCronosCount.textContent = `${cronosTotal.toLocaleString("es-ES")} apuntes`;
+    }
+    if (conciliacionBancoCount) {
+      conciliacionBancoCount.textContent = `${bancoTotal.toLocaleString("es-ES")} movimientos`;
+    }
+    if (conciliacionSummary) {
+      const capped = cronosTotal > limit || bancoTotal > limit;
+      conciliacionSummary.textContent =
+        `${formatGestionDate(desde)} – ${formatGestionDate(hasta)} · ` +
+        `${cronosTotal.toLocaleString("es-ES")} apuntes sin banco · ` +
+        `${bancoTotal.toLocaleString("es-ES")} movimientos sin apunte` +
+        (capped ? ` · mostrando hasta ${limit.toLocaleString("es-ES")} por bloque` : "");
+    }
+  } catch (error) {
+    if (token !== conciliacionRequestToken) {
+      return;
+    }
+    renderConciliacionEmpty("No se pudo cargar la conciliación.");
+    setStatus(`No se pudo cargar la conciliación: ${error.message}`, "error");
+  }
+}
+
+// --- Contabilidad: carga de CSV desde la app (reemplazo por rango de fechas) ---
+// Los ficheros de Cronos vienen en dos formatos: apuntes (34 cols, UTF-8) y banco
+// (15 cols, Windows-1252). Se mapean por POSICION (orden fijo de columnas) para no
+// depender de las cabeceras. Como no hay clave unica fiable, cargar = borrar las
+// filas del rango de fechas del fichero y reinsertar todo (idempotente por periodo).
+const contabilidadLoadButton = document.querySelector("#contabilidad-load-button");
+const contabilidadLoadInput = document.querySelector("#contabilidad-load-input");
+const bancoLoadButton = document.querySelector("#banco-load-button");
+const bancoLoadInput = document.querySelector("#banco-load-input");
+
+const CRONOS_LOAD_COLUMNS = [
+  ["apunte", "int"], ["fecha", "date"], ["hora", "time"], ["codigo_tarifa", "text"], ["tarifa", "text"],
+  ["temporada", "text"], ["cantidad", "num"], ["importe", "num"], ["periodo_pago", "text"], ["forma_pago", "text"],
+  ["tipo_apunte", "text"], ["anulado", "bool"], ["prefijo_factura", "text"], ["numero_factura", "text"], ["operador", "text"],
+  ["maquina", "text"], ["centro", "text"], ["caja", "text"], ["codigo_persona", "text"], ["apellidos", "text"],
+  ["nombre", "text"], ["documento", "text"], ["sexo", "text"], ["fecha_nac", "date"], ["edad", "int"],
+  ["telefono", "text"], ["movil", "text"], ["email", "text"], ["servicio", "text"], ["tipo_servicio", "text"],
+  ["periodo_clase", "text"], ["concepto", "text"], ["identificador", "text"], ["autorizacion", "text"],
+];
+const BANCO_LOAD_COLUMNS = [
+  ["fecha", "date"], ["hora", "time"], ["terminal", "int"], ["tipo_operacion", "text"], ["cod_pedido", "int"],
+  ["resultado", "text"], ["cod_error", "text"], ["importe", "num"], ["moneda", "text"], ["importe_euros", "num"],
+  ["cierre_sesion", "text"], ["tipo_pago", "text"], ["tipo_pago_original", "text"], ["tarjeta", "text"], ["titular", "text"],
+];
+
+const CONTABILIDAD_LOAD_CONFIGS = {
+  cronos: {
+    table: "cronos",
+    columns: CRONOS_LOAD_COLUMNS,
+    dateCol: "fecha",
+    label: "apuntes",
+    summaryEl: () => contabilidadSummary,
+    afterLoad: async () => {
+      contabilidadFiltrosLoaded = false;
+      contabilidadPage = 1;
+      await loadContabilidad();
+    },
+  },
+  banco: {
+    table: "cronos_banco",
+    columns: BANCO_LOAD_COLUMNS,
+    dateCol: "fecha",
+    label: "movimientos",
+    summaryEl: () => bancoSummary,
+    afterLoad: async () => {
+      bancoFiltrosLoaded = false;
+      bancoPage = 1;
+      await loadContabilidadBanco();
+    },
+  },
+};
+
+function csvCleanText(value) {
+  if (value == null) return null;
+  const text = String(value).trim();
+  return text === "" || text === "----" ? null : text;
+}
+
+function csvToDate(value) {
+  const text = csvCleanText(value);
+  if (!text) return null;
+  const match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!match) return null; // "--", "-", u otros marcadores -> sin fecha
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900) return null;
+  return `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+}
+
+function csvToTime(value) {
+  const text = csvCleanText(value);
+  if (!text) return null;
+  const parts = text.split(":");
+  if (parts.length !== 3) return null; // "--" u otros -> sin hora
+  return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}:${parts[2].padStart(2, "0")}`;
+}
+
+function csvToNum(value) {
+  const text = csvCleanText(value);
+  if (text == null) return null;
+  let normalized = text;
+  if (normalized.includes(",") && normalized.includes(".")) {
+    normalized = normalized.replace(/\./g, "").replace(",", ".");
+  } else if (normalized.includes(",")) {
+    normalized = normalized.replace(",", ".");
+  }
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : null;
+}
+
+function csvToInt(value) {
+  const text = csvCleanText(value);
+  if (text == null) return null;
+  const number = parseInt(text.replace(",", "."), 10);
+  return Number.isFinite(number) ? number : null;
+}
+
+function csvToBoolSi(value) {
+  const text = csvCleanText(value);
+  if (text == null) return null;
+  return ["si", "sí", "s", "true", "1"].includes(text.toLowerCase());
+}
+
+function transformCsvRow(cells, columns) {
+  const record = {};
+  for (let i = 0; i < columns.length; i += 1) {
+    const [column, type] = columns[i];
+    const raw = cells[i];
+    record[column] =
+      type === "date" ? csvToDate(raw)
+        : type === "time" ? csvToTime(raw)
+        : type === "num" ? csvToNum(raw)
+        : type === "int" ? csvToInt(raw)
+        : type === "bool" ? csvToBoolSi(raw)
+        : csvCleanText(raw);
+  }
+  return record;
+}
+
+// Decodifica detectando BOM UTF-8; si no es UTF-8 valido, cae a Windows-1252.
+function decodeCsvBuffer(buffer) {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder("utf-8").decode(buffer);
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch (_error) {
+    return new TextDecoder("windows-1252").decode(buffer);
+  }
+}
+
+function parseSemicolonCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = true;
+    } else if (char === ";") {
+      row.push(field);
+      field = "";
+    } else if (char === "\r") {
+      // ignorar
+    } else if (char === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else {
+      field += char;
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+async function handleContabilidadCsvLoad(file, configKey) {
+  const config = CONTABILIDAD_LOAD_CONFIGS[configKey];
+  if (!file || !config) {
+    return;
+  }
+  const summaryEl = config.summaryEl();
+  try {
+    setStatus(`Leyendo ${file.name}...`);
+    const buffer = await file.arrayBuffer();
+    const text = decodeCsvBuffer(buffer);
+    const rows = parseSemicolonCsv(text);
+    if (!rows.length) {
+      throw new Error("El fichero está vacío.");
+    }
+    const headers = rows[0];
+    if (headers.length !== config.columns.length) {
+      throw new Error(
+        `El CSV tiene ${headers.length} columnas; se esperaban ${config.columns.length}. ` +
+          `¿Es el fichero correcto para «${config.label}»?`
+      );
+    }
+
+    const records = [];
+    for (let r = 1; r < rows.length; r += 1) {
+      const cells = rows[r];
+      if (!cells || cells.length < config.columns.length || !String(cells[0] ?? "").trim()) {
+        continue;
+      }
+      records.push(transformCsvRow(cells, config.columns));
+    }
+    if (!records.length) {
+      throw new Error("No se encontraron filas de datos en el fichero.");
+    }
+
+    const fechas = records.map((record) => record[config.dateCol]).filter(Boolean).sort();
+    const desde = fechas[0];
+    const hasta = fechas[fechas.length - 1];
+    if (!desde || !hasta) {
+      throw new Error("No se pudieron determinar las fechas del fichero.");
+    }
+
+    const proceed = window.confirm(
+      `Vas a REEMPLAZAR los ${config.label} del periodo ${formatGestionDate(desde)} – ${formatGestionDate(
+        hasta
+      )} con ${records.length.toLocaleString("es-ES")} filas de «${file.name}».\n\n` +
+        `Se borrarán las filas existentes en ese rango de fechas y se insertarán las del fichero. ¿Continuar?`
+    );
+    if (!proceed) {
+      setStatus("Carga cancelada.");
+      return;
+    }
+
+    const supabase = await getSupabaseClient();
+    if (summaryEl) summaryEl.textContent = "Borrando periodo…";
+    const { error: deleteError } = await supabase
+      .from(config.table)
+      .delete()
+      .gte(config.dateCol, desde)
+      .lte(config.dateCol, hasta);
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    const batchSize = 1000;
+    let done = 0;
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize);
+      const { error: insertError } = await supabase.from(config.table).insert(batch);
+      if (insertError) {
+        throw insertError;
+      }
+      done += batch.length;
+      if (summaryEl) {
+        summaryEl.textContent = `Cargando ${done.toLocaleString("es-ES")}/${records.length.toLocaleString(
+          "es-ES"
+        )}…`;
+      }
+    }
+
+    setStatus(
+      `Carga completada: ${records.length.toLocaleString("es-ES")} ${config.label} (${formatGestionDate(
+        desde
+      )} – ${formatGestionDate(hasta)}).`,
+      "success"
+    );
+    await config.afterLoad();
+  } catch (error) {
+    setStatus(`No se pudo cargar el fichero: ${error.message}`, "error");
+    if (summaryEl) summaryEl.textContent = "Error en la carga.";
+  }
+}
 
 // --- Historial laboral ---
 const historialFiltersForm = document.querySelector("#historial-filters-form");
@@ -16103,6 +17864,16 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
     return;
   }
 
+  if (normalizedTarget === "gestion") {
+    await loadGestion();
+    return;
+  }
+
+  if (normalizedTarget === "contabilidad") {
+    await loadContabilidadActive();
+    return;
+  }
+
   if (normalizedTarget === "settings") {
     await loadSettingsTabActiveView();
     return;
@@ -16274,6 +18045,8 @@ function clearControlFilters() {
   controlPuestoInput.value = "";
   controlCurrentPage = 1;
   controlPersonalSuggestions?.classList.add("hidden");
+  updateControlPersonalClear();
+  syncFilterResetButtons(controlFiltersForm);
   void fetchControlFilterOptions().then(() => fetchControlRecords());
 }
 
@@ -16296,6 +18069,7 @@ function resetSingleControlFilter(filterName) {
   if (filterName === "personal") {
     controlPersonalSuggestions?.classList.add("hidden");
     renderControlPersonalSuggestions();
+    updateControlPersonalClear();
     void fetchControlRecords();
     return;
   }
@@ -17848,6 +19622,18 @@ async function init() {
       setStatus(error?.message || "No se pudo cargar el historial laboral.", "error");
     });
   });
+  privateTabGestionButton?.addEventListener("click", () => {
+    switchPrivateTab("gestion");
+    void refreshPrivateTabData("gestion").catch((error) => {
+      setStatus(error?.message || "No se pudo cargar la gestión.", "error");
+    });
+  });
+  privateTabContabilidadButton?.addEventListener("click", () => {
+    switchPrivateTab("contabilidad");
+    void refreshPrivateTabData("contabilidad").catch((error) => {
+      setStatus(error?.message || "No se pudo cargar la contabilidad.", "error");
+    });
+  });
   privateTabContractsButton?.addEventListener("click", () => {
     switchPrivateTab("contracts");
     void refreshPrivateTabData("contracts").catch((error) => {
@@ -18349,12 +20135,14 @@ async function init() {
     void loadRecords();
   });
   recordsFiltersForm?.addEventListener("change", (event) => {
+    syncFilterResetButtons(recordsFiltersForm);
     // El combo de personal gestiona su propia recarga al elegir/limpiar.
     if (event.target?.id === "records-filter-personal-input") return;
     recordsExternalActivityFilter = document.querySelector("#records-filter-actividad")?.value || "";
     void loadRecords();
   });
   recordsFiltersForm?.addEventListener("input", (event) => {
+    syncFilterResetButtons(recordsFiltersForm);
     if (event.target?.id === "records-filter-search") {
       applyRecordsClientFilters();
       renderRecordsTable();
@@ -18371,6 +20159,9 @@ async function init() {
       void loadRecords();
     },
   });
+  // Estado inicial de las ✕ (ocultas hasta que su filtro tenga valor).
+  syncFilterResetButtons(recordsFiltersForm);
+  syncFilterResetButtons(programmingFiltersForm);
   setupPersonalPicker("substitution", {
     inputId: "record-substitution-person-input",
     hiddenId: "record-substitution-person",
@@ -18403,6 +20194,219 @@ async function init() {
   });
   historialNewButton?.addEventListener("click", () => {
     void openHistorialNew();
+  });
+
+  setupPersonalPicker("gestion-filter", {
+    inputId: "gestion-filter-personal-input",
+    hiddenId: "gestion-filter-personal",
+    suggestionsId: "gestion-filter-personal-suggestions",
+    onChange: () => {
+      void loadGestion();
+    },
+  });
+  setupPersonalPicker("programming-filter", {
+    inputId: "programming-filter-personal-input",
+    hiddenId: "programming-filter-personal",
+    suggestionsId: "programming-filter-personal-suggestions",
+    onChange: () => {
+      applyProgrammingFilters();
+      suggestBulkPersonalFromCurrentFilter();
+    },
+  });
+  gestionFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadGestion();
+  });
+  gestionFilterDesde?.addEventListener("change", () => {
+    void loadGestion();
+  });
+  gestionFilterHasta?.addEventListener("change", () => {
+    void loadGestion();
+  });
+  gestionClearFiltersButton?.addEventListener("click", () => {
+    gestionFiltersForm?.reset();
+    clearPersonalPicker("gestion-filter");
+    void loadGestion();
+  });
+  gestionRefreshButton?.addEventListener("click", () => {
+    void loadGestion();
+  });
+
+  const debouncedContabilidadFilters = debounce(reloadContabilidadFromFilters, 300);
+  contabilidadFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    reloadContabilidadFromFilters();
+  });
+  contabilidadFiltersForm?.addEventListener("change", (event) => {
+    // Los buscadores de texto se gestionan con debounce en 'input'.
+    if (event.target === contabilidadFilterServicio || event.target === contabilidadFilterSearch) {
+      return;
+    }
+    reloadContabilidadFromFilters();
+  });
+  contabilidadFilterServicio?.addEventListener("input", debouncedContabilidadFilters);
+  contabilidadFilterSearch?.addEventListener("input", debouncedContabilidadFilters);
+  contabilidadClearFiltersButton?.addEventListener("click", () => {
+    contabilidadFiltersForm?.reset();
+    reloadContabilidadFromFilters();
+  });
+  contabilidadRefreshButton?.addEventListener("click", () => {
+    void loadContabilidad();
+  });
+  contabilidadPageSizeSelect?.addEventListener("change", () => {
+    contabilidadPageSize = Number(contabilidadPageSizeSelect.value) || 100;
+    contabilidadPage = 1;
+    void loadContabilidad();
+  });
+  contabilidadPrevButton?.addEventListener("click", () => {
+    if (contabilidadPage > 1) {
+      contabilidadPage -= 1;
+      void loadContabilidad();
+    }
+  });
+  contabilidadNextButton?.addEventListener("click", () => {
+    contabilidadPage += 1;
+    void loadContabilidad();
+  });
+
+  document.querySelectorAll("[data-contabilidad-subtab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      switchContabilidadSubtab(button.dataset.contabilidadSubtab);
+      // Cargamos la subpestaña Banco solo la primera vez que se abre.
+      if (currentContabilidadSubtab === "banco" && !bancoLoadedOnce) {
+        void loadContabilidadBanco().catch((error) => {
+          setStatus(error?.message || "No se pudo cargar el banco.", "error");
+        });
+      } else if (currentContabilidadSubtab === "resultados") {
+        void loadResultados().catch((error) => {
+          setStatus(error?.message || "No se pudieron cargar los resultados.", "error");
+        });
+      } else if (currentContabilidadSubtab === "conciliacion") {
+        void loadConciliacion().catch((error) => {
+          setStatus(error?.message || "No se pudo cargar la conciliación.", "error");
+        });
+      }
+    });
+  });
+
+  const debouncedBancoFilters = debounce(reloadBancoFromFilters, 300);
+  bancoFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    reloadBancoFromFilters();
+  });
+  bancoFiltersForm?.addEventListener("change", (event) => {
+    if (event.target === bancoFilterSearch) {
+      return;
+    }
+    reloadBancoFromFilters();
+  });
+  bancoFilterSearch?.addEventListener("input", debouncedBancoFilters);
+  bancoClearFiltersButton?.addEventListener("click", () => {
+    bancoFiltersForm?.reset();
+    reloadBancoFromFilters();
+  });
+  bancoRefreshButton?.addEventListener("click", () => {
+    void loadContabilidadBanco();
+  });
+  bancoPageSizeSelect?.addEventListener("change", () => {
+    bancoPageSize = Number(bancoPageSizeSelect.value) || 100;
+    bancoPage = 1;
+    void loadContabilidadBanco();
+  });
+  bancoPrevButton?.addEventListener("click", () => {
+    if (bancoPage > 1) {
+      bancoPage -= 1;
+      void loadContabilidadBanco();
+    }
+  });
+  bancoNextButton?.addEventListener("click", () => {
+    bancoPage += 1;
+    void loadContabilidadBanco();
+  });
+
+  const debouncedResultadosFilters = debounce(reloadResultadosFromFilters, 300);
+  resultadosFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    reloadResultadosFromFilters();
+  });
+  resultadosFiltersForm?.addEventListener("change", (event) => {
+    if (event.target === resultadosFilterSearch) {
+      return;
+    }
+    reloadResultadosFromFilters();
+  });
+  resultadosFilterSearch?.addEventListener("input", debouncedResultadosFilters);
+  resultadosClearFiltersButton?.addEventListener("click", () => {
+    resultadosFiltersForm?.reset();
+    reloadResultadosFromFilters();
+  });
+  resultadosRefreshButton?.addEventListener("click", () => {
+    void loadResultados();
+  });
+  resultadosPageSizeSelect?.addEventListener("change", () => {
+    resultadosPageSize = Number(resultadosPageSizeSelect.value) || 100;
+    resultadosPage = 1;
+    void loadResultados();
+  });
+  resultadosPrevButton?.addEventListener("click", () => {
+    if (resultadosPage > 1) {
+      resultadosPage -= 1;
+      void loadResultados();
+    }
+  });
+  resultadosNextButton?.addEventListener("click", () => {
+    resultadosPage += 1;
+    void loadResultados();
+  });
+  document.querySelectorAll("[data-resultados-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      currentResultadosView = button.dataset.resultadosView === "resumen" ? "resumen" : "detalle";
+      document.querySelectorAll("[data-resultados-view]").forEach((viewButton) => {
+        const active = viewButton.dataset.resultadosView === currentResultadosView;
+        viewButton.classList.toggle("active", active);
+        viewButton.setAttribute("aria-pressed", String(active));
+      });
+      resultadosPage = 1;
+      void loadResultados();
+    });
+  });
+  syncResultadosExportButtons();
+  resultadosExportExcelButton?.addEventListener("click", () => {
+    void exportResultadosResumenExcel();
+  });
+  resultadosExportPdfButton?.addEventListener("click", () => {
+    void exportResultadosResumenPdf();
+  });
+
+  conciliacionFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadConciliacion();
+  });
+  conciliacionFilterDesde?.addEventListener("change", () => {
+    void loadConciliacion();
+  });
+  conciliacionFilterHasta?.addEventListener("change", () => {
+    void loadConciliacion();
+  });
+  conciliacionClearFiltersButton?.addEventListener("click", () => {
+    conciliacionFiltersForm?.reset();
+    renderConciliacionEmpty("Selecciona un intervalo de fechas (Desde y Hasta).");
+  });
+  conciliacionRefreshButton?.addEventListener("click", () => {
+    void loadConciliacion();
+  });
+
+  contabilidadLoadButton?.addEventListener("click", () => contabilidadLoadInput?.click());
+  contabilidadLoadInput?.addEventListener("change", () => {
+    const file = contabilidadLoadInput.files?.[0];
+    contabilidadLoadInput.value = ""; // permitir re-seleccionar el mismo fichero
+    if (file) void handleContabilidadCsvLoad(file, "cronos");
+  });
+  bancoLoadButton?.addEventListener("click", () => bancoLoadInput?.click());
+  bancoLoadInput?.addEventListener("change", () => {
+    const file = bancoLoadInput.files?.[0];
+    bancoLoadInput.value = "";
+    if (file) void handleContabilidadCsvLoad(file, "banco");
   });
   historialTable?.addEventListener("click", (event) => {
     const sortField = event.target.closest("[data-historial-sort-field]")?.dataset
@@ -18472,6 +20476,7 @@ async function init() {
   recordsClearFiltersButton?.addEventListener("click", () => {
     recordsExternalActivityFilter = "";
     recordsFiltersForm?.reset();
+    syncFilterResetButtons(recordsFiltersForm);
     void loadRecords();
   });
   recordsFiltersForm?.addEventListener("click", (event) => {
@@ -18479,6 +20484,7 @@ async function init() {
     if (!button || !resetRecordsNamedFilterControl(recordsFiltersForm, button.dataset.resetFilter)) {
       return;
     }
+    syncFilterResetButtons(recordsFiltersForm);
     void loadRecords();
   });
   recordsBulkFieldSelect?.addEventListener("change", syncRecordsBulkUi);
@@ -18683,7 +20689,9 @@ async function init() {
     void fetchControlFilterOptions().then(() => fetchControlRecords());
   });
   controlFiltersForm.addEventListener("input", (event) => {
+    syncFilterResetButtons(controlFiltersForm);
     if (event.target === controlPersonalInput) {
+      updateControlPersonalClear();
       renderControlPersonalSuggestions();
       debouncedControlTextFilters();
       return;
@@ -18693,7 +20701,9 @@ async function init() {
   });
   controlFiltersForm.addEventListener("change", (event) => {
     controlCurrentPage = 1;
+    syncFilterResetButtons(controlFiltersForm);
     if (event.target === controlPersonalInput) {
+      updateControlPersonalClear();
       renderControlPersonalSuggestions();
       void fetchControlRecords();
       return;
@@ -18712,12 +20722,14 @@ async function init() {
 
       controlPersonalInput.value = personalOption;
       controlPersonalSuggestions?.classList.add("hidden");
+      updateControlPersonalClear();
       controlCurrentPage = 1;
       void fetchControlRecords();
       return;
     }
 
     resetSingleControlFilter(resetButton.dataset.resetFilter);
+    syncFilterResetButtons(controlFiltersForm);
   });
   controlPersonalInput?.addEventListener("focus", () => {
     renderControlPersonalSuggestions();
@@ -18732,6 +20744,7 @@ async function init() {
     event.preventDefault();
     controlPersonalInput.value = personalOption;
     controlPersonalSuggestions.classList.add("hidden");
+    updateControlPersonalClear();
     controlCurrentPage = 1;
     void fetchControlRecords();
   });
@@ -18740,6 +20753,25 @@ async function init() {
       controlPersonalSuggestions?.classList.add("hidden");
     }, 200);
   });
+  controlPersonalToggleButton?.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    if (controlPersonalSuggestions?.classList.contains("hidden")) {
+      controlPersonalInput?.focus();
+      renderControlPersonalSuggestions();
+    } else {
+      controlPersonalSuggestions?.classList.add("hidden");
+    }
+  });
+  controlPersonalClearButton?.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    controlPersonalInput.value = "";
+    controlPersonalSuggestions?.classList.add("hidden");
+    updateControlPersonalClear();
+    controlCurrentPage = 1;
+    void fetchControlRecords();
+  });
+  updateControlPersonalClear();
+  syncFilterResetButtons(controlFiltersForm);
   controlRecordsTable?.addEventListener("click", (event) => {
     const editId = event.target.closest("[data-control-edit-id]")?.dataset.controlEditId;
     if (editId) {
@@ -19002,7 +21034,10 @@ async function init() {
     }
 
     resetSingleProgrammingFilter(resetButton.dataset.resetProgrammingFilter);
+    syncFilterResetButtons(programmingFiltersForm);
   });
+  programmingFiltersForm?.addEventListener("input", () => syncFilterResetButtons(programmingFiltersForm));
+  programmingFiltersForm?.addEventListener("change", () => syncFilterResetButtons(programmingFiltersForm));
   document.querySelectorAll("[data-programming-sort-field]").forEach((button) => {
     button.addEventListener("click", () => {
       const field = button.dataset.programmingSortField;

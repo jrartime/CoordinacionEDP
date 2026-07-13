@@ -19,7 +19,9 @@ create table if not exists public.coordinacion_pestanas (
         'concilia',
         'actividades',
         'registros',
-        'historial'
+        'historial',
+        'gestion',
+        'contabilidad'
       )
     )
 );
@@ -39,7 +41,9 @@ values
   ('contracts', 'Contratos', 'Gestión de contratos y servicios.', 110, true),
   ('settings', 'Configuracion', 'Gestion de puestos, funciones y modalidades.', 115, true),
   ('actividades', 'Actividades', 'Gestión transversal de actividades.', 120, true),
-  ('registros', 'Registros', 'Detalle generado desde actividades.', 125, true)
+  ('registros', 'Registros', 'Detalle generado desde actividades.', 125, true),
+  ('gestion', 'Gestión', 'Cruce de historiales laborales y registros por intervalo.', 130, true),
+  ('contabilidad', 'Contabilidad', 'Apuntes de Cronos (inscripciones y actividades).', 135, true)
 on conflict (pestana) do update set
   etiqueta = excluded.etiqueta,
   descripcion = excluded.descripcion,
@@ -113,7 +117,9 @@ check (
     'concilia',
     'actividades',
     'registros',
-    'historial'
+    'historial',
+    'gestion',
+    'contabilidad'
   )
 );
 

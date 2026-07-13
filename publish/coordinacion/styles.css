@@ -14,6 +14,8 @@
   --success: #008138;
   --error: #bf000f;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  /* Chevron unificado para desplegables (selects de filtro y botón del buscador de personal) */
+  --filter-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236a7282' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 * {
@@ -2693,6 +2695,154 @@ th {
   color: var(--text);
 }
 
+/* Selector de personal con botones de limpiar (X) y desplegar (▾) */
+.personal-picker-stack .personal-picker-clear,
+.personal-picker-stack .personal-picker-toggle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.personal-picker-stack .personal-picker-toggle {
+  right: 4px;
+  font-size: 0; /* oculta el glifo ▾ del HTML; el icono se dibuja con --filter-chevron */
+  background-image: var(--filter-chevron);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 10px 7px;
+}
+
+.personal-picker-stack .personal-picker-clear {
+  right: 22px;
+  font-size: 1rem;
+}
+
+.personal-picker-stack .personal-picker-clear:hover,
+.personal-picker-stack .personal-picker-toggle:hover {
+  color: var(--text);
+}
+
+.private-tab-panel .filter-field .personal-picker-stack input[type="text"] {
+  padding-right: 44px;
+}
+
+/* Flecha unificada en los <select> simples de filtro del panel privado.
+   Se excluyen los multiselect (listbox), que se transforman en otro widget. */
+.private-tab-panel .filters-grid select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: var(--filter-chevron);
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 10px 7px;
+  padding-right: 26px;
+}
+
+/* ---- ✕ de filtros DENTRO del control (Programación, Control, Actividades, Registros) ----
+   El botón de limpiar se superpone en el borde derecho del propio campo, a la
+   izquierda del chevron / icono nativo, y solo se ve cuando el campo tiene valor. */
+#programming-filters-form .filter-control-row:not(:has(> select[multiple])),
+#control-filters-form .filter-control-row:not(:has(> select[multiple])),
+#activities-filters-form .filter-control-row:not(:has(> select[multiple])),
+#records-filters-form .filter-control-row:not(:has(> select[multiple])) {
+  position: relative;
+  display: block;
+}
+
+#programming-filters-form .filter-control-row:not(:has(> select[multiple])) > input,
+#programming-filters-form .filter-control-row:not(:has(> select[multiple])) > select,
+#control-filters-form .filter-control-row:not(:has(> select[multiple])) > input,
+#control-filters-form .filter-control-row:not(:has(> select[multiple])) > select,
+#activities-filters-form .filter-control-row:not(:has(> select[multiple])) > input,
+#activities-filters-form .filter-control-row:not(:has(> select[multiple])) > select,
+#records-filters-form .filter-control-row:not(:has(> select[multiple])) > input,
+#records-filters-form .filter-control-row:not(:has(> select[multiple])) > select {
+  width: 100%;
+}
+
+/* Hueco a la derecha para el icono ✕ (selects y fechas dejan sitio también al chevron/calendario). */
+#programming-filters-form .filter-control-row > select:not([multiple]),
+#programming-filters-form .filter-control-row > input[type="date"],
+#control-filters-form .filter-control-row > select:not([multiple]),
+#control-filters-form .filter-control-row > input[type="date"],
+#activities-filters-form .filter-control-row > select:not([multiple]),
+#activities-filters-form .filter-control-row > input[type="date"],
+#records-filters-form .filter-control-row > select:not([multiple]),
+#records-filters-form .filter-control-row > input[type="date"] {
+  padding-right: 44px;
+}
+#programming-filters-form .filter-control-row > input[type="text"],
+#programming-filters-form .filter-control-row > input[type="search"],
+#control-filters-form .filter-control-row > input[type="text"],
+#control-filters-form .filter-control-row > input[type="search"],
+#activities-filters-form .filter-control-row > input[type="text"],
+#activities-filters-form .filter-control-row > input[type="search"],
+#records-filters-form .filter-control-row > input[type="text"],
+#records-filters-form .filter-control-row > input[type="search"] {
+  padding-right: 26px;
+}
+
+#programming-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button,
+#control-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button,
+#activities-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button,
+#records-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 24px; /* deja pasar el chevron / icono nativo de la derecha */
+  min-width: 0;
+  width: 18px;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Los campos de texto/búsqueda no tienen icono nativo: la ✕ va pegada al borde. */
+#programming-filters-form .filter-control-row:has(> input[type="text"]) .filter-reset-button,
+#programming-filters-form .filter-control-row:has(> input[type="search"]) .filter-reset-button,
+#control-filters-form .filter-control-row:has(> input[type="text"]) .filter-reset-button,
+#control-filters-form .filter-control-row:has(> input[type="search"]) .filter-reset-button,
+#activities-filters-form .filter-control-row:has(> input[type="text"]) .filter-reset-button,
+#activities-filters-form .filter-control-row:has(> input[type="search"]) .filter-reset-button,
+#records-filters-form .filter-control-row:has(> input[type="text"]) .filter-reset-button,
+#records-filters-form .filter-control-row:has(> input[type="search"]) .filter-reset-button {
+  right: 6px;
+}
+
+#programming-filters-form .filter-control-row .filter-reset-button:hover,
+#control-filters-form .filter-control-row .filter-reset-button:hover,
+#activities-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button:hover,
+#records-filters-form .filter-control-row .filter-reset-button:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+/* Visible solo cuando el filtro tiene valor (JS gestiona .is-empty). */
+#programming-filters-form .filter-reset-button.is-empty,
+#control-filters-form .filter-reset-button.is-empty,
+#activities-filters-form .filter-reset-button.is-empty,
+#records-filters-form .filter-reset-button.is-empty {
+  visibility: hidden;
+}
+
 .status-card {
   padding-top: 12px;
   padding-bottom: 12px;
@@ -3379,4 +3529,251 @@ th {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
+}
+
+/* --- Gestión: diseño compacto de dos bloques (historiales + horas) --- */
+.gestion-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.conciliacion-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.gestion-block {
+  min-width: 0;
+}
+
+.gestion-block-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.gestion-block-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.gestion-block-header .summary-chip {
+  margin: 0;
+}
+
+.gestion-table-wrapper {
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.records-table.gestion-compact-table {
+  min-width: 0;
+  width: 100%;
+  font-size: 0.72rem;
+}
+
+.gestion-compact-table th,
+.gestion-compact-table td {
+  max-width: none;
+  white-space: nowrap;
+  padding: 4px 6px;
+}
+
+.gestion-compact-table td {
+  cursor: default;
+}
+
+.gestion-compact-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+}
+
+.gestion-compact-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.gestion-compact-table .gestion-row-total {
+  font-weight: 600;
+}
+
+.gestion-compact-table .gestion-total-row td {
+  border-top: 2px solid var(--line-strong);
+  font-weight: 600;
+  position: sticky;
+  bottom: 0;
+  background: var(--panel);
+}
+
+@media (max-width: 900px) {
+  .gestion-grid,
+  .conciliacion-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Contabilidad (tabla cronos) --- */
+.private-tab-panel .contabilidad-apuntes-filters {
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+  gap: 6px;
+}
+
+.private-tab-panel .contabilidad-apuntes-filters .filter-field,
+.private-tab-panel .contabilidad-apuntes-filters .filter-actions {
+  min-width: 0;
+}
+
+.private-tab-panel .contabilidad-apuntes-filters .filter-field {
+  gap: 4px;
+}
+
+.private-tab-panel .contabilidad-apuntes-filters .filter-field input,
+.private-tab-panel .contabilidad-apuntes-filters .filter-field select {
+  min-width: 0;
+  padding: 6px 20px 6px 6px;
+  font-size: 0.78rem;
+}
+
+.private-tab-panel .contabilidad-apuntes-filters .filter-actions .secondary-button {
+  width: 100%;
+  min-width: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+#contabilidad-filters-form .contabilidad-filter-forma-pago,
+#contabilidad-filters-form .contabilidad-filter-anulado {
+  max-width: none;
+}
+
+.contabilidad-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.contabilidad-pagination .pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+#contabilidad-page-info {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+#contabilidad-table .num,
+#banco-table .num,
+#resultados-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#banco-table.records-table {
+  width: auto;
+  min-width: 720px;
+  table-layout: auto;
+}
+
+#banco-table th,
+#banco-table td {
+  max-width: none;
+  white-space: nowrap;
+}
+
+#banco-table th:nth-child(1),
+#banco-table td:nth-child(1) {
+  width: 86px;
+}
+
+#banco-table th:nth-child(2),
+#banco-table td:nth-child(2) {
+  width: 56px;
+}
+
+#banco-table th:nth-child(3),
+#banco-table td:nth-child(3) {
+  width: 92px;
+}
+
+#banco-table th:nth-child(4),
+#banco-table td:nth-child(4) {
+  width: 150px;
+}
+
+#banco-table th:nth-child(5),
+#banco-table td:nth-child(5) {
+  width: 82px;
+}
+
+#banco-table th:nth-child(6),
+#banco-table td:nth-child(6) {
+  width: 58px;
+}
+
+#banco-table th:nth-child(7),
+#banco-table td:nth-child(7) {
+  width: 110px;
+}
+
+#banco-table th:nth-child(8),
+#banco-table td:nth-child(8) {
+  width: 120px;
+}
+
+#resultados-table.resultados-resumen-table {
+  width: auto;
+  min-width: 620px;
+}
+
+#resultados-table.resultados-resumen-table th,
+#resultados-table.resultados-resumen-table td {
+  max-width: 220px;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+#resultados-table.resultados-resumen-table th:nth-child(1),
+#resultados-table.resultados-resumen-table td:nth-child(1) {
+  width: 120px;
+}
+
+#resultados-table.resultados-resumen-table th:nth-child(2),
+#resultados-table.resultados-resumen-table td:nth-child(2) {
+  width: 220px;
+}
+
+#resultados-table.resultados-resumen-table th:nth-child(3),
+#resultados-table.resultados-resumen-table td:nth-child(3),
+#resultados-table.resultados-resumen-table th:nth-child(4),
+#resultados-table.resultados-resumen-table td:nth-child(4),
+#resultados-table.resultados-resumen-table th:nth-child(5),
+#resultados-table.resultados-resumen-table td:nth-child(5) {
+  width: 80px;
+}
+
+.records-table tr.contabilidad-anulado td {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+#contabilidad-filters-form .contabilidad-filter-forma-pago {
+  max-width: 180px;
+}
+
+#contabilidad-filters-form .contabilidad-filter-anulado {
+  max-width: 120px;
 }

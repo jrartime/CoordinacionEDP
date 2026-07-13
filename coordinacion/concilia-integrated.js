@@ -196,6 +196,8 @@
   const filterActivityPersonalSuggestions = document.querySelector(
     "#filter-activity-personal-suggestions"
   );
+  const filterActivityPersonalClear = document.querySelector("[data-activity-personal-clear]");
+  const filterActivityPersonalToggle = document.querySelector("[data-activity-personal-toggle]");
   const filterActivityInstalacion = document.querySelector("#filter-activity-instalacion");
   const clearActivitiesFiltersButton = document.querySelector("#clear-activities-filters-button");
   const activitiesBulkFieldSelect = document.querySelector("#activities-bulk-field");
@@ -1593,6 +1595,30 @@
     ).sort((left, right) =>
       left.localeCompare(right, "es", { sensitivity: "base", numeric: true })
     );
+  }
+
+  // La ✕ de cada filtro de Actividades aparece solo cuando su control tiene valor.
+  function syncActivitiesResetButtons() {
+    if (!activitiesFiltersForm) {
+      return;
+    }
+    activitiesFiltersForm.querySelectorAll(".filter-reset-button").forEach((button) => {
+      const row = button.closest(".filter-control-row");
+      const control = row?.querySelector("input, select, textarea");
+      const hasValue =
+        control?.type === "checkbox"
+          ? control.checked
+          : Boolean(String(control?.value ?? "").trim());
+      button.classList.toggle("is-empty", !hasValue);
+    });
+  }
+
+  // La ✕ del buscador de personal aparece solo cuando hay texto.
+  function updateActivityPersonalClear() {
+    if (!filterActivityPersonalClear || !filterActivityPersonal) {
+      return;
+    }
+    filterActivityPersonalClear.classList.toggle("hidden", !filterActivityPersonal.value.trim());
   }
 
   function renderActivityPersonalSuggestions() {
@@ -6927,7 +6953,9 @@
     downloadActivitiesReportExcelButton.addEventListener("click", downloadActivitiesReportExcel);
     activitiesReportBackdrop.addEventListener("click", closeActivitiesReport);
     activitiesFiltersForm.addEventListener("change", (event) => {
+      syncActivitiesResetButtons();
       if (event.target === filterActivityPersonal) {
+        updateActivityPersonalClear();
         renderActivityPersonalSuggestions();
         applyActivitiesFilters();
         return;
@@ -6945,6 +6973,7 @@
         return;
       }
 
+      updateActivityPersonalClear();
       renderActivityPersonalSuggestions();
       debouncedApplyActivityPersonalFilter();
     });
@@ -6996,6 +7025,8 @@
     clearActivitiesFiltersButton?.addEventListener("click", () => {
       activitiesFiltersForm.reset();
       filterActivityPersonalSuggestions?.classList.add("hidden");
+      updateActivityPersonalClear();
+      syncActivitiesResetButtons();
       applyActivitiesFilters();
     });
     activitiesFiltersForm.addEventListener("click", (event) => {
@@ -7004,6 +7035,7 @@
       if (personalOption) {
         filterActivityPersonal.value = personalOption;
         filterActivityPersonalSuggestions?.classList.add("hidden");
+        updateActivityPersonalClear();
         applyActivitiesFilters();
         return;
       }
@@ -7017,6 +7049,7 @@
         filterActivityPersonalSuggestions?.classList.add("hidden");
       }
 
+      syncActivitiesResetButtons();
       applyActivitiesFilters();
     });
     filterActivityPersonal?.addEventListener("focus", () => {
@@ -7032,6 +7065,7 @@
       event.preventDefault();
       filterActivityPersonal.value = personalOption;
       filterActivityPersonalSuggestions.classList.add("hidden");
+      updateActivityPersonalClear();
       applyActivitiesFilters();
     });
     filterActivityPersonal?.addEventListener("blur", () => {
@@ -7039,6 +7073,24 @@
         filterActivityPersonalSuggestions?.classList.add("hidden");
       }, 200);
     });
+    filterActivityPersonalToggle?.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      if (filterActivityPersonalSuggestions?.classList.contains("hidden")) {
+        filterActivityPersonal?.focus();
+        renderActivityPersonalSuggestions();
+      } else {
+        filterActivityPersonalSuggestions?.classList.add("hidden");
+      }
+    });
+    filterActivityPersonalClear?.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      filterActivityPersonal.value = "";
+      filterActivityPersonalSuggestions?.classList.add("hidden");
+      updateActivityPersonalClear();
+      applyActivitiesFilters();
+    });
+    updateActivityPersonalClear();
+    syncActivitiesResetButtons();
     document.querySelectorAll("[data-activity-sort-field]").forEach((button) => {
       button.addEventListener("click", () => {
         const field = button.dataset.activitySortField;

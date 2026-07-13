@@ -9,9 +9,7 @@ Aplicacion web estatica conectada a Supabase para:
 
 ## Carpeta principal
 
-La copia de trabajo recomendada es `D:\Respaldo programacion\CoordinacionEDP`.
-La carpeta `D:\Programación\CoordinacionEDP` queda como referencia anterior y no
-debe usarse para nuevos cambios salvo que se quiera rescatar algo puntual.
+La copia de trabajo activa es `D:\Programacion\CoordinacionEDP`.
 
 ## Estructura
 
@@ -92,9 +90,24 @@ Los cambios recientes de Registros dependen de:
 - `supabase/tables/registros_filter_facets.sql`: RPC para filtros cruzados de Registros.
 - `supabase/tables/registros_servicio_contrato_validation.sql`: trigger que impide servicios fuera del contrato del registro.
 - `supabase/tables/actividades.sql`: trigger equivalente en Actividades, con comparacion estricta de contrato/servicio.
+- `supabase/tables/gestion_resumen.sql`: RPC de Gestion para agregados exactos de registros y selector de personal por intervalo.
+- `supabase/tables/cronos.sql`: tabla `cronos`, RPC de Apuntes, vista `cronos_detalle` y conciliacion Cronos/Banco.
+- `supabase/tables/cronos_banco.sql`: tabla `cronos_banco`, RPC de Banco y Resultados Banco/Cronos.
+- `supabase/tables/coordinacion_pestanas.sql`: catalogo de pestanas; incluye `gestion` y `contabilidad`.
 
 Cuando se cambie SQL, ejecuta el archivo correspondiente en el SQL Editor de Supabase
 y deja constancia en `contexto-previo.md`.
+
+## Gestion y Contabilidad
+
+- **Gestion** cruza historiales laborales y registros por intervalo. Usa `get_gestion_personal` para listar solo personal con registros visibles y `get_gestion_registros_resumen` para pivotar horas server-side por puesto, situacion y tipo de hora. Las funciones son `SECURITY INVOKER`, por lo que respetan el RLS de `registros`.
+- **Contabilidad** trabaja con `cronos` (apuntes de Cronos) y `cronos_banco` (movimientos TPV). Tiene subpestanas Apuntes, Banco, Resultados y Conciliacion.
+- Apuntes/Banco usan RPC paginados y RPC de resumen para evitar `count:'exact'` sobre muchas filas bajo RLS. Los filtros y totales se calculan server-side.
+- La UI compacta Apuntes para que los filtros entren en el panel; el listado oculta `numero_factura`. Banco oculta `terminal` y `tipo_operacion`, y no muestra filtro de terminal.
+- Resultados usa `get_cronos_resultados`: toma Banco como base, enlaza `cronos_banco.cod_pedido` con `cronos.identificador` normalizado sin ceros a la izquierda, y ofrece vista Detalle y Resumen. El resumen puede exportarse a Excel/PDF desde la UI.
+- Conciliacion usa `get_cronos_conciliacion`: compara `cronos.identificador` normalizado sin ceros a la izquierda con `cronos_banco.cod_pedido` y muestra apuntes/movimientos sin pareja dentro del intervalo.
+- RLS de `cronos` y `cronos_banco`: lectura para administradores o usuarios con pestana `contabilidad`; escritura solo administradores para permitir carga/reemplazo desde la app.
+- Los scripts CLI de carga inicial son `scripts/import_cronos.py` y `scripts/import_cronos_banco.py`; requieren `SUPABASE_SERVICE_ROLE_KEY` o `--service-role-key`, soportan `--dry-run` y cargan por lotes.
 
 ## Informes y asignacion masiva
 

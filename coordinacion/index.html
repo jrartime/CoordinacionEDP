@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260710-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260710-9" />
   </head>
   <body>
     <script>
@@ -582,6 +582,22 @@
                 Registros
               </button>
               <button
+                id="private-tab-gestion"
+                type="button"
+                class="private-tab-button hidden"
+                aria-pressed="false"
+              >
+                Gestión
+              </button>
+              <button
+                id="private-tab-contabilidad"
+                type="button"
+                class="private-tab-button hidden"
+                aria-pressed="false"
+              >
+                Contabilidad
+              </button>
+              <button
                 id="private-tab-settings"
                 type="button"
                 class="private-tab-button hidden"
@@ -610,11 +626,29 @@
                 <form id="records-filters-form" class="filters-grid records-filters-grid records-filters-compact">
                   <label class="filter-field">
                     Desde
-                    <input id="records-filter-date-from" name="fecha_desde" type="date" />
+                    <div class="filter-control-row">
+                      <input id="records-filter-date-from" name="fecha_desde" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_desde"
+                        aria-label="Restablecer fecha desde"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Hasta
-                    <input id="records-filter-date-to" name="fecha_hasta" type="date" />
+                    <div class="filter-control-row">
+                      <input id="records-filter-date-to" name="fecha_hasta" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_hasta"
+                        aria-label="Restablecer fecha hasta"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field records-contrato-field">
                     Contratos
@@ -629,20 +663,43 @@
                   </label>
                   <label class="filter-field">
                     Servicio
-                    <select id="records-filter-servicio" name="servicio_id">
-                      <option value="">Todos</option>
-                    </select>
+                    <div class="filter-control-row">
+                      <select id="records-filter-servicio" name="servicio_id">
+                        <option value="">Todos</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="servicio_id"
+                        aria-label="Restablecer servicio"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Personal
-                    <div class="filter-field-stack">
+                    <div class="filter-field-stack personal-picker-stack">
                       <input
                         id="records-filter-personal-input"
                         type="text"
                         autocomplete="off"
-                        placeholder="Buscar personal"
+                        placeholder="Buscar o desplegar"
                       />
                       <input id="records-filter-personal" name="personal_id" type="hidden" />
+                      <button
+                        type="button"
+                        class="personal-picker-clear hidden"
+                        data-personal-clear
+                        aria-label="Limpiar personal"
+                        title="Limpiar"
+                      >&times;</button>
+                      <button
+                        type="button"
+                        class="personal-picker-toggle"
+                        data-personal-toggle
+                        aria-label="Desplegar lista de personal"
+                        title="Desplegar"
+                      >&#9662;</button>
                       <div
                         id="records-filter-personal-suggestions"
                         class="filter-suggestions filter-suggestions-full hidden"
@@ -651,13 +708,31 @@
                   </label>
                   <label class="filter-field">
                     Instalacion
-                    <select id="records-filter-instalacion" name="instalacion_id">
-                      <option value="">Todos</option>
-                    </select>
+                    <div class="filter-control-row">
+                      <select id="records-filter-instalacion" name="instalacion_id">
+                        <option value="">Todos</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="instalacion_id"
+                        aria-label="Restablecer instalación"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Busqueda
-                    <input id="records-filter-search" name="search" type="search" placeholder="ID, nota..." />
+                    <div class="filter-control-row">
+                      <input id="records-filter-search" name="search" type="search" placeholder="ID, nota..." />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="search"
+                        aria-label="Restablecer búsqueda"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <div class="filter-actions">
                     <button id="records-clear-filters-button" type="button" class="secondary-button">
@@ -938,14 +1013,28 @@
                   </label>
                   <label class="filter-field">
                     Personal
-                    <div class="filter-field-stack">
+                    <div class="filter-field-stack personal-picker-stack">
                       <input
                         id="historial-filter-personal-input"
                         type="text"
                         autocomplete="off"
-                        placeholder="Buscar personal"
+                        placeholder="Buscar o desplegar"
                       />
                       <input id="historial-filter-personal" name="personal_id" type="hidden" />
+                      <button
+                        type="button"
+                        class="personal-picker-clear hidden"
+                        data-personal-clear
+                        aria-label="Limpiar personal"
+                        title="Limpiar"
+                      >&times;</button>
+                      <button
+                        type="button"
+                        class="personal-picker-toggle"
+                        data-personal-toggle
+                        aria-label="Desplegar lista de personal"
+                        title="Desplegar"
+                      >&#9662;</button>
                       <div
                         id="historial-filter-personal-suggestions"
                         class="filter-suggestions filter-suggestions-full hidden"
@@ -1085,6 +1174,595 @@
                   </form>
                 </aside>
               </section>
+            </section>
+
+            <section id="private-tab-panel-gestion" class="private-tab-panel hidden">
+              <section class="card gestion-card">
+                <div class="card-header records-header">
+                  <div>
+                    <p class="eyebrow">Gestión</p>
+                    <h2>Historiales y horas por intervalo</h2>
+                  </div>
+                  <div class="results-actions">
+                    <button id="gestion-refresh-button" type="button">Actualizar</button>
+                  </div>
+                </div>
+
+                <form id="gestion-filters-form" class="filters-grid records-filters-grid records-filters-compact">
+                  <label class="filter-field">
+                    Desde
+                    <input id="gestion-filter-desde" name="fecha_desde" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Hasta
+                    <input id="gestion-filter-hasta" name="fecha_hasta" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Personal
+                    <div class="filter-field-stack personal-picker-stack">
+                      <input
+                        id="gestion-filter-personal-input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Buscar o desplegar"
+                      />
+                      <input id="gestion-filter-personal" name="personal_id" type="hidden" />
+                      <button
+                        type="button"
+                        class="personal-picker-clear hidden"
+                        data-personal-clear
+                        aria-label="Limpiar personal"
+                        title="Limpiar"
+                      >&times;</button>
+                      <button
+                        type="button"
+                        class="personal-picker-toggle"
+                        data-personal-toggle
+                        aria-label="Desplegar lista de personal"
+                        title="Desplegar"
+                      >&#9662;</button>
+                      <div
+                        id="gestion-filter-personal-suggestions"
+                        class="filter-suggestions filter-suggestions-full hidden"
+                      ></div>
+                    </div>
+                  </label>
+                  <div class="filter-actions">
+                    <button id="gestion-clear-filters-button" type="button" class="secondary-button">
+                      Limpiar
+                    </button>
+                  </div>
+                </form>
+
+                <div class="results-toolbar section-summary-toolbar">
+                  <div class="results-summary">
+                    <p id="gestion-summary" class="summary-chip">Selecciona un intervalo de fechas.</p>
+                  </div>
+                </div>
+
+                <div class="gestion-grid">
+                  <section class="gestion-block">
+                    <div class="gestion-block-header">
+                      <h3>Historiales laborales solapados</h3>
+                      <span id="gestion-historial-count" class="summary-chip">—</span>
+                    </div>
+                    <div class="table-wrapper records-table-wrapper gestion-table-wrapper">
+                      <table id="gestion-historial-table" class="records-table gestion-compact-table">
+                        <thead>
+                          <tr>
+                            <th>Personal</th>
+                            <th>Alta</th>
+                            <th>Baja</th>
+                            <th>Jornada / Máx.</th>
+                            <th title="Coeficiente de temporalidad (‰)">Coef. ‰</th>
+                          </tr>
+                        </thead>
+                        <tbody id="gestion-historial-table-body">
+                          <tr>
+                            <td colspan="5" class="empty-state">Sin datos.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section class="gestion-block">
+                    <div class="gestion-block-header">
+                      <h3>Horas de registros</h3>
+                      <span id="gestion-total-horas" class="summary-chip">Total: —</span>
+                    </div>
+                    <div class="table-wrapper records-table-wrapper gestion-table-wrapper">
+                      <table id="gestion-pivot-table" class="records-table gestion-compact-table gestion-pivot-table">
+                        <thead id="gestion-pivot-head">
+                          <tr>
+                            <th>Puesto</th>
+                            <th>Situación</th>
+                          </tr>
+                        </thead>
+                        <tbody id="gestion-pivot-body">
+                          <tr>
+                            <td colspan="2" class="empty-state">Sin datos.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </div>
+              </section>
+            </section>
+
+            <section id="private-tab-panel-contabilidad" class="private-tab-panel hidden">
+              <nav class="settings-subtabs" aria-label="Secciones de contabilidad">
+                <button
+                  id="contabilidad-subtab-apuntes"
+                  class="settings-subtab-button active"
+                  type="button"
+                  data-contabilidad-subtab="apuntes"
+                  aria-pressed="true"
+                >
+                  Apuntes
+                </button>
+                <button
+                  id="contabilidad-subtab-banco"
+                  class="settings-subtab-button"
+                  type="button"
+                  data-contabilidad-subtab="banco"
+                  aria-pressed="false"
+                >
+                  Banco
+                </button>
+                <button
+                  id="contabilidad-subtab-resultados"
+                  class="settings-subtab-button"
+                  type="button"
+                  data-contabilidad-subtab="resultados"
+                  aria-pressed="false"
+                >
+                  Resultados
+                </button>
+                <button
+                  id="contabilidad-subtab-conciliacion"
+                  class="settings-subtab-button"
+                  type="button"
+                  data-contabilidad-subtab="conciliacion"
+                  aria-pressed="false"
+                >
+                  Conciliación
+                </button>
+              </nav>
+
+              <div id="contabilidad-view-apuntes">
+              <section class="card">
+                <div class="card-header records-header">
+                  <div>
+                    <p class="eyebrow">Contabilidad</p>
+                    <h2>Apuntes de Cronos</h2>
+                  </div>
+                  <div class="results-actions">
+                    <button id="contabilidad-load-button" type="button" class="secondary-button">Cargar CSV</button>
+                    <input id="contabilidad-load-input" type="file" accept=".csv,text/csv" class="hidden" />
+                    <button id="contabilidad-refresh-button" type="button">Actualizar</button>
+                  </div>
+                </div>
+
+                <form id="contabilidad-filters-form" class="filters-grid records-filters-grid records-filters-compact contabilidad-apuntes-filters">
+                  <label class="filter-field">
+                    Desde
+                    <input id="contabilidad-filter-desde" name="fecha_desde" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Hasta
+                    <input id="contabilidad-filter-hasta" name="fecha_hasta" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Centro
+                    <select id="contabilidad-filter-centro" name="centro">
+                      <option value="">Todos</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Tipo de servicio
+                    <select id="contabilidad-filter-tipo-servicio" name="tipo_servicio">
+                      <option value="">Todos</option>
+                    </select>
+                  </label>
+                  <label class="filter-field contabilidad-filter-forma-pago">
+                    Forma de pago
+                    <select id="contabilidad-filter-forma-pago" name="forma_pago">
+                      <option value="">Todas</option>
+                    </select>
+                  </label>
+                  <label class="filter-field contabilidad-filter-anulado">
+                    Anulado
+                    <select id="contabilidad-filter-anulado" name="anulado">
+                      <option value="">Todos</option>
+                      <option value="false">No</option>
+                      <option value="true">Sí</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Vinculación
+                    <select id="contabilidad-filter-vinculacion" name="vinculacion">
+                      <option value="">Todos</option>
+                      <option value="true">Vinculados</option>
+                      <option value="false">No vinculados</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Servicio
+                    <input id="contabilidad-filter-servicio" name="servicio" type="search" placeholder="Contiene..." />
+                  </label>
+                  <label class="filter-field">
+                    Búsqueda
+                    <input id="contabilidad-filter-search" name="search" type="search" placeholder="Nombre, DNI, nº factura" />
+                  </label>
+                  <div class="filter-actions">
+                    <button id="contabilidad-clear-filters-button" type="button" class="secondary-button">
+                      Limpiar
+                    </button>
+                  </div>
+                </form>
+
+                <div class="results-toolbar section-summary-toolbar">
+                  <div class="results-summary">
+                    <p id="contabilidad-summary" class="summary-chip">Cargando apuntes...</p>
+                  </div>
+                  <div class="contabilidad-pagination">
+                    <label class="pagination-size">
+                      Por página
+                      <select id="contabilidad-page-size">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="200">200</option>
+                      </select>
+                    </label>
+                    <button id="contabilidad-prev-page" type="button" class="secondary-button">Anterior</button>
+                    <span id="contabilidad-page-info">—</span>
+                    <button id="contabilidad-next-page" type="button" class="secondary-button">Siguiente</button>
+                  </div>
+                </div>
+
+                <div class="table-wrapper records-table-wrapper">
+                  <table id="contabilidad-table" class="records-table">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Centro</th>
+                        <th>Servicio</th>
+                        <th>Tipo servicio</th>
+                        <th>Tarifa</th>
+                        <th>Cant.</th>
+                        <th>Importe</th>
+                        <th>Forma pago</th>
+                        <th>Anulado</th>
+                        <th>Apellidos</th>
+                        <th>Nombre</th>
+                        <th>Documento</th>
+                      </tr>
+                    </thead>
+                    <tbody id="contabilidad-table-body">
+                      <tr>
+                        <td colspan="13" class="empty-state">Cargando apuntes...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+              </div>
+
+              <div id="contabilidad-view-banco" class="hidden">
+              <section class="card">
+                <div class="card-header records-header">
+                  <div>
+                    <p class="eyebrow">Contabilidad</p>
+                    <h2>Movimientos bancarios (TPV)</h2>
+                  </div>
+                  <div class="results-actions">
+                    <button id="banco-load-button" type="button" class="secondary-button">Cargar CSV</button>
+                    <input id="banco-load-input" type="file" accept=".csv,text/csv" class="hidden" />
+                    <button id="banco-refresh-button" type="button">Actualizar</button>
+                  </div>
+                </div>
+
+                <form id="banco-filters-form" class="filters-grid records-filters-grid records-filters-compact">
+                  <label class="filter-field">
+                    Desde
+                    <input id="banco-filter-desde" name="fecha_desde" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Hasta
+                    <input id="banco-filter-hasta" name="fecha_hasta" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Resultado
+                    <select id="banco-filter-resultado" name="resultado">
+                      <option value="">Todos</option>
+                      <option value="Autorizada">Autorizada</option>
+                      <option value="Denegada">Denegada</option>
+                      <option value="Cancelada">Cancelada</option>
+                      <option value="Sin finalizar">Sin finalizar</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Tipo de pago
+                    <select id="banco-filter-tipo-pago" name="tipo_pago">
+                      <option value="">Todos</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Búsqueda
+                    <input id="banco-filter-search" name="search" type="search" placeholder="Tarjeta, cód pedido, resultado" />
+                  </label>
+                  <div class="filter-actions">
+                    <button id="banco-clear-filters-button" type="button" class="secondary-button">
+                      Limpiar
+                    </button>
+                  </div>
+                </form>
+
+                <div class="results-toolbar section-summary-toolbar">
+                  <div class="results-summary">
+                    <p id="banco-summary" class="summary-chip">Cargando movimientos...</p>
+                  </div>
+                  <div class="contabilidad-pagination">
+                    <label class="pagination-size">
+                      Por página
+                      <select id="banco-page-size">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="200">200</option>
+                      </select>
+                    </label>
+                    <button id="banco-prev-page" type="button" class="secondary-button">Anterior</button>
+                    <span id="banco-page-info">—</span>
+                    <button id="banco-next-page" type="button" class="secondary-button">Siguiente</button>
+                  </div>
+                </div>
+
+                <div class="table-wrapper records-table-wrapper">
+                  <table id="banco-table" class="records-table">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Cód pedido</th>
+                        <th>Resultado</th>
+                        <th>Importe €</th>
+                        <th>Moneda</th>
+                        <th>Tipo de pago</th>
+                        <th>Tarjeta</th>
+                      </tr>
+                    </thead>
+                    <tbody id="banco-table-body">
+                      <tr>
+                        <td colspan="8" class="empty-state">Cargando movimientos...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+              </div>
+
+              <div id="contabilidad-view-resultados" class="hidden">
+              <section class="card">
+                <div class="card-header records-header">
+                  <div>
+                    <p class="eyebrow">Contabilidad</p>
+                    <h2>Resultados Banco / Cronos</h2>
+                  </div>
+                  <div class="results-actions">
+                    <button id="resultados-refresh-button" type="button">Actualizar</button>
+                  </div>
+                </div>
+
+                <form id="resultados-filters-form" class="filters-grid records-filters-grid records-filters-compact">
+                  <label class="filter-field">
+                    Desde
+                    <input id="resultados-filter-desde" name="fecha_desde" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Hasta
+                    <input id="resultados-filter-hasta" name="fecha_hasta" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Resultado
+                    <select id="resultados-filter-resultado" name="resultado">
+                      <option value="">Todos</option>
+                      <option value="Autorizada">Autorizada</option>
+                      <option value="Denegada">Denegada</option>
+                      <option value="Cancelada">Cancelada</option>
+                      <option value="Sin finalizar">Sin finalizar</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Anulado
+                    <select id="resultados-filter-anulado" name="anulado">
+                      <option value="">Todos</option>
+                      <option value="false">No</option>
+                      <option value="true">Sí</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Búsqueda
+                    <input id="resultados-filter-search" name="search" type="search" placeholder="Cód pedido, factura, identificador" />
+                  </label>
+                  <div class="filter-actions">
+                    <button id="resultados-clear-filters-button" type="button" class="secondary-button">
+                      Limpiar
+                    </button>
+                  </div>
+                </form>
+
+                <div class="settings-subtabs resultados-subtabs" aria-label="Vistas de resultados">
+                  <button
+                    class="settings-subtab-button active"
+                    type="button"
+                    data-resultados-view="detalle"
+                    aria-pressed="true"
+                  >
+                    Consulta
+                  </button>
+                  <button
+                    class="settings-subtab-button"
+                    type="button"
+                    data-resultados-view="resumen"
+                    aria-pressed="false"
+                  >
+                    Resumen
+                  </button>
+                  <button id="resultados-export-excel-button" type="button" class="secondary-button hidden">
+                    Exportar Excel
+                  </button>
+                  <button id="resultados-export-pdf-button" type="button" class="secondary-button hidden">
+                    Exportar PDF
+                  </button>
+                </div>
+
+                <div class="results-toolbar section-summary-toolbar">
+                  <div class="results-summary">
+                    <p id="resultados-summary" class="summary-chip">Selecciona un intervalo o actualiza.</p>
+                  </div>
+                  <div class="contabilidad-pagination">
+                    <label class="pagination-size">
+                      Por página
+                      <select id="resultados-page-size">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="200">200</option>
+                      </select>
+                    </label>
+                    <button id="resultados-prev-page" type="button" class="secondary-button">Anterior</button>
+                    <span id="resultados-page-info">—</span>
+                    <button id="resultados-next-page" type="button" class="secondary-button">Siguiente</button>
+                  </div>
+                </div>
+
+                <div class="table-wrapper records-table-wrapper">
+                  <table id="resultados-table" class="records-table">
+                    <thead id="resultados-table-head">
+                      <tr>
+                        <th>Banco Id</th>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Tipo operación</th>
+                        <th>Cód pedido</th>
+                        <th>Banco importe</th>
+                        <th>Importe euros</th>
+                        <th>Tarifa</th>
+                        <th>Cantidad</th>
+                        <th>Cronos importe</th>
+                      </tr>
+                    </thead>
+                    <tbody id="resultados-table-body">
+                      <tr>
+                        <td colspan="10" class="empty-state">Sin datos.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+              </div>
+
+              <div id="contabilidad-view-conciliacion" class="hidden">
+              <section class="card">
+                <div class="card-header records-header">
+                  <div>
+                    <p class="eyebrow">Contabilidad</p>
+                    <h2>Conciliación Cronos / Banco</h2>
+                  </div>
+                  <div class="results-actions">
+                    <button id="conciliacion-refresh-button" type="button">Actualizar</button>
+                  </div>
+                </div>
+
+                <form id="conciliacion-filters-form" class="filters-grid records-filters-grid records-filters-compact">
+                  <label class="filter-field">
+                    Desde
+                    <input id="conciliacion-filter-desde" name="fecha_desde" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Hasta
+                    <input id="conciliacion-filter-hasta" name="fecha_hasta" type="date" />
+                  </label>
+                  <div class="filter-actions">
+                    <button id="conciliacion-clear-filters-button" type="button" class="secondary-button">
+                      Limpiar
+                    </button>
+                  </div>
+                </form>
+
+                <div class="results-toolbar section-summary-toolbar">
+                  <div class="results-summary">
+                    <p id="conciliacion-summary" class="summary-chip">Selecciona un intervalo o actualiza.</p>
+                  </div>
+                </div>
+
+                <div class="conciliacion-grid">
+                  <section class="gestion-block">
+                    <div class="gestion-block-header">
+                      <h3>Apuntes sin movimiento bancario</h3>
+                      <span id="conciliacion-cronos-count" class="summary-chip">—</span>
+                    </div>
+                    <div class="table-wrapper records-table-wrapper gestion-table-wrapper">
+                      <table id="conciliacion-cronos-table" class="records-table gestion-compact-table">
+                        <thead>
+                          <tr>
+                            <th>Fecha</th>
+                            <th>Hora</th>
+                            <th>Identificador</th>
+                            <th>Importe</th>
+                            <th>Forma pago</th>
+                            <th>Nº factura</th>
+                            <th>Anulado</th>
+                            <th>Apellidos</th>
+                            <th>Nombre</th>
+                            <th>Documento</th>
+                            <th>Servicio</th>
+                            <th>Centro</th>
+                          </tr>
+                        </thead>
+                        <tbody id="conciliacion-cronos-table-body">
+                          <tr>
+                            <td colspan="12" class="empty-state">Sin datos.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section class="gestion-block">
+                    <div class="gestion-block-header">
+                      <h3>Movimientos bancarios sin apunte</h3>
+                      <span id="conciliacion-banco-count" class="summary-chip">—</span>
+                    </div>
+                    <div class="table-wrapper records-table-wrapper gestion-table-wrapper">
+                      <table id="conciliacion-banco-table" class="records-table gestion-compact-table">
+                        <thead>
+                          <tr>
+                            <th>Fecha</th>
+                            <th>Hora</th>
+                            <th>Cód pedido</th>
+                            <th>Terminal</th>
+                            <th>Tipo operación</th>
+                            <th>Resultado</th>
+                            <th>Importe €</th>
+                            <th>Moneda</th>
+                            <th>Tipo de pago</th>
+                            <th>Tarjeta</th>
+                          </tr>
+                        </thead>
+                        <tbody id="conciliacion-banco-table-body">
+                          <tr>
+                            <td colspan="10" class="empty-state">Sin datos.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </div>
+              </section>
+              </div>
             </section>
 
             <section id="private-tab-panel-new" class="detail-panel hidden">
@@ -1688,28 +2366,31 @@
 
                   <label class="filter-field">
                     Personal
-                    <div class="filter-field-stack">
-                      <div class="filter-control-row">
-                        <input
-                          id="control-personal"
-                          name="personal"
-                          type="text"
-                          autocomplete="off"
-                          placeholder="Buscar personal"
-                        />
-                        <button
-                          type="button"
-                          class="filter-reset-button"
-                          data-reset-filter="personal"
-                          aria-label="Restablecer personal"
-                          title="Restablecer"
-                        >
-                          x
-                        </button>
-                      </div>
+                    <div class="filter-field-stack personal-picker-stack">
+                      <input
+                        id="control-personal"
+                        name="personal"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Buscar o desplegar"
+                      />
+                      <button
+                        type="button"
+                        class="personal-picker-clear hidden"
+                        data-control-personal-clear
+                        aria-label="Limpiar personal"
+                        title="Limpiar"
+                      >&times;</button>
+                      <button
+                        type="button"
+                        class="personal-picker-toggle"
+                        data-control-personal-toggle
+                        aria-label="Desplegar lista de personal"
+                        title="Desplegar"
+                      >&#9662;</button>
                       <div
                         id="control-personal-suggestions"
-                        class="filter-suggestions hidden"
+                        class="filter-suggestions filter-suggestions-full hidden"
                       ></div>
                     </div>
                   </label>
@@ -2599,19 +3280,32 @@
 
                   <label class="filter-field">
                     Personal
-                    <div class="filter-control-row">
-                      <select id="programming-filter-personal">
-                        <option value="">Todo el personal</option>
-                      </select>
+                    <div class="filter-field-stack personal-picker-stack">
+                      <input
+                        id="programming-filter-personal-input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Buscar o desplegar"
+                      />
+                      <input id="programming-filter-personal" type="hidden" />
                       <button
                         type="button"
-                        class="filter-reset-button"
-                        data-reset-programming-filter="personal"
-                        aria-label="Restablecer personal"
-                        title="Restablecer"
-                      >
-                        x
-                      </button>
+                        class="personal-picker-clear hidden"
+                        data-personal-clear
+                        aria-label="Limpiar personal"
+                        title="Limpiar"
+                      >&times;</button>
+                      <button
+                        type="button"
+                        class="personal-picker-toggle"
+                        data-personal-toggle
+                        aria-label="Desplegar lista de personal"
+                        title="Desplegar"
+                      >&#9662;</button>
+                      <div
+                        id="programming-filter-personal-suggestions"
+                        class="filter-suggestions filter-suggestions-full hidden"
+                      ></div>
                     </div>
                   </label>
 
@@ -4345,28 +5039,31 @@
 
               <label class="filter-field">
                 Personal
-                <div class="filter-field-stack">
-                  <div class="filter-control-row">
-                    <input
-                      id="filter-activity-personal"
-                      name="personal"
-                      type="text"
-                      autocomplete="off"
-                      placeholder="Buscar personal"
-                    />
-                    <button
-                      type="button"
-                      class="filter-reset-button"
-                      data-reset-filter="personal"
-                      aria-label="Restablecer personal"
-                      title="Restablecer"
-                    >
-                      x
-                    </button>
-                  </div>
+                <div class="filter-field-stack personal-picker-stack">
+                  <input
+                    id="filter-activity-personal"
+                    name="personal"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="Buscar o desplegar"
+                  />
+                  <button
+                    type="button"
+                    class="personal-picker-clear hidden"
+                    data-activity-personal-clear
+                    aria-label="Limpiar personal"
+                    title="Limpiar"
+                  >&times;</button>
+                  <button
+                    type="button"
+                    class="personal-picker-toggle"
+                    data-activity-personal-toggle
+                    aria-label="Desplegar lista de personal"
+                    title="Desplegar"
+                  >&#9662;</button>
                   <div
                     id="filter-activity-personal-suggestions"
-                    class="filter-suggestions hidden"
+                    class="filter-suggestions filter-suggestions-full hidden"
                   ></div>
                 </div>
               </label>
@@ -6242,7 +6939,7 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260708-1" defer></script>
-    <script src="./app.js?v=20260709-3" defer></script>
+    <script src="./concilia-integrated.js?v=20260710-1" defer></script>
+    <script src="./app.js?v=20260710-13" defer></script>
   </body>
 </html>

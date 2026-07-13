@@ -44,6 +44,8 @@ exports/               # CSVs exportados de Supabase para importación/referenci
 - **Contratos** — `tbl_contratos`.
 - **Actividades** — Actividades laborales por contrato (compartido con Concilia).
 - **Registros** — Detalle de jornadas generado desde actividades. Filtros cruzados por contrato/servicio/personal/instalación, edición tipo Excel, selección manual para asignación/borrado masivo y coherencia servicio/contrato.
+- **Gestión** — Pestaña transversal que cruza historiales laborales y registros por intervalo de fechas. Filtros de fecha (Desde/Hasta) y personal (solo personas con registros en el intervalo); muestra los historiales laborales solapados (alta/baja, jornada/jornada máxima, coeficiente de temporalidad ‰) y un pivote de horas de registros (filas puesto×situación, columnas tipo de hora). Agregados server-side (`get_gestion_registros_resumen`, `get_gestion_personal`).
+- **Contabilidad** — Apuntes del sistema Cronos (`cronos`) con subpestañas **Apuntes**, **Banco** (`cronos_banco`, movimientos TPV), **Resultados** (Banco como base enlazado con `cronos.identificador`) y **Conciliación** (apuntes/movimientos sin pareja). Paginación y agregados server-side; filtros por fecha/centro/tipo/forma de pago/etc.; botón "Cargar CSV" en Apuntes/Banco que reemplaza los datos por rango de fechas. Solo lectura salvo carga (admin).
 - **Accesos** — Usuarios, roles y servicios.
 - **Concilia** (integrado) — Las 5 pestañas de Concilia dentro de Coordinación vía `concilia-integrated.js`.
 
@@ -91,6 +93,27 @@ El login usa Supabase Auth. No hay contraseñas locales en el código.
 - `actividades.servicio_id` tiene validación equivalente en `supabase/tables/actividades.sql`; debe usar comparación estricta `new.contrato_id is distinct from service_contract_id`.
 - En frontend, el modo edición tipo Excel de Registros carga opciones de selects relacionales bajo demanda para evitar renderizar miles de `<option>` por celda.
 - Las asignaciones masivas de Registros, Actividades e Historial laboral soportan selección manual por ticks; cuando está activa, `Aplicar` actúa solo sobre los elementos seleccionados.
+
+### Supabase Contabilidad (Cronos)
+
+- Tablas `cronos` (apuntes de inscripciones/actividades) y `cronos_banco` (movimientos TPV). `cronos_banco.cod_pedido` enlaza con `cronos.identificador` (normalizando: `cod_pedido = identificador::bigint`, porque los exports nuevos traen el identificador con ceros a la izquierda). Fuente: `supabase/tables/cronos.sql`, `supabase/tables/cronos_banco.sql`.
+- **RLS**: lectura para `is_coordinacion_admin()` **o** usuarios con la pestaña `contabilidad` asignada (acceso "todo o nada", sin scope por fila). **Escritura solo admin** (`cronos_admin_write`, `cronos_banco_admin_write`) — necesaria para la carga desde la app.
+- **Funciones** `get_cronos_filtros/resumen/page`, `get_cronos_banco_filtros/resumen/page`, `get_cronos_resultados` y `get_cronos_conciliacion`: son **`SECURITY DEFINER`** con un guard de autorización evaluado **una sola vez** (no por fila). Es deliberado: evaluar el RLS fila a fila sobre las 100k+ filas provocaba `statement timeout` en el cliente. **No revertir a SECURITY INVOKER.**
+- `get_cronos_filtros` acepta los mismos filtros que Apuntes para devolver `forma_pago` y `anulado` facetados por el contexto actual; si se cambia su firma, actualizar también el RPC del frontend.
+- En frontend, la lista de Contabilidad/Banco **no usa `count:'exact'`** (contar todas las filas bajo RLS también da timeout); el total exacto lo aporta el RPC de resumen y la consulta de página solo trae `.range()`.
+- UI de Contabilidad: Apuntes usa filtros compactos en una fila y el listado no muestra `numero_factura`; Banco no muestra `terminal` ni `tipo_operacion`, no filtra por terminal desde la UI y `get_cronos_banco_page` debe dropearse antes de recrearse si cambia su `returns table`.
+- **Resultados** (`get_cronos_resultados`): Banco es la base; enlaza `cronos_banco.cod_pedido` con `cronos.identificador` usando `ltrim(trim(identificador), '0')`. Tiene vista **detalle** y **resumen**; el resumen agrupa por mes/tarifa, suma unidades e importes y permite exportar Excel/PDF desde la UI.
+- **Conciliación** (`get_cronos_conciliacion`): compara `cronos.identificador` normalizado sin ceros a la izquierda con `cronos_banco.cod_pedido` y devuelve los apuntes Cronos y movimientos Banco sin pareja del intervalo. Limita filas devueltas para no saturar el navegador, pero devuelve totales exactos.
+- **Carga de datos** (botón "Cargar CSV" por subpestaña, `handleContabilidadCsvLoad`): detecta codificación (los apuntes vienen UTF-8, el banco **Windows-1252**), parsea `;`, mapea columnas **por posición** (los exports nuevos no traen columna `Id` y difieren de los ficheros iniciales), convierte fechas dd/mm/aaaa, decimales coma o punto, y valores no-fecha (`--`, `----`, vacío) a NULL. Estrategia **reemplazo por rango de fechas** (borra `fecha` min–max del fichero e inserta por lotes de 1000) porque no hay clave única fiable (`apunte` y `cod_pedido` tienen duplicados). Idempotente por periodo.
+- **Import inicial por script** (alternativa CLI, requiere la `service_role` key): `scripts/import_cronos.py` (CSV) e `scripts/import_cronos_banco.py` (xlsx/CSV), upsert por `id_origen`, lotes de 5000, con `--dry-run`.
+- La clave de pestaña `contabilidad` (y `gestion`) están en el catálogo `supabase/tables/coordinacion_pestanas.sql`.
+
+### Supabase Gestión
+
+- Fuente: `supabase/tables/gestion_resumen.sql`.
+- `get_gestion_personal(p_desde, p_hasta)` lista personal con registros visibles en el intervalo, acotado a contratos activos.
+- `get_gestion_registros_resumen(p_desde, p_hasta, p_personal_id)` agrega horas en servidor por `puesto × situación × tipo_hora`, sin el límite frontend de 5000 filas de Registros.
+- Son funciones **`SECURITY INVOKER`**: deben respetar el RLS de `registros` y el alcance por contrato asignado.
 
 ## Desarrollo local
 
