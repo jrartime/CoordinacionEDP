@@ -17552,19 +17552,25 @@ async function loadHistorialReportConfig({ force = false } = {}) {
     setHistorialReportConfigStatus("Cargando configuración...");
     const supabase = await getSupabaseClient();
     await loadHistorialRelationOptions();
-    const [companyRes, templateRes] = await Promise.all([
-      supabase
+    let companyWarning = "";
+    let companyRes = await supabase
+      .from("empresas")
+      .select(
+        "id, empresa, razon_social, cif, logo_url, logo_data_url, logo_alt, firma_data_url, firmante_nombre, firmante_dni, firmante_cargo, ciudad_firma, direccion_pie, telefono_pie, email_pie, web_pie, notas"
+      )
+      .order("empresa", { ascending: true });
+    if (companyRes.error) {
+      companyWarning = " Aplica empresas.sql para activar logo/firma.";
+      companyRes = await supabase
         .from("empresas")
-        .select(
-          "id, empresa, razon_social, cif, logo_url, logo_data_url, logo_alt, firma_data_url, firmante_nombre, firmante_dni, firmante_cargo, ciudad_firma, direccion_pie, telefono_pie, email_pie, web_pie, notas"
-        )
-        .order("empresa", { ascending: true }),
-      supabase
-        .from("historial_laboral_informe_plantillas")
-        .select("*")
-        .order("orden", { ascending: true })
-        .order("nombre", { ascending: true }),
-    ]);
+        .select("id, empresa, razon_social, cif")
+        .order("empresa", { ascending: true });
+    }
+    const templateRes = await supabase
+      .from("historial_laboral_informe_plantillas")
+      .select("*")
+      .order("orden", { ascending: true })
+      .order("nombre", { ascending: true });
     if (companyRes.error) throw companyRes.error;
     if (templateRes.error) throw templateRes.error;
 
@@ -17578,8 +17584,11 @@ async function loadHistorialReportConfig({ force = false } = {}) {
     syncHistorialReportConfigForms();
     setHistorialReportConfigStatus(
       `${historialReportCompanyRows.length} empresas · ${historialReportTemplateRows.length} plantillas`,
-      "success"
+      companyWarning ? "warning" : "success"
     );
+    if (companyWarning && historialReportConfigStatus) {
+      historialReportConfigStatus.textContent += companyWarning;
+    }
   } catch (error) {
     historialReportConfigLoaded = false;
     setHistorialReportConfigStatus(
