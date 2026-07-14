@@ -593,6 +593,7 @@ const privateTabPanelGestion = document.querySelector("#private-tab-panel-gestio
 const privateTabPanelContabilidad = document.querySelector("#private-tab-panel-contabilidad");
 const privateTabPanelSettings = document.querySelector("#private-tab-panel-settings");
 const settingsCatalogView = document.querySelector("#settings-catalog-view");
+const settingsReportsView = document.querySelector("#settings-reports-view");
 const settingsAccessView = document.querySelector("#settings-access-view");
 const settingsSubtabAccessButton = document.querySelector("#settings-subtab-access");
 const privateTabPanelConciliaIntegrated = document.querySelector("#private-tab-panel-concilia-integrated");
@@ -1304,7 +1305,7 @@ let currentAccessServices = [];
 let currentAccessAssignments = [];
 let currentAccessTabAssignments = [];
 let currentSettingsCatalog = "puestos";
-let currentSettingsView = "catalog"; // "catalog" | "access"
+let currentSettingsView = "catalog"; // "catalog" | "reports" | "access"
 let currentSettingsRows = [];
 let currentSettingsMode = "new";
 let currentSettingsEditingId = "";
@@ -1897,15 +1898,26 @@ function syncSettingsAccessSubtabVisibility() {
 }
 
 function switchSettingsView(view) {
-  const nextView = view === "access" && currentUserIsAccessAdmin ? "access" : "catalog";
+  const nextView =
+    view === "access" && currentUserIsAccessAdmin
+      ? "access"
+      : view === "reports"
+        ? "reports"
+        : "catalog";
   currentSettingsView = nextView;
   settingsCatalogView?.classList.toggle("hidden", nextView !== "catalog");
+  settingsReportsView?.classList.toggle("hidden", nextView !== "reports");
   settingsAccessView?.classList.toggle("hidden", nextView !== "access");
   renderSettingsSubtabs();
 }
 
 async function loadSettingsTabActiveView() {
   syncSettingsAccessSubtabVisibility();
+  if (currentSettingsView === "reports") {
+    switchSettingsView("reports");
+    await loadHistorialReportConfig({ force: !historialReportConfigLoaded });
+    return;
+  }
   if (currentSettingsView === "access" && currentUserIsAccessAdmin) {
     switchSettingsView("access");
     await loadAccessManagement();
@@ -11676,6 +11688,8 @@ function renderSettingsSubtabs() {
     const isActive =
       view === "access"
         ? currentSettingsView === "access"
+        : view === "reports"
+          ? currentSettingsView === "reports"
         : currentSettingsView === "catalog" && button.dataset.settingsCatalog === currentSettingsCatalog;
     button.classList.toggle("active", isActive);
     button.setAttribute("aria-pressed", String(isActive));
@@ -17120,6 +17134,8 @@ const historialFilterTipoContratacion = document.querySelector("#historial-filte
 const historialRefreshButton = document.querySelector("#historial-refresh-button");
 const historialClearFiltersButton = document.querySelector("#historial-clear-filters-button");
 const historialNewButton = document.querySelector("#historial-new-button");
+const historialOpenCompaniesSettingsButton = document.querySelector("#historial-open-companies-settings-button");
+const historialOpenReportsSettingsButton = document.querySelector("#historial-open-reports-settings-button");
 const historialDetailPanel = document.querySelector("#historial-detail-panel");
 const historialDetailOverlay = document.querySelector("#historial-detail-overlay");
 const historialDetailTitle = document.querySelector("#historial-detail-title");
@@ -17585,7 +17601,7 @@ function syncHistorialReportConfigForms() {
 }
 
 async function loadHistorialReportConfig({ force = false } = {}) {
-  if (!historialReportConfigDetails || (historialReportConfigLoaded && !force)) return;
+  if (!historialReportTemplateForm || (historialReportConfigLoaded && !force)) return;
   try {
     setHistorialReportConfigStatus("Cargando configuración...");
     const supabase = await getSupabaseClient();
@@ -17718,6 +17734,14 @@ function openHistorialReportCompaniesSettings() {
   historialReportConfigDetails?.removeAttribute("open");
   switchPrivateTab("settings");
   void loadSettingsManagement();
+}
+
+function openReportTemplateSettings() {
+  currentSettingsView = "reports";
+  historialReportConfigDetails?.removeAttribute("open");
+  switchPrivateTab("settings");
+  switchSettingsView("reports");
+  void loadHistorialReportConfig({ force: !historialReportConfigLoaded });
 }
 
 function ensureHistorialDetailReportButton() {
@@ -21262,6 +21286,12 @@ async function init() {
   });
   settingsSubtabButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (button.dataset.settingsView === "reports") {
+        closeSettingsDetail({ force: true });
+        switchSettingsView("reports");
+        void loadHistorialReportConfig({ force: !historialReportConfigLoaded });
+        return;
+      }
       if (button.dataset.settingsView === "access") {
         if (!currentUserIsAccessAdmin) {
           return;
@@ -21824,6 +21854,8 @@ async function init() {
   historialNewButton?.addEventListener("click", () => {
     void openHistorialNew();
   });
+  historialOpenCompaniesSettingsButton?.addEventListener("click", openHistorialReportCompaniesSettings);
+  historialOpenReportsSettingsButton?.addEventListener("click", openReportTemplateSettings);
   historialReportConfigDetails?.addEventListener("toggle", () => {
     if (historialReportConfigDetails.open) {
       void loadHistorialReportConfig();

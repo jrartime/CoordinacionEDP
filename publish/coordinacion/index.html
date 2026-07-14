@@ -974,6 +974,12 @@
                     <button id="historial-import-excel-button" type="button" class="secondary-button">
                       Cargar Excel
                     </button>
+                    <button id="historial-open-companies-settings-button" type="button" class="secondary-button">
+                      Gestionar empresas
+                    </button>
+                    <button id="historial-open-reports-settings-button" type="button" class="secondary-button">
+                      Configuración informes
+                    </button>
                     <button id="historial-new-button" type="button" title="Añadir periodo">
                       + Añadir
                     </button>
@@ -1106,72 +1112,6 @@
                       0 seleccionados
                     </span>
                   </div>
-                </details>
-
-                <details id="historial-reports-config-details" class="programming-panel-zone">
-                  <summary>Configuración informes</summary>
-                  <div class="activities-bulk-assignment-panel">
-                    <button id="historial-report-open-companies-button" type="button" class="secondary-button">
-                      Gestionar empresas
-                    </button>
-                    <button id="historial-report-config-refresh-button" type="button" class="secondary-button">
-                      Recargar
-                    </button>
-                    <span id="historial-report-config-status" class="control-selected-delete-count">
-                      Configuración sin cargar
-                    </span>
-                  </div>
-
-                  <div class="activities-bulk-assignment-panel">
-                    <label>
-                      Editar plantilla
-                      <select id="historial-report-template-select">
-                        <option value="">Seleccionar plantilla</option>
-                      </select>
-                    </label>
-                    <button id="historial-report-template-new-button" type="button" class="secondary-button">
-                      Nueva plantilla
-                    </button>
-                    <button id="historial-report-template-save-button" type="button">
-                      Guardar plantilla
-                    </button>
-                  </div>
-
-                  <form id="historial-report-template-form" class="detail-form records-detail-form">
-                    <div class="detail-field-row cols-2 full-width">
-                      <label>Código<input name="codigo" type="text" required /></label>
-                      <label>Nombre<input name="nombre" type="text" required /></label>
-                      <label>
-                        Tipo documento
-                        <select name="tipo_documento">
-                          <option value="llamamiento">Llamamiento</option>
-                          <option value="variacion">Variación</option>
-                          <option value="subrogacion">Subrogación</option>
-                          <option value="otro">Otro</option>
-                        </select>
-                      </label>
-                      <label>
-                        Tipo contratación
-                        <select name="tipo_contratacion_id">
-                          <option value="">Sin asignar</option>
-                        </select>
-                      </label>
-                      <label>Orden<input name="orden" type="number" step="1" /></label>
-                      <label class="checkbox-item with-label"><input name="activo" type="checkbox" /><span>Activa</span></label>
-                      <label class="checkbox-item with-label"><input name="incluir_tabla_actividades" type="checkbox" /><span>Incluir tabla actividades</span></label>
-                      <label class="checkbox-item with-label"><input name="incluir_opciones_respuesta" type="checkbox" /><span>Incluir opciones respuesta</span></label>
-                      <label class="full-width">Título<input name="titulo" type="text" /></label>
-                      <label class="full-width">Saludo<textarea name="saludo" rows="2"></textarea></label>
-                      <label class="full-width">Texto intro<textarea name="texto_intro" rows="4"></textarea></label>
-                      <label class="full-width">Texto movimiento<textarea name="texto_movimiento" rows="4"></textarea></label>
-                      <label class="full-width">Texto condiciones<textarea name="texto_condiciones" rows="4"></textarea></label>
-                      <label class="full-width">Texto legal<textarea name="texto_legal" rows="4"></textarea></label>
-                      <label class="full-width">Texto recibido<textarea name="texto_recibido" rows="3"></textarea></label>
-                      <label>Título tabla actividades<input name="tabla_actividades_titulo" type="text" /></label>
-                      <label class="full-width">Opciones respuesta<textarea name="opciones_respuesta_texto" rows="3"></textarea></label>
-                      <label class="full-width">Pie observaciones<textarea name="pie_observaciones" rows="2"></textarea></label>
-                    </div>
-                  </form>
                 </details>
 
                 <div class="results-toolbar section-summary-toolbar">
@@ -3925,6 +3865,9 @@
             <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="empresas" aria-pressed="false">
               Empresas
             </button>
+            <button class="settings-subtab-button" type="button" data-settings-view="reports" aria-pressed="false">
+              Informes
+            </button>
             <button id="settings-subtab-access" class="settings-subtab-button hidden" type="button" data-settings-view="access" aria-pressed="false">
               Accesos
             </button>
@@ -3956,6 +3899,73 @@
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div id="settings-reports-view" class="hidden">
+            <div class="section-heading-row">
+              <div>
+                <p class="eyebrow">Configuración</p>
+                <h3>Plantillas de informes</h3>
+              </div>
+              <div class="toolbar-actions">
+                <button id="historial-report-config-refresh-button" type="button" class="secondary-button">
+                  Recargar
+                </button>
+              </div>
+            </div>
+
+            <p id="historial-report-config-status" class="panel-status-message">Configuración sin cargar</p>
+
+            <div class="activities-bulk-assignment-panel">
+              <label>
+                Editar plantilla
+                <select id="historial-report-template-select">
+                  <option value="">Seleccionar plantilla</option>
+                </select>
+              </label>
+              <button id="historial-report-template-new-button" type="button" class="secondary-button">
+                Nueva plantilla
+              </button>
+              <button id="historial-report-template-save-button" type="button">
+                Guardar plantilla
+              </button>
+            </div>
+
+            <form id="historial-report-template-form" class="detail-form records-detail-form">
+              <div class="detail-field-row cols-2 full-width">
+                <label>Código<input name="codigo" type="text" required /></label>
+                <label>Nombre<input name="nombre" type="text" required /></label>
+                <label>
+                  Tipo documento
+                  <select name="tipo_documento">
+                    <option value="llamamiento">Llamamiento</option>
+                    <option value="variacion">Variación</option>
+                    <option value="subrogacion">Subrogación</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </label>
+                <label>
+                  Tipo contratación
+                  <select name="tipo_contratacion_id">
+                    <option value="">Sin asignar</option>
+                  </select>
+                </label>
+                <label>Orden<input name="orden" type="number" step="1" /></label>
+                <label class="checkbox-item with-label"><input name="activo" type="checkbox" /><span>Activa</span></label>
+                <label class="checkbox-item with-label"><input name="incluir_tabla_actividades" type="checkbox" /><span>Incluir tabla actividades</span></label>
+                <label class="checkbox-item with-label"><input name="incluir_opciones_respuesta" type="checkbox" /><span>Incluir opciones respuesta</span></label>
+                <label class="full-width">Título<input name="titulo" type="text" /></label>
+                <label class="full-width">Saludo<textarea name="saludo" rows="2"></textarea></label>
+                <label class="full-width">Texto intro<textarea name="texto_intro" rows="4"></textarea></label>
+                <label class="full-width">Texto movimiento<textarea name="texto_movimiento" rows="4"></textarea></label>
+                <label class="full-width">Texto condiciones<textarea name="texto_condiciones" rows="4"></textarea></label>
+                <label class="full-width">Texto legal<textarea name="texto_legal" rows="4"></textarea></label>
+                <label class="full-width">Texto recibido<textarea name="texto_recibido" rows="3"></textarea></label>
+                <label>Título tabla actividades<input name="tabla_actividades_titulo" type="text" /></label>
+                <label class="full-width">Opciones respuesta<textarea name="opciones_respuesta_texto" rows="3"></textarea></label>
+                <label class="full-width">Pie observaciones<textarea name="pie_observaciones" rows="2"></textarea></label>
+              </div>
+            </form>
           </div>
 
           <div id="settings-access-view" class="hidden">
@@ -7158,6 +7168,6 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260710-1" defer></script>
-    <script src="./app.js?v=20260714-14" defer></script>
+    <script src="./app.js?v=20260714-15" defer></script>
   </body>
 </html>
