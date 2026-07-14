@@ -241,6 +241,7 @@ $$;
 
 -- Pagina de apuntes para evitar evaluar RLS fila a fila desde PostgREST.
 drop function if exists public.get_cronos_page(date, date, text, text, text, boolean, text, text, boolean, integer, integer);
+drop function if exists public.get_cronos_page(date, date, text, text, text, boolean, text, text, boolean, integer, integer, text, text);
 create or replace function public.get_cronos_page(
   p_desde date default null,
   p_hasta date default null,
