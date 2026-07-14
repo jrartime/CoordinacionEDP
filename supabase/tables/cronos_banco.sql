@@ -128,6 +128,8 @@ $$;
 
 -- Pagina de movimientos para evitar evaluar RLS fila a fila desde PostgREST.
 drop function if exists public.get_cronos_banco_page(date, date, text, text, integer, text, integer, integer);
+-- Mantener la firma exacta que llama la UI para que PostgREST refresque el RPC.
+drop function if exists public.get_cronos_banco_page(date, date, text, text, integer, text, integer, integer, text, text);
 
 create or replace function public.get_cronos_banco_page(
   p_desde date default null,

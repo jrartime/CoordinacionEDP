@@ -736,6 +736,7 @@ const controlPageSizeSelect = document.querySelector("#control-page-size-select"
 const eventForm = document.querySelector("#event-form");
 const eventIdInput = document.querySelector("#event-id");
 const eventNameInput = document.querySelector("#event-name");
+const eventContractSelect = document.querySelector("#event-contract");
 const eventInstallationSelect = document.querySelector("#event-installation");
 const eventStartDateInput = document.querySelector("#event-start-date");
 const eventEndDateInput = document.querySelector("#event-end-date");
@@ -766,6 +767,7 @@ const eventClearButton = document.querySelector("#event-clear-button");
 const eventsRefreshButton = document.querySelector("#events-refresh-button");
 const eventsFiltersForm = document.querySelector("#events-filters-form");
 const eventFilterNameInput = document.querySelector("#event-filter-name");
+const eventFilterContractSelect = document.querySelector("#event-filter-contract");
 const eventFilterInstallationSelect = document.querySelector("#event-filter-installation");
 const eventFilterStartDateInput = document.querySelector("#event-filter-start-date");
 const eventFilterEndDateInput = document.querySelector("#event-filter-end-date");
@@ -1254,6 +1256,10 @@ let programmingUnmatchedInstallationProposals = [];
 let ignoredProgrammingUnmatchedPersonnelKeys = new Set();
 let ignoredProgrammingUnmatchedInstallationKeys = new Set();
 let eventsCatalogsLoaded = false;
+let eventContractRows = [];
+let eventContractPersonalRows = [];
+let eventContractInstallationRows = [];
+let eventCreatorRows = [];
 let eventAllInstallationRows = [];
 let eventInstallationRows = [];
 let eventPersonnelRows = [];
@@ -12261,9 +12267,11 @@ async function loadCurrentAccessRole() {
     if (currentAllowedPrivateTabs.has("actividades")) {
       currentAllowedPrivateTabs.add("registros");
     }
+    openEventSettingsButton?.classList.toggle("hidden", !currentUserIsAccessAdmin);
   } catch (_error) {
     currentUserIsAccessAdmin = false;
     currentAllowedPrivateTabs = new Set();
+    openEventSettingsButton?.classList.add("hidden");
   }
 }
 
@@ -12685,6 +12693,10 @@ async function handleLogout() {
   programmingInstallationCatalogRows = [];
   currentProgrammingAssignedInstallations = [];
   currentProgrammingActiveInstallations = [];
+  eventContractRows = [];
+  eventContractPersonalRows = [];
+  eventContractInstallationRows = [];
+  eventCreatorRows = [];
   eventAllInstallationRows = [];
   eventInstallationRows = [];
   eventPersonnelRows = [];
@@ -19766,6 +19778,78 @@ async function closeCandidateCreatePanel(options = {}) {
   return true;
 }
 
+function getEventContractName(id) {
+  const normalizedId = Number(id);
+  return eventContractRows.find((row) => Number(row.id) === normalizedId)?.contrato || "";
+}
+
+// El contrato del evento acota las instalaciones y el personal disponibles.
+function getEventCreatorName(userId) {
+  if (!userId) {
+    return "";
+  }
+  const creator = eventCreatorRows.find((row) => String(row.user_id) === String(userId));
+  return creator?.nombre || creator?.user_id || "";
+}
+
+function isEventContractAssignmentActive(row) {
+  return Boolean(row?.activo) && !row?.removed_at;
+}
+
+function getEventContractInstallationRows(contractId) {
+  const normalizedContractId = Number(contractId);
+  if (!normalizedContractId) {
+    return [];
+  }
+
+  const installationIds = new Set(
+    eventContractInstallationRows
+      .filter((row) => Number(row.contrato_id) === normalizedContractId && isEventContractAssignmentActive(row))
+      .map((row) => Number(row.instalacion_id))
+  );
+
+  return eventAllInstallationRows.filter((row) => installationIds.has(Number(row.id)));
+}
+
+function getEventContractPersonnelRows(contractId) {
+  const normalizedContractId = Number(contractId);
+  if (!normalizedContractId) {
+    return [];
+  }
+
+  const personnelIds = new Set(
+    eventContractPersonalRows
+      .filter((row) => Number(row.contrato_id) === normalizedContractId && isEventContractAssignmentActive(row))
+      .map((row) => Number(row.personal_id))
+  );
+
+  return eventPersonnelRows.filter((row) => personnelIds.has(Number(row.id)));
+}
+
+function getCurrentEventContractId() {
+  return Number(getSelectedEvent()?.contrato_id || eventContractSelect?.value || 0);
+}
+
+function renderEventContractOptions(selectedValue = eventContractSelect?.value || "") {
+  if (!eventContractSelect) {
+    return;
+  }
+
+  eventContractSelect.innerHTML = [
+    '<option value="">Selecciona contrato</option>',
+    ...eventContractRows.map((row) => `<option value="${row.id}">${escapeHtml(row.contrato)}</option>`),
+  ].join("");
+  eventContractSelect.value = eventContractRows.some((row) => String(row.id) === String(selectedValue))
+    ? String(selectedValue)
+    : "";
+}
+
+function syncEventInstallationOptionsForContract(selectedValue = eventInstallationSelect?.value || "") {
+  const contractId = Number(eventContractSelect?.value || 0);
+  eventInstallationRows = getEventContractInstallationRows(contractId);
+  renderEventCatalogOptions(selectedValue);
+}
+
 function getEventInstallationName(id) {
   const normalizedId = Number(id);
   return (
@@ -19780,7 +19864,7 @@ function getEventPersonnelName(id) {
   return eventPersonnelRows.find((row) => Number(row.id) === normalizedId)?.personal || "";
 }
 
-function renderEventCatalogOptions() {
+function renderEventCatalogOptions(selectedInstallationId = eventInstallationSelect?.value || "") {
   const installationOptions = [
     '<option value="">Selecciona instalación</option>',
     ...eventInstallationRows.map(
@@ -19790,6 +19874,11 @@ function renderEventCatalogOptions() {
 
   if (eventInstallationSelect) {
     eventInstallationSelect.innerHTML = installationOptions;
+    eventInstallationSelect.value = eventInstallationRows.some(
+      (row) => String(row.id) === String(selectedInstallationId)
+    )
+      ? String(selectedInstallationId)
+      : "";
   }
 
   renderEventSchedulePersonnelLists();
@@ -19800,9 +19889,10 @@ function renderEventSchedulePersonnelLists() {
     return;
   }
 
-  const availableRows = eventPersonnelRows.filter((row) => {
+  const contractPersonnelRows = getEventContractPersonnelRows(getCurrentEventContractId());
+  const availableRows = contractPersonnelRows.filter((row) => {
     const id = Number(row.id);
-    return eventAssemblyPersonnelIds.has(id) && !currentEventScheduleSelectedPersonnelIds.has(id);
+    return !currentEventScheduleSelectedPersonnelIds.has(id);
   });
   const selectedRows = eventPersonnelRows.filter((row) =>
     currentEventScheduleSelectedPersonnelIds.has(Number(row.id))
@@ -19903,6 +19993,7 @@ function isEventArchived(event) {
 
 function getFilteredEvents() {
   const nameQuery = normalizeSearchText(eventFilterNameInput?.value || "");
+  const contractId = eventFilterContractSelect?.value || "";
   const installationId = eventFilterInstallationSelect?.value || "";
   const startDate = eventFilterStartDateInput?.value || "";
   const endDate = eventFilterEndDateInput?.value || "";
@@ -19913,18 +20004,20 @@ function getFilteredEvents() {
       return false;
     }
     const matchesName = !nameQuery || normalizeSearchText(event.nombre).includes(nameQuery);
+    const matchesContract = !contractId || String(event.contrato_id) === String(contractId);
     const matchesInstallation =
       !installationId || String(event.instalacion_id) === String(installationId);
     const matchesDateRange =
       (!startDate || event.fecha_fin >= startDate) &&
       (!endDate || event.fecha_inicio <= endDate);
-    return matchesName && matchesInstallation && matchesDateRange;
+    return matchesName && matchesContract && matchesInstallation && matchesDateRange;
   });
 }
 
 function resetSingleEventFilter(filterName) {
   const fieldMap = {
     name: eventFilterNameInput,
+    contract: eventFilterContractSelect,
     installation: eventFilterInstallationSelect,
     start_date: eventFilterStartDateInput,
     end_date: eventFilterEndDateInput,
@@ -19941,6 +20034,7 @@ function resetSingleEventFilter(filterName) {
 
 function getEventsForInstallationFilter() {
   const nameQuery = normalizeSearchText(eventFilterNameInput?.value || "");
+  const contractId = eventFilterContractSelect?.value || "";
   const startDate = eventFilterStartDateInput?.value || "";
   const endDate = eventFilterEndDateInput?.value || "";
   const includeArchived = Boolean(eventFilterIncludeArchivedInput?.checked);
@@ -19950,10 +20044,32 @@ function getEventsForInstallationFilter() {
       return false;
     }
     const matchesName = !nameQuery || normalizeSearchText(event.nombre).includes(nameQuery);
+    const matchesContract = !contractId || String(event.contrato_id) === String(contractId);
     const matchesDateRange =
       (!startDate || event.fecha_fin >= startDate) &&
       (!endDate || event.fecha_inicio <= endDate);
-    return matchesName && matchesDateRange;
+    return matchesName && matchesContract && matchesDateRange;
+  });
+}
+
+function getEventsForContractFilter() {
+  const nameQuery = normalizeSearchText(eventFilterNameInput?.value || "");
+  const installationId = eventFilterInstallationSelect?.value || "";
+  const startDate = eventFilterStartDateInput?.value || "";
+  const endDate = eventFilterEndDateInput?.value || "";
+  const includeArchived = Boolean(eventFilterIncludeArchivedInput?.checked);
+
+  return currentEvents.filter((event) => {
+    if (!includeArchived && isEventArchived(event)) {
+      return false;
+    }
+    const matchesName = !nameQuery || normalizeSearchText(event.nombre).includes(nameQuery);
+    const matchesInstallation =
+      !installationId || String(event.instalacion_id) === String(installationId);
+    const matchesDateRange =
+      (!startDate || event.fecha_fin >= startDate) &&
+      (!endDate || event.fecha_inicio <= endDate);
+    return matchesName && matchesInstallation && matchesDateRange;
   });
 }
 
@@ -20252,7 +20368,7 @@ function renderEventInstallationFilterOptions() {
   const installationIds = new Set(
     getEventsForInstallationFilter().map((event) => String(event.instalacion_id))
   );
-  const options = eventInstallationRows.filter((row) =>
+  const options = eventAllInstallationRows.filter((row) =>
     installationIds.has(String(row.id))
   );
 
@@ -20264,6 +20380,27 @@ function renderEventInstallationFilterOptions() {
   ].join("");
 
   eventFilterInstallationSelect.value = installationIds.has(String(selectedValue)) ? selectedValue : "";
+}
+
+function renderEventContractFilterOptions() {
+  if (!eventFilterContractSelect) {
+    return;
+  }
+
+  const selectedValue = eventFilterContractSelect.value;
+  const contractIds = new Set(
+    getEventsForContractFilter()
+      .map((event) => String(event.contrato_id || ""))
+      .filter(Boolean)
+  );
+  const options = eventContractRows.filter((row) => contractIds.has(String(row.id)));
+
+  eventFilterContractSelect.innerHTML = [
+    '<option value="">Todos</option>',
+    ...options.map((row) => `<option value="${row.id}">${escapeHtml(row.contrato)}</option>`),
+  ].join("");
+
+  eventFilterContractSelect.value = contractIds.has(String(selectedValue)) ? selectedValue : "";
 }
 
 async function exportEventPersonnelReportToPdf() {
@@ -20440,6 +20577,7 @@ function renderEventsTable() {
     return;
   }
 
+  renderEventContractFilterOptions();
   renderEventInstallationFilterOptions();
   const visibleEvents = getSortedEvents(getFilteredEvents());
   syncEventSortButtons();
@@ -20525,6 +20663,12 @@ function renderEventsTable() {
               ${escapeHtml(event.nombre)}
             </button>
             ${isArchived ? '<span class="status-pill archived-pill">Archivado</span>' : ""}
+            ${event.contrato_id ? `<br><span class="muted-text">Contrato: ${escapeHtml(getEventContractName(event.contrato_id))}</span>` : ""}
+            ${
+              currentUserIsAccessAdmin && event.created_by
+                ? `<br><span class="muted-text">Creado por: ${escapeHtml(getEventCreatorName(event.created_by))}</span>`
+                : ""
+            }
             ${event.observaciones ? `<br><span class="muted-text">${escapeHtml(event.observaciones)}</span>` : ""}
           </td>
           <td>${escapeHtml(getEventInstallationName(event.instalacion_id))}</td>
@@ -20549,6 +20693,8 @@ function resetEventForm() {
   if (eventIdInput) {
     eventIdInput.value = "";
   }
+  renderEventContractOptions();
+  syncEventInstallationOptionsForContract();
   eventArchivedField?.classList.add("hidden");
   eventDeleteButton?.classList.add("hidden");
   markFormPristine(eventForm);
@@ -20586,7 +20732,8 @@ function fillEventForm(event) {
 
   eventIdInput.value = event.id;
   eventNameInput.value = event.nombre || "";
-  eventInstallationSelect.value = String(event.instalacion_id || "");
+  renderEventContractOptions(event.contrato_id || "");
+  syncEventInstallationOptionsForContract(event.instalacion_id || "");
   eventStartDateInput.value = event.fecha_inicio || "";
   eventEndDateInput.value = event.fecha_fin || "";
   eventObservationsInput.value = event.observaciones || "";
@@ -20671,7 +20818,20 @@ async function loadEventCatalogs() {
   }
 
   const supabase = await getSupabaseClient();
-  const [installationsResult, assignedInstallationsResult, personnelResult, assemblyPersonnelResult] = await Promise.all([
+  const [
+    contractsResult,
+    installationsResult,
+    assignedInstallationsResult,
+    personnelResult,
+    assemblyPersonnelResult,
+    contractPersonalResult,
+    contractInstallationResult,
+    creatorsResult,
+  ] = await Promise.all([
+    supabase
+      .from("contratos")
+      .select("id, contrato, activo")
+      .order("contrato", { ascending: true }),
     supabase
       .from("instalaciones")
       .select("id, instalacion, activo")
@@ -20688,8 +20848,20 @@ async function loadEventCatalogs() {
     supabase
       .from("eventos_montaje_personal")
       .select("personal_id"),
+    supabase
+      .from("contrato_personal")
+      .select("contrato_id, personal_id, activo, fecha_inicio, fecha_fin, removed_at"),
+    supabase
+      .from("contrato_instalaciones")
+      .select("contrato_id, instalacion_id, activo, fecha_inicio, fecha_fin, removed_at"),
+    currentUserIsAccessAdmin
+      ? supabase.from("coordinacion_usuarios").select("user_id, nombre")
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
+  if (contractsResult.error) {
+    throw contractsResult.error;
+  }
   if (installationsResult.error) {
     throw installationsResult.error;
   }
@@ -20707,19 +20879,31 @@ async function loadEventCatalogs() {
   if (assemblyPersonnelResult.error) {
     throw assemblyPersonnelResult.error;
   }
+  if (contractPersonalResult.error) {
+    throw contractPersonalResult.error;
+  }
+  if (contractInstallationResult.error) {
+    throw contractInstallationResult.error;
+  }
+  if (creatorsResult.error) {
+    throw creatorsResult.error;
+  }
 
+  eventContractRows = (contractsResult.data ?? []).filter((row) => row.activo !== false);
   eventAllInstallationRows = installationsResult.data ?? [];
   eventAssignedInstallationIds = new Set(
     assignedInstallationsTableMissing
       ? eventAllInstallationRows.map((row) => Number(row.id))
       : (assignedInstallationsResult.data ?? []).map((row) => Number(row.instalacion_id))
   );
-  eventInstallationRows = eventAllInstallationRows.filter((row) =>
-    eventAssignedInstallationIds.has(Number(row.id))
-  );
+  eventInstallationRows = [];
   eventPersonnelRows = personnelResult.data ?? [];
   eventAssemblyPersonnelIds = new Set((assemblyPersonnelResult.data ?? []).map((row) => Number(row.personal_id)));
+  eventContractPersonalRows = contractPersonalResult.data ?? [];
+  eventContractInstallationRows = contractInstallationResult.data ?? [];
+  eventCreatorRows = creatorsResult.data ?? [];
   eventsCatalogsLoaded = true;
+  renderEventContractOptions();
   renderEventCatalogOptions();
   renderEventSettings();
 }
@@ -20782,11 +20966,7 @@ async function setEventInstallationBatch(installationIds, isEnabled) {
       eventAssignedInstallationIds.delete(installationId);
     }
   });
-  eventInstallationRows = eventAllInstallationRows.filter((row) =>
-    eventAssignedInstallationIds.has(Number(row.id))
-  );
-
-  renderEventCatalogOptions();
+  syncEventInstallationOptionsForContract(eventInstallationSelect?.value || "");
   renderEventsTable();
   renderEventSettings();
   setStatus("Configuración de instalaciones de eventos actualizada.", "success");
@@ -20801,7 +20981,7 @@ async function loadEvents() {
   const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from("eventos_deportivos")
-    .select("id, nombre, instalacion_id, fecha_inicio, fecha_fin, observaciones, archived_at")
+    .select("id, nombre, contrato_id, instalacion_id, fecha_inicio, fecha_fin, observaciones, archived_at, created_by")
     .order("fecha_inicio", { ascending: false });
 
   if (error) {
@@ -20873,13 +21053,14 @@ async function saveEvent(event) {
 
   const payload = {
     nombre: eventNameInput.value.trim(),
+    contrato_id: Number(eventContractSelect?.value || 0),
     instalacion_id: Number(eventInstallationSelect.value),
     fecha_inicio: eventStartDateInput.value,
     fecha_fin: eventEndDateInput.value,
     observaciones: eventObservationsInput.value.trim() || null,
   };
 
-  if (!payload.nombre || !payload.instalacion_id || !payload.fecha_inicio || !payload.fecha_fin) {
+  if (!payload.nombre || !payload.contrato_id || !payload.instalacion_id || !payload.fecha_inicio || !payload.fecha_fin) {
     setStatus("Completa los datos obligatorios del evento.", "error");
     return;
   }
@@ -20893,6 +21074,8 @@ async function saveEvent(event) {
   const editingId = eventIdInput.value;
   if (editingId) {
     payload.archived_at = eventArchivedInput?.checked ? new Date().toISOString() : null;
+  } else if (currentSession?.user?.id) {
+    payload.created_by = currentSession.user.id;
   }
   const result = editingId
     ? await supabase.from("eventos_deportivos").update(payload).eq("id", editingId)
@@ -21627,6 +21810,9 @@ async function init() {
   });
   eventForm?.addEventListener("submit", (event) => {
     void saveEvent(event);
+  });
+  eventContractSelect?.addEventListener("change", () => {
+    syncEventInstallationOptionsForContract("");
   });
   openEventPanelButton?.addEventListener("click", () => openEventPanel());
   closeEventPanelButton?.addEventListener("click", closeEventPanel);

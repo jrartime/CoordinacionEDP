@@ -2787,6 +2787,23 @@
                     </div>
                   </label>
                   <label class="filter-field">
+                    Contrato
+                    <div class="filter-control-row">
+                      <select id="event-filter-contract">
+                        <option value="">Todos</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-event-filter="contract"
+                        aria-label="Restablecer contrato"
+                        title="Restablecer"
+                      >
+                        x
+                      </button>
+                    </div>
+                  </label>
+                  <label class="filter-field">
                     Instalación
                     <div class="filter-control-row">
                       <select id="event-filter-installation">
@@ -2917,6 +2934,12 @@
                     <label>
                       Nombre del evento
                       <input id="event-name" type="text" required />
+                    </label>
+                    <label>
+                      Contrato
+                      <select id="event-contract" required>
+                        <option value="">Selecciona contrato</option>
+                      </select>
                     </label>
                     <label>
                       Instalación
@@ -7174,6 +7197,6 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260710-1" defer></script>
-    <script src="./app.js?v=20260714-16" defer></script>
+    <script src="./app.js?v=20260714-18" defer></script>
   </body>
 </html>
