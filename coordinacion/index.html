@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260710-9" />
+    <link rel="stylesheet" href="./styles.css?v=20260714-16" />
   </head>
   <body>
     <script>
@@ -3914,55 +3914,61 @@
               </div>
             </div>
 
-            <p id="historial-report-config-status" class="panel-status-message">Configuración sin cargar</p>
-
-            <div class="activities-bulk-assignment-panel">
-              <label>
-                Editar plantilla
-                <select id="historial-report-template-select">
-                  <option value="">Seleccionar plantilla</option>
-                </select>
-              </label>
-              <button id="historial-report-template-new-button" type="button" class="secondary-button">
-                Nueva plantilla
-              </button>
-              <button id="historial-report-template-save-button" type="button">
-                Guardar plantilla
-              </button>
-            </div>
+            <p id="historial-report-config-status" class="panel-status-message"></p>
 
             <form id="historial-report-template-form" class="detail-form records-detail-form">
-              <div class="detail-field-row cols-2 full-width">
-                <label>Código<input name="codigo" type="text" required /></label>
-                <label>Nombre<input name="nombre" type="text" required /></label>
-                <label>
-                  Tipo documento
-                  <select name="tipo_documento">
-                    <option value="llamamiento">Llamamiento</option>
-                    <option value="variacion">Variación</option>
-                    <option value="subrogacion">Subrogación</option>
-                    <option value="otro">Otro</option>
-                  </select>
-                </label>
-                <label>
-                  Tipo contratación
-                  <select name="tipo_contratacion_id">
-                    <option value="">Sin asignar</option>
-                  </select>
-                </label>
-                <label>Orden<input name="orden" type="number" step="1" /></label>
-                <label class="checkbox-item with-label"><input name="activo" type="checkbox" /><span>Activa</span></label>
-                <label class="checkbox-item with-label"><input name="incluir_tabla_actividades" type="checkbox" /><span>Incluir tabla actividades</span></label>
-                <label class="checkbox-item with-label"><input name="incluir_opciones_respuesta" type="checkbox" /><span>Incluir opciones respuesta</span></label>
+              <div class="report-template-compact-layout">
+                <div class="report-template-list-column">
+                  <label>
+                    Plantillas
+                    <select id="historial-report-template-select" size="7">
+                      <option value="">Seleccionar plantilla</option>
+                    </select>
+                  </label>
+                  <div class="compact-action-row">
+                    <button id="historial-report-template-new-button" type="button" class="secondary-button">
+                      Nueva
+                    </button>
+                    <button id="historial-report-template-save-button" type="button">
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+                <div class="report-template-options-column">
+                  <label class="checkbox-item with-label"><input name="activo" type="checkbox" /><span>Activa</span></label>
+                  <label class="checkbox-item with-label"><input name="incluir_tabla_actividades" type="checkbox" /><span>Tabla actividades</span></label>
+                  <label class="checkbox-item with-label"><input name="incluir_opciones_respuesta" type="checkbox" /><span>Opciones respuesta</span></label>
+                </div>
+                <div class="report-template-main-fields">
+                  <label>Código<input name="codigo" type="text" required /></label>
+                  <label>Nombre<input name="nombre" type="text" required /></label>
+                  <label>
+                    Tipo documento
+                    <select name="tipo_documento">
+                      <option value="llamamiento">Llamamiento</option>
+                      <option value="variacion">Variación</option>
+                      <option value="subrogacion">Subrogación</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                  </label>
+                  <label>
+                    Tipo contratación
+                    <select name="tipo_contratacion_id">
+                      <option value="">Sin asignar</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <div class="detail-field-row cols-2 full-width report-template-text-fields">
                 <label class="full-width">Título<input name="titulo" type="text" /></label>
                 <label class="full-width">Saludo<textarea name="saludo" rows="2"></textarea></label>
-                <label class="full-width">Texto intro<textarea name="texto_intro" rows="4"></textarea></label>
-                <label class="full-width">Texto movimiento<textarea name="texto_movimiento" rows="4"></textarea></label>
-                <label class="full-width">Texto condiciones<textarea name="texto_condiciones" rows="4"></textarea></label>
-                <label class="full-width">Texto legal<textarea name="texto_legal" rows="4"></textarea></label>
+                <label class="full-width">Texto intro<textarea name="texto_intro" rows="3"></textarea></label>
+                <label class="full-width">Texto movimiento<textarea name="texto_movimiento" rows="3"></textarea></label>
+                <label class="full-width">Texto condiciones<textarea name="texto_condiciones" rows="3"></textarea></label>
+                <label class="full-width">Texto legal<textarea name="texto_legal" rows="3"></textarea></label>
                 <label class="full-width">Texto recibido<textarea name="texto_recibido" rows="3"></textarea></label>
                 <label>Título tabla actividades<input name="tabla_actividades_titulo" type="text" /></label>
-                <label class="full-width">Opciones respuesta<textarea name="opciones_respuesta_texto" rows="3"></textarea></label>
+                <label class="full-width">Opciones respuesta<textarea name="opciones_respuesta_texto" rows="2"></textarea></label>
                 <label class="full-width">Pie observaciones<textarea name="pie_observaciones" rows="2"></textarea></label>
               </div>
             </form>
@@ -7168,6 +7174,6 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260710-1" defer></script>
-    <script src="./app.js?v=20260714-15" defer></script>
+    <script src="./app.js?v=20260714-16" defer></script>
   </body>
 </html>

@@ -1337,6 +1337,55 @@ textarea {
   margin-top: 26px;
 }
 
+.report-template-compact-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(150px, 190px) minmax(320px, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin-top: 8px;
+}
+
+.report-template-list-column,
+.report-template-options-column,
+.report-template-main-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.report-template-list-column select {
+  min-height: 174px;
+}
+
+.report-template-options-column {
+  padding-top: 18px;
+}
+
+.report-template-options-column .with-label {
+  margin-top: 0;
+}
+
+.report-template-main-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compact-action-row {
+  display: flex;
+  gap: 8px;
+}
+
+.compact-action-row button {
+  flex: 1;
+  margin-top: 0;
+}
+
+.report-template-text-fields {
+  margin-top: 12px;
+}
+
+#historial-report-config-status:not(.error) {
+  display: none;
+}
+
 .mini-label {
   margin: 0 0 6px;
   font-size: 0.8rem;
@@ -3333,6 +3382,10 @@ th {
 }
 
 @media (max-width: 920px) {
+  .report-template-compact-layout,
+  .report-template-main-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
