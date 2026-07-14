@@ -224,6 +224,8 @@ const SETTINGS_CATALOGS = {
     order: "empresa",
     columns:
       "id,empresa,razon_social,cif,logo_url,logo_data_url,logo_alt,firma_data_url,firmante_nombre,firmante_dni,firmante_cargo,ciudad_firma,direccion_pie,telefono_pie,email_pie,web_pie,notas",
+    fallbackColumns: "id,empresa,razon_social,cif",
+    fallbackFieldKeys: ["id", "empresa", "razon_social", "cif"],
     fields: [
       { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
       { key: "empresa", label: "Empresa", type: "text", required: true },
@@ -1308,6 +1310,7 @@ let currentSettingsMode = "new";
 let currentSettingsEditingId = "";
 let currentSettingsSortField = "puesto";
 let currentSettingsSortDirection = "asc";
+let currentSettingsAvailableFieldKeys = null;
 let currentAllowedPrivateTabs = new Set(["programming"]);
 let currentUserIsAccessAdmin = false;
 let currentPanelTarget = getInitialPanelTarget();
@@ -11647,6 +11650,20 @@ function getSettingsCatalogConfig(catalog = currentSettingsCatalog) {
   return SETTINGS_CATALOGS[catalog] || SETTINGS_CATALOGS.puestos;
 }
 
+function getAvailableSettingsFields(config = getSettingsCatalogConfig()) {
+  if (!(currentSettingsAvailableFieldKeys instanceof Set)) {
+    return config.fields;
+  }
+  return config.fields.filter((field) => currentSettingsAvailableFieldKeys.has(field.key));
+}
+
+function getAvailableSettingsListFields(config = getSettingsCatalogConfig()) {
+  if (!(currentSettingsAvailableFieldKeys instanceof Set)) {
+    return config.listFields;
+  }
+  return config.listFields.filter((field) => currentSettingsAvailableFieldKeys.has(field));
+}
+
 function resetSettingsSort() {
   const config = getSettingsCatalogConfig();
   currentSettingsSortField = config.order;
@@ -11671,10 +11688,12 @@ function renderSettingsTable() {
   }
 
   const config = getSettingsCatalogConfig();
+  const fields = getAvailableSettingsFields(config);
+  const listFields = getAvailableSettingsListFields(config);
   settingsTableHead.innerHTML = `
     <tr>
-      ${config.listFields.map((field) => {
-        const label = config.fields.find((item) => item.key === field)?.label || field;
+      ${listFields.map((field) => {
+        const label = fields.find((item) => item.key === field)?.label || field;
         const isActive = currentSettingsSortField === field;
         return `
           <th>
@@ -11694,7 +11713,7 @@ function renderSettingsTable() {
   if (!currentSettingsRows.length) {
     settingsTableBody.innerHTML = `
       <tr>
-        <td colspan="${config.listFields.length}" class="empty-state">No hay registros en ${escapeHtml(config.label)}.</td>
+        <td colspan="${listFields.length}" class="empty-state">No hay registros en ${escapeHtml(config.label)}.</td>
       </tr>
     `;
     return;
@@ -11704,7 +11723,7 @@ function renderSettingsTable() {
     .map(
       (row) => `
         <tr>
-          ${config.listFields
+          ${listFields
             .map((field, index) => {
               const value = escapeHtml(formatSettingsCell(row[field]));
               if (index === 0) {
@@ -11769,10 +11788,23 @@ async function loadSettingsManagement() {
   }
 
   const supabase = await getSupabaseClient();
-  const { data, error } = await supabase
+  currentSettingsAvailableFieldKeys = null;
+  let { data, error } = await supabase
     .from(config.table)
     .select(config.columns)
     .order(config.order, { ascending: true });
+
+  if (error && config.fallbackColumns && config.fallbackFieldKeys) {
+    const fallbackResult = await supabase
+      .from(config.table)
+      .select(config.fallbackColumns)
+      .order(config.order, { ascending: true });
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+    if (!error) {
+      currentSettingsAvailableFieldKeys = new Set(config.fallbackFieldKeys);
+    }
+  }
 
   if (error) {
     currentSettingsRows = [];
@@ -11783,7 +11815,13 @@ async function loadSettingsManagement() {
 
   currentSettingsRows = data || [];
   renderSettingsTable();
-  setSettingsStatus(`${currentSettingsRows.length} registro${currentSettingsRows.length === 1 ? "" : "s"} en ${config.label.toLowerCase()}.`, "success");
+  const fallbackText = currentSettingsAvailableFieldKeys
+    ? " Aplica empresas.sql para activar logo, firma y datos documentales."
+    : "";
+  setSettingsStatus(
+    `${currentSettingsRows.length} registro${currentSettingsRows.length === 1 ? "" : "s"} en ${config.label.toLowerCase()}.${fallbackText}`,
+    currentSettingsAvailableFieldKeys ? "warning" : "success"
+  );
 }
 
 function renderSettingsDetailFields(row = {}) {
@@ -11792,7 +11830,7 @@ function renderSettingsDetailFields(row = {}) {
     return;
   }
 
-  settingsDetailFields.innerHTML = config.fields
+  settingsDetailFields.innerHTML = getAvailableSettingsFields(config)
     .map((field) => {
       const value = row[field.key];
       const required = field.required ? " required" : "";
@@ -11900,7 +11938,7 @@ function getSettingsPayloadFromForm() {
   const formData = new FormData(settingsDetailForm);
   const payload = {};
 
-  config.fields.forEach((field) => {
+  getAvailableSettingsFields(config).forEach((field) => {
     if (field.type === "checkbox") {
       payload[field.key] = formData.get(field.key) === "on";
       return;
