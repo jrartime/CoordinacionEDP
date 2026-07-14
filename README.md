@@ -94,6 +94,9 @@ Los cambios recientes de Registros dependen de:
 - `supabase/tables/cronos.sql`: tabla `cronos`, RPC de Apuntes, vista `cronos_detalle` y conciliacion Cronos/Banco.
 - `supabase/tables/cronos_banco.sql`: tabla `cronos_banco`, RPC de Banco y Resultados Banco/Cronos.
 - `supabase/tables/coordinacion_pestanas.sql`: catalogo de pestanas; incluye `gestion` y `contabilidad`.
+- `supabase/tables/coordinacion_historial_laboral_import.sql`: RPC de importacion Excel de historial laboral con upsert por ID.
+- `supabase/tables/historial_laboral_informes_config.sql`: plantillas editables para informes laborales y campos documentales de empresa.
+- `supabase/tables/empresas.sql`: campos documentales de empresa usados por informes de historial laboral.
 
 Cuando se cambie SQL, ejecuta el archivo correspondiente en el SQL Editor de Supabase
 y deja constancia en `contexto-previo.md`.
@@ -113,6 +116,10 @@ y deja constancia en `contexto-previo.md`.
 
 - Registros incluye previsualizacion flotante de informe con dos salidas: PDF clasico y PDF compacto. La previsualizacion consulta todos los registros filtrados y muestra advertencia si el volumen supera el limite configurado.
 - Actividades incluye previsualizacion flotante del informe de horarios filtrado, agrupado por personal, con descarga PDF posterior.
+- Historial laboral incluye informes PDF de llamamiento, variacion y subrogacion desde un periodo seleccionado. Las plantillas se configuran desde Historial laboral > Configuracion de informes y los datos documentales de empresa desde Configuracion > Empresas.
+- Los informes de historial toman puestos y tabla de horario desde `actividades_detalle`, usando actividades que se solapan con el periodo laboral (`fecha_alta` a `fecha_baja`; sin baja se considera indefinido). En el panel de generacion se pueden incluir/quitar actividades antes de descargar.
+- La fecha del documento de historial se propone como 15 dias antes de la fecha de comienzo. La descarga usa el patron `Personal - tipo de movimiento - YYYY-MM-DD.pdf`, manteniendo espacios y acentos.
+- La UI avisa si el movimiento del historial parece llamamiento, variacion o subrogacion y la plantilla seleccionada no corresponde con ese tipo.
 - En los informes de Registros y Actividades, la celda de contrato muestra tambien el servicio asociado.
 - En la asignacion masiva de Registros y Actividades, si se cambia `contrato_id` se limpia `servicio_id` y se muestra aviso. Si se cambia `servicio_id`, el frontend valida que el servicio pertenezca al contrato de todos los elementos objetivo.
 - El blindaje anterior se complementa con triggers SQL en Supabase para evitar incoherencias aunque un cambio no pase por la interfaz.

@@ -240,6 +240,7 @@ as $$
 $$;
 
 -- Pagina de apuntes para evitar evaluar RLS fila a fila desde PostgREST.
+drop function if exists public.get_cronos_page(date, date, text, text, text, boolean, text, text, boolean, integer, integer);
 create or replace function public.get_cronos_page(
   p_desde date default null,
   p_hasta date default null,
@@ -251,7 +252,9 @@ create or replace function public.get_cronos_page(
   p_search text default null,
   p_vinculado boolean default null,
   p_offset integer default 0,
-  p_limit integer default 100
+  p_limit integer default 100,
+  p_sort_field text default 'fecha',
+  p_sort_dir text default 'desc'
 )
 returns table (
   id bigint,
@@ -313,7 +316,34 @@ as $$
          (case when ltrim(trim(c.identificador), '0') ~ '^[0-9]+$'
                then exists (select 1 from public.cronos_banco b where b.cod_pedido::text = ltrim(trim(c.identificador), '0'))
                else false end) = p_vinculado)
-  order by c.fecha desc nulls last, c.hora desc nulls last, c.id desc
+  order by
+    case when p_sort_field = 'fecha' and p_sort_dir = 'asc' then c.fecha end asc nulls last,
+    case when p_sort_field = 'fecha' and p_sort_dir <> 'asc' then c.fecha end desc nulls last,
+    case when p_sort_field = 'hora' and p_sort_dir = 'asc' then c.hora end asc nulls last,
+    case when p_sort_field = 'hora' and p_sort_dir <> 'asc' then c.hora end desc nulls last,
+    case when p_sort_field = 'centro' and p_sort_dir = 'asc' then c.centro end asc nulls last,
+    case when p_sort_field = 'centro' and p_sort_dir <> 'asc' then c.centro end desc nulls last,
+    case when p_sort_field = 'servicio' and p_sort_dir = 'asc' then c.servicio end asc nulls last,
+    case when p_sort_field = 'servicio' and p_sort_dir <> 'asc' then c.servicio end desc nulls last,
+    case when p_sort_field = 'tipo_servicio' and p_sort_dir = 'asc' then c.tipo_servicio end asc nulls last,
+    case when p_sort_field = 'tipo_servicio' and p_sort_dir <> 'asc' then c.tipo_servicio end desc nulls last,
+    case when p_sort_field = 'tarifa' and p_sort_dir = 'asc' then c.tarifa end asc nulls last,
+    case when p_sort_field = 'tarifa' and p_sort_dir <> 'asc' then c.tarifa end desc nulls last,
+    case when p_sort_field = 'cantidad' and p_sort_dir = 'asc' then c.cantidad end asc nulls last,
+    case when p_sort_field = 'cantidad' and p_sort_dir <> 'asc' then c.cantidad end desc nulls last,
+    case when p_sort_field = 'importe' and p_sort_dir = 'asc' then c.importe end asc nulls last,
+    case when p_sort_field = 'importe' and p_sort_dir <> 'asc' then c.importe end desc nulls last,
+    case when p_sort_field = 'forma_pago' and p_sort_dir = 'asc' then c.forma_pago end asc nulls last,
+    case when p_sort_field = 'forma_pago' and p_sort_dir <> 'asc' then c.forma_pago end desc nulls last,
+    case when p_sort_field = 'anulado' and p_sort_dir = 'asc' then c.anulado end asc nulls last,
+    case when p_sort_field = 'anulado' and p_sort_dir <> 'asc' then c.anulado end desc nulls last,
+    case when p_sort_field = 'apellidos' and p_sort_dir = 'asc' then c.apellidos end asc nulls last,
+    case when p_sort_field = 'apellidos' and p_sort_dir <> 'asc' then c.apellidos end desc nulls last,
+    case when p_sort_field = 'nombre' and p_sort_dir = 'asc' then c.nombre end asc nulls last,
+    case when p_sort_field = 'nombre' and p_sort_dir <> 'asc' then c.nombre end desc nulls last,
+    case when p_sort_field = 'documento' and p_sort_dir = 'asc' then c.documento end asc nulls last,
+    case when p_sort_field = 'documento' and p_sort_dir <> 'asc' then c.documento end desc nulls last,
+    c.fecha desc nulls last, c.hora desc nulls last, c.id desc
   offset greatest(coalesce(p_offset, 0), 0)
   limit greatest(1, least(coalesce(p_limit, 100), 500));
 $$;
@@ -333,10 +363,10 @@ grant select on public.cronos_detalle to authenticated;
 
 revoke all on function public.get_cronos_filtros(date, date, text, text, text, boolean, text, text, boolean) from public;
 revoke all on function public.get_cronos_resumen(date, date, text, text, text, boolean, text, text, boolean) from public;
-revoke all on function public.get_cronos_page(date, date, text, text, text, boolean, text, text, boolean, integer, integer) from public;
+revoke all on function public.get_cronos_page(date, date, text, text, text, boolean, text, text, boolean, integer, integer, text, text) from public;
 grant execute on function public.get_cronos_filtros(date, date, text, text, text, boolean, text, text, boolean) to authenticated;
 grant execute on function public.get_cronos_resumen(date, date, text, text, text, boolean, text, text, boolean) to authenticated;
-grant execute on function public.get_cronos_page(date, date, text, text, text, boolean, text, text, boolean, integer, integer) to authenticated;
+grant execute on function public.get_cronos_page(date, date, text, text, text, boolean, text, text, boolean, integer, integer, text, text) to authenticated;
 
 -- ----------------------------------------------------------------------------
 --  Conciliacion Cronos vs Banco.
@@ -347,10 +377,15 @@ grant execute on function public.get_cronos_page(date, date, text, text, text, b
 --  totales son exactos para que la UI avise si hay mas filas que las mostradas.
 -- ----------------------------------------------------------------------------
 
+drop function if exists public.get_cronos_conciliacion(date, date, integer);
 create or replace function public.get_cronos_conciliacion(
   p_desde date default null,
   p_hasta date default null,
-  p_limit integer default 500
+  p_limit integer default 500,
+  p_cronos_sort_field text default 'fecha',
+  p_cronos_sort_dir text default 'desc',
+  p_banco_sort_field text default 'fecha',
+  p_banco_sort_dir text default 'desc'
 )
 returns json
 language sql
@@ -434,7 +469,32 @@ as $$
       from (
         select *
         from cronos_viudos
-        order by fecha desc nulls last, hora desc nulls last, id desc
+        order by
+          case when p_cronos_sort_field = 'fecha' and p_cronos_sort_dir = 'asc' then fecha end asc nulls last,
+          case when p_cronos_sort_field = 'fecha' and p_cronos_sort_dir <> 'asc' then fecha end desc nulls last,
+          case when p_cronos_sort_field = 'hora' and p_cronos_sort_dir = 'asc' then hora end asc nulls last,
+          case when p_cronos_sort_field = 'hora' and p_cronos_sort_dir <> 'asc' then hora end desc nulls last,
+          case when p_cronos_sort_field = 'identificador' and p_cronos_sort_dir = 'asc' then identificador end asc nulls last,
+          case when p_cronos_sort_field = 'identificador' and p_cronos_sort_dir <> 'asc' then identificador end desc nulls last,
+          case when p_cronos_sort_field = 'importe' and p_cronos_sort_dir = 'asc' then importe end asc nulls last,
+          case when p_cronos_sort_field = 'importe' and p_cronos_sort_dir <> 'asc' then importe end desc nulls last,
+          case when p_cronos_sort_field = 'forma_pago' and p_cronos_sort_dir = 'asc' then forma_pago end asc nulls last,
+          case when p_cronos_sort_field = 'forma_pago' and p_cronos_sort_dir <> 'asc' then forma_pago end desc nulls last,
+          case when p_cronos_sort_field = 'numero_factura' and p_cronos_sort_dir = 'asc' then numero_factura end asc nulls last,
+          case when p_cronos_sort_field = 'numero_factura' and p_cronos_sort_dir <> 'asc' then numero_factura end desc nulls last,
+          case when p_cronos_sort_field = 'anulado' and p_cronos_sort_dir = 'asc' then anulado end asc nulls last,
+          case when p_cronos_sort_field = 'anulado' and p_cronos_sort_dir <> 'asc' then anulado end desc nulls last,
+          case when p_cronos_sort_field = 'apellidos' and p_cronos_sort_dir = 'asc' then apellidos end asc nulls last,
+          case when p_cronos_sort_field = 'apellidos' and p_cronos_sort_dir <> 'asc' then apellidos end desc nulls last,
+          case when p_cronos_sort_field = 'nombre' and p_cronos_sort_dir = 'asc' then nombre end asc nulls last,
+          case when p_cronos_sort_field = 'nombre' and p_cronos_sort_dir <> 'asc' then nombre end desc nulls last,
+          case when p_cronos_sort_field = 'documento' and p_cronos_sort_dir = 'asc' then documento end asc nulls last,
+          case when p_cronos_sort_field = 'documento' and p_cronos_sort_dir <> 'asc' then documento end desc nulls last,
+          case when p_cronos_sort_field = 'servicio' and p_cronos_sort_dir = 'asc' then servicio end asc nulls last,
+          case when p_cronos_sort_field = 'servicio' and p_cronos_sort_dir <> 'asc' then servicio end desc nulls last,
+          case when p_cronos_sort_field = 'centro' and p_cronos_sort_dir = 'asc' then centro end asc nulls last,
+          case when p_cronos_sort_field = 'centro' and p_cronos_sort_dir <> 'asc' then centro end desc nulls last,
+          fecha desc nulls last, hora desc nulls last, id desc
         limit (select row_limit from params)
       ) x
     ),
@@ -443,12 +503,33 @@ as $$
       from (
         select *
         from banco_viudos
-        order by fecha desc nulls last, hora desc nulls last, id desc
+        order by
+          case when p_banco_sort_field = 'fecha' and p_banco_sort_dir = 'asc' then fecha end asc nulls last,
+          case when p_banco_sort_field = 'fecha' and p_banco_sort_dir <> 'asc' then fecha end desc nulls last,
+          case when p_banco_sort_field = 'hora' and p_banco_sort_dir = 'asc' then hora end asc nulls last,
+          case when p_banco_sort_field = 'hora' and p_banco_sort_dir <> 'asc' then hora end desc nulls last,
+          case when p_banco_sort_field = 'cod_pedido' and p_banco_sort_dir = 'asc' then cod_pedido end asc nulls last,
+          case when p_banco_sort_field = 'cod_pedido' and p_banco_sort_dir <> 'asc' then cod_pedido end desc nulls last,
+          case when p_banco_sort_field = 'terminal' and p_banco_sort_dir = 'asc' then terminal end asc nulls last,
+          case when p_banco_sort_field = 'terminal' and p_banco_sort_dir <> 'asc' then terminal end desc nulls last,
+          case when p_banco_sort_field = 'tipo_operacion' and p_banco_sort_dir = 'asc' then tipo_operacion end asc nulls last,
+          case when p_banco_sort_field = 'tipo_operacion' and p_banco_sort_dir <> 'asc' then tipo_operacion end desc nulls last,
+          case when p_banco_sort_field = 'resultado' and p_banco_sort_dir = 'asc' then resultado end asc nulls last,
+          case when p_banco_sort_field = 'resultado' and p_banco_sort_dir <> 'asc' then resultado end desc nulls last,
+          case when p_banco_sort_field = 'importe_euros' and p_banco_sort_dir = 'asc' then importe_euros end asc nulls last,
+          case when p_banco_sort_field = 'importe_euros' and p_banco_sort_dir <> 'asc' then importe_euros end desc nulls last,
+          case when p_banco_sort_field = 'moneda' and p_banco_sort_dir = 'asc' then moneda end asc nulls last,
+          case when p_banco_sort_field = 'moneda' and p_banco_sort_dir <> 'asc' then moneda end desc nulls last,
+          case when p_banco_sort_field = 'tipo_pago' and p_banco_sort_dir = 'asc' then tipo_pago end asc nulls last,
+          case when p_banco_sort_field = 'tipo_pago' and p_banco_sort_dir <> 'asc' then tipo_pago end desc nulls last,
+          case when p_banco_sort_field = 'tarjeta' and p_banco_sort_dir = 'asc' then tarjeta end asc nulls last,
+          case when p_banco_sort_field = 'tarjeta' and p_banco_sort_dir <> 'asc' then tarjeta end desc nulls last,
+          fecha desc nulls last, hora desc nulls last, id desc
         limit (select row_limit from params)
       ) x
     )
   );
 $$;
 
-revoke all on function public.get_cronos_conciliacion(date, date, integer) from public;
-grant execute on function public.get_cronos_conciliacion(date, date, integer) to authenticated;
+revoke all on function public.get_cronos_conciliacion(date, date, integer, text, text, text, text) from public;
+grant execute on function public.get_cronos_conciliacion(date, date, integer, text, text, text, text) to authenticated;

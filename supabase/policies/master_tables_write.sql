@@ -1,10 +1,12 @@
 alter table public.puestos enable row level security;
 alter table public.funciones enable row level security;
 alter table public.modalidades enable row level security;
+alter table public.empresas enable row level security;
 
 grant select, insert, update, delete on public.puestos to authenticated;
 grant select, insert, update, delete on public.funciones to authenticated;
 grant select, insert, update, delete on public.modalidades to authenticated;
+grant select, insert, update, delete on public.empresas to authenticated;
 
 drop policy if exists "authenticated_can_insert_puestos" on public.puestos;
 create policy "authenticated_can_insert_puestos"
@@ -72,6 +74,28 @@ for delete
 to authenticated
 using (public.is_coordinacion_admin());
 
+drop policy if exists "authenticated_can_insert_empresas" on public.empresas;
+create policy "authenticated_can_insert_empresas"
+on public.empresas
+for insert
+to authenticated
+with check (public.is_coordinacion_admin());
+
+drop policy if exists "authenticated_can_update_empresas" on public.empresas;
+create policy "authenticated_can_update_empresas"
+on public.empresas
+for update
+to authenticated
+using (public.is_coordinacion_admin())
+with check (public.is_coordinacion_admin());
+
+drop policy if exists "authenticated_can_delete_empresas" on public.empresas;
+create policy "authenticated_can_delete_empresas"
+on public.empresas
+for delete
+to authenticated
+using (public.is_coordinacion_admin());
+
 create or replace function public.get_master_catalog_usage(
   p_catalog text,
   p_record_id integer
@@ -87,7 +111,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if p_catalog not in ('puestos', 'funciones', 'modalidades') then
+  if p_catalog not in ('puestos', 'funciones', 'modalidades', 'empresas') then
     raise exception 'Catálogo no soportado: %', p_catalog;
   end if;
 
@@ -143,6 +167,29 @@ begin
       select 'registros'::text, 'Registros'::text, count(*)::bigint
       from public.registros
       where modalidad_id = p_record_id;
+    end if;
+  end if;
+
+  if p_catalog = 'empresas' then
+    if to_regclass('public.actividades') is not null then
+      return query
+      select 'actividades'::text, 'Actividades'::text, count(*)::bigint
+      from public.actividades
+      where empresa_id = p_record_id;
+    end if;
+
+    if to_regclass('public.registros') is not null then
+      return query
+      select 'registros'::text, 'Registros'::text, count(*)::bigint
+      from public.registros
+      where empresa_id = p_record_id;
+    end if;
+
+    if to_regclass('public.historiales_laborales') is not null then
+      return query
+      select 'historiales_laborales'::text, 'Historiales laborales'::text, count(*)::bigint
+      from public.historiales_laborales
+      where empresa_id = p_record_id;
     end if;
   end if;
 end;

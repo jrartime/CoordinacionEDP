@@ -23,7 +23,11 @@ comment on column public.registro_apuntes.auto is
 update public.registro_apuntes set auto = true where nota like 'backfill tipo_hora_id=%';
 
 create or replace function public.sync_registro_apunte()
-returns trigger language plpgsql as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
 declare
   v_is_tarifa boolean;
   v_concepto integer;

@@ -137,7 +137,9 @@ create or replace function public.get_cronos_banco_page(
   p_terminal integer default null,
   p_search text default null,
   p_offset integer default 0,
-  p_limit integer default 100
+  p_limit integer default 100,
+  p_sort_field text default 'fecha',
+  p_sort_dir text default 'desc'
 )
 returns table (
   id bigint,
@@ -180,13 +182,31 @@ as $$
       or b.resultado ilike '%' || p_search || '%'
       or (p_search ~ '^[0-9]+$' and b.cod_pedido = p_search::bigint)
     )
-  order by b.fecha desc nulls last, b.hora desc nulls last, b.id desc
+  order by
+    case when p_sort_field = 'fecha' and p_sort_dir = 'asc' then b.fecha end asc nulls last,
+    case when p_sort_field = 'fecha' and p_sort_dir <> 'asc' then b.fecha end desc nulls last,
+    case when p_sort_field = 'hora' and p_sort_dir = 'asc' then b.hora end asc nulls last,
+    case when p_sort_field = 'hora' and p_sort_dir <> 'asc' then b.hora end desc nulls last,
+    case when p_sort_field = 'cod_pedido' and p_sort_dir = 'asc' then b.cod_pedido end asc nulls last,
+    case when p_sort_field = 'cod_pedido' and p_sort_dir <> 'asc' then b.cod_pedido end desc nulls last,
+    case when p_sort_field = 'resultado' and p_sort_dir = 'asc' then b.resultado end asc nulls last,
+    case when p_sort_field = 'resultado' and p_sort_dir <> 'asc' then b.resultado end desc nulls last,
+    case when p_sort_field = 'importe_euros' and p_sort_dir = 'asc' then b.importe_euros end asc nulls last,
+    case when p_sort_field = 'importe_euros' and p_sort_dir <> 'asc' then b.importe_euros end desc nulls last,
+    case when p_sort_field = 'moneda' and p_sort_dir = 'asc' then b.moneda end asc nulls last,
+    case when p_sort_field = 'moneda' and p_sort_dir <> 'asc' then b.moneda end desc nulls last,
+    case when p_sort_field = 'tipo_pago' and p_sort_dir = 'asc' then b.tipo_pago end asc nulls last,
+    case when p_sort_field = 'tipo_pago' and p_sort_dir <> 'asc' then b.tipo_pago end desc nulls last,
+    case when p_sort_field = 'tarjeta' and p_sort_dir = 'asc' then b.tarjeta end asc nulls last,
+    case when p_sort_field = 'tarjeta' and p_sort_dir <> 'asc' then b.tarjeta end desc nulls last,
+    b.fecha desc nulls last, b.hora desc nulls last, b.id desc
   offset greatest(coalesce(p_offset, 0), 0)
   limit greatest(1, least(coalesce(p_limit, 100), 500));
 $$;
 
 -- Resultados conciliados: banco como base, enlazado con cronos.identificador.
 drop function if exists public.get_cronos_resultados(date, date, text, boolean, text, integer, integer);
+drop function if exists public.get_cronos_resultados(date, date, text, boolean, text, text, integer, integer);
 
 create or replace function public.get_cronos_resultados(
   p_desde date default null,
@@ -196,7 +216,9 @@ create or replace function public.get_cronos_resultados(
   p_search text default null,
   p_vista text default 'detalle',
   p_offset integer default 0,
-  p_limit integer default 100
+  p_limit integer default 100,
+  p_sort_field text default 'fecha',
+  p_sort_dir text default 'desc'
 )
 returns json
 language sql
@@ -326,6 +348,36 @@ as $$
         select row_data
         from resultado_filtrado, params
         order by
+          case when (select vista from params) = 'detalle' and p_sort_field = 'banco_id' and p_sort_dir = 'asc' then (row_data->>'banco_id')::bigint end asc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'banco_id' and p_sort_dir <> 'asc' then (row_data->>'banco_id')::bigint end desc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'fecha' and p_sort_dir = 'asc' then (row_data->>'fecha')::date end asc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'fecha' and p_sort_dir <> 'asc' then (row_data->>'fecha')::date end desc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'hora' and p_sort_dir = 'asc' then (row_data->>'hora')::time end asc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'hora' and p_sort_dir <> 'asc' then (row_data->>'hora')::time end desc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'tipo_operacion' and p_sort_dir = 'asc' then row_data->>'tipo_operacion' end asc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'tipo_operacion' and p_sort_dir <> 'asc' then row_data->>'tipo_operacion' end desc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'cod_pedido' and p_sort_dir = 'asc' then (row_data->>'cod_pedido')::bigint end asc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'cod_pedido' and p_sort_dir <> 'asc' then (row_data->>'cod_pedido')::bigint end desc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'banco_importe' and p_sort_dir = 'asc' then (row_data->>'banco_importe')::numeric end asc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'banco_importe' and p_sort_dir <> 'asc' then (row_data->>'banco_importe')::numeric end desc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'importe_euros' and p_sort_dir = 'asc' then (row_data->>'importe_euros')::numeric end asc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'importe_euros' and p_sort_dir <> 'asc' then (row_data->>'importe_euros')::numeric end desc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'tarifa' and p_sort_dir = 'asc' then row_data->>'tarifa' end asc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'tarifa' and p_sort_dir <> 'asc' then row_data->>'tarifa' end desc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'cantidad' and p_sort_dir = 'asc' then (row_data->>'cantidad')::numeric end asc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'cantidad' and p_sort_dir <> 'asc' then (row_data->>'cantidad')::numeric end desc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'cronos_importe' and p_sort_dir = 'asc' then (row_data->>'cronos_importe')::numeric end asc nulls last,
+          case when (select vista from params) = 'detalle' and p_sort_field = 'cronos_importe' and p_sort_dir <> 'asc' then (row_data->>'cronos_importe')::numeric end desc nulls last,
+          case when (select vista from params) <> 'detalle' and p_sort_field = 'fecha_por_mes' and p_sort_dir = 'asc' then row_data->>'fecha_por_mes' end asc nulls last,
+          case when (select vista from params) <> 'detalle' and p_sort_field = 'fecha_por_mes' and p_sort_dir <> 'asc' then row_data->>'fecha_por_mes' end desc nulls last,
+          case when (select vista from params) <> 'detalle' and p_sort_field = 'tarifa' and p_sort_dir = 'asc' then row_data->>'tarifa' end asc nulls last,
+          case when (select vista from params) <> 'detalle' and p_sort_field = 'tarifa' and p_sort_dir <> 'asc' then row_data->>'tarifa' end desc nulls last,
+          case when (select vista from params) <> 'detalle' and p_sort_field = 'unidades' and p_sort_dir = 'asc' then (row_data->>'unidades')::numeric end asc nulls last,
+          case when (select vista from params) <> 'detalle' and p_sort_field = 'unidades' and p_sort_dir <> 'asc' then (row_data->>'unidades')::numeric end desc nulls last,
+          case when (select vista from params) <> 'detalle' and p_sort_field = 'importe' and p_sort_dir = 'asc' then (row_data->>'importe')::numeric end asc nulls last,
+          case when (select vista from params) <> 'detalle' and p_sort_field = 'importe' and p_sort_dir <> 'asc' then (row_data->>'importe')::numeric end desc nulls last,
+          case when (select vista from params) <> 'detalle' and p_sort_field = 'mes' and p_sort_dir = 'asc' then (row_data->>'mes')::integer end asc nulls last,
+          case when (select vista from params) <> 'detalle' and p_sort_field = 'mes' and p_sort_dir <> 'asc' then (row_data->>'mes')::integer end desc nulls last,
           case when (select vista from params) = 'detalle' then fecha end desc nulls last,
           case when (select vista from params) = 'detalle' then hora end desc nulls last,
           case when (select vista from params) = 'detalle' then banco_id end desc nulls last,
@@ -341,10 +393,11 @@ $$;
 
 revoke all on function public.get_cronos_banco_filtros() from public;
 revoke all on function public.get_cronos_banco_resumen(date, date, text, text, integer, text) from public;
-revoke all on function public.get_cronos_banco_page(date, date, text, text, integer, text, integer, integer) from public;
+revoke all on function public.get_cronos_banco_page(date, date, text, text, integer, text, integer, integer, text, text) from public;
 drop function if exists public.get_cronos_resultados(date, date, text, boolean, text, integer, integer);
-revoke all on function public.get_cronos_resultados(date, date, text, boolean, text, text, integer, integer) from public;
+drop function if exists public.get_cronos_resultados(date, date, text, boolean, text, text, integer, integer);
+revoke all on function public.get_cronos_resultados(date, date, text, boolean, text, text, integer, integer, text, text) from public;
 grant execute on function public.get_cronos_banco_filtros() to authenticated;
 grant execute on function public.get_cronos_banco_resumen(date, date, text, text, integer, text) to authenticated;
-grant execute on function public.get_cronos_banco_page(date, date, text, text, integer, text, integer, integer) to authenticated;
-grant execute on function public.get_cronos_resultados(date, date, text, boolean, text, text, integer, integer) to authenticated;
+grant execute on function public.get_cronos_banco_page(date, date, text, text, integer, text, integer, integer, text, text) to authenticated;
+grant execute on function public.get_cronos_resultados(date, date, text, boolean, text, text, integer, integer, text, text) to authenticated;

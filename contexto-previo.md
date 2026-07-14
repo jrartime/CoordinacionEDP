@@ -80,11 +80,21 @@ Resumen de los cambios completados, decisiones clave y estado actual del proyect
 - **Carga CLI inicial**: nuevos scripts `scripts/import_cronos.py` y `scripts/import_cronos_banco.py`, con `--dry-run`, lotes de 5000 y escritura con `SUPABASE_SERVICE_ROLE_KEY` o `--service-role-key`.
 - **UI de filtros**: se unifico el selector de personal con boton de limpiar y desplegable en Programacion/Control/Actividades/Registros, y se movieron las "x" de filtros dentro del control con visibilidad segun valor.
 
+## 8. Historial laboral: importacion e informes PDF (14/07/2026)
+
+- **Importacion Excel de historial laboral**: nuevo SQL `supabase/tables/coordinacion_historial_laboral_import.sql` con `can_manage_coordinacion_historial_laboral` e `import_coordinacion_historial_laboral(jsonb)`. La RPC valida permisos, payload, IDs duplicados y hace upsert por `id`, devolviendo filas origen/existentes/actualizadas/insertadas. La UI marca por defecto altas nuevas y filas existentes con diferencias.
+- **Configuracion de informes**: nuevo SQL `supabase/tables/historial_laboral_informes_config.sql`. Mantiene plantillas editables por `tipo_documento` (`llamamiento`, `variacion`, `subrogacion`, `otro`) y mueve la configuracion documental a `public.empresas` en lugar de una tabla separada de empresa. Si existe `empresa_documentos_config`, migra datos y la elimina.
+- **Empresas**: `supabase/tables/empresas.sql` incorpora campos documentales: logo URL/data URL, firma data URL, firmante, cargo, ciudad, direccion/telefono/email/web/notas. La UI de Configuracion incluye subpestana Empresas con carga de imagen en base64 para logo y firma.
+- **Panel de informes en Historial laboral**: boton `Generar informe` desde el panel de un periodo. El panel permite elegir plantilla, fecha documento, fecha comienzo, ciudad firma y actividades incluidas. Por defecto incluye todas las actividades y permite `Incluir todas` / `Quitar todas`.
+- **Actividades del informe**: los puestos y la tabla de horario salen de `actividades_detalle`, filtrando actividades que se solapan con el historial laboral (`fecha_alta` a `fecha_baja`; sin baja se considera indefinido). La columna de dias traduce `1..7` a dias de la semana.
+- **Reglas de documento**: fecha documento propuesta = fecha comienzo - 15 dias. La UI avisa si el movimiento parece llamamiento/variacion/subrogacion y la plantilla seleccionada no coincide. El PDF se descarga como `Personal - tipo de movimiento - YYYY-MM-DD.pdf`, manteniendo espacios y acentos.
+- **Publicacion local**: cambios replicados en `publish/coordinacion/`; ultimo cache-busting aplicado `app.js?v=20260714-12`.
+
 ---
 
 ## Estado actual
 
-- **Git**: rama `main`, último commit confirmado antes de esta tanda **`a4d2397`**, **pusheado** a GitHub (`jrartime/CoordinacionEDP`). Hay cambios locales posteriores en `coordinacion/`, `publish/coordinacion/`, `scripts/`, `supabase/tables/`, `README.md`, `CLAUDE.md` y `contexto-previo.md` pendientes de commit/push.
+- **Git**: rama `main`, repositorio remoto `origin` en GitHub (`jrartime/CoordinacionEDP`). Cambios de Historial laboral/Informes, Empresas, Contabilidad y documentacion preparados para commit/push al cierre de la sesion.
 - **Base de datos de producción**: aplicadas las migraciones anteriores (nocturnidad, estados de historial, RLS de registros), aplicado `registros_servicio_contrato_validation.sql` y confirmada la version estricta de Actividades segun la conversacion. Las RPC de facetas de Registros existen y responden en producción.
 - **Web (IONOS)**: `publish/coordinacion/` **subido** al subdominio `coordinacion.edpsl.es`. En vivo.
 - **Verificación**: `node --check coordinacion/app.js`, `node --check coordinacion/concilia-integrated.js`, `.\scripts\publish.ps1 -SkipConfig`, `.\scripts\check.ps1` OK.

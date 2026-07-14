@@ -217,6 +217,40 @@ const SETTINGS_CATALOGS = {
       { table: "registros", label: "Registros", column: "modalidad_id" },
     ],
   },
+  empresas: {
+    label: "Empresas",
+    singularLabel: "empresa",
+    table: "empresas",
+    order: "empresa",
+    columns:
+      "id,empresa,razon_social,cif,logo_url,logo_data_url,logo_alt,firma_data_url,firmante_nombre,firmante_dni,firmante_cargo,ciudad_firma,direccion_pie,telefono_pie,email_pie,web_pie,notas",
+    fields: [
+      { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
+      { key: "empresa", label: "Empresa", type: "text", required: true },
+      { key: "razon_social", label: "Razón social", type: "text", required: true },
+      { key: "cif", label: "CIF", type: "text" },
+      { key: "logo_data_url", label: "Logo guardado", type: "file-data-url" },
+      { key: "logo_url", label: "Logo URL alternativa", type: "text" },
+      { key: "logo_alt", label: "Texto alternativo logo", type: "text" },
+      { key: "firma_data_url", label: "Imagen firma", type: "file-data-url" },
+      { key: "firmante_nombre", label: "Firmante", type: "text" },
+      { key: "firmante_dni", label: "DNI firmante", type: "text" },
+      { key: "firmante_cargo", label: "Cargo firmante", type: "text" },
+      { key: "ciudad_firma", label: "Ciudad firma", type: "text" },
+      { key: "direccion_pie", label: "Dirección pie", type: "textarea" },
+      { key: "telefono_pie", label: "Teléfono pie", type: "text" },
+      { key: "email_pie", label: "Email pie", type: "email" },
+      { key: "web_pie", label: "Web pie", type: "text" },
+      { key: "notas", label: "Notas", type: "textarea" },
+    ],
+    listFields: ["empresa", "razon_social", "cif", "firmante_nombre"],
+    titleField: "empresa",
+    usageReferences: [
+      { table: "actividades", label: "Actividades", column: "empresa_id" },
+      { table: "registros", label: "Registros", column: "empresa_id" },
+      { table: "historiales_laborales", label: "Historiales laborales", column: "empresa_id" },
+    ],
+  },
 };
 const PERSONAL_VINCULACION_OPTIONS = [
   { value: "1", label: "Activo" },
@@ -975,6 +1009,17 @@ const personalImportSelectedCount = document.querySelector("#personal-import-sel
 const personalImportSelectAll = document.querySelector("#personal-import-select-all");
 const personalImportApplyButton = document.querySelector("#personal-import-apply-button");
 const personalImportPreviewTableBody = document.querySelector("#personal-import-preview-table-body");
+const historialImportExcelButton = document.querySelector("#historial-import-excel-button");
+const historialImportExcelInput = document.querySelector("#historial-import-excel-input");
+const historialImportPanel = document.querySelector("#historial-import-panel");
+const historialImportOverlay = document.querySelector("#historial-import-overlay");
+const closeHistorialImportPanelButton = document.querySelector("#close-historial-import-panel-button");
+const historialImportFileName = document.querySelector("#historial-import-file-name");
+const historialImportTotalCount = document.querySelector("#historial-import-total-count");
+const historialImportSelectedCount = document.querySelector("#historial-import-selected-count");
+const historialImportSelectAll = document.querySelector("#historial-import-select-all");
+const historialImportApplyButton = document.querySelector("#historial-import-apply-button");
+const historialImportPreviewTableBody = document.querySelector("#historial-import-preview-table-body");
 const contractDetailPanel = document.querySelector("#contract-detail-panel");
 const contractDetailOverlay = document.querySelector("#contract-detail-overlay");
 const closeContractDetailButton = document.querySelector("#close-contract-detail-button");
@@ -2311,6 +2356,14 @@ function formatDisplayDate(value) {
   }
 
   return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function shiftIsoDate(value, deltaDays) {
+  const match = String(value ?? "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  date.setUTCDate(date.getUTCDate() + deltaDays);
+  return date.toISOString().slice(0, 10);
 }
 
 function calculateWorkedHours(start, end) {
@@ -11760,6 +11813,17 @@ function renderSettingsDetailFields(row = {}) {
           </label>
         `;
       }
+      if (field.type === "file-data-url") {
+        const hasImage = String(value || "").startsWith("data:image/");
+        return `
+          <label>
+            ${escapeHtml(field.label)}
+            <input type="file" accept="image/*" data-settings-file-target="${escapeHtml(field.key)}" />
+            <textarea name="${escapeHtml(field.key)}" rows="2" placeholder="Imagen guardada en la empresa">${escapeHtml(value ?? "")}</textarea>
+            <span class="muted-text">${hasImage ? "Imagen guardada" : "Sin imagen guardada"}</span>
+          </label>
+        `;
+      }
       return `
         <label>
           ${escapeHtml(field.label)}
@@ -11768,6 +11832,33 @@ function renderSettingsDetailFields(row = {}) {
       `;
     })
     .join("");
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("No se pudo leer el archivo."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleSettingsFileDataUrlChange(input) {
+  const fieldName = input?.dataset?.settingsFileTarget || "";
+  const file = input?.files?.[0];
+  const target = fieldName ? settingsDetailForm?.elements[fieldName] : null;
+  if (!file || !target) return;
+  if (!file.type.startsWith("image/")) {
+    setSettingsStatus("Selecciona un archivo de imagen.", "error");
+    input.value = "";
+    return;
+  }
+  try {
+    target.value = await readFileAsDataUrl(file);
+    setSettingsStatus("Imagen preparada para guardar.", "success");
+  } catch (error) {
+    setSettingsStatus(`No se pudo leer la imagen: ${error.message}`, "error");
+  }
 }
 
 function openSettingsDetail(mode = "new", rowId = "") {
@@ -15581,6 +15672,7 @@ let contabilidadPageSize = 100;
 let contabilidadTotalCount = 0;
 let contabilidadCatalogFiltersLoaded = false;
 let contabilidadRequestToken = 0;
+let contabilidadSort = { field: "fecha", direction: "desc" };
 
 function getContabilidadFilters() {
   const anuladoVal = contabilidadFilterAnulado?.value || "";
@@ -15701,6 +15793,10 @@ function renderContabilidadRows(rows) {
     .join("");
 }
 
+function syncContabilidadSortButtons() {
+  syncSortButtonsBySelector("[data-contabilidad-sort-field]", "contabilidadSortField", contabilidadSort);
+}
+
 function updateContabilidadPagination() {
   const totalPages = Math.max(1, Math.ceil(contabilidadTotalCount / contabilidadPageSize));
   if (contabilidadPage > totalPages) {
@@ -15746,6 +15842,8 @@ async function loadContabilidad() {
       p_vinculado: refreshedFilters.vinculacion,
       p_offset: from,
       p_limit: contabilidadPageSize,
+      p_sort_field: contabilidadSort.field,
+      p_sort_dir: contabilidadSort.direction,
     });
 
     const resumenPromise = supabase.rpc("get_cronos_resumen", {
@@ -15772,6 +15870,7 @@ async function loadContabilidad() {
     contabilidadTotalCount =
       resumen && !resumenRes.error ? Number(resumen.total_apuntes) : (pageRes.data?.length ?? 0);
     renderContabilidadRows(pageRes.data ?? []);
+    syncContabilidadSortButtons();
     updateContabilidadPagination();
 
     if (contabilidadSummary) {
@@ -15794,6 +15893,7 @@ async function loadContabilidad() {
     if (contabilidadTableBody) {
       contabilidadTableBody.innerHTML = `<tr><td colspan="${CONTABILIDAD_COLSPAN}" class="empty-state">Error cargando la contabilidad.</td></tr>`;
     }
+    syncContabilidadSortButtons();
     setStatus(`No se pudo cargar la contabilidad: ${error.message}`, "error");
   }
 }
@@ -15874,6 +15974,7 @@ let bancoPageSize = 100;
 let bancoTotalCount = 0;
 let bancoFiltrosLoaded = false;
 let bancoRequestToken = 0;
+let bancoSort = { field: "fecha", direction: "desc" };
 
 function getBancoFilters() {
   return {
@@ -15952,6 +16053,10 @@ function renderBancoRows(rows) {
     .join("");
 }
 
+function syncBancoSortButtons() {
+  syncSortButtonsBySelector("[data-banco-sort-field]", "bancoSortField", bancoSort);
+}
+
 function updateBancoPagination() {
   const totalPages = Math.max(1, Math.ceil(bancoTotalCount / bancoPageSize));
   if (bancoPage > totalPages) {
@@ -15994,6 +16099,8 @@ async function loadContabilidadBanco() {
       p_search: filters.search || null,
       p_offset: from,
       p_limit: bancoPageSize,
+      p_sort_field: bancoSort.field,
+      p_sort_dir: bancoSort.direction,
     });
 
     const resumenPromise = supabase.rpc("get_cronos_banco_resumen", {
@@ -16017,6 +16124,7 @@ async function loadContabilidadBanco() {
     bancoTotalCount =
       resumen && !resumenRes.error ? Number(resumen.total_operaciones) : (pageRes.data?.length ?? 0);
     renderBancoRows(pageRes.data ?? []);
+    syncBancoSortButtons();
     updateBancoPagination();
 
     if (bancoSummary) {
@@ -16038,6 +16146,7 @@ async function loadContabilidadBanco() {
     if (bancoTableBody) {
       bancoTableBody.innerHTML = `<tr><td colspan="${BANCO_COLSPAN}" class="empty-state">Error cargando el banco.</td></tr>`;
     }
+    syncBancoSortButtons();
     setStatus(`No se pudo cargar el banco: ${error.message}`, "error");
   }
 }
@@ -16074,6 +16183,18 @@ let resultadosTotalCount = 0;
 let resultadosRequestToken = 0;
 let currentResultadosView = "detalle";
 let resultadosCurrentRows = [];
+let resultadosSortByView = {
+  detalle: { field: "fecha", direction: "desc" },
+  resumen: { field: "mes", direction: "asc" },
+};
+
+function getResultadosSort() {
+  return resultadosSortByView[currentResultadosView] || resultadosSortByView.detalle;
+}
+
+function syncResultadosSortButtons() {
+  syncSortButtonsBySelector("[data-resultados-sort-field]", "resultadosSortField", getResultadosSort());
+}
 
 function getResultadosFilters() {
   const anuladoVal = resultadosFilterAnulado?.value || "";
@@ -16104,26 +16225,28 @@ function renderResultadosHead() {
   }
   if (currentResultadosView === "detalle") {
     resultadosTableHead.innerHTML = `<tr>
-      <th>Banco Id</th>
-      <th>Fecha</th>
-      <th>Hora</th>
-      <th>Tipo operación</th>
-      <th>Cód pedido</th>
-      <th>Banco importe</th>
-      <th>Importe euros</th>
-      <th>Tarifa</th>
-      <th>Cantidad</th>
-      <th>Cronos importe</th>
+      <th><button type="button" class="sort-button" data-resultados-sort-field="banco_id">Banco Id</button></th>
+      <th><button type="button" class="sort-button" data-resultados-sort-field="fecha">Fecha</button></th>
+      <th><button type="button" class="sort-button" data-resultados-sort-field="hora">Hora</button></th>
+      <th><button type="button" class="sort-button" data-resultados-sort-field="tipo_operacion">Tipo operación</button></th>
+      <th><button type="button" class="sort-button" data-resultados-sort-field="cod_pedido">Cód pedido</button></th>
+      <th><button type="button" class="sort-button" data-resultados-sort-field="banco_importe">Banco importe</button></th>
+      <th><button type="button" class="sort-button" data-resultados-sort-field="importe_euros">Importe euros</button></th>
+      <th><button type="button" class="sort-button" data-resultados-sort-field="tarifa">Tarifa</button></th>
+      <th><button type="button" class="sort-button" data-resultados-sort-field="cantidad">Cantidad</button></th>
+      <th><button type="button" class="sort-button" data-resultados-sort-field="cronos_importe">Cronos importe</button></th>
     </tr>`;
+    syncResultadosSortButtons();
     return;
   }
   resultadosTableHead.innerHTML = `<tr>
-    <th>Fecha por mes</th>
-    <th>Tarifa</th>
-    <th>Unidades</th>
-    <th>Importe</th>
-    <th>Mes</th>
+    <th><button type="button" class="sort-button" data-resultados-sort-field="fecha_por_mes">Fecha por mes</button></th>
+    <th><button type="button" class="sort-button" data-resultados-sort-field="tarifa">Tarifa</button></th>
+    <th><button type="button" class="sort-button" data-resultados-sort-field="unidades">Unidades</button></th>
+    <th><button type="button" class="sort-button" data-resultados-sort-field="importe">Importe</button></th>
+    <th><button type="button" class="sort-button" data-resultados-sort-field="mes">Mes</button></th>
   </tr>`;
+  syncResultadosSortButtons();
 }
 
 function renderResultadosRows(rows) {
@@ -16185,6 +16308,8 @@ async function fetchResultadosResumenRows(limit = 5000) {
     p_vista: "resumen",
     p_offset: 0,
     p_limit: limit,
+    p_sort_field: resultadosSortByView.resumen.field,
+    p_sort_dir: resultadosSortByView.resumen.direction,
   });
   if (error) {
     throw error;
@@ -16455,6 +16580,7 @@ async function loadResultados() {
   try {
     const supabase = await getSupabaseClient();
     const from = (resultadosPage - 1) * resultadosPageSize;
+    const sort = getResultadosSort();
     const { data, error } = await supabase.rpc("get_cronos_resultados", {
       p_desde: filters.desde || null,
       p_hasta: filters.hasta || null,
@@ -16464,6 +16590,8 @@ async function loadResultados() {
       p_vista: currentResultadosView,
       p_offset: from,
       p_limit: resultadosPageSize,
+      p_sort_field: sort.field,
+      p_sort_dir: sort.direction,
     });
     if (token !== resultadosRequestToken) {
       return;
@@ -16512,6 +16640,21 @@ const CONCILIACION_CRONOS_COLSPAN = 12;
 const CONCILIACION_BANCO_COLSPAN = 10;
 const CONCILIACION_LIMIT = 500;
 let conciliacionRequestToken = 0;
+let conciliacionCronosSort = { field: "fecha", direction: "desc" };
+let conciliacionBancoSort = { field: "fecha", direction: "desc" };
+
+function syncConciliacionSortButtons() {
+  syncSortButtonsBySelector(
+    "[data-conciliacion-cronos-sort-field]",
+    "conciliacionCronosSortField",
+    conciliacionCronosSort
+  );
+  syncSortButtonsBySelector(
+    "[data-conciliacion-banco-sort-field]",
+    "conciliacionBancoSortField",
+    conciliacionBancoSort
+  );
+}
 
 function getConciliacionFilters() {
   return {
@@ -16586,6 +16729,7 @@ function renderConciliacionEmpty(message) {
   }
   renderConciliacionCronosRows([]);
   renderConciliacionBancoRows([]);
+  syncConciliacionSortButtons();
 }
 
 async function loadConciliacion() {
@@ -16616,6 +16760,10 @@ async function loadConciliacion() {
       p_desde: desde,
       p_hasta: hasta,
       p_limit: CONCILIACION_LIMIT,
+      p_cronos_sort_field: conciliacionCronosSort.field,
+      p_cronos_sort_dir: conciliacionCronosSort.direction,
+      p_banco_sort_field: conciliacionBancoSort.field,
+      p_banco_sort_dir: conciliacionBancoSort.direction,
     });
     if (token !== conciliacionRequestToken) {
       return;
@@ -16632,6 +16780,7 @@ async function loadConciliacion() {
 
     renderConciliacionCronosRows(cronosRows);
     renderConciliacionBancoRows(bancoRows);
+    syncConciliacionSortButtons();
     if (conciliacionCronosCount) {
       conciliacionCronosCount.textContent = `${cronosTotal.toLocaleString("es-ES")} apuntes`;
     }
@@ -16651,6 +16800,7 @@ async function loadConciliacion() {
       return;
     }
     renderConciliacionEmpty("No se pudo cargar la conciliación.");
+    syncConciliacionSortButtons();
     setStatus(`No se pudo cargar la conciliación: ${error.message}`, "error");
   }
 }
@@ -16688,7 +16838,7 @@ const CONTABILIDAD_LOAD_CONFIGS = {
     label: "apuntes",
     summaryEl: () => contabilidadSummary,
     afterLoad: async () => {
-      contabilidadFiltrosLoaded = false;
+      contabilidadCatalogFiltersLoaded = false;
       contabilidadPage = 1;
       await loadContabilidad();
     },
@@ -16941,6 +17091,7 @@ const historialDetailCloseButton = document.querySelector("#historial-detail-clo
 const historialDetailCancelButton = document.querySelector("#historial-detail-cancel-button");
 const historialDetailDeleteButton = document.querySelector("#historial-detail-delete-button");
 const historialDetailDuplicateButton = document.querySelector("#historial-detail-duplicate-button");
+let historialDetailReportButton = document.querySelector("#historial-detail-report-button");
 const historialBulkFieldSelect = document.querySelector("#historial-bulk-field");
 const historialBulkCurrentValueInput = document.querySelector("#historial-bulk-current-value");
 const historialBulkCurrentSelect = document.querySelector("#historial-bulk-current-select");
@@ -16953,6 +17104,30 @@ const historialBulkMatchCount = document.querySelector("#historial-bulk-match-co
 const historialBulkSelectionCount = document.querySelector("#historial-bulk-selection-count");
 const historialBulkSelectHeader = document.querySelector("#historial-bulk-select-header");
 const historialBulkSelectAllCheckbox = document.querySelector("#historial-bulk-select-all-checkbox");
+const historialReportConfigDetails = document.querySelector("#historial-reports-config-details");
+const historialReportOpenCompaniesButton = document.querySelector("#historial-report-open-companies-button");
+const historialReportConfigRefreshButton = document.querySelector("#historial-report-config-refresh-button");
+const historialReportConfigStatus = document.querySelector("#historial-report-config-status");
+const historialReportTemplateSelect = document.querySelector("#historial-report-template-select");
+const historialReportTemplateForm = document.querySelector("#historial-report-template-form");
+const historialReportTemplateSaveButton = document.querySelector("#historial-report-template-save-button");
+const historialReportTemplateNewButton = document.querySelector("#historial-report-template-new-button");
+const historialReportPanel = document.querySelector("#historial-report-panel");
+const historialReportOverlay = document.querySelector("#historial-report-overlay");
+const historialReportTitle = document.querySelector("#historial-report-title");
+const historialReportCloseButton = document.querySelector("#historial-report-close-button");
+const historialReportGenerateTemplateSelect = document.querySelector("#historial-report-generate-template-select");
+const historialReportDocumentDate = document.querySelector("#historial-report-document-date");
+const historialReportStartDate = document.querySelector("#historial-report-start-date");
+const historialReportSignCity = document.querySelector("#historial-report-sign-city");
+const historialReportPersonSummary = document.querySelector("#historial-report-person-summary");
+const historialReportCompanySummary = document.querySelector("#historial-report-company-summary");
+const historialReportActivitiesSummary = document.querySelector("#historial-report-activities-summary");
+const historialReportSelectAllActivitiesButton = document.querySelector("#historial-report-select-all-activities-button");
+const historialReportClearActivitiesButton = document.querySelector("#historial-report-clear-activities-button");
+const historialReportTemplateWarning = document.querySelector("#historial-report-template-warning");
+const historialReportActivitiesTableBody = document.querySelector("#historial-report-activities-table-body");
+const historialReportDownloadButton = document.querySelector("#historial-report-download-button");
 
 const HISTORIAL_FETCH_LIMIT = 1000;
 const HISTORIAL_TABLE = "historiales_laborales";
@@ -17034,6 +17209,166 @@ const HISTORIAL_BULK_FIELDS = {
   tramitado: { label: "Tramitado", type: "boolean" },
 };
 
+const HISTORIAL_REPORT_TEMPLATE_FIELDS = [
+  "codigo",
+  "nombre",
+  "tipo_documento",
+  "tipo_contratacion_id",
+  "activo",
+  "orden",
+  "titulo",
+  "saludo",
+  "texto_intro",
+  "texto_movimiento",
+  "texto_condiciones",
+  "texto_legal",
+  "texto_recibido",
+  "tabla_actividades_titulo",
+  "incluir_tabla_actividades",
+  "incluir_opciones_respuesta",
+  "opciones_respuesta_texto",
+  "pie_observaciones",
+];
+const HISTORIAL_REPORT_TEMPLATE_BOOLEAN_FIELDS = new Set([
+  "activo",
+  "incluir_tabla_actividades",
+  "incluir_opciones_respuesta",
+]);
+const HISTORIAL_REPORT_TEMPLATE_INTEGER_FIELDS = new Set(["tipo_contratacion_id", "orden"]);
+const HISTORIAL_REPORT_TEMPLATE_TEXT_BLOCKS = [
+  "saludo",
+  "texto_intro",
+  "texto_movimiento",
+  "texto_condiciones",
+  "texto_legal",
+  "texto_recibido",
+  "opciones_respuesta_texto",
+  "pie_observaciones",
+];
+const HISTORIAL_REPORT_ACTIVITY_SELECT =
+  "id, personal_id, personal, dni, empresa_id, empresa, servicio, instalacion, puesto, dias_semana, " +
+  "fecha_inicio, fecha_fin, hora_inicio, hora_fin, observaciones";
+const HISTORIAL_REPORT_WEEKDAY_LABELS = {
+  1: "Lunes",
+  2: "Martes",
+  3: "Miércoles",
+  4: "Jueves",
+  5: "Viernes",
+  6: "Sábado",
+  7: "Domingo",
+  L: "Lunes",
+  M: "Martes",
+  X: "Miércoles",
+  J: "Jueves",
+  V: "Viernes",
+  S: "Sábado",
+  D: "Domingo",
+};
+
+const HISTORIAL_IMPORT_HEADER_MAP = {
+  id: "id",
+  activa: "activo",
+  activo: "activo",
+  enviado: "enviado",
+  gestionado: "gestionado",
+  tramitado: "tramitado",
+  personal_id: "personal_id",
+  empresa_id: "empresa_id",
+  jornada: "jornada",
+  jornada_max: "jornada_maxima",
+  jornada_maxima: "jornada_maxima",
+  tipo_contrato: "contrato_laboral_id",
+  contrato_laboral_id: "contrato_laboral_id",
+  vida_laboral_pagos_id: "modalidad_pago_id",
+  modalidad_pago_id: "modalidad_pago_id",
+  fecha_alta: "fecha_alta",
+  fecha_baja: "fecha_baja",
+  dias_cot: "dias_periodo",
+  dias_periodo: "dias_periodo",
+  puesto_id: "puesto_id",
+  coeficiente_temporalidad: "coeficiente_temporalidad_miles",
+  coeficiente_temporalidad_miles: "coeficiente_temporalidad_miles",
+  vida_laboral_contratacion_id: "tipo_contratacion_id",
+  tipo_contratacion_id: "tipo_contratacion_id",
+  vida_laboral_baja_id: "motivo_baja_id",
+  motivo_baja_id: "motivo_baja_id",
+  horarios: "horarios",
+  observaciones: "observaciones",
+  "01_salario_jc": "salario_jornada_completa",
+  salario_jornada_completa: "salario_jornada_completa",
+  "67_hc": "importe_horas_complementarias",
+  importe_horas_complementarias: "importe_horas_complementarias",
+  "11_have_complemento_movilidad": "tiene_complemento_movilidad",
+  tiene_complemento_movilidad: "tiene_complemento_movilidad",
+  "65_have_complemento_dedicacion": "tiene_complemento_dedicacion",
+  tiene_complemento_dedicacion: "tiene_complemento_dedicacion",
+  "398_have_plus_transporte": "tiene_plus_transporte",
+  tiene_plus_transporte: "tiene_plus_transporte",
+  "53_have_nocturnidad": "tiene_nocturnidad",
+  tiene_nocturnidad: "tiene_nocturnidad",
+  "04_have_antiguedad": "tiene_antiguedad",
+  tiene_antiguedad: "tiene_antiguedad",
+  "18_have_complemento": "tiene_complemento",
+  tiene_complemento: "tiene_complemento",
+  "18_complemento": "complemento",
+  complemento: "complemento",
+  notas: "notas",
+  grupo_cotizacion: "grupo_cotizacion",
+  movimiento: "movimiento",
+  puestos: "puesto_texto",
+  puesto_texto: "puesto_texto",
+  dto_cot_comunes: "cotizacion_comunes_pct",
+  cotizacion_comunes_pct: "cotizacion_comunes_pct",
+  dto_mei: "cotizacion_mei_pct",
+  cotizacion_mei_pct: "cotizacion_mei_pct",
+  dto_cot_formacion: "cotizacion_formacion_pct",
+  cotizacion_formacion_pct: "cotizacion_formacion_pct",
+  dto_cot_desempleo: "cotizacion_desempleo_pct",
+  cotizacion_desempleo_pct: "cotizacion_desempleo_pct",
+  lenguaje_inclusivo: "lenguaje_inclusivo",
+};
+const HISTORIAL_IMPORT_TEXT_FIELDS = new Set(["horarios", "observaciones", "notas", "movimiento", "puesto_texto"]);
+const HISTORIAL_IMPORT_INTEGER_FIELDS = new Set([
+  "id",
+  "personal_id",
+  "empresa_id",
+  "contrato_laboral_id",
+  "modalidad_pago_id",
+  "dias_periodo",
+  "puesto_id",
+  "coeficiente_temporalidad_miles",
+  "tipo_contratacion_id",
+  "motivo_baja_id",
+  "grupo_cotizacion",
+]);
+const HISTORIAL_IMPORT_NUMERIC_FIELDS = new Set([
+  "jornada",
+  "jornada_maxima",
+  "salario_jornada_completa",
+  "importe_horas_complementarias",
+  "complemento",
+  "cotizacion_comunes_pct",
+  "cotizacion_mei_pct",
+  "cotizacion_formacion_pct",
+  "cotizacion_desempleo_pct",
+]);
+const HISTORIAL_IMPORT_BOOLEAN_FIELDS = new Set([
+  "activo",
+  "enviado",
+  "gestionado",
+  "tramitado",
+  "tiene_complemento_movilidad",
+  "tiene_complemento_dedicacion",
+  "tiene_plus_transporte",
+  "tiene_nocturnidad",
+  "tiene_antiguedad",
+  "tiene_complemento",
+  "lenguaje_inclusivo",
+]);
+const HISTORIAL_IMPORT_DATE_FIELDS = new Set(["fecha_alta", "fecha_baja"]);
+const HISTORIAL_IMPORT_COLUMNS = Array.from(new Set(Object.values(HISTORIAL_IMPORT_HEADER_MAP)));
+const HISTORIAL_IMPORT_SELECT_COLUMNS = HISTORIAL_IMPORT_COLUMNS.join(", ");
+
 let historialPersonalOptionsLoaded = false;
 let historialRows = [];
 let historialBulkSelectionMode = false;
@@ -17042,6 +17377,12 @@ let currentHistorialSort = { field: "fecha_alta", direction: "desc" };
 let historialRelationOptionsCache = {};
 let historialDetailSnapshot = null;
 let historialDetailMode = "edit"; // "edit" | "new"
+let pendingHistorialImportRows = [];
+let pendingHistorialImportFileName = "";
+let historialReportCompanyRows = [];
+let historialReportTemplateRows = [];
+let historialReportConfigLoaded = false;
+let historialReportDraft = null;
 
 async function loadHistorialRelationOptions() {
   if (Object.keys(historialRelationOptionsCache).length) {
@@ -17120,6 +17461,1214 @@ async function loadHistorialPersonalOptions(supabase) {
     (data || []).map((row) => ({ value: String(row.id), label: row.personal || String(row.id) }))
   );
   historialPersonalOptionsLoaded = true;
+}
+
+function setHistorialReportConfigStatus(message, tone = "default") {
+  if (!historialReportConfigStatus) return;
+  historialReportConfigStatus.textContent = message || "";
+  historialReportConfigStatus.classList.toggle("error", tone === "error");
+  historialReportConfigStatus.classList.toggle("success", tone === "success");
+}
+
+function renderHistorialReportTemplateTipoContratacionOptions(selectedValue = "") {
+  const select = historialReportTemplateForm?.elements.tipo_contratacion_id;
+  if (!select) return;
+  const options = historialRelationOptionsCache.tipo_contratacion_id || [];
+  select.innerHTML =
+    '<option value="">Sin asignar</option>' +
+    options
+      .map(
+        (option) =>
+          `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label || `Tipo ${option.value}`)}</option>`
+      )
+      .join("");
+  select.value = selectedValue == null ? "" : String(selectedValue);
+}
+
+function renderHistorialReportTemplateSelect() {
+  if (!historialReportTemplateSelect) return;
+  const previous = historialReportTemplateSelect.value;
+  historialReportTemplateSelect.innerHTML =
+    '<option value="">Seleccionar plantilla</option>' +
+    historialReportTemplateRows
+      .map((row) => {
+        const label = `${row.nombre || row.codigo}${row.activo ? "" : " (inactiva)"}`;
+        return `<option value="${escapeHtml(row.id)}">${escapeHtml(label)}</option>`;
+      })
+      .join("");
+  historialReportTemplateSelect.value =
+    previous && historialReportTemplateRows.some((row) => String(row.id) === previous)
+      ? previous
+      : String(historialReportTemplateRows[0]?.id || "");
+}
+
+function getDefaultHistorialReportTemplate() {
+  return {
+    codigo: "",
+    nombre: "",
+    tipo_documento: "llamamiento",
+    tipo_contratacion_id: "",
+    activo: true,
+    orden: 100,
+    titulo: "",
+    saludo: "",
+    texto_intro: "",
+    texto_movimiento: "",
+    texto_condiciones: "",
+    texto_legal: "",
+    texto_recibido: "",
+    tabla_actividades_titulo: "Horario",
+    incluir_tabla_actividades: true,
+    incluir_opciones_respuesta: false,
+    opciones_respuesta_texto: "",
+    pie_observaciones: "",
+  };
+}
+
+function fillHistorialReportTemplateForm(row = getDefaultHistorialReportTemplate()) {
+  if (!historialReportTemplateForm) return;
+  HISTORIAL_REPORT_TEMPLATE_FIELDS.forEach((field) => {
+    const control = historialReportTemplateForm.elements[field];
+    if (!control) return;
+    if (HISTORIAL_REPORT_TEMPLATE_BOOLEAN_FIELDS.has(field)) {
+      control.checked = Boolean(row?.[field]);
+      return;
+    }
+    control.value = row?.[field] ?? "";
+  });
+  renderHistorialReportTemplateTipoContratacionOptions(row?.tipo_contratacion_id ?? "");
+}
+
+function syncHistorialReportConfigForms() {
+  const template = historialReportTemplateRows.find(
+    (row) => String(row.id) === String(historialReportTemplateSelect?.value || "")
+  );
+  fillHistorialReportTemplateForm(template || getDefaultHistorialReportTemplate());
+}
+
+async function loadHistorialReportConfig({ force = false } = {}) {
+  if (!historialReportConfigDetails || (historialReportConfigLoaded && !force)) return;
+  try {
+    setHistorialReportConfigStatus("Cargando configuración...");
+    const supabase = await getSupabaseClient();
+    await loadHistorialRelationOptions();
+    const [companyRes, templateRes] = await Promise.all([
+      supabase
+        .from("empresas")
+        .select(
+          "id, empresa, razon_social, cif, logo_url, logo_data_url, logo_alt, firma_data_url, firmante_nombre, firmante_dni, firmante_cargo, ciudad_firma, direccion_pie, telefono_pie, email_pie, web_pie, notas"
+        )
+        .order("empresa", { ascending: true }),
+      supabase
+        .from("historial_laboral_informe_plantillas")
+        .select("*")
+        .order("orden", { ascending: true })
+        .order("nombre", { ascending: true }),
+    ]);
+    if (companyRes.error) throw companyRes.error;
+    if (templateRes.error) throw templateRes.error;
+
+    historialReportCompanyRows = (companyRes.data || []).map((row) => ({
+      ...row,
+      empresa_id: row.id,
+    }));
+    historialReportTemplateRows = templateRes.data || [];
+    historialReportConfigLoaded = true;
+    renderHistorialReportTemplateSelect();
+    syncHistorialReportConfigForms();
+    setHistorialReportConfigStatus(
+      `${historialReportCompanyRows.length} empresas · ${historialReportTemplateRows.length} plantillas`,
+      "success"
+    );
+  } catch (error) {
+    historialReportConfigLoaded = false;
+    setHistorialReportConfigStatus(
+      "No se pudo cargar. Aplica el SQL historial_laboral_informes_config.sql.",
+      "error"
+    );
+    setStatus(`No se pudo cargar la configuración de informes: ${formatSupabaseErrorDetails(error)}`, "error");
+  }
+}
+
+function collectHistorialReportTemplatePayload() {
+  const payload = {};
+  HISTORIAL_REPORT_TEMPLATE_FIELDS.forEach((field) => {
+    const control = historialReportTemplateForm?.elements[field];
+    if (!control) return;
+    if (HISTORIAL_REPORT_TEMPLATE_BOOLEAN_FIELDS.has(field)) {
+      payload[field] = Boolean(control.checked);
+      return;
+    }
+    const rawValue = String(control.value ?? "").trim();
+    if (HISTORIAL_REPORT_TEMPLATE_INTEGER_FIELDS.has(field)) {
+      payload[field] = rawValue ? Number.parseInt(rawValue, 10) : null;
+      return;
+    }
+    payload[field] = rawValue || null;
+  });
+  if (!payload.codigo) throw new Error("El código de plantilla es obligatorio.");
+  if (!payload.nombre) throw new Error("El nombre de plantilla es obligatorio.");
+  payload.tipo_documento = payload.tipo_documento || "otro";
+  payload.orden = Number.isFinite(payload.orden) && payload.orden != null ? payload.orden : 100;
+  payload.tabla_actividades_titulo = payload.tabla_actividades_titulo || "Horario";
+  return payload;
+}
+
+async function saveHistorialReportCompanyConfig() {
+  try {
+    historialReportCompanySaveButton?.setAttribute("disabled", "true");
+    const payload = collectHistorialReportCompanyPayload();
+    const empresaId = payload.id;
+    const updatePayload = { ...payload };
+    delete updatePayload.id;
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase
+      .from("empresas")
+      .update(updatePayload)
+      .eq("id", empresaId);
+    if (error) throw error;
+    historialReportConfigLoaded = false;
+    await loadHistorialReportConfig({ force: true });
+    setStatus("Configuración documental de empresa guardada.", "success");
+  } catch (error) {
+    setStatus(`No se pudo guardar la configuración de empresa: ${formatSupabaseErrorDetails(error)}`, "error");
+  } finally {
+    historialReportCompanySaveButton?.removeAttribute("disabled");
+  }
+}
+
+async function saveHistorialReportTemplateConfig() {
+  try {
+    historialReportTemplateSaveButton?.setAttribute("disabled", "true");
+    const payload = collectHistorialReportTemplatePayload();
+    const selectedId = historialReportTemplateSelect?.value || "";
+    const existing = historialReportTemplateRows.find((row) => String(row.id) === String(selectedId));
+    const supabase = await getSupabaseClient();
+    const result = existing
+      ? await supabase.from("historial_laboral_informe_plantillas").update(payload).eq("id", existing.id)
+      : await supabase.from("historial_laboral_informe_plantillas").insert(payload);
+    if (result.error) throw result.error;
+    historialReportConfigLoaded = false;
+    await loadHistorialReportConfig({ force: true });
+    setStatus("Plantilla de informe guardada.", "success");
+  } catch (error) {
+    setStatus(`No se pudo guardar la plantilla: ${formatSupabaseErrorDetails(error)}`, "error");
+  } finally {
+    historialReportTemplateSaveButton?.removeAttribute("disabled");
+  }
+}
+
+function startNewHistorialReportTemplate() {
+  if (historialReportTemplateSelect) historialReportTemplateSelect.value = "";
+  fillHistorialReportTemplateForm(getDefaultHistorialReportTemplate());
+  historialReportTemplateForm?.elements.codigo?.focus();
+}
+
+function openHistorialReportCompaniesSettings() {
+  currentSettingsView = "catalog";
+  currentSettingsCatalog = "empresas";
+  resetSettingsSort();
+  historialReportConfigDetails?.removeAttribute("open");
+  switchPrivateTab("settings");
+  void loadSettingsManagement();
+}
+
+function ensureHistorialDetailReportButton() {
+  if (historialDetailReportButton) return historialDetailReportButton;
+  const parent = historialDetailDuplicateButton?.parentElement;
+  if (!parent) return null;
+  const button = document.createElement("button");
+  button.id = "historial-detail-report-button";
+  button.type = "button";
+  button.className = "secondary-button";
+  button.textContent = "Generar informe";
+  button.addEventListener("click", () => {
+    void openHistorialReportPanel();
+  });
+  parent.insertBefore(button, historialDetailDuplicateButton);
+  historialDetailReportButton = button;
+  return button;
+}
+
+function formatHistorialReportLongDate(value) {
+  const normalized = String(value ?? "").trim();
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return normalized;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return date.toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function sanitizeHistorialReportFilename(value) {
+  return String(value || "")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeHistorialReportDays(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => HISTORIAL_REPORT_WEEKDAY_LABELS[String(item).trim()] || item).join(", ");
+  }
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => HISTORIAL_REPORT_WEEKDAY_LABELS[String(item).trim()] || item).join(", ");
+    }
+  } catch (_error) {
+    // dias_semana tambien puede llegar como texto simple.
+  }
+  return raw
+    .split(/[,\s;|]+/)
+    .filter(Boolean)
+    .map((item) => HISTORIAL_REPORT_WEEKDAY_LABELS[String(item).trim()] || item)
+    .join(", ");
+}
+
+function countHistorialReportDays(value) {
+  const normalized = normalizeHistorialReportDays(value);
+  if (!normalized) return 1;
+  return normalized.split(",").filter((item) => item.trim()).length || 1;
+}
+
+function getHistorialReportActivityWeeklyHours(row) {
+  const minutes = calculateWorkedMinutes(row.hora_inicio, row.hora_fin) * countHistorialReportDays(row.dias_semana);
+  return minutes ? formatMinutesAsHours(minutes) : "";
+}
+
+function getHistorialReportActivityKey(row) {
+  return String(row?.id ?? "");
+}
+
+function ensureHistorialReportSelectedActivities(rows = []) {
+  if (!historialReportDraft) return new Set();
+  if (!(historialReportDraft.selectedActivityIds instanceof Set)) {
+    historialReportDraft.selectedActivityIds = new Set(rows.map(getHistorialReportActivityKey).filter(Boolean));
+  }
+  const validIds = new Set(rows.map(getHistorialReportActivityKey).filter(Boolean));
+  historialReportDraft.selectedActivityIds = new Set(
+    Array.from(historialReportDraft.selectedActivityIds).filter((id) => validIds.has(id))
+  );
+  return historialReportDraft.selectedActivityIds;
+}
+
+function getSelectedHistorialReportActivities() {
+  const rows = historialReportDraft?.activities || [];
+  const selectedIds = ensureHistorialReportSelectedActivities(rows);
+  return rows.filter((row) => selectedIds.has(getHistorialReportActivityKey(row)));
+}
+
+function renderHistorialReportActivities(rows = []) {
+  const selectedIds = ensureHistorialReportSelectedActivities(rows);
+  const selectedCount = rows.filter((row) => selectedIds.has(getHistorialReportActivityKey(row))).length;
+  if (historialReportActivitiesSummary) {
+    historialReportActivitiesSummary.textContent = `${selectedCount}/${rows.length} actividades incluidas`;
+  }
+  if (!historialReportActivitiesTableBody) return;
+  if (!rows.length) {
+    historialReportActivitiesTableBody.innerHTML =
+      '<tr><td colspan="8" class="empty-state">No hay actividades solapadas con el historial laboral.</td></tr>';
+    return;
+  }
+  historialReportActivitiesTableBody.innerHTML = rows
+    .map(
+      (row) => {
+        const activityId = getHistorialReportActivityKey(row);
+        const checked = selectedIds.has(activityId) ? "checked" : "";
+        return `<tr>
+        <td>
+          <input type="checkbox" data-historial-report-activity-id="${escapeHtml(activityId)}" ${checked} aria-label="Incluir actividad" />
+        </td>
+        <td>${escapeHtml(row.puesto || "")}</td>
+        <td>${escapeHtml(row.instalacion || "")}</td>
+        <td>${escapeHtml(formatHourValue(row.hora_inicio).slice(0, 5))}</td>
+        <td>${escapeHtml(formatHourValue(row.hora_fin).slice(0, 5))}</td>
+        <td>${escapeHtml(normalizeHistorialReportDays(row.dias_semana))}</td>
+        <td>${escapeHtml(getHistorialReportActivityWeeklyHours(row))}</td>
+        <td>${escapeHtml(row.servicio || "")}</td>
+      </tr>`;
+      }
+    )
+    .join("");
+}
+
+function setHistorialReportActivitiesSelection(selectedIds) {
+  if (!historialReportDraft) return;
+  historialReportDraft.selectedActivityIds = new Set(selectedIds);
+  renderHistorialReportActivities(historialReportDraft.activities || []);
+}
+
+function normalizeHistorialReportTypeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function getHistorialReportExpectedDocumentType(historialRow) {
+  const source = normalizeHistorialReportTypeText(
+    [historialRow?.movimiento, historialRow?.tipo_contratacion, historialRow?.contrato_laboral_clave]
+      .filter(Boolean)
+      .join(" ")
+  );
+  if (!source) return "";
+  if (source.includes("subrog")) return "subrogacion";
+  if (source.includes("variacion") || source.includes("varia") || source.includes("jornada") || source.includes("hora")) {
+    return "variacion";
+  }
+  if (source.includes("llamamiento") || source.includes("llama") || source.includes("incorpor") || source.includes("reanud")) {
+    return "llamamiento";
+  }
+  return "";
+}
+
+function getHistorialReportTypeLabel(type) {
+  return {
+    llamamiento: "llamamiento",
+    variacion: "variación",
+    subrogacion: "subrogación",
+    otro: "otro",
+  }[type] || type || "";
+}
+
+function validateHistorialReportTemplateType({ notify = false } = {}) {
+  const template = getHistorialReportTemplateById(historialReportGenerateTemplateSelect?.value || "");
+  const expectedType = getHistorialReportExpectedDocumentType(historialReportDraft?.historialRow);
+  const selectedType = template?.tipo_documento || "";
+  const hasMismatch = Boolean(expectedType && selectedType && expectedType !== selectedType);
+  const message = hasMismatch
+    ? `Aviso: el movimiento parece ${getHistorialReportTypeLabel(expectedType)} y la plantilla es ${getHistorialReportTypeLabel(selectedType)}.`
+    : "";
+  if (historialReportTemplateWarning) {
+    historialReportTemplateWarning.textContent = message;
+    historialReportTemplateWarning.classList.toggle("error", hasMismatch);
+  }
+  if (hasMismatch && notify) {
+    setStatus(message, "warning");
+  }
+  return !hasMismatch;
+}
+
+function getPreferredHistorialReportTemplate(historialRow) {
+  const activeTemplates = historialReportTemplateRows.filter((row) => row.activo !== false);
+  const expectedType = getHistorialReportExpectedDocumentType(historialRow);
+  return (
+    activeTemplates.find(
+      (row) =>
+        expectedType &&
+        row.tipo_documento === expectedType &&
+        row.tipo_contratacion_id != null &&
+        historialRow?.tipo_contratacion_id != null &&
+        Number(row.tipo_contratacion_id) === Number(historialRow.tipo_contratacion_id)
+    ) ||
+    activeTemplates.find((row) => expectedType && row.tipo_documento === expectedType) ||
+    activeTemplates.find(
+      (row) =>
+        row.tipo_contratacion_id != null &&
+        historialRow?.tipo_contratacion_id != null &&
+        Number(row.tipo_contratacion_id) === Number(historialRow.tipo_contratacion_id)
+    ) ||
+    activeTemplates.find((row) => row.tipo_documento === "llamamiento") ||
+    activeTemplates[0] ||
+    historialReportTemplateRows[0] ||
+    null
+  );
+}
+
+function renderHistorialReportGenerateTemplateSelect(selectedId = "") {
+  if (!historialReportGenerateTemplateSelect) return;
+  historialReportGenerateTemplateSelect.innerHTML =
+    '<option value="">Seleccionar plantilla</option>' +
+    historialReportTemplateRows
+      .filter((row) => row.activo !== false)
+      .map((row) => {
+        const label = `${row.nombre || row.codigo} · ${row.tipo_documento || "otro"}`;
+        return `<option value="${escapeHtml(row.id)}">${escapeHtml(label)}</option>`;
+      })
+      .join("");
+  historialReportGenerateTemplateSelect.value = selectedId ? String(selectedId) : "";
+}
+
+async function fetchHistorialReportActivities(supabase, historialRow, startDate) {
+  const overlapStart = startDate || historialRow?.fecha_alta || getTodayIsoDate();
+  const overlapEnd = historialRow?.fecha_baja || null;
+  if (!historialRow?.personal_id || !overlapStart) return [];
+  let query = supabase
+    .from("actividades_detalle")
+    .select(HISTORIAL_REPORT_ACTIVITY_SELECT)
+    .eq("personal_id", historialRow.personal_id)
+    .or(`fecha_fin.is.null,fecha_fin.gte.${overlapStart}`)
+    .order("fecha_inicio", { ascending: true })
+    .order("hora_inicio", { ascending: true });
+  if (overlapEnd) {
+    query = query.lte("fecha_inicio", overlapEnd);
+  }
+  if (historialRow.empresa_id != null) {
+    query = query.eq("empresa_id", historialRow.empresa_id);
+  }
+  const { data, error } = await query.limit(500);
+  if (error) throw error;
+  return data || [];
+}
+
+async function fetchHistorialReportPersonal(supabase, personalId) {
+  if (!personalId) return null;
+  const { data, error } = await supabase
+    .from("personal")
+    .select("id, personal, dni")
+    .eq("id", personalId)
+    .maybeSingle();
+  if (error) return null;
+  return data;
+}
+
+function getHistorialReportTemplateById(templateId) {
+  return historialReportTemplateRows.find((row) => String(row.id) === String(templateId)) || null;
+}
+
+function buildHistorialReportPlaceholders({ historialRow, company, personal, activities, documentDate, startDate, signCity }) {
+  const firstActivity = activities[0] || {};
+  const activityPuestos = Array.from(new Set(
+    activities
+      .map((row) => String(row.puesto || "").trim())
+      .filter(Boolean)
+  ));
+  const puesto = activityPuestos.join(", ");
+  const horarios = historialRow.horarios || activities
+    .map((row) => {
+      const range = [formatHourValue(row.hora_inicio).slice(0, 5), formatHourValue(row.hora_fin).slice(0, 5)]
+        .filter(Boolean)
+        .join("-");
+      return [normalizeHistorialReportDays(row.dias_semana), range, row.instalacion].filter(Boolean).join(" ");
+    })
+    .filter(Boolean)
+    .join("; ");
+  return {
+    personal_nombre: personal?.personal || historialRow.personal || "",
+    personal_dni: personal?.dni || firstActivity.dni || "",
+    empresa_nombre: company?.empresa || historialRow.empresa || "",
+    empresa_razon_social: company?.razon_social || company?.empresa || historialRow.empresa || "",
+    empresa_cif: company?.cif || "",
+    firmante_nombre: company?.firmante_nombre || "",
+    firmante_dni: company?.firmante_dni || "",
+    firmante_cargo: company?.firmante_cargo || "",
+    ciudad_firma: signCity || company?.ciudad_firma || "Oviedo",
+    fecha_documento_corta: formatDisplayDate(documentDate),
+    fecha_documento_larga: formatHistorialReportLongDate(documentDate),
+    fecha_comienzo_corta: formatDisplayDate(startDate),
+    fecha_comienzo_larga: formatHistorialReportLongDate(startDate),
+    jornada_horas: formatReportNumber(historialRow.jornada),
+    jornada_maxima_horas: formatReportNumber(historialRow.jornada_maxima),
+    puesto,
+    horarios,
+    tipo_contratacion: historialRow.tipo_contratacion || "",
+    contrato_laboral: historialRow.contrato_laboral_clave || "",
+    movimiento: historialRow.movimiento || "",
+  };
+}
+
+function applyHistorialReportTemplateText(text, placeholders) {
+  return String(text || "")
+    .replace(/\\n/g, "\n")
+    .replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => String(placeholders[key] ?? ""));
+}
+
+function closeHistorialReportPanel() {
+  historialReportDraft = null;
+  if (historialReportTemplateWarning) {
+    historialReportTemplateWarning.textContent = "";
+    historialReportTemplateWarning.classList.remove("error");
+  }
+  historialReportPanel?.classList.add("hidden");
+}
+
+async function openHistorialReportPanel() {
+  if (!historialDetailSnapshot?.id) {
+    setStatus("Abre un periodo de historial laboral antes de generar el informe.", "error");
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    await loadHistorialReportConfig({ force: !historialReportConfigLoaded });
+    if (!historialReportTemplateRows.length) {
+      throw new Error("No hay plantillas de informe activas.");
+    }
+    const startDate = historialDetailSnapshot.fecha_alta || getTodayIsoDate();
+    const [activities, personal] = await Promise.all([
+      fetchHistorialReportActivities(supabase, historialDetailSnapshot, startDate),
+      fetchHistorialReportPersonal(supabase, historialDetailSnapshot.personal_id),
+    ]);
+    const company =
+      historialReportCompanyRows.find((row) => String(row.empresa_id) === String(historialDetailSnapshot.empresa_id)) ||
+      {};
+    const template = getPreferredHistorialReportTemplate(historialDetailSnapshot);
+    historialReportDraft = {
+      historialRow: { ...historialDetailSnapshot },
+      company,
+      personal,
+      activities,
+      selectedActivityIds: new Set(activities.map(getHistorialReportActivityKey).filter(Boolean)),
+    };
+    renderHistorialReportGenerateTemplateSelect(template?.id || "");
+    if (historialReportTitle) {
+      historialReportTitle.textContent = `${historialDetailSnapshot.personal || "Periodo"} · ${formatDisplayDate(startDate)}`;
+    }
+    if (historialReportDocumentDate) historialReportDocumentDate.value = shiftIsoDate(startDate, -15) || getTodayIsoDate();
+    if (historialReportStartDate) historialReportStartDate.value = startDate;
+    if (historialReportSignCity) historialReportSignCity.value = company.ciudad_firma || "Oviedo";
+    if (historialReportPersonSummary) historialReportPersonSummary.textContent = personal?.personal || historialDetailSnapshot.personal || "-";
+    if (historialReportCompanySummary) historialReportCompanySummary.textContent = company.razon_social || company.empresa || historialDetailSnapshot.empresa || "-";
+    renderHistorialReportActivities(activities);
+    validateHistorialReportTemplateType();
+    historialReportPanel?.classList.remove("hidden");
+  } catch (error) {
+    setStatus(`No se pudo preparar el informe: ${formatSupabaseErrorDetails(error)}`, "error");
+  }
+}
+
+async function refreshHistorialReportDraftActivities() {
+  if (!historialReportDraft?.historialRow) return;
+  try {
+    const supabase = await getSupabaseClient();
+    const startDate = historialReportStartDate?.value || historialReportDraft.historialRow.fecha_alta || getTodayIsoDate();
+    historialReportDraft.activities = await fetchHistorialReportActivities(
+      supabase,
+      historialReportDraft.historialRow,
+      startDate
+    );
+    historialReportDraft.selectedActivityIds = new Set(
+      historialReportDraft.activities.map(getHistorialReportActivityKey).filter(Boolean)
+    );
+    if (historialReportDocumentDate) historialReportDocumentDate.value = shiftIsoDate(startDate, -15) || getTodayIsoDate();
+    renderHistorialReportActivities(historialReportDraft.activities);
+    validateHistorialReportTemplateType();
+  } catch (error) {
+    setStatus(`No se pudieron actualizar las actividades del informe: ${formatSupabaseErrorDetails(error)}`, "error");
+  }
+}
+
+async function loadImageAsDataUrl(url) {
+  const normalized = String(url || "").trim();
+  if (!normalized) return null;
+  const resolvedUrl = normalized.startsWith("http") || normalized.startsWith("data:image/")
+    ? normalized
+    : new URL(normalized, window.location.href).href;
+  if (normalized.startsWith("data:image/")) return normalized;
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth || image.width;
+        canvas.height = image.naturalHeight || image.height;
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (_error) {
+        resolve(null);
+      }
+    };
+    image.onerror = () => resolve(null);
+    image.src = resolvedUrl;
+  });
+}
+
+async function exportHistorialLaboralReportPdf() {
+  if (!historialReportDraft?.historialRow) {
+    setStatus("Prepara primero el informe desde un periodo de historial laboral.", "error");
+    return;
+  }
+  const template = getHistorialReportTemplateById(historialReportGenerateTemplateSelect?.value || "");
+  if (!template) {
+    setStatus("Selecciona una plantilla para generar el informe.", "error");
+    return;
+  }
+  validateHistorialReportTemplateType({ notify: true });
+  try {
+    historialReportDownloadButton?.setAttribute("disabled", "true");
+    const { jsPDF } = await getJsPdfClient();
+    const documentDate = historialReportDocumentDate?.value || getTodayIsoDate();
+    const startDate = historialReportStartDate?.value || historialReportDraft.historialRow.fecha_alta || documentDate;
+    const signCity = String(historialReportSignCity?.value || "").trim() || "Oviedo";
+    const activities = getSelectedHistorialReportActivities();
+    const placeholders = buildHistorialReportPlaceholders({
+      ...historialReportDraft,
+      activities,
+      documentDate,
+      startDate,
+      signCity,
+    });
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 18;
+    const bottomMargin = 18;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 16;
+
+    const ensureSpace = (height = 8) => {
+      if (y + height <= pageHeight - bottomMargin) return;
+      doc.addPage();
+      y = margin;
+    };
+    const addWrappedText = (text, options = {}) => {
+      const resolved = applyHistorialReportTemplateText(text, placeholders).trim();
+      if (!resolved) return;
+      const fontSize = options.fontSize || 10;
+      const lineHeight = options.lineHeight || 5;
+      doc.setFont("helvetica", options.bold ? "bold" : "normal");
+      doc.setFontSize(fontSize);
+      resolved.split(/\n/).forEach((paragraph) => {
+        const lines = doc.splitTextToSize(paragraph || " ", contentWidth);
+        ensureSpace(lines.length * lineHeight + 2);
+        doc.text(lines, margin, y);
+        y += lines.length * lineHeight + (paragraph ? 2 : 1);
+      });
+      y += options.after ?? 2;
+    };
+
+    const logoDataUrl =
+      historialReportDraft.company?.logo_data_url ||
+      (await loadImageAsDataUrl(historialReportDraft.company?.logo_url));
+    const signatureDataUrl = historialReportDraft.company?.firma_data_url || null;
+    if (logoDataUrl) {
+      doc.addImage(logoDataUrl, "PNG", margin, y, 34, 18, undefined, "FAST");
+    }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(`En ${signCity} a ${formatHistorialReportLongDate(documentDate)}`, pageWidth - margin, y + 8, {
+      align: "right",
+    });
+    y += 28;
+
+    addWrappedText(template.titulo || template.nombre || "", { bold: true, fontSize: 13, lineHeight: 6, after: 4 });
+    ["saludo", "texto_intro", "texto_movimiento", "texto_condiciones", "texto_legal"].forEach((field) => {
+      addWrappedText(template[field], { after: field === "texto_recibido" ? 6 : 3 });
+      if (field === "texto_movimiento" && template.incluir_tabla_actividades) {
+        drawHistorialReportActivitiesTable(doc, {
+          rows: activities,
+          title: applyHistorialReportTemplateText(template.tabla_actividades_titulo || "Horario", placeholders),
+          margin,
+          pageWidth,
+          pageHeight,
+          bottomMargin,
+          getY: () => y,
+          setY: (nextY) => {
+            y = nextY;
+          },
+        });
+      }
+    });
+
+    ensureSpace(30);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text("Firma de la empresa", margin, y);
+    const workerReceipt = applyHistorialReportTemplateText(template.texto_recibido || "RECIBIDO\n\nFdo.: {{personal_nombre}}\n{{personal_dni}}", placeholders);
+    const workerReceiptLines = doc.splitTextToSize(workerReceipt, contentWidth / 2 - 4);
+    doc.text(workerReceiptLines, pageWidth - margin, y, { align: "right" });
+    y += 18;
+    if (signatureDataUrl) {
+      try {
+        doc.addImage(signatureDataUrl, "PNG", margin, y - 12, 42, 16, undefined, "FAST");
+      } catch (_error) {
+        // Si la firma guardada no es una imagen válida, se mantiene la firma textual.
+      }
+    }
+    doc.setFont("helvetica", "bold");
+    doc.text(placeholders.firmante_nombre || placeholders.empresa_razon_social || "", margin, y, {
+      maxWidth: contentWidth / 2 - 4,
+    });
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.text(placeholders.firmante_cargo || "", margin, y, { maxWidth: contentWidth / 2 - 4 });
+
+    if (template.incluir_opciones_respuesta && template.opciones_respuesta_texto) {
+      y += 12;
+      addWrappedText(template.opciones_respuesta_texto, { fontSize: 10, lineHeight: 5, after: 2 });
+    }
+
+    const footerParts = [
+      historialReportDraft.company?.direccion_pie,
+      historialReportDraft.company?.cif,
+      historialReportDraft.company?.telefono_pie ? `Tel. ${historialReportDraft.company.telefono_pie}` : "",
+      historialReportDraft.company?.email_pie,
+      historialReportDraft.company?.web_pie,
+    ].filter(Boolean);
+    if (footerParts.length) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.text(doc.splitTextToSize(footerParts.join(" · "), contentWidth), margin, pageHeight - 10);
+    }
+
+    const movementName =
+      historialReportDraft.historialRow?.movimiento ||
+      getHistorialReportTypeLabel(template.tipo_documento) ||
+      template.codigo ||
+      "informe laboral";
+    const filename = [
+      sanitizeHistorialReportFilename(placeholders.personal_nombre),
+      sanitizeHistorialReportFilename(movementName),
+      getTodayIsoDate(),
+    ]
+      .filter(Boolean)
+      .join(" - ");
+    doc.save(`${filename || "informe laboral"}.pdf`);
+    const missingConfig = !placeholders.firmante_nombre || !(historialReportDraft.company?.logo_data_url || historialReportDraft.company?.logo_url);
+    setStatus(
+      missingConfig
+        ? "Informe generado. Revisa la configuracion documental de empresa: falta firmante o logo."
+        : "Informe laboral generado.",
+      missingConfig ? "warning" : "success"
+    );
+  } catch (error) {
+    setStatus(`No se pudo generar el PDF: ${error?.message ?? "error desconocido"}`, "error");
+  } finally {
+    historialReportDownloadButton?.removeAttribute("disabled");
+  }
+}
+
+function drawHistorialReportActivitiesTable(doc, options) {
+  const { rows, title, margin, pageWidth, pageHeight, bottomMargin, getY, setY } = options;
+  if (!rows.length) return;
+  let y = getY() + 2;
+  const columns = [
+    { label: "Horario", key: "range", width: 23 },
+    { label: "Puesto", key: "puesto", width: 32 },
+    { label: "Instalacion", key: "instalacion", width: 38 },
+    { label: "Dias", key: "dias", width: 22 },
+    { label: "H. Sem.", key: "horas", width: 18 },
+    { label: "Inicio", key: "fecha_inicio", width: 20 },
+    { label: "Fin", key: "fecha_fin", width: 21 },
+  ];
+  const tableWidth = columns.reduce((total, column) => total + column.width, 0);
+  const left = Math.max(margin, (pageWidth - tableWidth) / 2);
+  const rowLineHeight = 3.8;
+  const headerHeight = 7;
+  const ensureSpace = (height) => {
+    if (y + height <= pageHeight - bottomMargin) return;
+    doc.addPage();
+    y = margin;
+  };
+  const drawHeader = () => {
+    ensureSpace(14);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(title || "Horario", left, y);
+    y += 5;
+    doc.setFontSize(7);
+    let x = left;
+    columns.forEach((column) => {
+      doc.setFillColor(232, 236, 241);
+      doc.setDrawColor(150, 150, 150);
+      doc.rect(x, y, column.width, headerHeight, "FD");
+      doc.text(column.label, x + 1.5, y + 4.5);
+      x += column.width;
+    });
+    y += headerHeight;
+  };
+  drawHeader();
+  rows.forEach((row) => {
+    const values = {
+      range: [formatHourValue(row.hora_inicio).slice(0, 5), formatHourValue(row.hora_fin).slice(0, 5)]
+        .filter(Boolean)
+        .join("-"),
+      puesto: row.puesto || "",
+      instalacion: row.instalacion || "",
+      dias: normalizeHistorialReportDays(row.dias_semana),
+      horas: getHistorialReportActivityWeeklyHours(row),
+      fecha_inicio: formatDisplayDate(row.fecha_inicio),
+      fecha_fin: row.fecha_fin ? formatDisplayDate(row.fecha_fin) : "",
+    };
+    const cellLines = columns.map((column) => doc.splitTextToSize(String(values[column.key] || ""), column.width - 3));
+    const rowHeight = Math.max(7, ...cellLines.map((lines) => lines.length * rowLineHeight + 3));
+    if (y + rowHeight > pageHeight - bottomMargin) {
+      doc.addPage();
+      y = margin;
+      drawHeader();
+    }
+    let x = left;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setDrawColor(190, 190, 190);
+    columns.forEach((column, index) => {
+      doc.rect(x, y, column.width, rowHeight);
+      doc.text(cellLines[index], x + 1.5, y + 4.5, { maxWidth: column.width - 3 });
+      x += column.width;
+    });
+    y += rowHeight;
+  });
+  setY(y + 5);
+}
+
+function normalizeHistorialImportHeader(value) {
+  return normalizeCsvHeader(value);
+}
+
+function parseHistorialImportBoolean(value) {
+  if (typeof value === "boolean") return value;
+  if (value === null || value === undefined || value === "") return false;
+  const normalized = normalizeSearchText(value);
+  if (["true", "t", "1", "-1", "si", "s", "yes", "y", "verdadero"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "f", "0", "no", "n", "falso"].includes(normalized)) {
+    return false;
+  }
+  throw new Error(`Valor booleano no reconocido: ${value}`);
+}
+
+function parseHistorialImportDate(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  if (typeof value === "number") return excelSerialDateToIso(value);
+  const normalized = normalizeImportedDate(value);
+  if (!normalized) throw new Error(`Fecha no reconocida: ${value}`);
+  return normalized;
+}
+
+function normalizeHistorialImportValue(column, value) {
+  if (HISTORIAL_IMPORT_BOOLEAN_FIELDS.has(column)) return parseHistorialImportBoolean(value);
+  if (HISTORIAL_IMPORT_DATE_FIELDS.has(column)) return parseHistorialImportDate(value);
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  if (HISTORIAL_IMPORT_INTEGER_FIELDS.has(column)) {
+    const parsed = Number.parseInt(text.replace(",", "."), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (HISTORIAL_IMPORT_NUMERIC_FIELDS.has(column)) {
+    const parsed = Number(text.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (HISTORIAL_IMPORT_TEXT_FIELDS.has(column)) return text;
+  return value;
+}
+
+function normalizeHistorialImportRow(sourceRow, targetHeaders, rowNumber) {
+  const row = {};
+  targetHeaders.forEach((column, index) => {
+    if (column) row[column] = normalizeHistorialImportValue(column, sourceRow[index]);
+  });
+  if (!row.id) throw new Error(`La fila ${rowNumber} no tiene ID.`);
+  if (!row.personal_id) throw new Error(`La fila ${rowNumber} no tiene personal_id.`);
+  return row;
+}
+
+function validateHistorialImportRows(rows) {
+  const seenIds = new Set();
+  const duplicateIds = new Set();
+  rows.forEach((row) => {
+    const id = String(row.id ?? "").trim();
+    if (!id) return;
+    if (seenIds.has(id)) duplicateIds.add(id);
+    seenIds.add(id);
+  });
+  if (duplicateIds.size) {
+    throw new Error(`El Excel contiene IDs repetidos: ${Array.from(duplicateIds).join(", ")}.`);
+  }
+}
+
+async function parseHistorialExcelFile(file) {
+  const xlsxModule = await getXlsxClient();
+  const XLSX = xlsxModule.default || xlsxModule;
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+  const sheetName = workbook.SheetNames.includes("tbl_vida_laboral")
+    ? "tbl_vida_laboral"
+    : workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  if (!worksheet) throw new Error("El Excel no contiene hojas.");
+
+  const sheetRows = XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    raw: true,
+    defval: null,
+  });
+  const headerIndex = sheetRows.findIndex((row) => row.some((cell) => String(cell ?? "").trim()));
+  if (headerIndex < 0) throw new Error("El Excel no contiene cabeceras.");
+
+  const sourceHeaders = sheetRows[headerIndex].map(normalizeHistorialImportHeader);
+  const unmappedHeaders = sourceHeaders.filter((header) => header && !HISTORIAL_IMPORT_HEADER_MAP[header]);
+  if (unmappedHeaders.length) {
+    throw new Error(`Columnas no reconocidas: ${Array.from(new Set(unmappedHeaders)).join(", ")}.`);
+  }
+  const targetHeaders = sourceHeaders.map((header) => HISTORIAL_IMPORT_HEADER_MAP[header] || "");
+  const rows = sheetRows
+    .slice(headerIndex + 1)
+    .map((sourceRow, index) => ({ sourceRow, rowNumber: headerIndex + index + 2 }))
+    .filter(({ sourceRow }) => sourceRow.some((cell) => cell !== null && String(cell).trim() !== ""))
+    .map(({ sourceRow, rowNumber }) => normalizeHistorialImportRow(sourceRow, targetHeaders, rowNumber));
+
+  validateHistorialImportRows(rows);
+  return rows;
+}
+
+function isHistorialImportEmptyValue(value) {
+  return value === null || value === undefined || (typeof value === "string" && !value.trim());
+}
+
+function normalizeHistorialImportComparable(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") return String(Number(value));
+  const text = String(value).trim();
+  if (/^-?\d+(?:[.,]\d+)?$/.test(text)) {
+    return String(Number(text.replace(",", ".")));
+  }
+  return text;
+}
+
+function getHistorialImportFieldLabel(fieldKey) {
+  const field = HISTORIAL_FORM_FIELDS.find((item) => item.key === fieldKey);
+  if (field) return field.label;
+  return fieldKey.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toLocaleUpperCase("es"));
+}
+
+function getHistorialImportChangedColumns(existingRow, importRow) {
+  return HISTORIAL_IMPORT_COLUMNS
+    .filter((column) => column !== "id")
+    .filter((column) => {
+      if (!(column in importRow)) return false;
+      return normalizeHistorialImportComparable(existingRow?.[column]) !== normalizeHistorialImportComparable(importRow[column]);
+    })
+    .map((column) => ({
+      column,
+      label: getHistorialImportFieldLabel(column),
+      value: normalizeHistorialImportComparable(importRow[column]),
+      kind: isHistorialImportEmptyValue(existingRow?.[column]) ? "complete" : "update",
+    }));
+}
+
+async function fetchHistorialImportContext(importRows) {
+  const supabase = await getSupabaseClient();
+  const historialIds = Array.from(new Set(importRows.map((row) => row.id).filter(Boolean)));
+  const personalIds = Array.from(new Set(importRows.map((row) => row.personal_id).filter(Boolean)));
+  const existingRows = [];
+  const personalRows = [];
+
+  for (let index = 0; index < historialIds.length; index += 500) {
+    const chunk = historialIds.slice(index, index + 500);
+    const { data, error } = await supabase
+      .from(HISTORIAL_TABLE)
+      .select(HISTORIAL_IMPORT_SELECT_COLUMNS)
+      .in("id", chunk);
+    if (error) throw error;
+    existingRows.push(...(data || []));
+  }
+
+  for (let index = 0; index < personalIds.length; index += 500) {
+    const chunk = personalIds.slice(index, index + 500);
+    const { data, error } = await supabase
+      .from("personal")
+      .select("id,personal")
+      .in("id", chunk);
+    if (error) throw error;
+    personalRows.push(...(data || []));
+  }
+
+  return {
+    existingRows,
+    personalRows,
+  };
+}
+
+function buildHistorialImportPreviewRows(importRows, existingRows, personalRows) {
+  const byId = new Map(existingRows.map((row) => [String(row.id), row]));
+  const personalById = new Map(personalRows.map((row) => [String(row.id), row.personal || `ID ${row.id}`]));
+  return importRows.map((row, index) => {
+    const existingRow = byId.get(String(row.id)) || null;
+    const changes = existingRow
+      ? getHistorialImportChangedColumns(existingRow, row)
+      : HISTORIAL_IMPORT_COLUMNS
+          .filter((column) => column !== "id" && !isHistorialImportEmptyValue(row[column]))
+          .slice(0, 10)
+          .map((column) => ({
+            column,
+            label: getHistorialImportFieldLabel(column),
+            value: normalizeHistorialImportComparable(row[column]),
+          }));
+    const hasChanges = !existingRow || changes.length > 0;
+    return {
+      previewId: `historial-import-${index}`,
+      row,
+      personalLabel: personalById.get(String(row.personal_id)) || `ID ${row.personal_id}`,
+      action: existingRow ? "update_id" : "insert",
+      selected: hasChanges,
+      disabled: !hasChanges,
+      changes,
+    };
+  });
+}
+
+function getHistorialImportActionLabel(item) {
+  if (item.action === "insert") return "Alta nueva";
+  if (item.action === "update_id") return "Completar/actualizar";
+  return "Sin cambios";
+}
+
+function renderHistorialImportChanges(item) {
+  if (!item.changes.length) return "No hay diferencias con la tabla.";
+  const visibleChanges = item.changes.slice(0, 6);
+  const suffix = item.changes.length > visibleChanges.length
+    ? ` +${item.changes.length - visibleChanges.length} mas`
+    : "";
+  return visibleChanges.map((change) => `${change.label}: ${change.value}`).join(" · ") + suffix;
+}
+
+function updateHistorialImportSelectionUi() {
+  const selectableRows = pendingHistorialImportRows.filter((item) => !item.disabled);
+  const selectedRows = selectableRows.filter((item) => item.selected);
+  if (historialImportSelectedCount) {
+    historialImportSelectedCount.textContent = `${selectedRows.length} seleccionada${
+      selectedRows.length === 1 ? "" : "s"
+    }`;
+  }
+  if (historialImportSelectAll) {
+    historialImportSelectAll.checked = selectableRows.length > 0 && selectedRows.length === selectableRows.length;
+    historialImportSelectAll.indeterminate = selectedRows.length > 0 && selectedRows.length < selectableRows.length;
+    historialImportSelectAll.disabled = selectableRows.length === 0;
+  }
+  if (historialImportApplyButton) historialImportApplyButton.disabled = selectedRows.length === 0;
+}
+
+function renderHistorialImportPreview() {
+  if (historialImportFileName) historialImportFileName.textContent = pendingHistorialImportFileName || "-";
+  if (historialImportTotalCount) {
+    historialImportTotalCount.textContent = `${pendingHistorialImportRows.length} fila${
+      pendingHistorialImportRows.length === 1 ? "" : "s"
+    }`;
+  }
+  if (!historialImportPreviewTableBody) return;
+  historialImportPreviewTableBody.innerHTML = pendingHistorialImportRows.length
+    ? pendingHistorialImportRows
+        .map((item) => {
+          const row = item.row;
+          return `
+            <tr>
+              <td>
+                <input
+                  type="checkbox"
+                  data-historial-import-select="${escapeHtml(item.previewId)}"
+                  ${item.selected ? "checked" : ""}
+                  ${item.disabled ? "disabled" : ""}
+                  aria-label="Aplicar importacion de periodo ${escapeHtml(row.id)}"
+                />
+              </td>
+              <td>${escapeHtml(getHistorialImportActionLabel(item))}</td>
+              <td>${escapeHtml(row.id || "")}</td>
+              <td>${escapeHtml(item.personalLabel || "")}</td>
+              <td>${escapeHtml(formatDisplayDate(row.fecha_alta))}</td>
+              <td>${escapeHtml(formatDisplayDate(row.fecha_baja))}</td>
+              <td>${escapeHtml(renderHistorialImportChanges(item))}</td>
+            </tr>
+          `;
+        })
+        .join("")
+    : '<tr><td colspan="7" class="empty-state">Selecciona un Excel para revisar la carga.</td></tr>';
+  updateHistorialImportSelectionUi();
+}
+
+function openHistorialImportPanel() {
+  historialImportPanel?.classList.remove("hidden");
+  updateHistorialImportSelectionUi();
+}
+
+function closeHistorialImportPanel() {
+  historialImportPanel?.classList.add("hidden");
+}
+
+function toggleAllHistorialImportRows(checked) {
+  pendingHistorialImportRows.forEach((item) => {
+    if (!item.disabled) item.selected = checked;
+  });
+  renderHistorialImportPreview();
+}
+
+function toggleHistorialImportRow(previewId, checked) {
+  const item = pendingHistorialImportRows.find((row) => row.previewId === previewId);
+  if (!item || item.disabled) return;
+  item.selected = checked;
+  updateHistorialImportSelectionUi();
+}
+
+function buildHistorialImportStatus(summary) {
+  const inserted = Number(summary?.filas_insertadas ?? 0);
+  const updated = Number(summary?.filas_actualizadas ?? 0);
+  const existing = Number(summary?.existentes_por_id ?? 0);
+  return `Importacion completada: ${inserted} altas nuevas. ${updated} actualizadas. ${existing} existentes por ID.`;
+}
+
+async function applySelectedHistorialImportRows() {
+  const selectedItems = pendingHistorialImportRows.filter((item) => item.selected && !item.disabled);
+  const rows = selectedItems.map((item) => ({ ...item.row }));
+  if (!rows.length) {
+    setStatus("No hay filas seleccionadas para importar.", "error");
+    return;
+  }
+  if (rows.some((row) => !row.id || !row.personal_id)) {
+    setStatus("Hay filas seleccionadas sin ID o personal_id. Revisa la importacion antes de aplicar.", "error");
+    return;
+  }
+
+  try {
+    historialImportApplyButton?.setAttribute("disabled", "true");
+    setStatus(`Importando ${rows.length} periodo${rows.length === 1 ? "" : "s"} seleccionado${rows.length === 1 ? "" : "s"}...`);
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("import_coordinacion_historial_laboral", { p_rows: rows });
+    if (error) throw error;
+    const summary = Array.isArray(data) ? data[0] : data;
+    const processedRows = Number(summary?.filas_origen ?? 0);
+    if (!summary || !Number.isFinite(processedRows) || processedRows <= 0) {
+      throw new Error("Supabase no confirmo filas procesadas. Comprueba que la RPC import_coordinacion_historial_laboral esta aplicada.");
+    }
+    if (processedRows !== rows.length) {
+      throw new Error(`Supabase proceso ${processedRows} de ${rows.length} filas enviadas. Recarga la pagina y vuelve a intentarlo.`);
+    }
+
+    closeHistorialImportPanel();
+    pendingHistorialImportRows = [];
+    pendingHistorialImportFileName = "";
+    await loadHistorial();
+    setStatus(`${buildHistorialImportStatus(summary)} Filas enviadas: ${rows.length}.`, "success");
+  } catch (error) {
+    setStatus(formatSupabaseErrorDetails(error) || "No se pudo aplicar la importacion seleccionada.", "error");
+  } finally {
+    historialImportApplyButton?.removeAttribute("disabled");
+    updateHistorialImportSelectionUi();
+  }
+}
+
+async function importHistorialExcelFile(file) {
+  if (!file) return;
+  try {
+    await ensurePrivateSession();
+    historialImportExcelButton?.setAttribute("disabled", "true");
+    setStatus(`Leyendo ${file.name}...`);
+    const rows = await parseHistorialExcelFile(file);
+    if (!rows.length) throw new Error("El Excel no contiene filas de historial laboral.");
+    setStatus(`Preparando revision de ${rows.length} fila${rows.length === 1 ? "" : "s"}...`);
+    const context = await fetchHistorialImportContext(rows);
+    pendingHistorialImportRows = buildHistorialImportPreviewRows(rows, context.existingRows, context.personalRows);
+    pendingHistorialImportFileName = file.name;
+    renderHistorialImportPreview();
+    openHistorialImportPanel();
+    const selectedRows = pendingHistorialImportRows.filter((item) => item.selected).length;
+    setStatus(
+      `Revision preparada: ${selectedRows} fila${selectedRows === 1 ? "" : "s"} marcada${selectedRows === 1 ? "" : "s"} para aplicar.`,
+      "success"
+    );
+  } catch (error) {
+    setStatus(error?.message || "No se pudo importar el Excel de historial laboral.", "error");
+  } finally {
+    historialImportExcelButton?.removeAttribute("disabled");
+    if (historialImportExcelInput) historialImportExcelInput.value = "";
+  }
 }
 
 function formatHistorialJornada(row) {
@@ -17298,6 +18847,7 @@ async function loadHistorial() {
     const supabase = await getSupabaseClient();
     const personalOptionsPromise = loadHistorialPersonalOptions(supabase);
     const relationOptionsPromise = loadHistorialRelationOptions();
+    const reportConfigPromise = loadHistorialReportConfig();
     const filters = getHistorialFilterValues();
 
     let query = supabase
@@ -17336,6 +18886,7 @@ async function loadHistorial() {
 
     await personalOptionsPromise;
     await relationOptionsPromise;
+    await reportConfigPromise;
     populateHistorialTipoContratacionFilter();
     historialRows = data ?? [];
     selectedHistorialBulkIds = new Set(
@@ -17429,8 +18980,10 @@ async function openHistorialDetail(historialId) {
   if (historialDetailTitle) {
     historialDetailTitle.textContent = `Periodo ${row.id}${row.personal ? ` · ${row.personal}` : ""}`;
   }
+  ensureHistorialDetailReportButton();
   if (historialDetailDuplicateButton) historialDetailDuplicateButton.classList.remove("hidden");
   if (historialDetailDeleteButton) historialDetailDeleteButton.classList.remove("hidden");
+  if (historialDetailReportButton) historialDetailReportButton.classList.remove("hidden");
   renderHistorialDetailForm(row);
   markFormPristine(historialDetailForm);
   historialDetailPanel.classList.remove("hidden");
@@ -17447,8 +19000,10 @@ async function openHistorialNew(seedRow = null) {
     historialDetailTitle.textContent = seedRow ? "Nuevo periodo (copia)" : "Nuevo periodo";
   }
   // En alta no aplican duplicar ni eliminar.
+  ensureHistorialDetailReportButton();
   if (historialDetailDuplicateButton) historialDetailDuplicateButton.classList.add("hidden");
   if (historialDetailDeleteButton) historialDetailDeleteButton.classList.add("hidden");
+  if (historialDetailReportButton) historialDetailReportButton.classList.add("hidden");
   renderHistorialDetailForm(historialDetailSnapshot);
   markFormPristine(historialDetailForm);
   historialDetailPanel.classList.remove("hidden");
@@ -19702,6 +21257,12 @@ async function init() {
   settingsDetailForm?.addEventListener("submit", (event) => {
     void saveSettingsDetail(event);
   });
+  settingsDetailFields?.addEventListener("change", (event) => {
+    const input = event.target.closest("[data-settings-file-target]");
+    if (input) {
+      void handleSettingsFileDataUrlChange(input);
+    }
+  });
   settingsTableHead?.addEventListener("click", (event) => {
     const sortField = event.target.closest("[data-settings-sort]")?.dataset.settingsSort;
     if (!sortField) {
@@ -19795,6 +21356,27 @@ async function init() {
       return;
     }
     togglePersonalImportRow(checkbox.dataset.personalImportSelect, Boolean(checkbox.checked));
+  });
+  historialImportExcelButton?.addEventListener("click", () => {
+    historialImportExcelInput?.click();
+  });
+  historialImportExcelInput?.addEventListener("change", () => {
+    void importHistorialExcelFile(historialImportExcelInput.files?.[0]);
+  });
+  closeHistorialImportPanelButton?.addEventListener("click", closeHistorialImportPanel);
+  historialImportOverlay?.addEventListener("click", closeHistorialImportPanel);
+  historialImportSelectAll?.addEventListener("change", () => {
+    toggleAllHistorialImportRows(Boolean(historialImportSelectAll.checked));
+  });
+  historialImportApplyButton?.addEventListener("click", () => {
+    void applySelectedHistorialImportRows();
+  });
+  historialImportPreviewTableBody?.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-historial-import-select]");
+    if (!checkbox) {
+      return;
+    }
+    toggleHistorialImportRow(checkbox.dataset.historialImportSelect, Boolean(checkbox.checked));
   });
   personalNewButton?.addEventListener("click", startNewPersonal);
   personalRefreshButton?.addEventListener("click", () => {
@@ -20195,6 +21777,52 @@ async function init() {
   historialNewButton?.addEventListener("click", () => {
     void openHistorialNew();
   });
+  historialReportConfigDetails?.addEventListener("toggle", () => {
+    if (historialReportConfigDetails.open) {
+      void loadHistorialReportConfig();
+    }
+  });
+  historialReportConfigRefreshButton?.addEventListener("click", () => {
+    void loadHistorialReportConfig({ force: true });
+  });
+  historialReportTemplateSelect?.addEventListener("change", syncHistorialReportConfigForms);
+  historialReportOpenCompaniesButton?.addEventListener("click", openHistorialReportCompaniesSettings);
+  historialReportTemplateSaveButton?.addEventListener("click", () => {
+    void saveHistorialReportTemplateConfig();
+  });
+  historialReportTemplateNewButton?.addEventListener("click", startNewHistorialReportTemplate);
+  historialDetailReportButton?.addEventListener("click", () => {
+    void openHistorialReportPanel();
+  });
+  historialReportCloseButton?.addEventListener("click", closeHistorialReportPanel);
+  historialReportOverlay?.addEventListener("click", closeHistorialReportPanel);
+  historialReportStartDate?.addEventListener("change", () => {
+    void refreshHistorialReportDraftActivities();
+  });
+  historialReportGenerateTemplateSelect?.addEventListener("change", () => {
+    validateHistorialReportTemplateType({ notify: true });
+  });
+  historialReportActivitiesTableBody?.addEventListener("change", (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.dataset.historialReportActivityId) return;
+    const selectedIds = new Set(historialReportDraft?.selectedActivityIds || []);
+    if (input.checked) {
+      selectedIds.add(input.dataset.historialReportActivityId);
+    } else {
+      selectedIds.delete(input.dataset.historialReportActivityId);
+    }
+    setHistorialReportActivitiesSelection(selectedIds);
+  });
+  historialReportSelectAllActivitiesButton?.addEventListener("click", () => {
+    const ids = (historialReportDraft?.activities || []).map(getHistorialReportActivityKey).filter(Boolean);
+    setHistorialReportActivitiesSelection(ids);
+  });
+  historialReportClearActivitiesButton?.addEventListener("click", () => {
+    setHistorialReportActivitiesSelection([]);
+  });
+  historialReportDownloadButton?.addEventListener("click", () => {
+    void exportHistorialLaboralReportPdf();
+  });
 
   setupPersonalPicker("gestion-filter", {
     inputId: "gestion-filter-personal-input",
@@ -20268,6 +21896,21 @@ async function init() {
     contabilidadPage += 1;
     void loadContabilidad();
   });
+  document.querySelectorAll("[data-contabilidad-sort-field]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const field = button.dataset.contabilidadSortField;
+      if (!field) {
+        return;
+      }
+      contabilidadSort = {
+        field,
+        direction:
+          contabilidadSort.field === field && contabilidadSort.direction === "asc" ? "desc" : "asc",
+      };
+      contabilidadPage = 1;
+      void loadContabilidad();
+    });
+  });
 
   document.querySelectorAll("[data-contabilidad-subtab]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -20323,6 +21966,20 @@ async function init() {
     bancoPage += 1;
     void loadContabilidadBanco();
   });
+  document.querySelectorAll("[data-banco-sort-field]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const field = button.dataset.bancoSortField;
+      if (!field) {
+        return;
+      }
+      bancoSort = {
+        field,
+        direction: bancoSort.field === field && bancoSort.direction === "asc" ? "desc" : "asc",
+      };
+      bancoPage = 1;
+      void loadContabilidadBanco();
+    });
+  });
 
   const debouncedResultadosFilters = debounce(reloadResultadosFromFilters, 300);
   resultadosFiltersForm?.addEventListener("submit", (event) => {
@@ -20356,6 +22013,19 @@ async function init() {
   });
   resultadosNextButton?.addEventListener("click", () => {
     resultadosPage += 1;
+    void loadResultados();
+  });
+  resultadosTableHead?.addEventListener("click", (event) => {
+    const field = event.target.closest("[data-resultados-sort-field]")?.dataset.resultadosSortField;
+    if (!field) {
+      return;
+    }
+    const currentSort = getResultadosSort();
+    resultadosSortByView[currentResultadosView] = {
+      field,
+      direction: currentSort.field === field && currentSort.direction === "asc" ? "desc" : "asc",
+    };
+    resultadosPage = 1;
     void loadResultados();
   });
   document.querySelectorAll("[data-resultados-view]").forEach((button) => {
@@ -20394,6 +22064,38 @@ async function init() {
   });
   conciliacionRefreshButton?.addEventListener("click", () => {
     void loadConciliacion();
+  });
+  document.querySelectorAll("[data-conciliacion-cronos-sort-field]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const field = button.dataset.conciliacionCronosSortField;
+      if (!field) {
+        return;
+      }
+      conciliacionCronosSort = {
+        field,
+        direction:
+          conciliacionCronosSort.field === field && conciliacionCronosSort.direction === "asc"
+            ? "desc"
+            : "asc",
+      };
+      void loadConciliacion();
+    });
+  });
+  document.querySelectorAll("[data-conciliacion-banco-sort-field]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const field = button.dataset.conciliacionBancoSortField;
+      if (!field) {
+        return;
+      }
+      conciliacionBancoSort = {
+        field,
+        direction:
+          conciliacionBancoSort.field === field && conciliacionBancoSort.direction === "asc"
+            ? "desc"
+            : "asc",
+      };
+      void loadConciliacion();
+    });
   });
 
   contabilidadLoadButton?.addEventListener("click", () => contabilidadLoadInput?.click());

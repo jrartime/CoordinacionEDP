@@ -965,6 +965,15 @@
                     <h2>Periodos de alta y baja del personal</h2>
                   </div>
                   <div class="results-actions">
+                    <input
+                      id="historial-import-excel-input"
+                      class="hidden"
+                      type="file"
+                      accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    />
+                    <button id="historial-import-excel-button" type="button" class="secondary-button">
+                      Cargar Excel
+                    </button>
                     <button id="historial-new-button" type="button" title="Añadir periodo">
                       + Añadir
                     </button>
@@ -1099,6 +1108,72 @@
                   </div>
                 </details>
 
+                <details id="historial-reports-config-details" class="programming-panel-zone">
+                  <summary>Configuración informes</summary>
+                  <div class="activities-bulk-assignment-panel">
+                    <button id="historial-report-open-companies-button" type="button" class="secondary-button">
+                      Gestionar empresas
+                    </button>
+                    <button id="historial-report-config-refresh-button" type="button" class="secondary-button">
+                      Recargar
+                    </button>
+                    <span id="historial-report-config-status" class="control-selected-delete-count">
+                      Configuración sin cargar
+                    </span>
+                  </div>
+
+                  <div class="activities-bulk-assignment-panel">
+                    <label>
+                      Editar plantilla
+                      <select id="historial-report-template-select">
+                        <option value="">Seleccionar plantilla</option>
+                      </select>
+                    </label>
+                    <button id="historial-report-template-new-button" type="button" class="secondary-button">
+                      Nueva plantilla
+                    </button>
+                    <button id="historial-report-template-save-button" type="button">
+                      Guardar plantilla
+                    </button>
+                  </div>
+
+                  <form id="historial-report-template-form" class="detail-form records-detail-form">
+                    <div class="detail-field-row cols-2 full-width">
+                      <label>Código<input name="codigo" type="text" required /></label>
+                      <label>Nombre<input name="nombre" type="text" required /></label>
+                      <label>
+                        Tipo documento
+                        <select name="tipo_documento">
+                          <option value="llamamiento">Llamamiento</option>
+                          <option value="variacion">Variación</option>
+                          <option value="subrogacion">Subrogación</option>
+                          <option value="otro">Otro</option>
+                        </select>
+                      </label>
+                      <label>
+                        Tipo contratación
+                        <select name="tipo_contratacion_id">
+                          <option value="">Sin asignar</option>
+                        </select>
+                      </label>
+                      <label>Orden<input name="orden" type="number" step="1" /></label>
+                      <label class="checkbox-item with-label"><input name="activo" type="checkbox" /><span>Activa</span></label>
+                      <label class="checkbox-item with-label"><input name="incluir_tabla_actividades" type="checkbox" /><span>Incluir tabla actividades</span></label>
+                      <label class="checkbox-item with-label"><input name="incluir_opciones_respuesta" type="checkbox" /><span>Incluir opciones respuesta</span></label>
+                      <label class="full-width">Título<input name="titulo" type="text" /></label>
+                      <label class="full-width">Saludo<textarea name="saludo" rows="2"></textarea></label>
+                      <label class="full-width">Texto intro<textarea name="texto_intro" rows="4"></textarea></label>
+                      <label class="full-width">Texto movimiento<textarea name="texto_movimiento" rows="4"></textarea></label>
+                      <label class="full-width">Texto condiciones<textarea name="texto_condiciones" rows="4"></textarea></label>
+                      <label class="full-width">Texto legal<textarea name="texto_legal" rows="4"></textarea></label>
+                      <label class="full-width">Texto recibido<textarea name="texto_recibido" rows="3"></textarea></label>
+                      <label>Título tabla actividades<input name="tabla_actividades_titulo" type="text" /></label>
+                      <label class="full-width">Opciones respuesta<textarea name="opciones_respuesta_texto" rows="3"></textarea></label>
+                      <label class="full-width">Pie observaciones<textarea name="pie_observaciones" rows="2"></textarea></label>
+                    </div>
+                  </form>
+                </details>
+
                 <div class="results-toolbar section-summary-toolbar">
                   <div class="results-summary">
                     <p id="historial-summary" class="summary-chip">Cargando historial laboral...</p>
@@ -1149,6 +1224,9 @@
                       <h3 id="historial-detail-title">Periodo seleccionado</h3>
                     </div>
                     <div class="detail-header-actions">
+                      <button id="historial-detail-report-button" type="button" class="secondary-button">
+                        Generar informe
+                      </button>
                       <button id="historial-detail-duplicate-button" type="button" class="secondary-button">
                         Duplicar
                       </button>
@@ -1172,6 +1250,143 @@
                       </button>
                     </div>
                   </form>
+                </aside>
+              </section>
+
+              <section id="historial-import-panel" class="detail-panel hidden">
+                <div id="historial-import-overlay" class="detail-overlay"></div>
+                <aside class="detail-drawer personal-import-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Importación</p>
+                      <h3>Revisar carga de historial laboral</h3>
+                    </div>
+                    <div class="detail-header-actions">
+                      <button id="close-historial-import-panel-button" type="button" class="secondary-button">
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="personal-import-summary">
+                    <span id="historial-import-file-name">-</span>
+                    <span id="historial-import-total-count">0 filas</span>
+                    <span id="historial-import-selected-count">0 seleccionadas</span>
+                  </div>
+
+                  <div class="personal-import-actions">
+                    <label class="checkbox-item">
+                      <input id="historial-import-select-all" type="checkbox" />
+                      <span>Marcar todo lo aplicable</span>
+                    </label>
+                    <button id="historial-import-apply-button" type="button">
+                      Aplicar seleccionadas
+                    </button>
+                  </div>
+
+                  <div class="table-scroll personal-import-table-wrap">
+                    <table class="records-table personal-import-table">
+                      <thead>
+                        <tr>
+                          <th>Aplicar</th>
+                          <th>Acción</th>
+                          <th>ID</th>
+                          <th>Personal</th>
+                          <th>Alta</th>
+                          <th>Baja</th>
+                          <th>Cambios previstos</th>
+                        </tr>
+                      </thead>
+                      <tbody id="historial-import-preview-table-body">
+                        <tr>
+                          <td colspan="7" class="empty-state">Selecciona un Excel para revisar la carga.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </aside>
+              </section>
+
+              <section id="historial-report-panel" class="detail-panel hidden">
+                <div id="historial-report-overlay" class="detail-overlay"></div>
+                <aside class="detail-drawer personal-import-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Informe laboral</p>
+                      <h3 id="historial-report-title">Preparar informe</h3>
+                    </div>
+                    <div class="detail-header-actions">
+                      <button id="historial-report-close-button" type="button" class="secondary-button">
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="detail-form records-detail-form">
+                    <div class="detail-field-row cols-2 full-width">
+                      <label>
+                        Plantilla
+                        <select id="historial-report-generate-template-select">
+                          <option value="">Seleccionar plantilla</option>
+                        </select>
+                      </label>
+                      <label>
+                        Fecha documento
+                        <input id="historial-report-document-date" type="date" />
+                      </label>
+                      <label>
+                        Fecha comienzo
+                        <input id="historial-report-start-date" type="date" />
+                      </label>
+                      <label>
+                        Ciudad firma
+                        <input id="historial-report-sign-city" type="text" />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="personal-import-summary">
+                    <span id="historial-report-person-summary">-</span>
+                    <span id="historial-report-company-summary">-</span>
+                    <span id="historial-report-activities-summary">0 actividades</span>
+                  </div>
+                  <div class="personal-import-actions">
+                    <button id="historial-report-select-all-activities-button" type="button" class="secondary-button">
+                      Incluir todas
+                    </button>
+                    <button id="historial-report-clear-activities-button" type="button" class="secondary-button">
+                      Quitar todas
+                    </button>
+                    <span id="historial-report-template-warning" class="control-selected-delete-count"></span>
+                  </div>
+
+                  <div class="table-scroll personal-import-table-wrap">
+                    <table class="records-table personal-import-table">
+                      <thead>
+                        <tr>
+                          <th>Incluir</th>
+                          <th>Puesto</th>
+                          <th>Instalación</th>
+                          <th>Inicio</th>
+                          <th>Fin</th>
+                          <th>Días</th>
+                          <th>Horas</th>
+                          <th>Servicio</th>
+                        </tr>
+                      </thead>
+                      <tbody id="historial-report-activities-table-body">
+                        <tr>
+                          <td colspan="8" class="empty-state">Selecciona un periodo para revisar actividades.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="detail-actions">
+                    <button id="historial-report-download-button" type="button">
+                      Descargar PDF
+                    </button>
+                  </div>
                 </aside>
               </section>
             </section>
@@ -1426,19 +1641,19 @@
                   <table id="contabilidad-table" class="records-table">
                     <thead>
                       <tr>
-                        <th>Fecha</th>
-                        <th>Hora</th>
-                        <th>Centro</th>
-                        <th>Servicio</th>
-                        <th>Tipo servicio</th>
-                        <th>Tarifa</th>
-                        <th>Cant.</th>
-                        <th>Importe</th>
-                        <th>Forma pago</th>
-                        <th>Anulado</th>
-                        <th>Apellidos</th>
-                        <th>Nombre</th>
-                        <th>Documento</th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="fecha">Fecha</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="hora">Hora</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="centro">Centro</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="servicio">Servicio</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="tipo_servicio">Tipo servicio</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="tarifa">Tarifa</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="cantidad">Cant.</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="importe">Importe</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="forma_pago">Forma pago</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="anulado">Anulado</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="apellidos">Apellidos</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="nombre">Nombre</button></th>
+                        <th><button type="button" class="sort-button" data-contabilidad-sort-field="documento">Documento</button></th>
                       </tr>
                     </thead>
                     <tbody id="contabilidad-table-body">
@@ -1524,14 +1739,14 @@
                   <table id="banco-table" class="records-table">
                     <thead>
                       <tr>
-                        <th>Fecha</th>
-                        <th>Hora</th>
-                        <th>Cód pedido</th>
-                        <th>Resultado</th>
-                        <th>Importe €</th>
-                        <th>Moneda</th>
-                        <th>Tipo de pago</th>
-                        <th>Tarjeta</th>
+                        <th><button type="button" class="sort-button" data-banco-sort-field="fecha">Fecha</button></th>
+                        <th><button type="button" class="sort-button" data-banco-sort-field="hora">Hora</button></th>
+                        <th><button type="button" class="sort-button" data-banco-sort-field="cod_pedido">Cód pedido</button></th>
+                        <th><button type="button" class="sort-button" data-banco-sort-field="resultado">Resultado</button></th>
+                        <th><button type="button" class="sort-button" data-banco-sort-field="importe_euros">Importe €</button></th>
+                        <th><button type="button" class="sort-button" data-banco-sort-field="moneda">Moneda</button></th>
+                        <th><button type="button" class="sort-button" data-banco-sort-field="tipo_pago">Tipo de pago</button></th>
+                        <th><button type="button" class="sort-button" data-banco-sort-field="tarjeta">Tarjeta</button></th>
                       </tr>
                     </thead>
                     <tbody id="banco-table-body">
@@ -1708,18 +1923,18 @@
                       <table id="conciliacion-cronos-table" class="records-table gestion-compact-table">
                         <thead>
                           <tr>
-                            <th>Fecha</th>
-                            <th>Hora</th>
-                            <th>Identificador</th>
-                            <th>Importe</th>
-                            <th>Forma pago</th>
-                            <th>Nº factura</th>
-                            <th>Anulado</th>
-                            <th>Apellidos</th>
-                            <th>Nombre</th>
-                            <th>Documento</th>
-                            <th>Servicio</th>
-                            <th>Centro</th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="fecha">Fecha</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="hora">Hora</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="identificador">Identificador</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="importe">Importe</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="forma_pago">Forma pago</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="numero_factura">Nº factura</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="anulado">Anulado</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="apellidos">Apellidos</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="nombre">Nombre</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="documento">Documento</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="servicio">Servicio</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-cronos-sort-field="centro">Centro</button></th>
                           </tr>
                         </thead>
                         <tbody id="conciliacion-cronos-table-body">
@@ -1740,16 +1955,16 @@
                       <table id="conciliacion-banco-table" class="records-table gestion-compact-table">
                         <thead>
                           <tr>
-                            <th>Fecha</th>
-                            <th>Hora</th>
-                            <th>Cód pedido</th>
-                            <th>Terminal</th>
-                            <th>Tipo operación</th>
-                            <th>Resultado</th>
-                            <th>Importe €</th>
-                            <th>Moneda</th>
-                            <th>Tipo de pago</th>
-                            <th>Tarjeta</th>
+                            <th><button type="button" class="sort-button" data-conciliacion-banco-sort-field="fecha">Fecha</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-banco-sort-field="hora">Hora</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-banco-sort-field="cod_pedido">Cód pedido</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-banco-sort-field="terminal">Terminal</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-banco-sort-field="tipo_operacion">Tipo operación</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-banco-sort-field="resultado">Resultado</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-banco-sort-field="importe_euros">Importe €</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-banco-sort-field="moneda">Moneda</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-banco-sort-field="tipo_pago">Tipo de pago</button></th>
+                            <th><button type="button" class="sort-button" data-conciliacion-banco-sort-field="tarjeta">Tarjeta</button></th>
                           </tr>
                         </thead>
                         <tbody id="conciliacion-banco-table-body">
@@ -3706,6 +3921,9 @@
             </button>
             <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="modalidades" aria-pressed="false">
               Modalidades
+            </button>
+            <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="empresas" aria-pressed="false">
+              Empresas
             </button>
             <button id="settings-subtab-access" class="settings-subtab-button hidden" type="button" data-settings-view="access" aria-pressed="false">
               Accesos
@@ -6937,9 +7155,9 @@
     </div>
 
     <script src="./config.js" defer></script>
-    <script src="./shared/supabase-client.js" defer></script>
-    <script src="./shared/auth.js" defer></script>
+    <script src="../shared/supabase-client.js" defer></script>
+    <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260710-1" defer></script>
-    <script src="./app.js?v=20260710-13" defer></script>
+    <script src="./app.js?v=20260714-12" defer></script>
   </body>
 </html>
