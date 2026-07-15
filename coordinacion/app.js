@@ -19486,6 +19486,91 @@ function findHistorialBulkDateConflicts(field, newValue, rows) {
   });
 }
 
+function historialPeriodsOverlap(a, b) {
+  if (!a?.fecha_alta || !b?.fecha_alta) {
+    return false;
+  }
+  // Sin fecha_baja el periodo esta abierto; el centinela lo deja siempre por delante.
+  const finA = a.fecha_baja || "9999-12-31";
+  const finB = b.fecha_baja || "9999-12-31";
+  return String(a.fecha_alta) <= String(finB) && String(b.fecha_alta) <= String(finA);
+}
+
+// Clave estable de una pareja, para poder restar el antes del despues.
+function historialPairKey(a, b) {
+  return [a.id, b.id].map(Number).sort((x, y) => x - y).join("-");
+}
+
+// Recorre los periodos de una persona y devuelve las parejas solapadas sospechosas.
+function collectSuspiciousPairs(rows) {
+  const pairs = new Map();
+  for (let i = 0; i < rows.length; i += 1) {
+    for (let j = i + 1; j < rows.length; j += 1) {
+      const a = rows[i];
+      const b = rows[j];
+      if (historialPeriodsOverlap(a, b) && !isLegitHistorialOverlap(a, b)) {
+        pairs.set(historialPairKey(a, b), { a, b });
+      }
+    }
+  }
+  return pairs;
+}
+
+// Solapes que la masiva CREARIA, restando los que ya existen: avisar de los previos seria
+// ruido y bloquearia ediciones legitimas sobre datos ya sucios.
+// Solo fecha_alta y fecha_baja pueden mover un periodo, asi que el resto de campos ni consulta.
+async function findHistorialBulkNewOverlaps(field, newValue, targetRows) {
+  if (field !== "fecha_alta" && field !== "fecha_baja") {
+    return [];
+  }
+  const personalIds = [...new Set(targetRows.map((row) => row.personal_id).filter((id) => id != null))];
+  if (!personalIds.length) {
+    return [];
+  }
+  const supabase = await getSupabaseClient();
+  // historialRows solo tiene la pagina cargada; hacen falta TODOS los periodos de esa gente.
+  const { data, error } = await supabase
+    .from(HISTORIAL_DETAIL_VIEW)
+    .select("id, personal_id, personal, fecha_alta, fecha_baja, movimiento, puesto_id, puesto")
+    .in("personal_id", personalIds);
+  if (error) throw error;
+
+  const targetIds = new Set(targetRows.map((row) => String(row.id)));
+  const byPerson = new Map();
+  (data || []).forEach((row) => {
+    if (!byPerson.has(row.personal_id)) {
+      byPerson.set(row.personal_id, []);
+    }
+    byPerson.get(row.personal_id).push(row);
+  });
+
+  const nuevos = [];
+  byPerson.forEach((rows) => {
+    const antes = collectSuspiciousPairs(rows);
+    const despues = collectSuspiciousPairs(
+      rows.map((row) => (targetIds.has(String(row.id)) ? { ...row, [field]: newValue } : row))
+    );
+    despues.forEach((pair, key) => {
+      if (!antes.has(key)) {
+        nuevos.push(pair);
+      }
+    });
+  });
+  return nuevos;
+}
+
+function describeHistorialBulkNewOverlaps(pairs) {
+  const lines = pairs.slice(0, HISTORIAL_OVERLAP_PREVIEW).map(({ a, b }) => {
+    const quien = a.personal || b.personal || `personal ${a.personal_id}`;
+    const puesto = a.puesto || b.puesto || "sin puesto";
+    const rango = (row) =>
+      `${formatHistorialShortDate(row.fecha_alta)}–${row.fecha_baja ? formatHistorialShortDate(row.fecha_baja) : "sin baja"}`;
+    return `  · ${quien} · ${puesto}: periodo ${a.id} (${rango(a)}) se pisaría con el ${b.id} (${rango(b)})`;
+  });
+  const rest = pairs.length - lines.length;
+  return lines.join("\n") + (rest > 0 ? `\n  · y ${rest} más` : "");
+}
+
 function describeHistorialBulkDateConflicts(field, newValue, conflicts) {
   const lines = conflicts.slice(0, HISTORIAL_OVERLAP_PREVIEW).map((row) => {
     const alta = field === "fecha_alta" ? newValue : row.fecha_alta;
@@ -19553,13 +19638,30 @@ async function applyHistorialBulkAssignment() {
     return;
   }
 
-  if (
-    !confirm(
-      historialBulkSelectionMode
-        ? `¿Cambiar ${config.label} a "${newLabel}" en ${matches.length} periodo${matches.length !== 1 ? "s" : ""} seleccionado${matches.length !== 1 ? "s" : ""}?`
-        : `¿Cambiar ${config.label} de "${currentLabel}" a "${newLabel}" en ${matches.length} periodo${matches.length !== 1 ? "s" : ""}?`
-    )
-  ) {
+  // Se avisa dentro de la confirmación que ya existía, para no encadenar dos diálogos.
+  // Un fallo aquí no impide la masiva: el aviso es una ayuda, no un guardián.
+  let overlapWarning = "";
+  if (field === "fecha_alta" || field === "fecha_baja") {
+    setStatus("Comprobando solapes…");
+    try {
+      const nuevos = await findHistorialBulkNewOverlaps(field, newValue, matches);
+      if (nuevos.length) {
+        overlapWarning =
+          `\n\n⚠ Además, crearía ${nuevos.length} solape${nuevos.length !== 1 ? "s" : ""} nuevo${nuevos.length !== 1 ? "s" : ""} del mismo puesto:\n\n` +
+          `${describeHistorialBulkNewOverlaps(nuevos)}\n\n` +
+          "Un solape solo es normal entre el contrato completo (BAJA) y sus tramos (VARIACION), " +
+          "o entre dos puestos distintos a la vez.";
+      }
+    } catch (_error) {
+      overlapWarning = "\n\n(No se pudo comprobar si crearía solapes.)";
+    }
+  }
+
+  const resumen = historialBulkSelectionMode
+    ? `¿Cambiar ${config.label} a "${newLabel}" en ${matches.length} periodo${matches.length !== 1 ? "s" : ""} seleccionado${matches.length !== 1 ? "s" : ""}?`
+    : `¿Cambiar ${config.label} de "${currentLabel}" a "${newLabel}" en ${matches.length} periodo${matches.length !== 1 ? "s" : ""}?`;
+
+  if (!confirm(resumen + overlapWarning)) {
     return;
   }
 
