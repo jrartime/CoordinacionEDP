@@ -19128,11 +19128,13 @@ function collectHistorialDetailPayload({ full = false } = {}) {
 }
 
 // --- Validación de solapes ---
-// Dos periodos de la misma persona pueden solaparse legítimamente: en el modelo heredado
-// de Access la fila BAJA es el contrato completo y las VARIACION son sus tramos internos,
-// así que envoltura y tramo conviven a propósito. Cualquier otra combinación (dos filas
-// sin movimiento pisándose, BAJA contra BAJA...) no tiene lectura definida y suele ser un
-// duplicado, así que se avisa sin llegar a bloquear.
+// Dos periodos de la misma persona pueden solaparse por dos motivos legítimos:
+//   1. Envoltura y tramo: en el modelo heredado de Access la fila BAJA es el contrato
+//      completo y las VARIACION lo subdividen, así que conviven a propósito.
+//   2. Puestos distintos: la persona ocupa dos puestos a la vez (p. ej. Monitorado
+//      Deportivo y Conc. Monitorado), que es un caso real y frecuente.
+// Lo que no tiene lectura definida es un solape del mismo puesto que no sea envoltura y
+// tramo: casi siempre es un duplicado. Se avisa sin bloquear.
 const HISTORIAL_MOV_BAJA = "BAJA";
 const HISTORIAL_MOV_VARIACION = "VARIACION";
 const HISTORIAL_OVERLAP_PREVIEW = 6;
@@ -19141,13 +19143,19 @@ function normalizeHistorialMovimiento(value) {
   return String(value ?? "").trim().toUpperCase();
 }
 
-function isLegitHistorialOverlap(movimientoA, movimientoB) {
-  const a = normalizeHistorialMovimiento(movimientoA);
-  const b = normalizeHistorialMovimiento(movimientoB);
-  return (
+function isLegitHistorialOverlap(row, other) {
+  const a = normalizeHistorialMovimiento(row?.movimiento);
+  const b = normalizeHistorialMovimiento(other?.movimiento);
+  const esEnvolturaYTramo =
     (a === HISTORIAL_MOV_BAJA && b === HISTORIAL_MOV_VARIACION) ||
-    (a === HISTORIAL_MOV_VARIACION && b === HISTORIAL_MOV_BAJA)
-  );
+    (a === HISTORIAL_MOV_VARIACION && b === HISTORIAL_MOV_BAJA);
+  if (esEnvolturaYTramo) {
+    return true;
+  }
+  // El puesto vacío cuenta como distinto: no está informado en dos tercios del histórico,
+  // así que tratarlo como desconocido dispararía el aviso en casi cualquier edición antigua.
+  // Dos periodos ambos sin puesto sí se consideran el mismo, y por tanto sospechosos.
+  return String(row?.puesto_id ?? null) !== String(other?.puesto_id ?? null);
 }
 
 function formatHistorialShortDate(value) {
@@ -19168,7 +19176,7 @@ async function findSuspiciousHistorialOverlaps(row, excludeId) {
     // significa periodo abierto, así que no acota por ese lado.
     let query = supabase
       .from(HISTORIAL_DETAIL_VIEW)
-      .select("id, fecha_alta, fecha_baja, movimiento")
+      .select("id, fecha_alta, fecha_baja, movimiento, puesto_id, puesto")
       .eq("personal_id", row.personal_id)
       .or(`fecha_baja.is.null,fecha_baja.gte.${row.fecha_alta}`);
     if (row.fecha_baja) {
@@ -19179,7 +19187,7 @@ async function findSuspiciousHistorialOverlaps(row, excludeId) {
     }
     const { data, error } = await query;
     if (error) throw error;
-    return (data || []).filter((other) => !isLegitHistorialOverlap(row.movimiento, other.movimiento));
+    return (data || []).filter((other) => !isLegitHistorialOverlap(row, other));
   } catch (_error) {
     return [];
   }
@@ -19193,15 +19201,17 @@ async function confirmHistorialOverlap(row, excludeId) {
   const lines = overlaps.slice(0, HISTORIAL_OVERLAP_PREVIEW).map((item) => {
     const hasta = item.fecha_baja ? formatHistorialShortDate(item.fecha_baja) : "sin baja";
     const movimiento = normalizeHistorialMovimiento(item.movimiento) || "sin movimiento";
-    return `  · Periodo ${item.id}: ${formatHistorialShortDate(item.fecha_alta)} – ${hasta} (${movimiento})`;
+    const puesto = item.puesto || "sin puesto";
+    return `  · Periodo ${item.id}: ${formatHistorialShortDate(item.fecha_alta)} – ${hasta} · ${puesto} (${movimiento})`;
   });
   const rest = overlaps.length - lines.length;
   const listado = lines.join("\n") + (rest > 0 ? `\n  · y ${rest} más` : "");
   return window.confirm(
-    `Este periodo se solapa en fechas con ${overlaps.length} periodo(s) de la misma persona:\n\n` +
+    `Este periodo se solapa en fechas con ${overlaps.length} periodo(s) del mismo puesto de esta persona:\n\n` +
       `${listado}\n\n` +
-      "Solo es normal que se solapen el contrato completo (BAJA) y sus tramos (VARIACION). " +
-      "Si esto es una variación, indícalo en el campo Movimiento.\n\n" +
+      "Un solape solo es normal entre el contrato completo (BAJA) y sus tramos (VARIACION), " +
+      "o entre dos puestos distintos a la vez. Si esto es una variación, indícalo en el campo " +
+      "Movimiento.\n\n" +
       "¿Guardar igualmente?"
   );
 }
