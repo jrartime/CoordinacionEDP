@@ -19460,6 +19460,33 @@ function updateHistorialBulkMatchCount() {
   syncHistorialBulkSelectionUi();
 }
 
+// Filas que quedarian con fecha_baja anterior a fecha_alta al aplicar la masiva.
+// Importa porque el UPDATE es una sola sentencia y el CHECK historiales_laborales_fechas_validas
+// tumba el lote entero por una sola fila invalida, con un error de Postgres que no dice cual es.
+// Vaciar la fecha (null) nunca incumple el CHECK.
+function findHistorialBulkDateConflicts(field, newValue, rows) {
+  if (newValue == null || (field !== "fecha_alta" && field !== "fecha_baja")) {
+    return [];
+  }
+  return rows.filter((row) => {
+    const alta = field === "fecha_alta" ? newValue : row.fecha_alta;
+    const baja = field === "fecha_baja" ? newValue : row.fecha_baja;
+    // Fechas ISO (YYYY-MM-DD): el orden lexicografico coincide con el cronologico.
+    return alta && baja && String(baja) < String(alta);
+  });
+}
+
+function describeHistorialBulkDateConflicts(field, newValue, conflicts) {
+  const lines = conflicts.slice(0, HISTORIAL_OVERLAP_PREVIEW).map((row) => {
+    const alta = field === "fecha_alta" ? newValue : row.fecha_alta;
+    const baja = field === "fecha_baja" ? newValue : row.fecha_baja;
+    const quien = row.personal ? ` · ${row.personal}` : "";
+    return `  · Periodo ${row.id}${quien}: alta ${formatHistorialShortDate(alta)} → baja ${formatHistorialShortDate(baja)}`;
+  });
+  const rest = conflicts.length - lines.length;
+  return lines.join("\n") + (rest > 0 ? `\n  · y ${rest} más` : "");
+}
+
 async function applyHistorialBulkAssignment() {
   const field = historialBulkFieldSelect?.value;
   const config = getHistorialBulkFieldConfig();
@@ -19496,6 +19523,25 @@ async function applyHistorialBulkAssignment() {
 
   const currentLabel = normalizeHistorialBulkValue(getHistorialBulkControlValue("current"), config);
   const newLabel = rawNewValue === "__empty__" ? "Vacío" : normalizeHistorialBulkValue(rawNewValue, config);
+
+  // Se corta antes de confirmar: la base rechazaria el lote entero igualmente, y aqui al menos
+  // se puede decir que filas lo impiden.
+  const dateConflicts = findHistorialBulkDateConflicts(field, newValue, matches);
+  if (dateConflicts.length) {
+    window.alert(
+      `No se puede aplicar: ${dateConflicts.length} de ${matches.length} periodo(s) quedarían con la ` +
+        `fecha de baja anterior a la de alta.\n\n` +
+        `${describeHistorialBulkDateConflicts(field, newValue, dateConflicts)}\n\n` +
+        "La base de datos rechaza esos periodos, y como la asignación masiva se aplica de una sola vez, " +
+        "no se guardaría ninguno de los " + matches.length + ".\n\n" +
+        "Quita esos periodos de la selección o corrige antes su otra fecha."
+    );
+    setStatus(
+      `Asignación masiva cancelada: ${dateConflicts.length} periodo${dateConflicts.length !== 1 ? "s" : ""} quedaría${dateConflicts.length !== 1 ? "n" : ""} con la baja antes del alta.`,
+      "error"
+    );
+    return;
+  }
 
   if (
     !confirm(
