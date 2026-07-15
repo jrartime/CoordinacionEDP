@@ -145,6 +145,12 @@ PUESTO_REMAP = {21: 2, 22: 2}
 # Filas cuyo regimen de cotizacion difiere del estandar y se conserva el de Supabase.
 PRESERVAR_COTIZACION = {4123, 4131, 4234, 4447, 4452, 4685, 5304, 5892, 5896}
 
+# Access tiene el historial de Marcos Fernandez Moreno por triplicado: el bloque 1936-1968 se
+# repite tal cual en 2920-2952 (salto de 984) y el 1969-1979 en 3084-3094 (salto de 1115).
+# Las copias se borraron de Supabase el 15/07/2026; se excluyen aqui para que el import no las
+# resucite. Si algun dia se limpian en el Excel, esta exclusion se queda inerte y no molesta.
+EXCLUIR_DUPLICADOS_ACCESS = set(range(2920, 2953)) | set(range(3084, 3095))
+
 # El 4,70 % de contingencias comunes es el tope plausible; por encima huele a cero perdido.
 COTIZACION_COMUNES_MAX = 0.1
 
@@ -231,10 +237,14 @@ def build_records(path: Path, limit: int | None = None) -> tuple[list[dict], dic
     if missing:
         raise ValueError(f"Faltan columnas esperadas en el Excel: {missing}")
 
-    stats = {"contrato_nulificado": 0, "puesto_remapeado": 0, "cotizacion_preservada": 0}
+    stats = {"contrato_nulificado": 0, "puesto_remapeado": 0, "cotizacion_preservada": 0,
+             "duplicados_excluidos": 0}
     records = []
     for row in rows[1:limit + 1 if limit else None]:
         if header["Id"] not in row:
+            continue
+        if int(float(row[header["Id"]])) in EXCLUIR_DUPLICADOS_ACCESS:
+            stats["duplicados_excluidos"] += 1
             continue
         record: dict[str, object] = {}
         for source, column in COLUMN_MAP.items():
@@ -323,6 +333,7 @@ def main() -> None:
     print(f"  contrato_laboral_id huerfano -> NULL : {stats['contrato_nulificado']}")
     print(f"  puesto_id 21/22 -> 2                 : {stats['puesto_remapeado']}")
     print(f"  filas con cotizacion preservada      : {stats['cotizacion_preservada']}")
+    print(f"  duplicados de Access excluidos       : {stats['duplicados_excluidos']}")
 
     check_cotizacion_comunes(records)
 
