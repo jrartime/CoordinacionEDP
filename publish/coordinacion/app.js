@@ -19127,6 +19127,85 @@ function collectHistorialDetailPayload({ full = false } = {}) {
   return payload;
 }
 
+// --- Validación de solapes ---
+// Dos periodos de la misma persona pueden solaparse legítimamente: en el modelo heredado
+// de Access la fila BAJA es el contrato completo y las VARIACION son sus tramos internos,
+// así que envoltura y tramo conviven a propósito. Cualquier otra combinación (dos filas
+// sin movimiento pisándose, BAJA contra BAJA...) no tiene lectura definida y suele ser un
+// duplicado, así que se avisa sin llegar a bloquear.
+const HISTORIAL_MOV_BAJA = "BAJA";
+const HISTORIAL_MOV_VARIACION = "VARIACION";
+const HISTORIAL_OVERLAP_PREVIEW = 6;
+
+function normalizeHistorialMovimiento(value) {
+  return String(value ?? "").trim().toUpperCase();
+}
+
+function isLegitHistorialOverlap(movimientoA, movimientoB) {
+  const a = normalizeHistorialMovimiento(movimientoA);
+  const b = normalizeHistorialMovimiento(movimientoB);
+  return (
+    (a === HISTORIAL_MOV_BAJA && b === HISTORIAL_MOV_VARIACION) ||
+    (a === HISTORIAL_MOV_VARIACION && b === HISTORIAL_MOV_BAJA)
+  );
+}
+
+function formatHistorialShortDate(value) {
+  const match = String(value ?? "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : "sin fecha";
+}
+
+// Periodos de la misma persona que pisan al que se va a guardar y no siguen el patrón
+// BAJA/VARIACION. Un fallo de consulta devuelve [] a propósito: la validación es una ayuda
+// y no debe impedir guardar si Supabase no responde.
+async function findSuspiciousHistorialOverlaps(row, excludeId) {
+  if (row?.personal_id == null || !row?.fecha_alta) {
+    return [];
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    // Solapan si cada periodo empieza antes de que acabe el otro. Una fecha_baja vacía
+    // significa periodo abierto, así que no acota por ese lado.
+    let query = supabase
+      .from(HISTORIAL_DETAIL_VIEW)
+      .select("id, fecha_alta, fecha_baja, movimiento")
+      .eq("personal_id", row.personal_id)
+      .or(`fecha_baja.is.null,fecha_baja.gte.${row.fecha_alta}`);
+    if (row.fecha_baja) {
+      query = query.lte("fecha_alta", row.fecha_baja);
+    }
+    if (excludeId != null) {
+      query = query.neq("id", excludeId);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).filter((other) => !isLegitHistorialOverlap(row.movimiento, other.movimiento));
+  } catch (_error) {
+    return [];
+  }
+}
+
+async function confirmHistorialOverlap(row, excludeId) {
+  const overlaps = await findSuspiciousHistorialOverlaps(row, excludeId);
+  if (!overlaps.length) {
+    return true;
+  }
+  const lines = overlaps.slice(0, HISTORIAL_OVERLAP_PREVIEW).map((item) => {
+    const hasta = item.fecha_baja ? formatHistorialShortDate(item.fecha_baja) : "sin baja";
+    const movimiento = normalizeHistorialMovimiento(item.movimiento) || "sin movimiento";
+    return `  · Periodo ${item.id}: ${formatHistorialShortDate(item.fecha_alta)} – ${hasta} (${movimiento})`;
+  });
+  const rest = overlaps.length - lines.length;
+  const listado = lines.join("\n") + (rest > 0 ? `\n  · y ${rest} más` : "");
+  return window.confirm(
+    `Este periodo se solapa en fechas con ${overlaps.length} periodo(s) de la misma persona:\n\n` +
+      `${listado}\n\n` +
+      "Solo es normal que se solapen el contrato completo (BAJA) y sus tramos (VARIACION). " +
+      "Si esto es una variación, indícalo en el campo Movimiento.\n\n" +
+      "¿Guardar igualmente?"
+  );
+}
+
 async function saveHistorialDetail(event) {
   event?.preventDefault();
 
@@ -19139,6 +19218,9 @@ async function saveHistorialDetail(event) {
       const payload = collectHistorialDetailPayload({ full: true });
       if (payload.personal_id == null) {
         setStatus("Selecciona la persona del periodo antes de guardar.", "error");
+        return;
+      }
+      if (!(await confirmHistorialOverlap(payload, null))) {
         return;
       }
       const { data, error } = await supabase
@@ -19162,6 +19244,11 @@ async function saveHistorialDetail(event) {
     const payload = collectHistorialDetailPayload();
     if (!Object.keys(payload).length) {
       closeHistorialDetail({ force: true });
+      return;
+    }
+    // El payload solo trae los campos tocados; el solape se evalúa sobre cómo queda el
+    // periodo entero, así que se fusiona con el estado previo.
+    if (!(await confirmHistorialOverlap({ ...historialDetailSnapshot, ...payload }, historialDetailSnapshot.id))) {
       return;
     }
     const { error } = await supabase
