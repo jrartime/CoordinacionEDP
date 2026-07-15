@@ -247,6 +247,26 @@ where fecha_alta is not null
   and fecha_baja is not null
   and dias_periodo is distinct from ((fecha_baja - fecha_alta) + 1);
 
+-- El check vive tambien en el create table de arriba, que no se ejecuta si la tabla ya
+-- existe: sin esto la restriccion nunca llegaba a crearse en un entorno ya desplegado.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'historiales_laborales_fechas_validas'
+  )
+  and not exists (
+    select 1
+    from public.historiales_laborales
+    where fecha_alta is not null
+      and fecha_baja is not null
+      and fecha_baja < fecha_alta
+  ) then
+    alter table public.historiales_laborales
+      add constraint historiales_laborales_fechas_validas
+      check (fecha_baja is null or fecha_alta is null or fecha_baja >= fecha_alta);
+  end if;
+end $$;
+
 comment on table public.historiales_laborales is
   'Historial laboral/contractual de cada persona, migrado desde Access tbl_vida_laboral.';
 
