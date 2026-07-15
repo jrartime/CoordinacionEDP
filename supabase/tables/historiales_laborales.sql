@@ -282,7 +282,7 @@ comment on column public.historiales_laborales.fecha_alta is 'Campo Access origi
 comment on column public.historiales_laborales.fecha_baja is 'Campo Access original: fecha_baja';
 comment on column public.historiales_laborales.dias_periodo is 'Dias naturales del periodo, calculados de fecha_alta a fecha_baja inclusive cuando fecha_baja existe. Campo Access original: dias_cot.';
 comment on column public.historiales_laborales.puesto_id is 'Campo Access original: puesto_id. Referencia a puestos.';
-comment on column public.historiales_laborales.coeficiente_temporalidad_miles is 'Coeficiente de temporalidad en milesimos: jornada / jornada_maxima * 1000 sin decimales. Campo Access original: coeficiente_temporalidad.';
+comment on column public.historiales_laborales.coeficiente_temporalidad_miles is 'Coeficiente de temporalidad en milesimos: round(jornada / jornada_maxima * 1000). Lo calcula el trigger siempre que jornada y jornada_maxima existan. Campo Access original: coeficiente_temporalidad.';
 comment on column public.historiales_laborales.tipo_contratacion_id is 'Campo Access original: vida_laboral_contratacion_id. Referencia a historiales_laborales_tipos_contratacion.';
 comment on column public.historiales_laborales.motivo_baja_id is 'Campo Access original: vida_laboral_baja_id. Referencia a historiales_laborales_motivos_baja.';
 comment on column public.historiales_laborales.horarios is 'Campo Access original: horarios';
@@ -357,7 +357,7 @@ begin
   end if;
 
   if new.jornada is not null and new.jornada_maxima is not null and new.jornada_maxima <> 0 then
-    new.coeficiente_temporalidad_miles = trunc((new.jornada / new.jornada_maxima) * 1000)::integer;
+    new.coeficiente_temporalidad_miles = round((new.jornada / new.jornada_maxima) * 1000)::integer;
   end if;
 
   new.updated_at = now();

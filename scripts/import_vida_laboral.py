@@ -25,15 +25,27 @@ Reglas de transformacion:
     el mismo remapeo que ya aplica supabase/tables/historiales_laborales.sql.
   - coeficiente_temporalidad -> coeficiente_temporalidad_miles. Fraccion (<=10) x1000;
     si es >10 se asume que ya viene en milesimos. Mismo criterio que el ALTER de la tabla.
-    Ojo: el trigger set_historiales_laborales_updated_at lo recalcula desde
-    jornada/jornada_maxima cuando ambas existen (1.505 filas), y ahi manda el trigger.
-  - dias_cot -> dias_periodo. El mismo trigger lo recalcula si hay alta y baja.
+    Ojo: el trigger set_historiales_laborales_updated_at lo recalcula como
+    round(jornada / jornada_maxima * 1000) cuando ambas jornadas existen (1.530 filas),
+    y ahi manda el trigger.
+  - dias_cot -> dias_periodo. El mismo trigger lo recalcula como (baja - alta) + 1
+    (dias naturales inclusive) si hay alta y baja.
   - Las 9 filas de PRESERVAR_COTIZACION conservan las columnas Dto_* que ya tiene Supabase
     (regimenes distintos del estandar); el payload de esas filas omite esas 4 columnas.
 
 Guarda de seguridad: si Dto_Cot_comunes viene >= 0.1 el script aborta. El tipo real por
 contingencias comunes es el 4,70 % (0.047); un 0.47 es un cero perdido y meteria un error
 de x10 en las 5.394 filas.
+
+IMPORTANTE: el import escribe ids explicitos y eso NO avanza la secuencia de la tabla, asi
+que al terminar hay que reposicionarla o la siguiente alta desde la app falla con clave
+duplicada. El script lo recuerda al final; la sentencia es:
+
+  select setval(
+    pg_get_serial_sequence('public.historiales_laborales', 'id'),
+    (select max(id) from public.historiales_laborales),
+    true
+  );
 
 Uso:
   python scripts/import_vida_laboral.py --dry-run
@@ -334,6 +346,15 @@ def main() -> None:
             print(f"  {nombre}: {i + len(batch)}/{len(grupo)}")
 
     print(f"\nListo: {len(records)} filas upserted.")
+    print(
+        "\nPENDIENTE: reposiciona la secuencia del id, que los inserts con id explicito no\n"
+        "avanzan. Sin esto la siguiente alta desde la app falla con clave duplicada:\n"
+        "  select setval(\n"
+        "    pg_get_serial_sequence('public.historiales_laborales', 'id'),\n"
+        "    (select max(id) from public.historiales_laborales),\n"
+        "    true\n"
+        "  );"
+    )
 
 
 if __name__ == "__main__":
