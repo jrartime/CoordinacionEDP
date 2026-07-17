@@ -44,6 +44,7 @@ exports/               # CSVs exportados de Supabase para importación/referenci
 - **Contratos** — `tbl_contratos`.
 - **Actividades** — Actividades laborales por contrato (compartido con Concilia).
 - **Registros** — Detalle de jornadas generado desde actividades. Filtros cruzados por contrato/servicio/personal/instalación, edición tipo Excel, selección manual para asignación/borrado masivo y coherencia servicio/contrato.
+- **Historial laboral** — Periodos de alta/baja del personal (`historiales_laborales`, se lee de la vista `historiales_laborales_detalle`). Filtros de fecha apilados en dos columnas (Alta desde/Alta hasta y Baja hasta/Baja desde, con ✕ para limpiar), tipo de contratación, enviado/gestionado/tramitado y personal. Cada fila tiene un botón ▾ que despliega las **actividades solapadas** con el alta/baja de esa persona (instalación, puesto, fechas, horario), con carga perezosa y caché. Asignación masiva, importación Excel y generación de **informes PDF** por plantilla. Ver [Supabase Historial laboral](#supabase-historial-laboral).
 - **Gestión** — Pestaña transversal que cruza historiales laborales y registros por intervalo de fechas. Filtros de fecha (Desde/Hasta) y personal (solo personas con registros en el intervalo); muestra los historiales laborales solapados (alta/baja, jornada/jornada máxima, coeficiente de temporalidad ‰) y un pivote de horas de registros (filas puesto×situación, columnas tipo de hora). Agregados server-side (`get_gestion_registros_resumen`, `get_gestion_personal`).
 - **Contabilidad** — Apuntes del sistema Cronos (`cronos`) con subpestañas **Apuntes**, **Banco** (`cronos_banco`, movimientos TPV), **Resultados** (Banco como base enlazado con `cronos.identificador`) y **Conciliación** (apuntes/movimientos sin pareja). Paginación y agregados server-side; filtros por fecha/centro/tipo/forma de pago/etc.; botón "Cargar CSV" en Apuntes/Banco que reemplaza los datos por rango de fechas. Solo lectura salvo carga (admin).
 - **Accesos** — Usuarios, roles y servicios.
@@ -102,6 +103,15 @@ El login usa Supabase Auth. No hay contraseñas locales en el código.
   - Admin sin límite (bypass vía `is_coordinacion_admin`). Mismo patrón que `supabase/policies/personal_instalaciones_scope.sql`.
 - La app lee de la vista `historiales_laborales_detalle`, que es **`security_invoker = true`** — por eso el RLS de la tabla base aplica también a través de la vista. **No quitar esa opción.** Todos los joins de la vista son `LEFT` (incluido `personal_confidencial`), para que un no-admin no pierda filas.
 - El **nº de Seguridad Social** solo lo ve un admin: la vista lo enmascara con `case when is_coordinacion_admin() then pc.ss end`. Ver [personal_confidencial](supabase/tables/personal_confidencial.sql).
+- El despliegue de actividades solapadas de cada fila consulta `actividades_detalle` (solape: la actividad sigue abierta o acaba ≥ `fecha_alta`, y empieza ≤ `fecha_baja`) y hereda el alcance por contrato de `actividades`.
+
+#### Informes PDF de Historial laboral
+
+- Plantillas en `historial_laboral_informe_plantillas` (campos de texto: `titulo`, `saludo`, `texto_intro`, `texto_movimiento`, `texto_condiciones`, `texto_legal`, `texto_recibido`, `opciones_respuesta_texto`, `pie_observaciones`). Config documental por empresa (logo, firma, firmante, pies) en `historial_laboral_informes_config.sql`.
+- Orden del PDF (`exportHistorialLaboralReportPdf`): cabecera (logo + "En <ciudad> a <fecha>") → título → bloques de texto (+ tabla de actividades tras `texto_movimiento`) → **firma de la empresa centrada** (etiqueta, imagen de firma, firmante y cargo) → **opciones de respuesta indentadas 3 cm** → **firma del personal** (`texto_recibido`: RECIBIDO / Fdo. / DNI, a la izquierda) → **`pie_observaciones`** justo debajo del DNI (fuente 8) → pie de empresa.
+- `addWrappedText` acepta `indent` (mm) para desplazar un bloque a la derecha reduciendo el ancho de ajuste.
+- **Texto para el correo**: el panel de informe tiene un textarea editable que se autorrellena según `tipo_documento` de la plantilla (`variacion`/`llamamiento`/`subrogacion`/genérico). El saludo se resuelve con `personal.genero` (`H` → "Estimado", `M` → "Estimada", nulo → "Estimado/a"). Si el usuario lo edita a mano, un flag `dirty` evita sobrescribirlo al cambiar de plantilla.
+- Al pulsar **Descargar PDF** se copian al portapapeles **en secuencia** (450 ms entre cada uno, para que el historial del portapapeles de Windows / Win+V registre entradas separadas): `texto` → `nombre completo` → `correo`. El orden es **inverso a propósito**: el correo queda como portapapeles actual para pegarlo directo en Adobe Acrobat. Requiere documento enfocado (Chrome/Edge); hay fallback a `execCommand`.
 
 ### Supabase Contabilidad (Cronos)
 

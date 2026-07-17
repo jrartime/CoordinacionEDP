@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260714-16" />
+    <link rel="stylesheet" href="./styles.css?v=20260716-4" />
   </head>
   <body>
     <script>
@@ -988,14 +988,62 @@
                 </div>
 
                 <form id="historial-filters-form" class="filters-grid records-filters-grid records-filters-compact">
-                  <label class="filter-field">
-                    Alta desde
-                    <input id="historial-filter-alta-desde" name="fecha_alta_desde" type="date" />
-                  </label>
-                  <label class="filter-field">
-                    Baja hasta
-                    <input id="historial-filter-baja-hasta" name="fecha_baja_hasta" type="date" />
-                  </label>
+                  <div class="filter-field historial-date-stack">
+                    <label class="filter-subfield">
+                      Alta desde
+                      <div class="filter-control-row">
+                        <input id="historial-filter-alta-desde" name="fecha_alta_desde" type="date" />
+                        <button
+                          type="button"
+                          class="filter-reset-button"
+                          data-reset-filter="fecha_alta_desde"
+                          aria-label="Restablecer alta desde"
+                          title="Restablecer"
+                        >&times;</button>
+                      </div>
+                    </label>
+                    <label class="filter-subfield">
+                      Alta hasta
+                      <div class="filter-control-row">
+                        <input id="historial-filter-alta-hasta" name="fecha_alta_hasta" type="date" />
+                        <button
+                          type="button"
+                          class="filter-reset-button"
+                          data-reset-filter="fecha_alta_hasta"
+                          aria-label="Restablecer alta hasta"
+                          title="Restablecer"
+                        >&times;</button>
+                      </div>
+                    </label>
+                  </div>
+                  <div class="filter-field historial-date-stack">
+                    <label class="filter-subfield">
+                      Baja hasta
+                      <div class="filter-control-row">
+                        <input id="historial-filter-baja-hasta" name="fecha_baja_hasta" type="date" />
+                        <button
+                          type="button"
+                          class="filter-reset-button"
+                          data-reset-filter="fecha_baja_hasta"
+                          aria-label="Restablecer baja hasta"
+                          title="Restablecer"
+                        >&times;</button>
+                      </div>
+                    </label>
+                    <label class="filter-subfield">
+                      Baja desde
+                      <div class="filter-control-row">
+                        <input id="historial-filter-baja-desde" name="fecha_baja_desde" type="date" />
+                        <button
+                          type="button"
+                          class="filter-reset-button"
+                          data-reset-filter="fecha_baja_desde"
+                          aria-label="Restablecer baja desde"
+                          title="Restablecer"
+                        >&times;</button>
+                      </div>
+                    </label>
+                  </div>
                   <label class="filter-field">
                     Tipo contratación
                     <select id="historial-filter-tipo-contratacion" name="tipo_contratacion_id">
@@ -1124,6 +1172,7 @@
                   <table id="historial-table" class="records-table">
                     <thead>
                       <tr>
+                        <th class="historial-toggle-cell" aria-label="Desplegar actividades"></th>
                         <th id="historial-bulk-select-header" class="records-row-select hidden">
                           <input
                             id="historial-bulk-select-all-checkbox"
@@ -1148,7 +1197,7 @@
                     </thead>
                     <tbody id="historial-table-body">
                       <tr>
-                        <td colspan="13" class="empty-state">Cargando historial laboral...</td>
+                        <td colspan="14" class="empty-state">Cargando historial laboral...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1322,10 +1371,26 @@
                     </table>
                   </div>
 
+                  <div class="detail-form records-detail-form">
+                    <label class="full-width">
+                      Texto para el correo
+                      <textarea
+                        id="historial-report-email-text"
+                        rows="7"
+                        class="historial-report-email-text"
+                        placeholder="Texto que se copiará al portapapeles al descargar el PDF"
+                      ></textarea>
+                    </label>
+                  </div>
+
                   <div class="detail-actions">
                     <button id="historial-report-download-button" type="button">
                       Descargar PDF
                     </button>
+                    <p class="historial-report-clipboard-hint muted-text">
+                      Al descargar se copian al portapapeles el texto, el nombre y el correo: el correo queda
+                      listo para pegar directamente y el resto en el historial (Win+V) para Adobe Acrobat.
+                    </p>
                   </div>
                 </aside>
               </section>
@@ -7197,6 +7262,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260710-1" defer></script>
-    <script src="./app.js?v=20260715-4" defer></script>
+    <script src="./app.js?v=20260716-7" defer></script>
   </body>
 </html>

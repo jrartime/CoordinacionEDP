@@ -17194,6 +17194,7 @@ const historialReportClearActivitiesButton = document.querySelector("#historial-
 const historialReportTemplateWarning = document.querySelector("#historial-report-template-warning");
 const historialReportActivitiesTableBody = document.querySelector("#historial-report-activities-table-body");
 const historialReportDownloadButton = document.querySelector("#historial-report-download-button");
+const historialReportEmailText = document.querySelector("#historial-report-email-text");
 
 const HISTORIAL_FETCH_LIMIT = 1000;
 const HISTORIAL_TABLE = "historiales_laborales";
@@ -17439,6 +17440,10 @@ let historialPersonalOptionsLoaded = false;
 let historialRows = [];
 let historialBulkSelectionMode = false;
 let selectedHistorialBulkIds = new Set();
+// Filas del listado con el panel de actividades solapadas desplegado + caché
+// de esas actividades por id de periodo (carga perezosa al desplegar).
+const expandedHistorialIds = new Set();
+const historialActivitiesCache = new Map();
 let currentHistorialSort = { field: "fecha_alta", direction: "desc" };
 let historialRelationOptionsCache = {};
 let historialDetailSnapshot = null;
@@ -17449,6 +17454,9 @@ let historialReportCompanyRows = [];
 let historialReportTemplateRows = [];
 let historialReportConfigLoaded = false;
 let historialReportDraft = null;
+// Se pone a true cuando el usuario edita a mano el texto del correo del informe,
+// para no sobrescribir su edición al cambiar de plantilla.
+let historialReportEmailTextDirty = false;
 
 async function loadHistorialRelationOptions() {
   if (Object.keys(historialRelationOptionsCache).length) {
@@ -17498,7 +17506,9 @@ function getHistorialFilterValues() {
   const formData = new FormData(historialFiltersForm ?? undefined);
   return {
     fechaAltaDesde: String(formData.get("fecha_alta_desde") || "").trim(),
+    fechaAltaHasta: String(formData.get("fecha_alta_hasta") || "").trim(),
     fechaBajaHasta: String(formData.get("fecha_baja_hasta") || "").trim(),
+    fechaBajaDesde: String(formData.get("fecha_baja_desde") || "").trim(),
     tipoContratacionId: String(formData.get("tipo_contratacion_id") || "").trim(),
     enviado: String(formData.get("enviado") || "").trim(),
     gestionado: String(formData.get("gestionado") || "").trim(),
@@ -18003,7 +18013,7 @@ async function fetchHistorialReportPersonal(supabase, personalId) {
   if (!personalId) return null;
   const { data, error } = await supabase
     .from("personal")
-    .select("id, personal, dni")
+    .select("id, personal, dni, email, genero")
     .eq("id", personalId)
     .maybeSingle();
   if (error) return null;
@@ -18061,8 +18071,116 @@ function applyHistorialReportTemplateText(text, placeholders) {
     .replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => String(placeholders[key] ?? ""));
 }
 
+// Texto por defecto del correo según el tipo de documento de la plantilla.
+// {{nombre}} se reemplaza por el nombre completo de la persona. Es editable en
+// el panel antes de descargar.
+const HISTORIAL_REPORT_EMAIL_TEXTS = {
+  variacion:
+    "{{saludo}} {{nombre}}\n\n" +
+    "Se remite acuerdo de variación de su jornada laboral con la empresa Educación " +
+    "Deportiva del Principado S.L según los términos que se detallan en el documento " +
+    "adjunto para su firma.\n\n" +
+    "Un saludo",
+  llamamiento:
+    "{{saludo}} {{nombre}}\n\n" +
+    "Adjunto se remite llamamiento para incorporación en la empresa Educación Deportiva " +
+    "del Principado S.L. según los términos que se detallan en el documento adjunto para " +
+    "su aceptación y firma.\n\n" +
+    "Un saludo",
+  subrogacion:
+    "{{saludo}} {{nombre}}\n\n" +
+    "Se remite documentación relativa a la subrogación de su contrato con la empresa " +
+    "Educación Deportiva del Principado S.L. según los términos que se detallan en el " +
+    "documento adjunto para su firma.\n\n" +
+    "Un saludo",
+};
+const HISTORIAL_REPORT_EMAIL_TEXT_DEFAULT =
+  "{{saludo}} {{nombre}}\n\n" +
+  "Adjunto se remite documentación de la empresa Educación Deportiva del Principado S.L. " +
+  "según los términos que se detallan en el documento adjunto para su firma.\n\n" +
+  "Un saludo";
+
+// Saludo según el género de la persona (personal.genero: 'H' hombre, 'M' mujer).
+// Si no se conoce, se usa una forma neutra editable.
+function getHistorialReportGreeting(genero) {
+  const value = String(genero || "").trim().toUpperCase();
+  if (value === "H") return "Estimado";
+  if (value === "M") return "Estimada";
+  return "Estimado/a";
+}
+
+function buildHistorialReportEmailText() {
+  const template = getHistorialReportTemplateById(historialReportGenerateTemplateSelect?.value || "");
+  const type =
+    template?.tipo_documento ||
+    getHistorialReportExpectedDocumentType(historialReportDraft?.historialRow) ||
+    "";
+  const nombre =
+    historialReportDraft?.personal?.personal || historialReportDraft?.historialRow?.personal || "";
+  const saludo = getHistorialReportGreeting(historialReportDraft?.personal?.genero);
+  const base = HISTORIAL_REPORT_EMAIL_TEXTS[type] || HISTORIAL_REPORT_EMAIL_TEXT_DEFAULT;
+  return base
+    .replace(/\{\{\s*saludo\s*\}\}/g, saludo)
+    .replace(/\{\{\s*nombre\s*\}\}/g, nombre);
+}
+
+// Rellena el textarea del correo con el texto por defecto del tipo actual,
+// salvo que el usuario ya lo haya editado a mano.
+function syncHistorialReportEmailText({ force = false } = {}) {
+  if (!historialReportEmailText) return;
+  if (!force && historialReportEmailTextDirty) return;
+  historialReportEmailText.value = buildHistorialReportEmailText();
+  historialReportEmailTextDirty = false;
+}
+
+async function writeClipboardText(text) {
+  const value = String(text ?? "");
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch (_error) {
+      // Cae al método clásico (execCommand) si la API asíncrona falla.
+    }
+  }
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return ok;
+  } catch (_error) {
+    return false;
+  }
+}
+
+// Copia los valores al portapapeles uno tras otro, con una pausa entre cada uno
+// para que el historial del portapapeles de Windows (Win+V) registre entradas
+// separadas. El último valor queda como portapapeles actual.
+async function copyHistorialReportClipboardSequence(parts) {
+  const values = parts.map((value) => String(value ?? "").trim()).filter(Boolean);
+  let copied = 0;
+  for (let index = 0; index < values.length; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await writeClipboardText(values[index])) {
+      copied += 1;
+    }
+    if (index < values.length - 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => setTimeout(resolve, 450));
+    }
+  }
+  return copied;
+}
+
 function closeHistorialReportPanel() {
   historialReportDraft = null;
+  historialReportEmailTextDirty = false;
   if (historialReportTemplateWarning) {
     historialReportTemplateWarning.textContent = "";
     historialReportTemplateWarning.classList.remove("error");
@@ -18107,6 +18225,8 @@ async function openHistorialReportPanel() {
     if (historialReportPersonSummary) historialReportPersonSummary.textContent = personal?.personal || historialDetailSnapshot.personal || "-";
     if (historialReportCompanySummary) historialReportCompanySummary.textContent = company.razon_social || company.empresa || historialDetailSnapshot.empresa || "-";
     renderHistorialReportActivities(activities);
+    historialReportEmailTextDirty = false;
+    syncHistorialReportEmailText({ force: true });
     validateHistorialReportTemplateType();
     historialReportPanel?.classList.remove("hidden");
   } catch (error) {
@@ -18205,12 +18325,15 @@ async function exportHistorialLaboralReportPdf() {
       if (!resolved) return;
       const fontSize = options.fontSize || 10;
       const lineHeight = options.lineHeight || 5;
+      const indent = options.indent || 0;
+      const textX = margin + indent;
+      const wrapWidth = contentWidth - indent;
       doc.setFont("helvetica", options.bold ? "bold" : "normal");
       doc.setFontSize(fontSize);
       resolved.split(/\n/).forEach((paragraph) => {
-        const lines = doc.splitTextToSize(paragraph || " ", contentWidth);
+        const lines = doc.splitTextToSize(paragraph || " ", wrapWidth);
         ensureSpace(lines.length * lineHeight + 2);
-        doc.text(lines, margin, y);
+        doc.text(lines, textX, y);
         y += lines.length * lineHeight + (paragraph ? 2 : 1);
       });
       y += options.after ?? 2;
@@ -18249,32 +18372,65 @@ async function exportHistorialLaboralReportPdf() {
       }
     });
 
-    ensureSpace(30);
+    // --- Firma de la empresa (centrada en la parte central de la hoja) ---
+    ensureSpace(44);
+    const centerX = pageWidth / 2;
+    const companySignatureWidth = 42;
+    const companySignatureHeight = 16;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text("Firma de la empresa", margin, y);
-    const workerReceipt = applyHistorialReportTemplateText(template.texto_recibido || "RECIBIDO\n\nFdo.: {{personal_nombre}}\n{{personal_dni}}", placeholders);
-    const workerReceiptLines = doc.splitTextToSize(workerReceipt, contentWidth / 2 - 4);
-    doc.text(workerReceiptLines, pageWidth - margin, y, { align: "right" });
-    y += 18;
+    doc.text("Firma de la empresa", centerX, y, { align: "center" });
+    y += 4;
     if (signatureDataUrl) {
       try {
-        doc.addImage(signatureDataUrl, "PNG", margin, y - 12, 42, 16, undefined, "FAST");
+        doc.addImage(
+          signatureDataUrl,
+          "PNG",
+          centerX - companySignatureWidth / 2,
+          y,
+          companySignatureWidth,
+          companySignatureHeight,
+          undefined,
+          "FAST"
+        );
       } catch (_error) {
-        // Si la firma guardada no es una imagen válida, se mantiene la firma textual.
+        // Si la firma guardada no es una imagen válida, se deja el hueco.
       }
     }
+    y += companySignatureHeight + 4;
     doc.setFont("helvetica", "bold");
-    doc.text(placeholders.firmante_nombre || placeholders.empresa_razon_social || "", margin, y, {
-      maxWidth: contentWidth / 2 - 4,
+    doc.text(placeholders.firmante_nombre || placeholders.empresa_razon_social || "", centerX, y, {
+      align: "center",
+      maxWidth: contentWidth,
     });
     y += 5;
     doc.setFont("helvetica", "normal");
-    doc.text(placeholders.firmante_cargo || "", margin, y, { maxWidth: contentWidth / 2 - 4 });
+    doc.text(placeholders.firmante_cargo || "", centerX, y, { align: "center", maxWidth: contentWidth });
+    y += 6;
 
+    // --- Opciones de respuesta (indentadas ~3 cm, debajo de la firma de empresa) ---
     if (template.incluir_opciones_respuesta && template.opciones_respuesta_texto) {
-      y += 12;
-      addWrappedText(template.opciones_respuesta_texto, { fontSize: 10, lineHeight: 5, after: 2 });
+      y += 6;
+      addWrappedText(template.opciones_respuesta_texto, { fontSize: 10, lineHeight: 5, indent: 30, after: 2 });
+    }
+
+    // --- Firma del personal (a la izquierda, debajo de las opciones) ---
+    y += 8;
+    ensureSpace(24);
+    const workerReceipt = applyHistorialReportTemplateText(
+      template.texto_recibido || "RECIBIDO\n\nFdo.: {{personal_nombre}}\n{{personal_dni}}",
+      placeholders
+    );
+    const workerReceiptLines = doc.splitTextToSize(workerReceipt, contentWidth / 2 - 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(workerReceiptLines, margin, y);
+    y += workerReceiptLines.length * 5;
+
+    // --- Pie de observaciones de la plantilla (justo debajo del DNI, a la izquierda) ---
+    if (template.pie_observaciones) {
+      y += 2;
+      addWrappedText(template.pie_observaciones, { fontSize: 8, lineHeight: 4, after: 2 });
     }
 
     const footerParts = [
@@ -18303,11 +18459,25 @@ async function exportHistorialLaboralReportPdf() {
       .filter(Boolean)
       .join(" - ");
     doc.save(`${filename || "informe laboral"}.pdf`);
+
+    // Copia secuencial al portapapeles en orden inverso (texto, nombre, correo)
+    // para que el correo quede como portapapeles actual (pegado directo) y el
+    // resto quede en el historial (Win+V) al enviar el PDF desde Adobe Acrobat.
+    const email = historialReportDraft.personal?.email || "";
+    const nombreCompleto = placeholders.personal_nombre || "";
+    const emailText = historialReportEmailText?.value || buildHistorialReportEmailText();
+    const copiedCount = await copyHistorialReportClipboardSequence([emailText, nombreCompleto, email]);
+
     const missingConfig = !placeholders.firmante_nombre || !(historialReportDraft.company?.logo_data_url || historialReportDraft.company?.logo_url);
+    const clipboardNote = copiedCount
+      ? !email
+        ? " (copiados nombre y texto al portapapeles; esta persona no tiene correo)"
+        : " (correo, nombre y texto copiados al portapapeles)"
+      : " (no se pudo copiar al portapapeles)";
     setStatus(
-      missingConfig
+      (missingConfig
         ? "Informe generado. Revisa la configuracion documental de empresa: falta firmante o logo."
-        : "Informe laboral generado.",
+        : "Informe laboral generado.") + clipboardNote,
       missingConfig ? "warning" : "success"
     );
   } catch (error) {
@@ -18867,6 +19037,93 @@ function syncHistorialSortButtons() {
   syncSortButtonsBySelector("[data-historial-sort-field]", "historialSortField", currentHistorialSort);
 }
 
+// Trae las actividades de la persona del periodo cuyo intervalo de fechas se
+// solapa con el alta/baja del historial (la baja o el fin abierto se tratan
+// como intervalos abiertos). Reutiliza la vista y columnas del informe.
+async function fetchHistorialRowActivities(supabase, historialRow) {
+  if (!historialRow?.personal_id) return [];
+  const overlapStart = historialRow.fecha_alta || null;
+  const overlapEnd = historialRow.fecha_baja || null;
+  let query = supabase
+    .from("actividades_detalle")
+    .select(HISTORIAL_REPORT_ACTIVITY_SELECT)
+    .eq("personal_id", historialRow.personal_id)
+    .order("fecha_inicio", { ascending: true })
+    .order("hora_inicio", { ascending: true });
+  if (overlapStart) {
+    query = query.or(`fecha_fin.is.null,fecha_fin.gte.${overlapStart}`);
+  }
+  if (overlapEnd) {
+    query = query.lte("fecha_inicio", overlapEnd);
+  }
+  const { data, error } = await query.limit(500);
+  if (error) throw error;
+  return data || [];
+}
+
+// Carga perezosa (con caché) de las actividades solapadas de un periodo al
+// desplegar su fila; re-renderiza cuando termina si sigue desplegado.
+async function ensureHistorialActivitiesLoaded(historialId) {
+  const key = String(historialId);
+  const existing = historialActivitiesCache.get(key);
+  if (existing && (existing.status === "loading" || existing.status === "loaded")) {
+    return;
+  }
+  const row = historialRows.find((item) => String(item.id) === key);
+  if (!row) return;
+  historialActivitiesCache.set(key, { status: "loading", rows: [] });
+  renderHistorialTable(historialRows);
+  try {
+    const supabase = await getSupabaseClient();
+    const activities = await fetchHistorialRowActivities(supabase, row);
+    historialActivitiesCache.set(key, { status: "loaded", rows: activities });
+  } catch (error) {
+    historialActivitiesCache.set(key, { status: "error", rows: [] });
+  }
+  if (expandedHistorialIds.has(key)) {
+    renderHistorialTable(historialRows);
+  }
+}
+
+function renderHistorialActivitiesPanel(historialId) {
+  const entry = historialActivitiesCache.get(String(historialId));
+  if (!entry || entry.status === "loading") {
+    return '<div class="historial-activities-panel"><p class="muted-text">Cargando actividades…</p></div>';
+  }
+  if (entry.status === "error") {
+    return '<div class="historial-activities-panel"><p class="empty-state">No se pudieron cargar las actividades.</p></div>';
+  }
+  const rows = entry.rows || [];
+  if (!rows.length) {
+    return '<div class="historial-activities-panel"><p class="empty-state">No hay actividades solapadas con este periodo.</p></div>';
+  }
+  const body = rows
+    .map((act) => {
+      const fechas = `${formatDisplayDate(act.fecha_inicio)} – ${
+        act.fecha_fin ? formatDisplayDate(act.fecha_fin) : "…"
+      }`;
+      const horario = `${formatHourValue(act.hora_inicio).slice(0, 5)} - ${formatHourValue(
+        act.hora_fin
+      ).slice(0, 5)}`;
+      const dias = normalizeHistorialReportDays(act.dias_semana);
+      return `<tr>
+          <td>${escapeHtml(act.instalacion || "")}</td>
+          <td>${escapeHtml(act.puesto || "")}</td>
+          <td>${escapeHtml(fechas)}</td>
+          <td>${escapeHtml(horario)}${dias ? ` <span class="muted-text">(${escapeHtml(dias)})</span>` : ""}</td>
+        </tr>`;
+    })
+    .join("");
+  return `<div class="historial-activities-panel">
+      <table class="historial-activities-table">
+        <thead>
+          <tr><th>Instalación</th><th>Puesto</th><th>Fechas</th><th>Horario</th></tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+}
+
 function renderHistorialTable(rows) {
   if (!historialTableBody) {
     return;
@@ -18878,12 +19135,13 @@ function renderHistorialTable(rows) {
 
   if (!sortedRows.length) {
     historialTableBody.innerHTML =
-      `<tr><td colspan="${13 + extraColumnCount}" class="empty-state">No hay periodos que coincidan con los filtros.</td></tr>`;
+      `<tr><td colspan="${14 + extraColumnCount}" class="empty-state">No hay periodos que coincidan con los filtros.</td></tr>`;
     syncHistorialSortButtons();
     syncHistorialBulkSelectionUi();
     return;
   }
 
+  const totalColumnCount = 14 + extraColumnCount;
   historialTableBody.innerHTML = sortedRows
     .map((row) => {
       const cells = [
@@ -18909,8 +19167,19 @@ function renderHistorialTable(rows) {
       const actionCell = `<td class="records-row-actions"><button type="button" class="compact-button" data-historial-edit="${escapeHtml(
         row.id
       )}" title="Editar periodo" aria-label="Editar periodo">&#9998;</button></td>`;
+      const isExpanded = expandedHistorialIds.has(String(row.id));
+      const toggleCell = `<td class="records-row-actions historial-toggle-cell"><button type="button" class="secondary-button historial-toggle-button" data-historial-toggle="${escapeHtml(
+        row.id
+      )}" aria-expanded="${isExpanded}" title="${
+        isExpanded ? "Plegar actividades" : "Desplegar actividades"
+      }">${isExpanded ? "&#9652;" : "&#9662;"}</button></td>`;
       const selectedClass = selectedHistorialBulkIds.has(String(row.id)) ? "record-row-bulk-selected" : "";
-      return `<tr data-historial-id="${escapeHtml(row.id)}" class="${selectedClass}">${selectionCell}${dataCells}${actionCell}</tr>`;
+      const detailRow = isExpanded
+        ? `<tr class="historial-activities-row"><td colspan="${totalColumnCount}">${renderHistorialActivitiesPanel(
+            row.id
+          )}</td></tr>`
+        : "";
+      return `<tr data-historial-id="${escapeHtml(row.id)}" class="${selectedClass}">${toggleCell}${selectionCell}${dataCells}${actionCell}</tr>${detailRow}`;
     })
     .join("");
   syncHistorialSortButtons();
@@ -18921,9 +19190,13 @@ async function loadHistorial() {
   if (historialSummary) {
     historialSummary.textContent = "Cargando historial laboral...";
   }
+  // Cada recarga cambia el conjunto de periodos: descartamos despliegues y
+  // caché de actividades para no arrastrar filas que ya no existen.
+  expandedHistorialIds.clear();
+  historialActivitiesCache.clear();
   if (historialTableBody) {
     historialTableBody.innerHTML =
-      '<tr><td colspan="13" class="empty-state">Cargando historial laboral...</td></tr>';
+      '<tr><td colspan="14" class="empty-state">Cargando historial laboral...</td></tr>';
   }
 
   try {
@@ -18943,8 +19216,14 @@ async function loadHistorial() {
     if (filters.fechaAltaDesde) {
       query = query.gte("fecha_alta", filters.fechaAltaDesde);
     }
+    if (filters.fechaAltaHasta) {
+      query = query.lte("fecha_alta", filters.fechaAltaHasta);
+    }
     if (filters.fechaBajaHasta) {
       query = query.lte("fecha_baja", filters.fechaBajaHasta);
+    }
+    if (filters.fechaBajaDesde) {
+      query = query.gte("fecha_baja", filters.fechaBajaDesde);
     }
     if (filters.tipoContratacionId) {
       query = query.eq("tipo_contratacion_id", filters.tipoContratacionId);
@@ -18995,7 +19274,7 @@ async function loadHistorial() {
     }
     if (historialTableBody) {
       historialTableBody.innerHTML =
-        '<tr><td colspan="13" class="empty-state">Error cargando el historial laboral.</td></tr>';
+        '<tr><td colspan="14" class="empty-state">Error cargando el historial laboral.</td></tr>';
     }
     setStatus(`No se pudo cargar el historial laboral: ${error.message}`, "error");
   }
@@ -22262,8 +22541,17 @@ async function init() {
     void loadHistorial();
   });
   historialFiltersForm?.addEventListener("change", (event) => {
+    syncFilterResetButtons(historialFiltersForm);
     // El combo de personal gestiona su propia recarga al elegir/limpiar.
     if (event.target?.id === "historial-filter-personal-input") return;
+    void loadHistorial();
+  });
+  historialFiltersForm?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-reset-filter]");
+    if (!button || !resetRecordsNamedFilterControl(historialFiltersForm, button.dataset.resetFilter)) {
+      return;
+    }
+    syncFilterResetButtons(historialFiltersForm);
     void loadHistorial();
   });
   setupPersonalPicker("historial-filter", {
@@ -22277,8 +22565,10 @@ async function init() {
   historialClearFiltersButton?.addEventListener("click", () => {
     historialFiltersForm?.reset();
     clearPersonalPicker("historial-filter");
+    syncFilterResetButtons(historialFiltersForm);
     void loadHistorial();
   });
+  syncFilterResetButtons(historialFiltersForm);
   historialRefreshButton?.addEventListener("click", () => {
     void loadHistorial();
   });
@@ -22310,7 +22600,11 @@ async function init() {
     void refreshHistorialReportDraftActivities();
   });
   historialReportGenerateTemplateSelect?.addEventListener("change", () => {
+    syncHistorialReportEmailText();
     validateHistorialReportTemplateType({ notify: true });
+  });
+  historialReportEmailText?.addEventListener("input", () => {
+    historialReportEmailTextDirty = true;
   });
   historialReportActivitiesTableBody?.addEventListener("change", (event) => {
     const input = event.target;
@@ -22637,6 +22931,18 @@ async function init() {
     renderHistorialTable(historialRows);
   });
   historialTableBody?.addEventListener("click", (event) => {
+    const toggleButton = event.target.closest("[data-historial-toggle]");
+    if (toggleButton) {
+      const id = String(toggleButton.dataset.historialToggle || "");
+      if (expandedHistorialIds.has(id)) {
+        expandedHistorialIds.delete(id);
+      } else {
+        expandedHistorialIds.add(id);
+        void ensureHistorialActivitiesLoaded(id);
+      }
+      renderHistorialTable(historialRows);
+      return;
+    }
     const selectionCheckbox = event.target.closest("[data-historial-bulk-select]");
     if (selectionCheckbox) {
       const id = String(selectionCheckbox.dataset.historialBulkSelect || "");

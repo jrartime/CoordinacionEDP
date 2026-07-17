@@ -2051,6 +2051,87 @@ button.tag-chip.warm-button:hover {
   grid-template-columns: 120px 120px 250px 150px 120px 110px minmax(120px, 1fr) auto;
 }
 
+/* Historial laboral: fechas algo más anchas (alta desde/alta hasta y baja
+   hasta/baja desde apiladas), estados estrechos como "Enviado" y personal ancho. */
+.private-tab-panel #historial-filters-form.records-filters-compact {
+  grid-template-columns: 145px 145px 150px 90px 90px 90px minmax(190px, 1fr) auto;
+}
+
+/* Cada columna de fecha del historial apila dos campos (desde/hasta). */
+.historial-date-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.records-filters-compact .historial-date-stack .filter-subfield {
+  gap: 1px;
+}
+
+/* Columna y botón para desplegar las actividades solapadas de un periodo. */
+.historial-toggle-cell {
+  width: 34px;
+  text-align: center;
+}
+
+.historial-toggle-button {
+  width: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.historial-activities-row > td {
+  padding: 10px 16px;
+  background: #f8fafc;
+}
+
+.historial-activities-panel {
+  max-width: 900px;
+}
+
+.historial-activities-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.historial-activities-table th,
+.historial-activities-table td {
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.historial-activities-table th {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+
+.historial-activities-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Texto del correo del informe (editable, se copia al portapapeles al descargar). */
+.historial-report-email-text {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.4;
+}
+
+.historial-report-clipboard-hint {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+}
+
 /* El toggle del multiselect de contratos es un <button>, así que no lo alcanza
    la regla compacta de input/select/textarea; lo igualamos a mano. */
 .records-filters-compact .multi-check-toggle {
@@ -2803,7 +2884,8 @@ th {
 #programming-filters-form .filter-control-row:not(:has(> select[multiple])),
 #control-filters-form .filter-control-row:not(:has(> select[multiple])),
 #activities-filters-form .filter-control-row:not(:has(> select[multiple])),
-#records-filters-form .filter-control-row:not(:has(> select[multiple])) {
+#records-filters-form .filter-control-row:not(:has(> select[multiple])),
+#historial-filters-form .filter-control-row:not(:has(> select[multiple])) {
   position: relative;
   display: block;
 }
@@ -2815,7 +2897,9 @@ th {
 #activities-filters-form .filter-control-row:not(:has(> select[multiple])) > input,
 #activities-filters-form .filter-control-row:not(:has(> select[multiple])) > select,
 #records-filters-form .filter-control-row:not(:has(> select[multiple])) > input,
-#records-filters-form .filter-control-row:not(:has(> select[multiple])) > select {
+#records-filters-form .filter-control-row:not(:has(> select[multiple])) > select,
+#historial-filters-form .filter-control-row:not(:has(> select[multiple])) > input,
+#historial-filters-form .filter-control-row:not(:has(> select[multiple])) > select {
   width: 100%;
 }
 
@@ -2827,7 +2911,9 @@ th {
 #activities-filters-form .filter-control-row > select:not([multiple]),
 #activities-filters-form .filter-control-row > input[type="date"],
 #records-filters-form .filter-control-row > select:not([multiple]),
-#records-filters-form .filter-control-row > input[type="date"] {
+#records-filters-form .filter-control-row > input[type="date"],
+#historial-filters-form .filter-control-row > select:not([multiple]),
+#historial-filters-form .filter-control-row > input[type="date"] {
   padding-right: 44px;
 }
 #programming-filters-form .filter-control-row > input[type="text"],
@@ -2844,7 +2930,8 @@ th {
 #programming-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button,
 #control-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button,
 #activities-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button,
-#records-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button {
+#records-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button,
+#historial-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -2879,7 +2966,8 @@ th {
 #programming-filters-form .filter-control-row .filter-reset-button:hover,
 #control-filters-form .filter-control-row .filter-reset-button:hover,
 #activities-filters-form .filter-control-row:not(:has(> select[multiple])) .filter-reset-button:hover,
-#records-filters-form .filter-control-row .filter-reset-button:hover {
+#records-filters-form .filter-control-row .filter-reset-button:hover,
+#historial-filters-form .filter-control-row .filter-reset-button:hover {
   background: transparent;
   color: var(--text);
 }
@@ -2888,7 +2976,8 @@ th {
 #programming-filters-form .filter-reset-button.is-empty,
 #control-filters-form .filter-reset-button.is-empty,
 #activities-filters-form .filter-reset-button.is-empty,
-#records-filters-form .filter-reset-button.is-empty {
+#records-filters-form .filter-reset-button.is-empty,
+#historial-filters-form .filter-reset-button.is-empty {
   visibility: hidden;
 }
 
