@@ -18135,6 +18135,15 @@ function syncHistorialReportEmailText({ force = false } = {}) {
 
 async function writeClipboardText(text) {
   const value = String(text ?? "");
+  // Ambas vías exigen que el documento tenga el foco: si lo ha perdido (burbuja
+  // de descargas, otra ventana...) se intenta recuperar antes de escribir.
+  if (!document.hasFocus()) {
+    try {
+      window.focus();
+    } catch (_error) {
+      // Si el navegador no permite recuperarlo, se intenta copiar igualmente.
+    }
+  }
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(value);
@@ -18151,7 +18160,9 @@ async function writeClipboardText(text) {
     document.body.appendChild(textarea);
     textarea.focus();
     textarea.select();
-    const ok = document.execCommand("copy");
+    // execCommand devuelve true aunque no copie nada si el documento no tiene el
+    // foco; sin él no se da la copia por buena para no informar en falso.
+    const ok = document.execCommand("copy") && document.hasFocus();
     document.body.removeChild(textarea);
     return ok;
   } catch (_error) {
@@ -18313,7 +18324,7 @@ async function exportHistorialLaboralReportPdf() {
     const margin = 18;
     const bottomMargin = 18;
     const contentWidth = pageWidth - margin * 2;
-    let y = 16;
+    let y = 22;
 
     const ensureSpace = (height = 8) => {
       if (y + height <= pageHeight - bottomMargin) return;
@@ -18343,19 +18354,32 @@ async function exportHistorialLaboralReportPdf() {
       historialReportDraft.company?.logo_data_url ||
       (await loadImageAsDataUrl(historialReportDraft.company?.logo_url));
     const signatureDataUrl = historialReportDraft.company?.firma_data_url || null;
+    // --- Cabecera: logo centrado y, debajo, la fecha alineada a la derecha ---
+    const headerLogoWidth = 34;
+    const headerLogoHeight = 18;
     if (logoDataUrl) {
-      doc.addImage(logoDataUrl, "PNG", margin, y, 34, 18, undefined, "FAST");
+      doc.addImage(
+        logoDataUrl,
+        "PNG",
+        (pageWidth - headerLogoWidth) / 2,
+        y,
+        headerLogoWidth,
+        headerLogoHeight,
+        undefined,
+        "FAST"
+      );
+      y += headerLogoHeight + 6;
     }
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text(`En ${signCity} a ${formatHistorialReportLongDate(documentDate)}`, pageWidth - margin, y + 8, {
+    doc.text(`En ${signCity} a ${formatHistorialReportLongDate(documentDate)}`, pageWidth - margin, y, {
       align: "right",
     });
-    y += 28;
+    y += 12;
 
     addWrappedText(template.titulo || template.nombre || "", { bold: true, fontSize: 13, lineHeight: 6, after: 4 });
     ["saludo", "texto_intro", "texto_movimiento", "texto_condiciones", "texto_legal"].forEach((field) => {
-      addWrappedText(template[field], { after: field === "texto_recibido" ? 6 : 3 });
+      addWrappedText(template[field], { after: 1.5 });
       if (field === "texto_movimiento" && template.incluir_tabla_actividades) {
         drawHistorialReportActivitiesTable(doc, {
           rows: activities,
@@ -18433,17 +18457,26 @@ async function exportHistorialLaboralReportPdf() {
       addWrappedText(template.pie_observaciones, { fontSize: 8, lineHeight: 4, after: 2 });
     }
 
+    // Se descartan los repetidos: email_pie y web_pie pueden traer el mismo valor.
     const footerParts = [
-      historialReportDraft.company?.direccion_pie,
-      historialReportDraft.company?.cif,
-      historialReportDraft.company?.telefono_pie ? `Tel. ${historialReportDraft.company.telefono_pie}` : "",
-      historialReportDraft.company?.email_pie,
-      historialReportDraft.company?.web_pie,
-    ].filter(Boolean);
+      ...new Set(
+        [
+          historialReportDraft.company?.direccion_pie,
+          historialReportDraft.company?.cif,
+          historialReportDraft.company?.telefono_pie ? `Tel. ${historialReportDraft.company.telefono_pie}` : "",
+          historialReportDraft.company?.email_pie,
+          historialReportDraft.company?.web_pie,
+        ]
+          .map((part) => String(part || "").trim())
+          .filter(Boolean)
+      ),
+    ];
     if (footerParts.length) {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
-      doc.text(doc.splitTextToSize(footerParts.join(" · "), contentWidth), margin, pageHeight - 10);
+      doc.text(doc.splitTextToSize(footerParts.join(" · "), contentWidth), pageWidth / 2, pageHeight - 10, {
+        align: "center",
+      });
     }
 
     const movementName =
@@ -18458,22 +18491,31 @@ async function exportHistorialLaboralReportPdf() {
     ]
       .filter(Boolean)
       .join(" - ");
-    doc.save(`${filename || "informe laboral"}.pdf`);
-
     // Copia secuencial al portapapeles en orden inverso (texto, nombre, correo)
     // para que el correo quede como portapapeles actual (pegado directo) y el
     // resto quede en el historial (Win+V) al enviar el PDF desde Adobe Acrobat.
+    //
+    // Va ANTES de doc.save(): la descarga abre la burbuja de descargas del
+    // navegador, que quita el foco al documento, y la API de portapapeles
+    // rechaza cualquier escritura mientras el documento no lo tenga.
     const email = historialReportDraft.personal?.email || "";
     const nombreCompleto = placeholders.personal_nombre || "";
     const emailText = historialReportEmailText?.value || buildHistorialReportEmailText();
-    const copiedCount = await copyHistorialReportClipboardSequence([emailText, nombreCompleto, email]);
+    const clipboardParts = [emailText, nombreCompleto, email];
+    const expectedCount = clipboardParts.filter((part) => String(part ?? "").trim()).length;
+    const copiedCount = await copyHistorialReportClipboardSequence(clipboardParts);
+
+    doc.save(`${filename || "informe laboral"}.pdf`);
 
     const missingConfig = !placeholders.firmante_nombre || !(historialReportDraft.company?.logo_data_url || historialReportDraft.company?.logo_url);
-    const clipboardNote = copiedCount
-      ? !email
-        ? " (copiados nombre y texto al portapapeles; esta persona no tiene correo)"
-        : " (correo, nombre y texto copiados al portapapeles)"
-      : " (no se pudo copiar al portapapeles)";
+    let clipboardNote = " (no se pudo copiar al portapapeles)";
+    if (copiedCount && copiedCount < expectedCount) {
+      clipboardNote = ` (solo se copiaron ${copiedCount} de ${expectedCount} datos al portapapeles)`;
+    } else if (copiedCount) {
+      clipboardNote = email
+        ? " (correo, nombre y texto copiados al portapapeles)"
+        : " (copiados nombre y texto al portapapeles; esta persona no tiene correo)";
+    }
     setStatus(
       (missingConfig
         ? "Informe generado. Revisa la configuracion documental de empresa: falta firmante o logo."
@@ -18490,7 +18532,7 @@ async function exportHistorialLaboralReportPdf() {
 function drawHistorialReportActivitiesTable(doc, options) {
   const { rows, title, margin, pageWidth, pageHeight, bottomMargin, getY, setY } = options;
   if (!rows.length) return;
-  let y = getY() + 2;
+  let y = getY() + 1;
   const columns = [
     { label: "Horario", key: "range", width: 23 },
     { label: "Puesto", key: "puesto", width: 32 },
