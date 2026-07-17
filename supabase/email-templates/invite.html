@@ -1,0 +1,27 @@
+<!--
+  Plantilla de Supabase Auth > Email Templates > "Invite user".
+  Asunto sugerido: Invitación al panel de Coordinación
+
+  Variables disponibles: {{ .ConfirmationURL }}, {{ .SiteURL }}, {{ .Email }},
+  {{ .Token }}, {{ .TokenHash }}, {{ .RedirectTo }}
+-->
+<h2>Invitación al panel de Coordinación</h2>
+
+<p>Hola:</p>
+
+<p>
+  Te hemos dado acceso al panel de Coordinación de Educación Deportiva del
+  Principado.
+</p>
+
+<p>Para entrar, crea tu contraseña desde este enlace:</p>
+
+<p>
+  <a href="{{ .ConfirmationURL }}">Crear mi contraseña y acceder</a>
+</p>
+
+<p>El enlace es de un solo uso y caduca pasado un tiempo por seguridad.</p>
+
+<p>Si no esperabas esta invitación, puedes ignorar este correo.</p>
+
+<p>Educación Deportiva del Principado S.L.</p>

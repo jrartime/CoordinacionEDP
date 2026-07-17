@@ -1,0 +1,28 @@
+<!--
+  Plantilla de Supabase Auth > Email Templates > "Reset Password".
+  Asunto sugerido: Restablecer tu contraseña de acceso
+
+  Variables disponibles: {{ .ConfirmationURL }}, {{ .SiteURL }}, {{ .Email }},
+  {{ .Token }}, {{ .TokenHash }}, {{ .RedirectTo }}
+-->
+<h2>Restablecer tu contraseña</h2>
+
+<p>Hola:</p>
+
+<p>
+  Has solicitado restablecer la contraseña de acceso al panel de Coordinación de
+  Educación Deportiva del Principado.
+</p>
+
+<p>
+  <a href="{{ .ConfirmationURL }}">Crear una nueva contraseña</a>
+</p>
+
+<p>El enlace es de un solo uso y caduca pasado un tiempo por seguridad.</p>
+
+<p>
+  Si no has pedido este cambio, puedes ignorar este correo: tu contraseña actual
+  seguirá siendo válida.
+</p>
+
+<p>Educación Deportiva del Principado S.L.</p>
