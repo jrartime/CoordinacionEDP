@@ -97,7 +97,7 @@ TABLES = {
             "puesto": "puesto",
             "detalle_puesto": "detalle_puesto",
             "siglas": "siglas",
-            "convenio_grupo_nivel": "convenio_grupo_nivel",
+            "convenio_grupo_nivel": "convenio_id",
             "categoria_id": "categoria_id",
             "DEA": "dea",
             "Rec_medico": "rec_medico",

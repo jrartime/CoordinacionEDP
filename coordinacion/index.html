@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260717-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260717-4" />
   </head>
   <body>
     <script>
@@ -3799,6 +3799,99 @@
                   </button>
                 </div>
               </form>
+
+              <section id="personal-complementos-section" class="personal-complementos-section hidden">
+                <div class="section-heading-row compact-heading-row">
+                  <div>
+                    <p class="eyebrow">Nómina</p>
+                    <h3>Complementos y pluses asignados</h3>
+                  </div>
+                </div>
+
+                <div id="personal-complementos-list" class="personal-complementos-list">
+                  <p class="empty-state">Sin complementos asignados.</p>
+                </div>
+
+                <form id="personal-complemento-form" class="form-grid">
+                  <input type="hidden" id="personal-complemento-id" />
+                  <label>
+                    Complemento
+                    <select id="personal-complemento-select" required>
+                      <option value="">-- Selecciona --</option>
+                    </select>
+                  </label>
+                  <p id="personal-complemento-catalogo-hint" class="muted-text"></p>
+                  <div class="detail-field-row cols-2">
+                    <label>
+                      Vigente desde
+                      <input id="personal-complemento-fecha-desde" type="date" required />
+                    </label>
+                    <label>
+                      Vigente hasta
+                      <input id="personal-complemento-fecha-hasta" type="date" />
+                    </label>
+                  </div>
+                  <label id="personal-complemento-tipo-row" class="hidden">
+                    Tipo (este complemento puede ser fijo o porcentual según la persona)
+                    <select id="personal-complemento-tipo">
+                      <option value="">-- Selecciona --</option>
+                      <option value="fijo">Fijo</option>
+                      <option value="porcentaje">Porcentaje</option>
+                    </select>
+                  </label>
+                  <label id="personal-complemento-unidad-row" class="hidden">
+                    Unidad
+                    <select id="personal-complemento-unidad">
+                      <option value="">-- Selecciona --</option>
+                      <option value="mensual">Mensual</option>
+                      <option value="diario">Diario (por día trabajado)</option>
+                      <option value="por_hora">Por hora</option>
+                    </select>
+                  </label>
+                  <label id="personal-complemento-medida-horas-row" class="hidden">
+                    Medida de horas (p.ej. horas_nocturnas)
+                    <input id="personal-complemento-medida-horas" type="text" />
+                  </label>
+                  <div id="personal-complemento-bases-row" class="hidden">
+                    <span class="checkbox-group-label">Bases sobre las que se aplica el %</span>
+                    <div class="checkbox-group-options">
+                      <label class="checkbox-item">
+                        <input type="checkbox" value="salario_base" data-personal-complemento-base />
+                        <span>Salario base</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input type="checkbox" value="pluses" data-personal-complemento-base />
+                        <span>Pluses</span>
+                      </label>
+                      <label class="checkbox-item">
+                        <input type="checkbox" value="complementos" data-personal-complemento-base />
+                        <span>Otros complementos</span>
+                      </label>
+                    </div>
+                  </div>
+                  <label id="personal-complemento-importe-row" class="hidden">
+                    Importe (€)
+                    <input id="personal-complemento-importe" type="number" step="0.01" />
+                  </label>
+                  <label id="personal-complemento-porcentaje-row" class="hidden">
+                    Porcentaje (%)
+                    <input id="personal-complemento-porcentaje" type="number" step="0.01" />
+                  </label>
+                  <label>
+                    Notas
+                    <textarea id="personal-complemento-notas" rows="2"></textarea>
+                  </label>
+                  <div class="detail-actions full-width">
+                    <button id="personal-complemento-clear-button" type="button" class="secondary-button">
+                      Nuevo
+                    </button>
+                    <button id="personal-complemento-delete-button" type="button" class="danger-button hidden">
+                      Borrar
+                    </button>
+                    <button type="submit">Guardar</button>
+                  </div>
+                </form>
+              </section>
             </section>
           </div>
         </section>
@@ -3961,6 +4054,9 @@
             </button>
             <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="empresas" aria-pressed="false">
               Empresas
+            </button>
+            <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="complementos" aria-pressed="false">
+              Complementos y pluses
             </button>
             <button class="settings-subtab-button" type="button" data-settings-view="reports" aria-pressed="false">
               Informes
@@ -7271,6 +7367,6 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260710-1" defer></script>
-    <script src="./app.js?v=20260717-6" defer></script>
+    <script src="./app.js?v=20260717-8" defer></script>
   </body>
 </html>

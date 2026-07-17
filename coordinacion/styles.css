@@ -3401,6 +3401,31 @@ th {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.checkbox-group-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.checkbox-group-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.personal-complementos-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+}
+
+.personal-complementos-list {
+  display: grid;
+  gap: 8px;
+}
+
 .detail-actions {
   display: flex;
   gap: 10px;
