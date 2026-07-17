@@ -83,6 +83,10 @@ window.APP_CONFIG = {
 
 El login usa Supabase Auth. No hay contraseñas locales en el código.
 
+Los errores de acceso se muestran **dentro de la tarjeta de login** (`#login-status`) y del formulario de recuperación (`#password-recovery-status`), además del `#status-message` general — este último cuelga del final de la página y pasa desapercibido, por eso un fallo de credenciales parecía no dar mensaje. `translateAuthError()` traduce los errores de Supabase, que llegan en inglés.
+
+Las **plantillas de correo** de Auth (recuperación e invitación) están traducidas en `supabase/email-templates/`. **No se despliegan con `publish.ps1` ni con SQL**: viven en la configuración del proyecto y se pegan a mano en Authentication → Emails; esos ficheros son la copia de referencia. Ver [su README](supabase/email-templates/README.md).
+
 ### Supabase Coordinación
 
 - `registros` está scoped por contrato asignado mediante RLS (`supabase/policies/registros_write.sql`) y funciones SET en `supabase/tables/coordinacion_contrato_id_sets.sql`.
@@ -108,10 +112,10 @@ El login usa Supabase Auth. No hay contraseñas locales en el código.
 #### Informes PDF de Historial laboral
 
 - Plantillas en `historial_laboral_informe_plantillas` (campos de texto: `titulo`, `saludo`, `texto_intro`, `texto_movimiento`, `texto_condiciones`, `texto_legal`, `texto_recibido`, `opciones_respuesta_texto`, `pie_observaciones`). Config documental por empresa (logo, firma, firmante, pies) en `historial_laboral_informes_config.sql`.
-- Orden del PDF (`exportHistorialLaboralReportPdf`): cabecera (logo + "En <ciudad> a <fecha>") → título → bloques de texto (+ tabla de actividades tras `texto_movimiento`) → **firma de la empresa centrada** (etiqueta, imagen de firma, firmante y cargo) → **opciones de respuesta indentadas 3 cm** → **firma del personal** (`texto_recibido`: RECIBIDO / Fdo. / DNI, a la izquierda) → **`pie_observaciones`** justo debajo del DNI (fuente 8) → pie de empresa.
+- Orden del PDF (`exportHistorialLaboralReportPdf`): cabecera (**logo centrado** y debajo "En <ciudad> a <fecha>" alineado a la derecha) → título → bloques de texto (+ tabla de actividades tras `texto_movimiento`) → **firma de la empresa centrada** (etiqueta, imagen de firma, firmante y cargo) → **opciones de respuesta indentadas 3 cm** → **firma del personal** (`texto_recibido`: RECIBIDO / Fdo. / DNI, a la izquierda) → **`pie_observaciones`** justo debajo del DNI (fuente 8) → pie de empresa.
 - `addWrappedText` acepta `indent` (mm) para desplazar un bloque a la derecha reduciendo el ancho de ajuste.
 - **Texto para el correo**: el panel de informe tiene un textarea editable que se autorrellena según `tipo_documento` de la plantilla (`variacion`/`llamamiento`/`subrogacion`/genérico). El saludo se resuelve con `personal.genero` (`H` → "Estimado", `M` → "Estimada", nulo → "Estimado/a"). Si el usuario lo edita a mano, un flag `dirty` evita sobrescribirlo al cambiar de plantilla.
-- Al pulsar **Descargar PDF** se copian al portapapeles **en secuencia** (450 ms entre cada uno, para que el historial del portapapeles de Windows / Win+V registre entradas separadas): `texto` → `nombre completo` → `correo`. El orden es **inverso a propósito**: el correo queda como portapapeles actual para pegarlo directo en Adobe Acrobat. Requiere documento enfocado (Chrome/Edge); hay fallback a `execCommand`.
+- Al pulsar **Descargar PDF** se copian al portapapeles **en secuencia** (450 ms entre cada uno, para que el historial del portapapeles de Windows / Win+V registre entradas separadas): `texto` → `nombre completo` → `correo`. El orden es **inverso a propósito**: el correo queda como portapapeles actual para pegarlo directo en Adobe Acrobat. **La secuencia va ANTES de `doc.save()`**: la descarga abre la burbuja del navegador, que quita el foco al documento, y sin foco la Clipboard API rechaza toda escritura — con la copia después de `save()` solo llegaba el primer valor. No reordenar. `execCommand` (el fallback) devuelve `true` aunque no copie nada sin foco, así que no se da por buena la copia sin `document.hasFocus()`. El **navegador de vista previa integrado bloquea el portapapeles** (permiso denegado + `execCommand` inhabilitado): esto solo se puede verificar en un Chrome/Edge real.
 
 ### Supabase Contabilidad (Cronos)
 
