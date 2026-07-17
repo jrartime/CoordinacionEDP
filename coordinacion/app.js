@@ -614,6 +614,8 @@ const candidatesTable = document.querySelector("#candidates-table");
 const tableBody = document.querySelector("#candidates-table-body");
 const sessionEmail = document.querySelector("#session-email");
 const statusMessage = document.querySelector("#status-message");
+const loginStatus = document.querySelector("#login-status");
+const passwordRecoveryStatus = document.querySelector("#password-recovery-status");
 const sportRoleCheckbox = document.querySelector("#sport-role");
 const sportSpecialtiesGroup = document.querySelector("#sport-specialties-group");
 const publicSportRoleCheckbox = document.querySelector("#public-sport-role");
@@ -1783,6 +1785,33 @@ function setStatus(message, tone = "default") {
   }
 }
 
+// Supabase devuelve los errores de auth en inglés; los habituales se traducen
+// para que el aviso del login sea legible.
+const AUTH_ERROR_MESSAGES = {
+  "invalid login credentials": "el correo o la contraseña no son correctos.",
+  "email not confirmed": "la cuenta todavía no ha confirmado su correo.",
+  "user not found": "no existe ninguna cuenta con ese correo.",
+  "email rate limit exceeded": "demasiados intentos seguidos. Espera un momento e inténtalo de nuevo.",
+};
+
+function translateAuthError(error) {
+  const message = String(error?.message || "").trim();
+  return AUTH_ERROR_MESSAGES[message.toLowerCase()] || message || "error desconocido.";
+}
+
+// El estado general (#status-message) vive al pie de la página, lejos de la
+// tarjeta de acceso: en el login los avisos se muestran también junto al botón
+// para que un fallo de credenciales no pase desapercibido.
+function setLoginStatus(message, tone = "default") {
+  setStatus(message, tone);
+  setPanelStatus(loginStatus, message, tone);
+}
+
+function setPasswordRecoveryStatus(message, tone = "default") {
+  setStatus(message, tone);
+  setPanelStatus(passwordRecoveryStatus, message, tone);
+}
+
 function setPanelStatus(element, message = "", tone = "default") {
   if (!element) {
     return;
@@ -1937,6 +1966,8 @@ function showPasswordRecoveryView() {
   loginForm?.classList.add("hidden");
   inviteSetupForm?.classList.add("hidden");
   passwordRecoveryForm?.classList.remove("hidden");
+  // Un error de acceso previo no debe seguir visible al pedir el enlace.
+  setPanelStatus(loginStatus, "");
   passwordRecoveryEmailInput.value = document.querySelector("#login-email")?.value.trim() || "";
   passwordRecoveryEmailInput.focus();
 }
@@ -1945,6 +1976,7 @@ function showLoginFormView() {
   passwordRecoveryForm?.classList.add("hidden");
   inviteSetupForm?.classList.add("hidden");
   loginForm?.classList.remove("hidden");
+  setPanelStatus(passwordRecoveryStatus, "");
 }
 
 function showInviteSetupView(email = "") {
@@ -9878,13 +9910,13 @@ async function handleLogin(event) {
     const email = document.querySelector("#login-email").value.trim();
     const password = document.querySelector("#login-password").value;
 
-    setStatus("Validando acceso...");
+    setLoginStatus("Validando acceso...");
 
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setStatus(`No se pudo iniciar sesión: ${error.message}`, "error");
+      setLoginStatus(`No se pudo iniciar sesión: ${translateAuthError(error)}`, "error");
       return;
     }
 
@@ -9893,9 +9925,10 @@ async function handleLogin(event) {
     togglePrivateView(true, data.user?.email ?? email);
     await loadPrivateDataAfterAuth();
     loginForm.reset();
+    setLoginStatus("");
     setStatus("Acceso concedido. Panel privado conectado con Supabase.", "success");
   } catch (error) {
-    setStatus(`No se pudo iniciar sesión: ${error.message}`, "error");
+    setLoginStatus(`No se pudo iniciar sesión: ${translateAuthError(error)}`, "error");
   }
 }
 
@@ -9904,12 +9937,12 @@ async function handlePasswordRecovery(event) {
 
   const email = passwordRecoveryEmailInput.value.trim();
   if (!email) {
-    setStatus("Escribe el correo para recuperar la contrasena.", "error");
+    setPasswordRecoveryStatus("Escribe el correo para recuperar la contraseña.", "error");
     return;
   }
 
   try {
-    setStatus("Enviando enlace de recuperacion...");
+    setPasswordRecoveryStatus("Enviando enlace de recuperación...");
     const supabase = await getSupabaseClient();
     const redirectTo = `${window.location.origin}${window.location.pathname}`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -9917,15 +9950,18 @@ async function handlePasswordRecovery(event) {
     });
 
     if (error) {
-      setStatus(`No se pudo enviar el enlace: ${error.message}`, "error");
+      setPasswordRecoveryStatus(`No se pudo enviar el enlace: ${translateAuthError(error)}`, "error");
       return;
     }
 
     passwordRecoveryForm.reset();
+    setPasswordRecoveryStatus("");
     showLoginFormView();
-    setStatus("Enlace de recuperacion enviado. Revisa el correo.", "success");
+    // El aviso de éxito se muestra en la tarjeta de acceso, que es la vista a la
+    // que se vuelve tras enviar el enlace.
+    setLoginStatus("Enlace de recuperación enviado. Revisa el correo.", "success");
   } catch (error) {
-    setStatus(`No se pudo enviar el enlace: ${error.message}`, "error");
+    setPasswordRecoveryStatus(`No se pudo enviar el enlace: ${translateAuthError(error)}`, "error");
   }
 }
 
@@ -11872,13 +11908,28 @@ function renderSettingsDetailFields(row = {}) {
         `;
       }
       if (field.type === "file-data-url") {
-        const hasImage = String(value || "").startsWith("data:image/");
+        // El data URL vive en un input oculto: mostrarlo en un textarea solo
+        // llenaba el formulario de base64 ilegible en vez de la imagen.
+        const current = String(value ?? "");
+        const hasImage = current.startsWith("data:image/");
         return `
           <label>
             ${escapeHtml(field.label)}
             <input type="file" accept="image/*" data-settings-file-target="${escapeHtml(field.key)}" />
-            <textarea name="${escapeHtml(field.key)}" rows="2" placeholder="Imagen guardada en la empresa">${escapeHtml(value ?? "")}</textarea>
-            <span class="muted-text">${hasImage ? "Imagen guardada" : "Sin imagen guardada"}</span>
+            <input type="hidden" name="${escapeHtml(field.key)}" value="${escapeHtml(current)}" />
+            <span class="settings-image-field" data-settings-image-field="${escapeHtml(field.key)}">
+              <img
+                class="settings-image-preview${hasImage ? "" : " hidden"}"
+                ${hasImage ? `src="${escapeHtml(current)}"` : ""}
+                alt="${escapeHtml(field.label)}"
+              />
+              <span class="muted-text settings-image-hint">${hasImage ? "Imagen guardada" : "Sin imagen guardada"}</span>
+              <button
+                type="button"
+                class="secondary-button settings-image-clear${hasImage ? "" : " hidden"}"
+                data-settings-image-clear="${escapeHtml(field.key)}"
+              >Quitar imagen</button>
+            </span>
           </label>
         `;
       }
@@ -11901,6 +11952,37 @@ function readFileAsDataUrl(file) {
   });
 }
 
+// Refleja en la vista previa el data URL que hay en el campo oculto.
+function updateSettingsImagePreview(fieldName, value) {
+  const wrapper = settingsDetailFields?.querySelector(`[data-settings-image-field="${fieldName}"]`);
+  if (!wrapper) return;
+  const hasImage = String(value || "").startsWith("data:image/");
+  const image = wrapper.querySelector(".settings-image-preview");
+  if (image) {
+    if (hasImage) {
+      image.src = value;
+    } else {
+      image.removeAttribute("src");
+    }
+    image.classList.toggle("hidden", !hasImage);
+  }
+  const hint = wrapper.querySelector(".settings-image-hint");
+  if (hint) {
+    hint.textContent = hasImage ? "Imagen guardada" : "Sin imagen guardada";
+  }
+  wrapper.querySelector(".settings-image-clear")?.classList.toggle("hidden", !hasImage);
+}
+
+function clearSettingsImageField(fieldName) {
+  const target = fieldName ? settingsDetailForm?.elements[fieldName] : null;
+  if (!target) return;
+  target.value = "";
+  const fileInput = settingsDetailFields?.querySelector(`[data-settings-file-target="${fieldName}"]`);
+  if (fileInput) fileInput.value = "";
+  updateSettingsImagePreview(fieldName, "");
+  setSettingsStatus("Imagen quitada. Guarda para confirmar el cambio.", "success");
+}
+
 async function handleSettingsFileDataUrlChange(input) {
   const fieldName = input?.dataset?.settingsFileTarget || "";
   const file = input?.files?.[0];
@@ -11913,6 +11995,7 @@ async function handleSettingsFileDataUrlChange(input) {
   }
   try {
     target.value = await readFileAsDataUrl(file);
+    updateSettingsImagePreview(fieldName, target.value);
     setSettingsStatus("Imagen preparada para guardar.", "success");
   } catch (error) {
     setSettingsStatus(`No se pudo leer la imagen: ${error.message}`, "error");
@@ -22087,6 +22170,12 @@ async function init() {
     const input = event.target.closest("[data-settings-file-target]");
     if (input) {
       void handleSettingsFileDataUrlChange(input);
+    }
+  });
+  settingsDetailFields?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-settings-image-clear]");
+    if (button) {
+      clearSettingsImageField(button.dataset.settingsImageClear);
     }
   });
   settingsTableHead?.addEventListener("click", (event) => {

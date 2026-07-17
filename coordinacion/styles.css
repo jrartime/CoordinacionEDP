@@ -3919,3 +3919,33 @@ th {
 #contabilidad-filters-form .contabilidad-filter-anulado {
   max-width: 120px;
 }
+
+/* Vista previa de los campos de imagen (logo y firma) en Configuracion. */
+.settings-image-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.settings-image-preview {
+  max-width: 220px;
+  max-height: 90px;
+  object-fit: contain;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.settings-image-clear {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+
+/* El formulario de recuperacion usa la rejilla de 2 columnas: el aviso ocupa
+   la fila entera para no quedar pegado al campo de correo. */
+#password-recovery-status {
+  grid-column: 1 / -1;
+}
