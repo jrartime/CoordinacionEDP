@@ -94,6 +94,15 @@ El login usa Supabase Auth. No hay contraseñas locales en el código.
 - En frontend, el modo edición tipo Excel de Registros carga opciones de selects relacionales bajo demanda para evitar renderizar miles de `<option>` por celda.
 - Las asignaciones masivas de Registros, Actividades e Historial laboral soportan selección manual por ticks; cuando está activa, `Aplicar` actúa solo sobre los elementos seleccionados.
 
+### Supabase Historial laboral
+
+- **RLS por contrato asignado** (fuente: `supabase/policies/historiales_laborales_scope.sql`). Antes los 4 verbos eran `using(true)`: cualquier coordinador con la pestaña veía y editaba el historial de **todo** el personal. Ahora hay políticas **RESTRICTIVE** (se combinan con AND sobre las permisivas) acotadas por `personal_id`:
+  - **Lectura**: `can_access_coordinacion_personal(personal_id)` — mismo criterio que la pestaña Personal (persona asignada vía `contrato_personal` a un contrato legible).
+  - **Escritura** (insert/update/delete): `can_manage_coordinacion_historial(personal_id)` — exige contrato **gestionable** (`coordinacion_manageable_contrato_ids()`).
+  - Admin sin límite (bypass vía `is_coordinacion_admin`). Mismo patrón que `supabase/policies/personal_instalaciones_scope.sql`.
+- La app lee de la vista `historiales_laborales_detalle`, que es **`security_invoker = true`** — por eso el RLS de la tabla base aplica también a través de la vista. **No quitar esa opción.** Todos los joins de la vista son `LEFT` (incluido `personal_confidencial`), para que un no-admin no pierda filas.
+- El **nº de Seguridad Social** solo lo ve un admin: la vista lo enmascara con `case when is_coordinacion_admin() then pc.ss end`. Ver [personal_confidencial](supabase/tables/personal_confidencial.sql).
+
 ### Supabase Contabilidad (Cronos)
 
 - Tablas `cronos` (apuntes de inscripciones/actividades) y `cronos_banco` (movimientos TPV). `cronos_banco.cod_pedido` enlaza con `cronos.identificador` (normalizando: `cod_pedido = identificador::bigint`, porque los exports nuevos traen el identificador con ceros a la izquierda). Fuente: `supabase/tables/cronos.sql`, `supabase/tables/cronos_banco.sql`.
