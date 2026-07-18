@@ -55,9 +55,6 @@ HEADER_MAP = {
     "Uniforme": "uniforme",
     "Med_Emerg": "med_emerg",
     "ens": "ens",
-    "04_com_antiguedad": "com_antiguedad_04",
-    "18_com_absorbible": "com_absorbible_18",
-    "18_porcent_complemento": "porcent_complemento_18",
     "prorrateo_pagas": "prorrateo_pagas",
     "num_pagas_extra": "num_pagas_extra",
     "tipo_contrato": "tipo_contrato",
@@ -81,7 +78,7 @@ INTEGER_FIELDS = {
     "grupo",
     "nivel",
 }
-NUMERIC_FIELDS = {"com_antiguedad_04", "com_absorbible_18", "porcent_complemento_18", "irpf"}
+NUMERIC_FIELDS = {"irpf"}
 TEXT_FIELDS = {
     "personal",
     "genero",

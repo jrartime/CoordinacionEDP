@@ -368,12 +368,6 @@ const PERSONAL_IMPORT_HEADER_MAP = {
   uniforme: "uniforme",
   med_emerg: "med_emerg",
   ens: "ens",
-  "04_com_antiguedad": "com_antiguedad_04",
-  com_antiguedad_04: "com_antiguedad_04",
-  "18_com_absorbible": "com_absorbible_18",
-  com_absorbible_18: "com_absorbible_18",
-  "18_porcent_complemento": "porcent_complemento_18",
-  porcent_complemento_18: "porcent_complemento_18",
   prorrateo_pagas: "prorrateo_pagas",
   num_pagas_extra: "num_pagas_extra",
   tipo_contrato: "tipo_contrato",
@@ -420,9 +414,6 @@ const PERSONAL_IMPORT_INTEGER_FIELDS = new Set([
   "nivel",
 ]);
 const PERSONAL_IMPORT_NUMERIC_FIELDS = new Set([
-  "com_antiguedad_04",
-  "com_absorbible_18",
-  "porcent_complemento_18",
   "irpf",
 ]);
 const PERSONAL_IMPORT_BOOLEAN_FIELDS = new Set([
@@ -478,9 +469,6 @@ const PERSONAL_FIELDS = [
   { key: "uniforme", label: "Uniforme", type: "boolean" },
   { key: "med_emerg", label: "Med. emerg", type: "boolean" },
   { key: "ens", label: "ENS", type: "boolean" },
-  { key: "com_antiguedad_04", label: "Complemento antiguedad 04", type: "numeric", confidential: true },
-  { key: "com_absorbible_18", label: "Complemento absorbible 18", type: "numeric", confidential: true },
-  { key: "porcent_complemento_18", label: "Porcentaje complemento 18", type: "numeric", confidential: true },
   { key: "prorrateo_pagas", label: "Prorrateo pagas", type: "boolean", confidential: true },
   { key: "num_pagas_extra", label: "Num. pagas extra", type: "integer", confidential: true },
   { key: "persona", label: "Persona", type: "boolean" },
