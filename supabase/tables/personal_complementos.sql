@@ -24,6 +24,7 @@ create table if not exists public.personal_complementos (
   bases_aplicables text[],
   importe numeric(12, 2),
   porcentaje numeric(6, 4),
+  prorratea_en_extra boolean not null default false,
   notas text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -126,6 +127,14 @@ before insert or update on public.personal_complementos
 for each row
 execute function public.set_personal_complemento_tipo();
 
+-- Tick de prorrateo en pagas extra, a nivel de asignacion (no de catalogo): un
+-- mismo complemento puede prorratearse para una persona y no para otra.
+alter table public.personal_complementos
+  add column if not exists prorratea_en_extra boolean not null default false;
+
+comment on column public.personal_complementos.prorratea_en_extra is
+  'Si este complemento asignado se prorratea en las pagas extra. Cuando la persona tiene las pagas prorrateadas, el motor añade una linea de prorrateo: importe × nº_extras_convenio / 12.';
+
 -- Complementos vigentes de una persona en una fecha dada, con los datos del
 -- catalogo (nombre, codigo, prorrateo, orden) para no tener que resolverlos
 -- aparte en el motor de calculo (Fase 5).
@@ -164,7 +173,7 @@ as $$
     pc.bases_aplicables,
     pc.importe,
     pc.porcentaje,
-    c.prorratea_en_extra,
+    pc.prorratea_en_extra,
     c.orden_calculo,
     pc.fecha_desde,
     pc.fecha_hasta

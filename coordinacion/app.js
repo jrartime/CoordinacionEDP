@@ -1073,6 +1073,7 @@ const personalComplementoImporteRow = document.querySelector("#personal-compleme
 const personalComplementoImporteInput = document.querySelector("#personal-complemento-importe");
 const personalComplementoPorcentajeRow = document.querySelector("#personal-complemento-porcentaje-row");
 const personalComplementoPorcentajeInput = document.querySelector("#personal-complemento-porcentaje");
+const personalComplementoProrrateaInput = document.querySelector("#personal-complemento-prorratea");
 const personalComplementoNotasInput = document.querySelector("#personal-complemento-notas");
 const personalComplementoClearButton = document.querySelector("#personal-complemento-clear-button");
 const personalComplementoDeleteButton = document.querySelector("#personal-complemento-delete-button");
@@ -10460,11 +10461,12 @@ function renderPersonalComplementosList() {
       const vigencia = `${formatNullableDate(row.fecha_desde) || row.fecha_desde} – ${
         row.fecha_hasta ? formatNullableDate(row.fecha_hasta) || row.fecha_hasta : "indefinido"
       }`;
+      const prorrateaTag = row.prorratea_en_extra ? " · prorratea en extra" : "";
       return `
         <div class="contract-service-row">
           <div>
             <strong>${escapeHtml(catalogo?.nombre || `Complemento ${row.complemento_id}`)}</strong>
-            <span>${escapeHtml(valor)} · ${escapeHtml(vigencia)}</span>
+            <span>${escapeHtml(valor)} · ${escapeHtml(vigencia)}${escapeHtml(prorrateaTag)}</span>
           </div>
           <div class="action-buttons">
             <button type="button" class="secondary-button" data-personal-complemento-edit="${escapeHtml(row.id)}">
@@ -10495,7 +10497,7 @@ async function loadPersonalComplementos(personalId) {
   const { data, error } = await supabase
     .from("personal_complementos")
     .select(
-      "id, personal_id, complemento_id, fecha_desde, fecha_hasta, tipo, unidad, medida_horas, bases_aplicables, importe, porcentaje, notas"
+      "id, personal_id, complemento_id, fecha_desde, fecha_hasta, tipo, unidad, medida_horas, bases_aplicables, importe, porcentaje, prorratea_en_extra, notas"
     )
     .eq("personal_id", personalId)
     .order("fecha_desde", { ascending: false });
@@ -10544,6 +10546,7 @@ function openPersonalComplementoForEdit(complementoRowId) {
     personalComplementoPorcentajeInput.value =
       row.porcentaje != null ? Number(row.porcentaje) * 100 : "";
   }
+  if (personalComplementoProrrateaInput) personalComplementoProrrateaInput.checked = Boolean(row.prorratea_en_extra);
   if (personalComplementoNotasInput) personalComplementoNotasInput.value = row.notas || "";
   const bases = Array.isArray(row.bases_aplicables) ? row.bases_aplicables : [];
   personalComplementoForm
@@ -10585,6 +10588,7 @@ async function savePersonalComplemento(event) {
     complemento_id: Number(complementoId),
     fecha_desde: fechaDesde,
     fecha_hasta: personalComplementoFechaHastaInput?.value || null,
+    prorratea_en_extra: Boolean(personalComplementoProrrateaInput?.checked),
     notas: personalComplementoNotasInput?.value.trim() || null,
   };
 

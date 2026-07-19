@@ -227,6 +227,36 @@ begin
       end, 2)
   from public.get_personal_complementos_vigentes(h.personal_id, v_fecha_ref) c;
 
+  -- 10. Prorrateo en pagas extra de los complementos con el tick prorratea_en_extra.
+  --     Solo si la persona tiene las pagas prorrateadas y el convenio tiene extras.
+  --     Se agrupa junto al prorrateo base (orden 21+): importe_del_complemento × extras/12.
+  if coalesce(v_prorrateo, false) and v_num_extras > 0 then
+    return query
+    select
+      (21 + row_number() over (order by t.orden_calculo, t.nombre))::integer,
+      format('Prorrateo p. extra · %s', t.nombre),
+      format('%s€ × %s/12', round(t.imp, 2), v_num_extras),
+      null::numeric, null::numeric, null::numeric,
+      round(t.imp * v_num_extras / 12.0, 2)
+    from (
+      select
+        c.nombre,
+        c.orden_calculo,
+        case c.tipo
+          when 'porcentaje' then v_base * c.porcentaje
+          else case c.unidad
+            when 'mensual' then c.importe * v_dias / 30.0
+            when 'diario' then c.importe * v_dias_trab
+            when 'por_hora' then c.importe * (case c.medida_horas when 'horas_nocturnas' then v_horas_noct else 0 end)
+            else c.importe
+          end
+        end as imp
+      from public.get_personal_complementos_vigentes(h.personal_id, v_fecha_ref) c
+      where c.prorratea_en_extra
+    ) t
+    where t.imp is not null and t.imp <> 0;
+  end if;
+
   return;
 end;
 $$;
