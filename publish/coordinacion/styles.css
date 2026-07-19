@@ -3401,6 +3401,31 @@ th {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.checkbox-group-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.checkbox-group-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.personal-complementos-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+}
+
+.personal-complementos-list {
+  display: grid;
+  gap: 8px;
+}
+
 .detail-actions {
   display: flex;
   gap: 10px;
@@ -3760,6 +3785,135 @@ th {
   .conciliacion-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* --- Gestión: cálculo de nómina por periodo --- */
+.gestion-nomina-block {
+  margin-top: 16px;
+}
+
+.gestion-nomina-note {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+}
+
+.gestion-nomina-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gestion-nomina-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.gestion-nomina-card.expanded {
+  border-color: var(--line-strong);
+}
+
+.gestion-nomina-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.8rem;
+}
+
+.gestion-nomina-caret {
+  transition: transform 0.15s ease;
+  color: var(--muted);
+}
+
+.gestion-nomina-card.expanded .gestion-nomina-caret {
+  transform: rotate(180deg);
+}
+
+.gestion-nomina-card-title {
+  font-weight: 600;
+}
+
+.gestion-nomina-card-periodo {
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.gestion-nomina-detail {
+  padding: 4px 10px 10px;
+}
+
+.records-table.gestion-nomina-table {
+  width: 100%;
+}
+
+.gestion-nomina-table .gestion-nomina-detalle {
+  color: var(--muted);
+  white-space: normal;
+}
+
+.gestion-nomina-card-total {
+  border-color: var(--line-strong);
+  background: var(--panel-alt, #f7f9fc);
+}
+
+.gestion-nomina-card-total .gestion-nomina-card-title {
+  font-weight: 700;
+}
+
+.gestion-nomina-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.gestion-nomina-group-toggle .gestion-nomina-caret {
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+
+.gestion-nomina-group-toggle.expanded .gestion-nomina-caret {
+  transform: rotate(180deg);
+}
+
+.gestion-nomina-table .gestion-nomina-child td:first-child {
+  padding-left: 24px;
+  color: var(--muted);
+}
+
+.gestion-nomina-table .gestion-nomina-child td {
+  font-size: 0.68rem;
+}
+
+.gestion-nomina-table .gestion-nomina-base td {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.gestion-nomina-table .gestion-nomina-deduccion td {
+  color: var(--danger, #b3261e);
+}
+
+.gestion-nomina-table .gestion-nomina-total td {
+  font-weight: 600;
+  border-top: 1px solid var(--line-strong);
+}
+
+.gestion-nomina-table tr.gestion-nomina-total:last-child td {
+  border-top: 2px solid var(--line-strong);
+  font-size: 0.85rem;
 }
 
 /* --- Contabilidad (tabla cronos) --- */

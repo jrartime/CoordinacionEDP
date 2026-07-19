@@ -155,14 +155,14 @@ const SETTINGS_CATALOGS = {
     singularLabel: "puesto",
     table: "puestos",
     order: "puesto",
-    columns: "id,puesto,detalle_puesto,siglas,convenio_grupo_nivel,categoria_id,dea,rec_medico,epi,clausula_preferencia,activo",
+    columns: "id,puesto,detalle_puesto,siglas,convenio_id,categoria_id,dea,rec_medico,epi,clausula_preferencia,activo",
     fields: [
       { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
       { key: "puesto", label: "Puesto", type: "text", required: true },
       { key: "activo", label: "Activo", type: "checkbox" },
       { key: "detalle_puesto", label: "Detalle", type: "textarea" },
       { key: "siglas", label: "Siglas", type: "text" },
-      { key: "convenio_grupo_nivel", label: "Convenio grupo nivel", type: "number" },
+      { key: "convenio_id", label: "Convenio (categoría) ID", type: "number" },
       { key: "categoria_id", label: "Categoría ID", type: "number" },
       { key: "rec_medico", label: "Reconocimiento médico", type: "number" },
       { key: "dea", label: "DEA", type: "checkbox" },
@@ -253,6 +253,65 @@ const SETTINGS_CATALOGS = {
       { table: "historiales_laborales", label: "Historiales laborales", column: "empresa_id" },
     ],
   },
+  complementos: {
+    label: "Complementos y pluses",
+    singularLabel: "complemento",
+    table: "nomina_complementos_catalogo",
+    order: "nombre",
+    columns:
+      "id,nombre,tipo,unidad,medida_horas,bases_aplicables,orden_calculo,prorratea_en_extra,codigo_nomina,activo,notas",
+    newDefaults: { orden_calculo: 100, prorratea_en_extra: false },
+    fields: [
+      { key: "nombre", label: "Nombre", type: "text", required: true },
+      {
+        key: "tipo",
+        label: "Tipo",
+        type: "select",
+        required: true,
+        options: [
+          { value: "fijo", label: "Fijo" },
+          { value: "porcentaje", label: "Porcentaje" },
+          { value: "variable", label: "Variable (según la persona)" },
+        ],
+      },
+      {
+        key: "unidad",
+        label: "Unidad",
+        type: "select",
+        showWhen: [{ field: "tipo", in: ["fijo"] }],
+        options: [
+          { value: "mensual", label: "Mensual" },
+          { value: "diario", label: "Diario (por día trabajado)" },
+          { value: "por_hora", label: "Por hora" },
+        ],
+      },
+      {
+        key: "medida_horas",
+        label: "Medida de horas (p.ej. horas_nocturnas)",
+        type: "text",
+        showWhen: [{ field: "tipo", in: ["fijo"] }, { field: "unidad", in: ["por_hora"] }],
+      },
+      {
+        key: "bases_aplicables",
+        label: "Bases sobre las que se aplica el %",
+        type: "checkbox-group",
+        showWhen: [{ field: "tipo", in: ["porcentaje"] }],
+        options: [
+          { value: "salario_base", label: "Salario base" },
+          { value: "pluses", label: "Pluses" },
+          { value: "complementos", label: "Otros complementos" },
+        ],
+      },
+      { key: "orden_calculo", label: "Orden de cálculo", type: "number" },
+      { key: "prorratea_en_extra", label: "Prorratea en pagas extra", type: "checkbox" },
+      { key: "codigo_nomina", label: "Código en el programa de nóminas", type: "number" },
+      { key: "activo", label: "Activo", type: "checkbox" },
+      { key: "notas", label: "Notas", type: "textarea" },
+    ],
+    listFields: ["nombre", "tipo", "codigo_nomina", "activo"],
+    titleField: "nombre",
+    usageReferences: [],
+  },
 };
 const PERSONAL_VINCULACION_OPTIONS = [
   { value: "1", label: "Activo" },
@@ -309,12 +368,6 @@ const PERSONAL_IMPORT_HEADER_MAP = {
   uniforme: "uniforme",
   med_emerg: "med_emerg",
   ens: "ens",
-  "04_com_antiguedad": "com_antiguedad_04",
-  com_antiguedad_04: "com_antiguedad_04",
-  "18_com_absorbible": "com_absorbible_18",
-  com_absorbible_18: "com_absorbible_18",
-  "18_porcent_complemento": "porcent_complemento_18",
-  porcent_complemento_18: "porcent_complemento_18",
   prorrateo_pagas: "prorrateo_pagas",
   num_pagas_extra: "num_pagas_extra",
   tipo_contrato: "tipo_contrato",
@@ -361,9 +414,6 @@ const PERSONAL_IMPORT_INTEGER_FIELDS = new Set([
   "nivel",
 ]);
 const PERSONAL_IMPORT_NUMERIC_FIELDS = new Set([
-  "com_antiguedad_04",
-  "com_absorbible_18",
-  "porcent_complemento_18",
   "irpf",
 ]);
 const PERSONAL_IMPORT_BOOLEAN_FIELDS = new Set([
@@ -419,9 +469,6 @@ const PERSONAL_FIELDS = [
   { key: "uniforme", label: "Uniforme", type: "boolean" },
   { key: "med_emerg", label: "Med. emerg", type: "boolean" },
   { key: "ens", label: "ENS", type: "boolean" },
-  { key: "com_antiguedad_04", label: "Complemento antiguedad 04", type: "numeric", confidential: true },
-  { key: "com_absorbible_18", label: "Complemento absorbible 18", type: "numeric", confidential: true },
-  { key: "porcent_complemento_18", label: "Porcentaje complemento 18", type: "numeric", confidential: true },
   { key: "prorrateo_pagas", label: "Prorrateo pagas", type: "boolean", confidential: true },
   { key: "num_pagas_extra", label: "Num. pagas extra", type: "integer", confidential: true },
   { key: "persona", label: "Persona", type: "boolean" },
@@ -1007,6 +1054,29 @@ const personalFormFields = document.querySelector("#personal-form-fields");
 const personalEditButton = document.querySelector("#personal-edit-button");
 const personalSaveButton = document.querySelector("#personal-save-button");
 const personalCancelButton = document.querySelector("#personal-cancel-button");
+const personalComplementosSection = document.querySelector("#personal-complementos-section");
+const personalComplementosList = document.querySelector("#personal-complementos-list");
+const personalComplementoForm = document.querySelector("#personal-complemento-form");
+const personalComplementoIdInput = document.querySelector("#personal-complemento-id");
+const personalComplementoSelect = document.querySelector("#personal-complemento-select");
+const personalComplementoCatalogoHint = document.querySelector("#personal-complemento-catalogo-hint");
+const personalComplementoFechaDesdeInput = document.querySelector("#personal-complemento-fecha-desde");
+const personalComplementoFechaHastaInput = document.querySelector("#personal-complemento-fecha-hasta");
+const personalComplementoTipoRow = document.querySelector("#personal-complemento-tipo-row");
+const personalComplementoTipoSelect = document.querySelector("#personal-complemento-tipo");
+const personalComplementoUnidadRow = document.querySelector("#personal-complemento-unidad-row");
+const personalComplementoUnidadSelect = document.querySelector("#personal-complemento-unidad");
+const personalComplementoMedidaHorasRow = document.querySelector("#personal-complemento-medida-horas-row");
+const personalComplementoMedidaHorasInput = document.querySelector("#personal-complemento-medida-horas");
+const personalComplementoBasesRow = document.querySelector("#personal-complemento-bases-row");
+const personalComplementoImporteRow = document.querySelector("#personal-complemento-importe-row");
+const personalComplementoImporteInput = document.querySelector("#personal-complemento-importe");
+const personalComplementoPorcentajeRow = document.querySelector("#personal-complemento-porcentaje-row");
+const personalComplementoPorcentajeInput = document.querySelector("#personal-complemento-porcentaje");
+const personalComplementoProrrateaInput = document.querySelector("#personal-complemento-prorratea");
+const personalComplementoNotasInput = document.querySelector("#personal-complemento-notas");
+const personalComplementoClearButton = document.querySelector("#personal-complemento-clear-button");
+const personalComplementoDeleteButton = document.querySelector("#personal-complemento-delete-button");
 const personalImportPanel = document.querySelector("#personal-import-panel");
 const personalImportOverlay = document.querySelector("#personal-import-overlay");
 const closePersonalImportPanelButton = document.querySelector("#close-personal-import-panel-button");
@@ -1306,6 +1376,10 @@ let currentPersonalRows = [];
 let filteredPersonalRows = [];
 let currentSelectedPersonalId = "";
 let currentPersonalMode = "view";
+let nominaComplementosCatalogRows = [];
+let nominaComplementosCatalogLoaded = false;
+let currentPersonalComplementoRows = [];
+let currentEditingPersonalComplementoId = "";
 let pendingPersonalImportRows = [];
 let pendingPersonalImportFileName = "";
 let currentAccessUsers = [];
@@ -10263,6 +10337,7 @@ function selectPersonal(personalId) {
   fillPersonalForm(row);
   setPersonalFormEditing(false);
   renderPersonalList();
+  void refreshPersonalComplementosPanel();
 }
 
 function startNewPersonal() {
@@ -10274,6 +10349,7 @@ function startNewPersonal() {
   clearPersonalForm();
   setPersonalFormEditing(true);
   getPersonalFieldInput("personal")?.focus();
+  void refreshPersonalComplementosPanel();
 }
 
 function startEditPersonal() {
@@ -10284,6 +10360,306 @@ function startEditPersonal() {
   currentPersonalMode = "edit";
   setPersonalFormEditing(true);
   getPersonalFieldInput("personal")?.focus();
+}
+
+async function loadNominaComplementosCatalog() {
+  if (nominaComplementosCatalogLoaded) {
+    return;
+  }
+  nominaComplementosCatalogLoaded = true;
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase
+    .from("nomina_complementos_catalogo")
+    .select("id, nombre, tipo, unidad, medida_horas, bases_aplicables, activo")
+    .order("nombre", { ascending: true });
+  if (error) {
+    // No es admin, o la tabla aun no existe: la seccion se queda oculta.
+    nominaComplementosCatalogRows = [];
+    return;
+  }
+  nominaComplementosCatalogRows = (data || []).filter((row) => row.activo !== false);
+  if (personalComplementoSelect) {
+    personalComplementoSelect.innerHTML =
+      '<option value="">-- Selecciona --</option>' +
+      nominaComplementosCatalogRows
+        .map(
+          (row) =>
+            `<option value="${escapeHtml(row.id)}">${escapeHtml(row.nombre)} (${escapeHtml(row.tipo)})</option>`
+        )
+        .join("");
+  }
+}
+
+function getNominaComplementoCatalog(complementoId) {
+  return nominaComplementosCatalogRows.find((row) => String(row.id) === String(complementoId));
+}
+
+function updatePersonalComplementoFormVisibility() {
+  const catalogo = getNominaComplementoCatalog(personalComplementoSelect?.value);
+  const esVariable = catalogo?.tipo === "variable";
+  const tipoEfectivo = esVariable ? personalComplementoTipoSelect?.value : catalogo?.tipo;
+
+  personalComplementoTipoRow?.classList.toggle("hidden", !esVariable);
+
+  // La unidad/medida_horas/bases solo se piden aqui cuando el catalogo no las
+  // fija ya (tipo='variable'); en los demas casos vienen fijadas por el
+  // trigger de personal_complementos desde el catalogo.
+  const unidadVisible = esVariable && tipoEfectivo === "fijo";
+  personalComplementoUnidadRow?.classList.toggle("hidden", !unidadVisible);
+
+  const medidaHorasVisible = unidadVisible && personalComplementoUnidadSelect?.value === "por_hora";
+  personalComplementoMedidaHorasRow?.classList.toggle("hidden", !medidaHorasVisible);
+
+  const basesVisible = esVariable && tipoEfectivo === "porcentaje";
+  personalComplementoBasesRow?.classList.toggle("hidden", !basesVisible);
+
+  personalComplementoImporteRow?.classList.toggle("hidden", tipoEfectivo !== "fijo");
+  personalComplementoPorcentajeRow?.classList.toggle("hidden", tipoEfectivo !== "porcentaje");
+
+  if (personalComplementoCatalogoHint) {
+    if (!catalogo || esVariable) {
+      personalComplementoCatalogoHint.textContent = "";
+    } else if (catalogo.tipo === "fijo") {
+      const medida = catalogo.unidad === "por_hora" ? ` (${catalogo.medida_horas || "horas"})` : "";
+      personalComplementoCatalogoHint.textContent = `Fijo · ${catalogo.unidad}${medida}`;
+    } else {
+      personalComplementoCatalogoHint.textContent = `Porcentaje · sobre ${(catalogo.bases_aplicables || []).join(", ")}`;
+    }
+  }
+}
+
+function resetPersonalComplementoForm() {
+  currentEditingPersonalComplementoId = "";
+  personalComplementoForm?.reset();
+  if (personalComplementoIdInput) {
+    personalComplementoIdInput.value = "";
+  }
+  personalComplementoForm
+    ?.querySelectorAll("[data-personal-complemento-base]")
+    .forEach((input) => {
+      input.checked = false;
+    });
+  personalComplementoDeleteButton?.classList.add("hidden");
+  updatePersonalComplementoFormVisibility();
+}
+
+function renderPersonalComplementosList() {
+  if (!personalComplementosList) {
+    return;
+  }
+  if (!currentPersonalComplementoRows.length) {
+    personalComplementosList.innerHTML = '<p class="empty-state">Sin complementos asignados.</p>';
+    return;
+  }
+  personalComplementosList.innerHTML = currentPersonalComplementoRows
+    .map((row) => {
+      const catalogo = getNominaComplementoCatalog(row.complemento_id);
+      const valor =
+        row.tipo === "porcentaje"
+          ? `${(Number(row.porcentaje || 0) * 100).toLocaleString("es-ES", { maximumFractionDigits: 2 })} %`
+          : `${Number(row.importe || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${row.unidad || ""})`;
+      const vigencia = `${formatNullableDate(row.fecha_desde) || row.fecha_desde} – ${
+        row.fecha_hasta ? formatNullableDate(row.fecha_hasta) || row.fecha_hasta : "indefinido"
+      }`;
+      const prorrateaTag = row.prorratea_en_extra ? " · prorratea en extra" : "";
+      return `
+        <div class="contract-service-row">
+          <div>
+            <strong>${escapeHtml(catalogo?.nombre || `Complemento ${row.complemento_id}`)}</strong>
+            <span>${escapeHtml(valor)} · ${escapeHtml(vigencia)}${escapeHtml(prorrateaTag)}</span>
+          </div>
+          <div class="action-buttons">
+            <button type="button" class="secondary-button" data-personal-complemento-edit="${escapeHtml(row.id)}">
+              Editar
+            </button>
+            <button
+              type="button"
+              class="danger-button tooltip-button"
+              aria-label="Eliminar complemento"
+              data-personal-complemento-delete="${escapeHtml(row.id)}"
+            >
+              ${renderIcon("delete")}
+            </button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function loadPersonalComplementos(personalId) {
+  if (!personalId) {
+    currentPersonalComplementoRows = [];
+    renderPersonalComplementosList();
+    return;
+  }
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase
+    .from("personal_complementos")
+    .select(
+      "id, personal_id, complemento_id, fecha_desde, fecha_hasta, tipo, unidad, medida_horas, bases_aplicables, importe, porcentaje, prorratea_en_extra, notas"
+    )
+    .eq("personal_id", personalId)
+    .order("fecha_desde", { ascending: false });
+  if (error) {
+    currentPersonalComplementoRows = [];
+    renderPersonalComplementosList();
+    return;
+  }
+  currentPersonalComplementoRows = data || [];
+  renderPersonalComplementosList();
+}
+
+async function refreshPersonalComplementosPanel() {
+  if (!personalComplementosSection) {
+    return;
+  }
+  const canManage = currentUserIsAccessAdmin && Boolean(currentSelectedPersonalId);
+  personalComplementosSection.classList.toggle("hidden", !canManage);
+  resetPersonalComplementoForm();
+  if (!canManage) {
+    currentPersonalComplementoRows = [];
+    renderPersonalComplementosList();
+    return;
+  }
+  await loadNominaComplementosCatalog();
+  await loadPersonalComplementos(currentSelectedPersonalId);
+}
+
+function openPersonalComplementoForEdit(complementoRowId) {
+  const row = currentPersonalComplementoRows.find((item) => String(item.id) === String(complementoRowId));
+  if (!row) {
+    return;
+  }
+  currentEditingPersonalComplementoId = String(row.id);
+  if (personalComplementoIdInput) personalComplementoIdInput.value = row.id;
+  if (personalComplementoSelect) personalComplementoSelect.value = String(row.complemento_id);
+  if (personalComplementoFechaDesdeInput) personalComplementoFechaDesdeInput.value = formatNullableDate(row.fecha_desde) || "";
+  if (personalComplementoFechaHastaInput) personalComplementoFechaHastaInput.value = formatNullableDate(row.fecha_hasta) || "";
+  if (personalComplementoTipoSelect) personalComplementoTipoSelect.value = row.tipo || "";
+  if (personalComplementoUnidadSelect) personalComplementoUnidadSelect.value = row.unidad || "";
+  if (personalComplementoMedidaHorasInput) personalComplementoMedidaHorasInput.value = row.medida_horas || "";
+  if (personalComplementoImporteInput) {
+    personalComplementoImporteInput.value = row.importe != null ? row.importe : "";
+  }
+  if (personalComplementoPorcentajeInput) {
+    personalComplementoPorcentajeInput.value =
+      row.porcentaje != null ? Number(row.porcentaje) * 100 : "";
+  }
+  if (personalComplementoProrrateaInput) personalComplementoProrrateaInput.checked = Boolean(row.prorratea_en_extra);
+  if (personalComplementoNotasInput) personalComplementoNotasInput.value = row.notas || "";
+  const bases = Array.isArray(row.bases_aplicables) ? row.bases_aplicables : [];
+  personalComplementoForm
+    ?.querySelectorAll("[data-personal-complemento-base]")
+    .forEach((input) => {
+      input.checked = bases.includes(input.value);
+    });
+  personalComplementoDeleteButton?.classList.remove("hidden");
+  updatePersonalComplementoFormVisibility();
+}
+
+async function savePersonalComplemento(event) {
+  event?.preventDefault();
+  if (!currentSelectedPersonalId) {
+    setPersonalStatus("Selecciona una persona antes de asignar complementos.", "error");
+    return;
+  }
+  const complementoId = personalComplementoSelect?.value;
+  const catalogo = getNominaComplementoCatalog(complementoId);
+  if (!complementoId || !catalogo) {
+    setPersonalStatus("Selecciona un complemento.", "error");
+    return;
+  }
+  const fechaDesde = personalComplementoFechaDesdeInput?.value || "";
+  if (!fechaDesde) {
+    setPersonalStatus("Indica la fecha de vigencia desde.", "error");
+    return;
+  }
+
+  const esVariable = catalogo.tipo === "variable";
+  const tipoEfectivo = esVariable ? personalComplementoTipoSelect?.value : catalogo.tipo;
+  if (esVariable && !tipoEfectivo) {
+    setPersonalStatus(`"${catalogo.nombre}" es un complemento variable: indica si es fijo o porcentual.`, "error");
+    return;
+  }
+
+  const payload = {
+    personal_id: Number(currentSelectedPersonalId),
+    complemento_id: Number(complementoId),
+    fecha_desde: fechaDesde,
+    fecha_hasta: personalComplementoFechaHastaInput?.value || null,
+    prorratea_en_extra: Boolean(personalComplementoProrrateaInput?.checked),
+    notas: personalComplementoNotasInput?.value.trim() || null,
+  };
+
+  if (esVariable) {
+    payload.tipo = tipoEfectivo;
+    if (tipoEfectivo === "fijo") {
+      payload.unidad = personalComplementoUnidadSelect?.value || null;
+      payload.medida_horas =
+        payload.unidad === "por_hora" ? personalComplementoMedidaHorasInput?.value.trim() || null : null;
+      payload.bases_aplicables = null;
+    } else if (tipoEfectivo === "porcentaje") {
+      payload.unidad = null;
+      payload.medida_horas = null;
+      const bases = Array.from(
+        personalComplementoForm?.querySelectorAll("[data-personal-complemento-base]:checked") || []
+      ).map((input) => input.value);
+      payload.bases_aplicables = bases.length ? bases : null;
+    }
+  }
+
+  if (tipoEfectivo === "fijo") {
+    const importeValue = personalComplementoImporteInput?.value;
+    if (!importeValue) {
+      setPersonalStatus("Indica el importe del complemento.", "error");
+      return;
+    }
+    payload.importe = Number(importeValue);
+    payload.porcentaje = null;
+  } else if (tipoEfectivo === "porcentaje") {
+    const porcentajeValue = personalComplementoPorcentajeInput?.value;
+    if (!porcentajeValue) {
+      setPersonalStatus("Indica el porcentaje del complemento.", "error");
+      return;
+    }
+    payload.porcentaje = Number(porcentajeValue) / 100;
+    payload.importe = null;
+  }
+
+  const supabase = await getSupabaseClient();
+  const query = currentEditingPersonalComplementoId
+    ? supabase
+        .from("personal_complementos")
+        .update(payload)
+        .eq("id", currentEditingPersonalComplementoId)
+    : supabase.from("personal_complementos").insert(payload);
+  const { error } = await query;
+  if (error) {
+    setPersonalStatus(`No se pudo guardar el complemento: ${error.message}`, "error");
+    return;
+  }
+
+  resetPersonalComplementoForm();
+  await loadPersonalComplementos(currentSelectedPersonalId);
+  setPersonalStatus("Complemento guardado correctamente.", "success");
+}
+
+async function deletePersonalComplemento(complementoRowId) {
+  if (!window.confirm("¿Borrar este complemento asignado?")) {
+    return;
+  }
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from("personal_complementos").delete().eq("id", complementoRowId);
+  if (error) {
+    setPersonalStatus(`No se pudo borrar el complemento: ${error.message}`, "error");
+    return;
+  }
+  if (String(currentEditingPersonalComplementoId) === String(complementoRowId)) {
+    resetPersonalComplementoForm();
+  }
+  await loadPersonalComplementos(currentSelectedPersonalId);
+  setPersonalStatus("Complemento borrado correctamente.", "success");
 }
 
 async function getNextPersonalId() {
@@ -11891,12 +12267,64 @@ function renderSettingsDetailFields(row = {}) {
       const value = row[field.key];
       const required = field.required ? " required" : "";
       const readonly = field.readonlyOnEdit && currentSettingsMode === "edit" ? " readonly" : "";
+      const inner = renderSettingsFieldInner(field, value, required, readonly);
+      const showWhenAttr = field.showWhen
+        ? ` data-settings-show-when="${escapeHtml(JSON.stringify(field.showWhen))}"`
+        : "";
+      return `<div class="settings-field-row" data-settings-field="${escapeHtml(field.key)}"${showWhenAttr}>${inner}</div>`;
+    })
+    .join("");
+  applySettingsFieldVisibility();
+}
+
+function renderSettingsFieldInner(field, value, required, readonly) {
       if (field.type === "checkbox") {
         return `
           <label class="checkbox-item">
             <input name="${escapeHtml(field.key)}" type="checkbox" ${value ? "checked" : ""} />
             <span>${escapeHtml(field.label)}</span>
           </label>
+        `;
+      }
+      if (field.type === "select") {
+        const options = field.options || [];
+        return `
+          <label>
+            ${escapeHtml(field.label)}
+            <select name="${escapeHtml(field.key)}"${required}>
+              <option value="">-- Selecciona --</option>
+              ${options
+                .map(
+                  (option) => `
+                    <option value="${escapeHtml(option.value)}" ${String(value ?? "") === option.value ? "selected" : ""}>
+                      ${escapeHtml(option.label)}
+                    </option>
+                  `
+                )
+                .join("")}
+            </select>
+          </label>
+        `;
+      }
+      if (field.type === "checkbox-group") {
+        const options = field.options || [];
+        const selected = Array.isArray(value) ? value : [];
+        return `
+          <span class="checkbox-group-label">${escapeHtml(field.label)}</span>
+          <div class="checkbox-group-options">
+            ${options
+              .map(
+                (option) => `
+                  <label class="checkbox-item">
+                    <input name="${escapeHtml(field.key)}" type="checkbox" value="${escapeHtml(option.value)}" ${
+                      selected.includes(option.value) ? "checked" : ""
+                    } />
+                    <span>${escapeHtml(option.label)}</span>
+                  </label>
+                `
+              )
+              .join("")}
+          </div>
         `;
       }
       if (field.type === "textarea") {
@@ -11939,8 +12367,27 @@ function renderSettingsDetailFields(row = {}) {
           <input name="${escapeHtml(field.key)}" type="${field.type || "text"}" value="${escapeHtml(value ?? "")}"${required}${readonly} />
         </label>
       `;
-    })
-    .join("");
+}
+
+function settingsShowWhenMatches(showWhen, formData) {
+  const conditions = Array.isArray(showWhen) ? showWhen : [showWhen];
+  return conditions.every((condition) => (condition.in || []).includes(formData.get(condition.field)));
+}
+
+function applySettingsFieldVisibility() {
+  if (!settingsDetailFields || !settingsDetailForm) {
+    return;
+  }
+  const formData = new FormData(settingsDetailForm);
+  settingsDetailFields.querySelectorAll("[data-settings-show-when]").forEach((wrapper) => {
+    let showWhen = [];
+    try {
+      showWhen = JSON.parse(wrapper.dataset.settingsShowWhen);
+    } catch {
+      showWhen = [];
+    }
+    wrapper.classList.toggle("hidden", !settingsShowWhenMatches(showWhen, formData));
+  });
 }
 
 function readFileAsDataUrl(file) {
@@ -12008,7 +12455,7 @@ function openSettingsDetail(mode = "new", rowId = "") {
   currentSettingsEditingId = rowId ? String(rowId) : "";
   const row = mode === "edit"
     ? currentSettingsRows.find((item) => String(item.id) === currentSettingsEditingId) || {}
-    : { id: getNextSettingsId(), activo: true };
+    : { id: getNextSettingsId(), activo: true, ...(config.newDefaults || {}) };
 
   settingsDetailTitle.textContent =
     mode === "edit"
@@ -12042,8 +12489,25 @@ function getSettingsPayloadFromForm() {
   const payload = {};
 
   getAvailableSettingsFields(config).forEach((field) => {
+    // Los campos ocultos por showWhen (p.ej. "unidad" cuando tipo != fijo) se
+    // envian a null/false: sus valores en el DOM no son fiables (pueden venir
+    // de una edicion anterior) y las constraints de coherencia en BD exigen
+    // que esten vacios para la combinacion actual.
+    const isVisible = !field.showWhen || settingsShowWhenMatches(field.showWhen, formData);
+
     if (field.type === "checkbox") {
-      payload[field.key] = formData.get(field.key) === "on";
+      payload[field.key] = isVisible && formData.get(field.key) === "on";
+      return;
+    }
+
+    if (field.type === "checkbox-group") {
+      const values = isVisible ? formData.getAll(field.key) : [];
+      payload[field.key] = values.length ? values : null;
+      return;
+    }
+
+    if (!isVisible) {
+      payload[field.key] = null;
       return;
     }
 
@@ -15512,6 +15976,13 @@ const gestionHistorialTableBody = document.querySelector("#gestion-historial-tab
 const gestionTotalHoras = document.querySelector("#gestion-total-horas");
 const gestionPivotHead = document.querySelector("#gestion-pivot-head");
 const gestionPivotBody = document.querySelector("#gestion-pivot-body");
+const gestionNominaBlock = document.querySelector("#gestion-nomina-block");
+const gestionNominaHint = document.querySelector("#gestion-nomina-hint");
+const gestionNominaList = document.querySelector("#gestion-nomina-list");
+
+// Cache de desgloses de nomina ya calculados (historialId -> filas), para no
+// recalcular al plegar/desplegar. Se vacia al cambiar de filtro.
+const gestionNominaCache = new Map();
 
 // Token para descartar respuestas obsoletas si el usuario cambia el filtro
 // mientras hay una carga en vuelo.
@@ -15700,11 +16171,215 @@ function renderGestionEmpty(message) {
   renderGestionPersonalOptions([]);
   renderGestionHistorial([]);
   renderGestionRegistros([]);
+  renderGestionNomina([], "");
   if (gestionSummary) {
     gestionSummary.textContent = message;
   }
   if (gestionTotalHoras) {
     gestionTotalHoras.textContent = "Total: —";
+  }
+}
+
+// El cálculo de nómina es por periodo de historial. Solo se muestra cuando hay
+// una persona seleccionada (si no, serían decenas de periodos sin foco). Cada
+// periodo se despliega bajo demanda y se calcula en el servidor con
+// calcular_nomina(historial_id, desde, hasta), acotado al rango del filtro.
+function renderGestionNomina(rows, personalId, desde, hasta) {
+  gestionNominaCache.clear();
+  if (!gestionNominaBlock) {
+    return;
+  }
+  const applicable = personalId ? rows : [];
+  gestionNominaBlock.classList.toggle("hidden", applicable.length === 0);
+  if (!applicable.length) {
+    if (gestionNominaList) {
+      gestionNominaList.innerHTML = "";
+    }
+    return;
+  }
+  if (gestionNominaHint) {
+    gestionNominaHint.textContent = `Rango ${formatGestionDate(desde)} – ${formatGestionDate(hasta)}`;
+  }
+  if (!gestionNominaList) {
+    return;
+  }
+  gestionNominaList.innerHTML = applicable
+    .map((row) => {
+      const puesto = row.puesto || (row.puesto_id != null ? `Puesto ${row.puesto_id}` : "Sin puesto");
+      const periodo = `${formatGestionDate(row.fecha_alta)} – ${formatGestionDate(row.fecha_baja) || "indefinido"}`;
+      return `<div class="gestion-nomina-card" data-gestion-nomina-card="${escapeHtml(row.id)}">
+        <button type="button" class="gestion-nomina-toggle" data-gestion-nomina-historial="${escapeHtml(row.id)}" aria-expanded="false">
+          <span class="gestion-nomina-caret">▾</span>
+          <span class="gestion-nomina-card-title">${escapeHtml(puesto)}</span>
+          <span class="gestion-nomina-card-periodo">${escapeHtml(periodo)}</span>
+        </button>
+        <div class="gestion-nomina-detail hidden" data-gestion-nomina-detail="${escapeHtml(row.id)}"></div>
+      </div>`;
+    })
+    .join("");
+
+  // Tarjeta final: la nomina real de la persona. Suma los puestos y anade una
+  // sola vez lo que es de la persona (desplazamiento por dia trabajado,
+  // complementos, prorrateo) mas bases, deducciones y liquido.
+  gestionNominaList.innerHTML += `
+    <div class="gestion-nomina-card gestion-nomina-card-total" data-gestion-nomina-card="total">
+      <button type="button" class="gestion-nomina-toggle" data-gestion-nomina-total="${escapeHtml(personalId)}" aria-expanded="false">
+        <span class="gestion-nomina-caret">▾</span>
+        <span class="gestion-nomina-card-title">Total de la persona (todos los puestos)</span>
+        <span class="gestion-nomina-card-periodo">nómina completa</span>
+      </button>
+      <div class="gestion-nomina-detail hidden" data-gestion-nomina-detail="total"></div>
+    </div>`;
+}
+
+function renderGestionNominaTable(rows) {
+  if (!rows.length) {
+    return '<p class="empty-state">Este periodo no genera devengos en el rango seleccionado.</p>';
+  }
+  const money = (value) =>
+    value == null
+      ? ""
+      : `${Number(value).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+
+  // El servidor emite las líneas en varios bloques, así que se ordenan por
+  // `orden` antes de agrupar: así cada hijo (21+) cae justo tras su padre (20).
+  const ordered = [...rows].sort((left, right) => Number(left.orden) - Number(right.orden));
+
+  // Las filas con detalle_de son el desglose de la línea anterior sin detalle_de
+  // (p.ej. los componentes del prorrateo de pagas extra). Se anidan bajo ella.
+  const groups = [];
+  for (const row of ordered) {
+    if (row.detalle_de) {
+      groups[groups.length - 1]?.children.push(row);
+    } else {
+      groups.push({ row, children: [] });
+    }
+  }
+
+  const body = groups
+    .map((group, index) => {
+      const seccion = String(group.row.seccion || "");
+      const hasChildren = group.children.length > 0;
+      const concepto = escapeHtml(group.row.concepto || "");
+      const conceptoCell = hasChildren
+        ? `<button type="button" class="gestion-nomina-group-toggle" data-nomina-group="${index}" aria-expanded="false">
+             <span class="gestion-nomina-caret">▾</span>${concepto}
+           </button>`
+        : concepto;
+      const parent = `<tr class="gestion-nomina-row gestion-nomina-${escapeHtml(seccion)}">
+        <td>${conceptoCell}</td>
+        <td class="gestion-nomina-detalle">${escapeHtml(group.row.detalle || "")}</td>
+        <td class="num">${escapeHtml(money(group.row.importe))}</td>
+      </tr>`;
+      const children = group.children
+        .map(
+          (child) => `<tr class="gestion-nomina-row gestion-nomina-child hidden" data-nomina-child="${index}">
+            <td>${escapeHtml(child.concepto || "")}</td>
+            <td class="gestion-nomina-detalle">${escapeHtml(child.detalle || "")}</td>
+            <td class="num">${escapeHtml(money(child.importe))}</td>
+          </tr>`
+        )
+        .join("");
+      return parent + children;
+    })
+    .join("");
+  return `<table class="records-table gestion-compact-table gestion-nomina-table"><tbody>${body}</tbody></table>`;
+}
+
+async function toggleGestionNominaTotal(personalId) {
+  const detail = gestionNominaList?.querySelector('[data-gestion-nomina-detail="total"]');
+  const toggle = gestionNominaList?.querySelector("[data-gestion-nomina-total]");
+  const card = gestionNominaList?.querySelector('[data-gestion-nomina-card="total"]');
+  if (!detail) {
+    return;
+  }
+  if (!detail.classList.contains("hidden")) {
+    detail.classList.add("hidden");
+    card?.classList.remove("expanded");
+    toggle?.setAttribute("aria-expanded", "false");
+    return;
+  }
+  detail.classList.remove("hidden");
+  card?.classList.add("expanded");
+  toggle?.setAttribute("aria-expanded", "true");
+
+  if (gestionNominaCache.has("total")) {
+    detail.innerHTML = renderGestionNominaTable(gestionNominaCache.get("total"));
+    return;
+  }
+  detail.innerHTML = '<p class="muted-text">Calculando…</p>';
+  const { desde, hasta } = getGestionFilters();
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("calcular_nomina_persona", {
+      p_personal_id: Number(personalId),
+      p_desde: desde || null,
+      p_hasta: hasta || null,
+    });
+    if (error) {
+      throw error;
+    }
+    gestionNominaCache.set("total", data || []);
+    detail.innerHTML = renderGestionNominaTable(data || []);
+  } catch (error) {
+    detail.innerHTML = `<p class="panel-status-message error">No se pudo calcular el total: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function toggleGestionNominaGroup(button) {
+  const index = button.dataset.nominaGroup;
+  const table = button.closest("table");
+  if (!table) {
+    return;
+  }
+  const expanded = button.getAttribute("aria-expanded") === "true";
+  button.setAttribute("aria-expanded", String(!expanded));
+  button.classList.toggle("expanded", !expanded);
+  table.querySelectorAll(`[data-nomina-child="${index}"]`).forEach((row) => {
+    row.classList.toggle("hidden", expanded);
+  });
+}
+
+async function toggleGestionNomina(historialId) {
+  const key = String(historialId);
+  const detail = gestionNominaList?.querySelector(`[data-gestion-nomina-detail="${key}"]`);
+  const toggle = gestionNominaList?.querySelector(`[data-gestion-nomina-historial="${key}"]`);
+  const card = gestionNominaList?.querySelector(`[data-gestion-nomina-card="${key}"]`);
+  if (!detail) {
+    return;
+  }
+  if (!detail.classList.contains("hidden")) {
+    detail.classList.add("hidden");
+    card?.classList.remove("expanded");
+    toggle?.setAttribute("aria-expanded", "false");
+    return;
+  }
+  detail.classList.remove("hidden");
+  card?.classList.add("expanded");
+  toggle?.setAttribute("aria-expanded", "true");
+
+  if (gestionNominaCache.has(key)) {
+    detail.innerHTML = renderGestionNominaTable(gestionNominaCache.get(key));
+    return;
+  }
+  detail.innerHTML = '<p class="muted-text">Calculando…</p>';
+  const { desde, hasta } = getGestionFilters();
+  try {
+    const supabase = await getSupabaseClient();
+    // Por puesto solo se muestran los devengos propios de ese puesto; las
+    // deducciones y lo que es de la persona van en la tarjeta del total.
+    const { data, error } = await supabase.rpc("calcular_nomina_devengos", {
+      p_historial_id: Number(historialId),
+      p_desde: desde || null,
+      p_hasta: hasta || null,
+    });
+    if (error) {
+      throw error;
+    }
+    gestionNominaCache.set(key, data || []);
+    detail.innerHTML = renderGestionNominaTable(data || []);
+  } catch (error) {
+    detail.innerHTML = `<p class="panel-status-message error">No se pudo calcular la nómina: ${escapeHtml(error.message)}</p>`;
   }
 }
 
@@ -15742,7 +16417,7 @@ async function loadGestion() {
     let historialQuery = supabase
       .from(HISTORIAL_DETAIL_VIEW)
       .select(
-        "id, personal_id, personal, fecha_alta, fecha_baja, jornada, jornada_maxima, coeficiente_temporalidad_miles"
+        "id, personal_id, personal, puesto_id, puesto, fecha_alta, fecha_baja, jornada, jornada_maxima, coeficiente_temporalidad_miles"
       )
       .lte("fecha_alta", hasta)
       .or(`fecha_baja.is.null,fecha_baja.gte.${desde}`)
@@ -15774,6 +16449,7 @@ async function loadGestion() {
     const personalCount = renderGestionPersonalOptions(personalRes.data ?? []);
     renderGestionHistorial(historialRes.data ?? []);
     renderGestionRegistros(resumenRes.data ?? []);
+    renderGestionNomina(historialRes.data ?? [], personalId, desde, hasta);
 
     if (gestionSummary) {
       const scope = personalId ? "1 persona" : `${personalCount} personas`;
@@ -22156,9 +22832,10 @@ async function init() {
   closeSettingsDetailButton?.addEventListener("click", closeSettingsDetail);
   settingsDetailOverlay?.addEventListener("click", closeSettingsDetail);
   settingsDetailClearButton?.addEventListener("click", () => {
+    const config = getSettingsCatalogConfig();
     renderSettingsDetailFields(currentSettingsMode === "edit"
       ? currentSettingsRows.find((row) => String(row.id) === currentSettingsEditingId) || {}
-      : { id: getNextSettingsId() });
+      : { id: getNextSettingsId(), activo: true, ...(config.newDefaults || {}) });
   });
   settingsDetailDeleteButton?.addEventListener("click", () => {
     void deleteSettingsDetail();
@@ -22171,6 +22848,7 @@ async function init() {
     if (input) {
       void handleSettingsFileDataUrlChange(input);
     }
+    applySettingsFieldVisibility();
   });
   settingsDetailFields?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-settings-image-clear]");
@@ -22316,6 +22994,35 @@ async function init() {
   personalForm?.addEventListener("input", (event) => {
     if (event.target?.name === "cuenta_corriente") {
       reformatAccountNumberInput(event.target);
+    }
+  });
+  personalComplementoForm?.addEventListener("submit", (event) => {
+    void savePersonalComplemento(event);
+  });
+  personalComplementoForm?.addEventListener("change", (event) => {
+    if (
+      event.target === personalComplementoSelect ||
+      event.target === personalComplementoTipoSelect ||
+      event.target === personalComplementoUnidadSelect
+    ) {
+      updatePersonalComplementoFormVisibility();
+    }
+  });
+  personalComplementoClearButton?.addEventListener("click", resetPersonalComplementoForm);
+  personalComplementoDeleteButton?.addEventListener("click", () => {
+    if (currentEditingPersonalComplementoId) {
+      void deletePersonalComplemento(currentEditingPersonalComplementoId);
+    }
+  });
+  personalComplementosList?.addEventListener("click", (event) => {
+    const editId = event.target.closest("[data-personal-complemento-edit]")?.dataset.personalComplementoEdit;
+    if (editId) {
+      openPersonalComplementoForEdit(editId);
+      return;
+    }
+    const deleteId = event.target.closest("[data-personal-complemento-delete]")?.dataset.personalComplementoDelete;
+    if (deleteId) {
+      void deletePersonalComplemento(deleteId);
     }
   });
   contractsTableBody?.addEventListener("click", (event) => {
@@ -22793,6 +23500,22 @@ async function init() {
   });
   gestionRefreshButton?.addEventListener("click", () => {
     void loadGestion();
+  });
+  gestionNominaList?.addEventListener("click", (event) => {
+    const groupToggle = event.target.closest("[data-nomina-group]");
+    if (groupToggle) {
+      toggleGestionNominaGroup(groupToggle);
+      return;
+    }
+    const totalPersonalId = event.target.closest("[data-gestion-nomina-total]")?.dataset.gestionNominaTotal;
+    if (totalPersonalId) {
+      void toggleGestionNominaTotal(totalPersonalId);
+      return;
+    }
+    const historialId = event.target.closest("[data-gestion-nomina-historial]")?.dataset.gestionNominaHistorial;
+    if (historialId) {
+      void toggleGestionNomina(historialId);
+    }
   });
 
   const debouncedContabilidadFilters = debounce(reloadContabilidadFromFilters, 300);
