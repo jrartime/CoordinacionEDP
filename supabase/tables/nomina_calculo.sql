@@ -121,14 +121,17 @@ begin
     null::numeric, null::numeric, null::numeric,
     round(v_base, 2);
 
-  -- 2. Prorrateo pagas extra
-  if coalesce(v_prorrateo, false) and coalesce(v_num_pagas, 12) > 12 then
+  -- 2. Prorrateo pagas extra (si la persona las tiene prorrateadas segun
+  --    personal_confidencial). num_pagas_extra es el NUMERO de pagas extra
+  --    (0/2/3 en los datos, no el total de 14), asi que se reparten esas pagas
+  --    extra entre los 12 meses: base × num_pagas_extra / 12.
+  if coalesce(v_prorrateo, false) and coalesce(v_num_pagas, 0) > 0 then
     return query select
       20,
       'Prorrateo pagas extra'::text,
-      format('%s pagas → %s/12 de la base', v_num_pagas, v_num_pagas - 12),
+      format('%s pagas extra → %s/12 de la base', v_num_pagas, v_num_pagas),
       round(v_base, 2), null::numeric, null::numeric,
-      round(v_base * (v_num_pagas - 12) / 12.0, 2);
+      round(v_base * v_num_pagas / 12.0, 2);
   end if;
 
   -- 3. Plus de transporte
