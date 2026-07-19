@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260717-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260718-2" />
   </head>
   <body>
     <script>
@@ -1517,6 +1517,17 @@
                     </div>
                   </section>
                 </div>
+
+                <section id="gestion-nomina-block" class="gestion-block gestion-nomina-block hidden">
+                  <div class="gestion-block-header">
+                    <h3>Cálculo de nómina</h3>
+                    <span id="gestion-nomina-hint" class="summary-chip">—</span>
+                  </div>
+                  <p class="muted-text gestion-nomina-note">
+                    Se calcula por periodo de historial, acotado al rango de fechas seleccionado. Despliega un periodo para ver el desglose.
+                  </p>
+                  <div id="gestion-nomina-list" class="gestion-nomina-list"></div>
+                </section>
               </section>
             </section>
 
@@ -7367,6 +7378,6 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260710-1" defer></script>
-    <script src="./app.js?v=20260718-1" defer></script>
+    <script src="./app.js?v=20260718-2" defer></script>
   </body>
 </html>

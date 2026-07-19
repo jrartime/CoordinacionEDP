@@ -15972,6 +15972,13 @@ const gestionHistorialTableBody = document.querySelector("#gestion-historial-tab
 const gestionTotalHoras = document.querySelector("#gestion-total-horas");
 const gestionPivotHead = document.querySelector("#gestion-pivot-head");
 const gestionPivotBody = document.querySelector("#gestion-pivot-body");
+const gestionNominaBlock = document.querySelector("#gestion-nomina-block");
+const gestionNominaHint = document.querySelector("#gestion-nomina-hint");
+const gestionNominaList = document.querySelector("#gestion-nomina-list");
+
+// Cache de desgloses de nomina ya calculados (historialId -> filas), para no
+// recalcular al plegar/desplegar. Se vacia al cambiar de filtro.
+const gestionNominaCache = new Map();
 
 // Token para descartar respuestas obsoletas si el usuario cambia el filtro
 // mientras hay una carga en vuelo.
@@ -16160,11 +16167,113 @@ function renderGestionEmpty(message) {
   renderGestionPersonalOptions([]);
   renderGestionHistorial([]);
   renderGestionRegistros([]);
+  renderGestionNomina([], "");
   if (gestionSummary) {
     gestionSummary.textContent = message;
   }
   if (gestionTotalHoras) {
     gestionTotalHoras.textContent = "Total: —";
+  }
+}
+
+// El cálculo de nómina es por periodo de historial. Solo se muestra cuando hay
+// una persona seleccionada (si no, serían decenas de periodos sin foco). Cada
+// periodo se despliega bajo demanda y se calcula en el servidor con
+// calcular_nomina(historial_id, desde, hasta), acotado al rango del filtro.
+function renderGestionNomina(rows, personalId, desde, hasta) {
+  gestionNominaCache.clear();
+  if (!gestionNominaBlock) {
+    return;
+  }
+  const applicable = personalId ? rows : [];
+  gestionNominaBlock.classList.toggle("hidden", applicable.length === 0);
+  if (!applicable.length) {
+    if (gestionNominaList) {
+      gestionNominaList.innerHTML = "";
+    }
+    return;
+  }
+  if (gestionNominaHint) {
+    gestionNominaHint.textContent = `Rango ${formatGestionDate(desde)} – ${formatGestionDate(hasta)}`;
+  }
+  if (!gestionNominaList) {
+    return;
+  }
+  gestionNominaList.innerHTML = applicable
+    .map((row) => {
+      const puesto = row.puesto || (row.puesto_id != null ? `Puesto ${row.puesto_id}` : "Sin puesto");
+      const periodo = `${formatGestionDate(row.fecha_alta)} – ${formatGestionDate(row.fecha_baja) || "indefinido"}`;
+      return `<div class="gestion-nomina-card" data-gestion-nomina-card="${escapeHtml(row.id)}">
+        <button type="button" class="gestion-nomina-toggle" data-gestion-nomina-historial="${escapeHtml(row.id)}" aria-expanded="false">
+          <span class="gestion-nomina-caret">▾</span>
+          <span class="gestion-nomina-card-title">${escapeHtml(puesto)}</span>
+          <span class="gestion-nomina-card-periodo">${escapeHtml(periodo)}</span>
+        </button>
+        <div class="gestion-nomina-detail hidden" data-gestion-nomina-detail="${escapeHtml(row.id)}"></div>
+      </div>`;
+    })
+    .join("");
+}
+
+function renderGestionNominaTable(rows) {
+  if (!rows.length) {
+    return '<p class="empty-state">Este periodo no genera devengos en el rango seleccionado.</p>';
+  }
+  const money = (value) =>
+    value == null
+      ? ""
+      : `${Number(value).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  const body = rows
+    .map((row) => {
+      const seccion = String(row.seccion || "");
+      return `<tr class="gestion-nomina-row gestion-nomina-${escapeHtml(seccion)}">
+        <td>${escapeHtml(row.concepto || "")}</td>
+        <td class="gestion-nomina-detalle">${escapeHtml(row.detalle || "")}</td>
+        <td class="num">${escapeHtml(money(row.importe))}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<table class="records-table gestion-compact-table gestion-nomina-table"><tbody>${body}</tbody></table>`;
+}
+
+async function toggleGestionNomina(historialId) {
+  const key = String(historialId);
+  const detail = gestionNominaList?.querySelector(`[data-gestion-nomina-detail="${key}"]`);
+  const toggle = gestionNominaList?.querySelector(`[data-gestion-nomina-historial="${key}"]`);
+  const card = gestionNominaList?.querySelector(`[data-gestion-nomina-card="${key}"]`);
+  if (!detail) {
+    return;
+  }
+  if (!detail.classList.contains("hidden")) {
+    detail.classList.add("hidden");
+    card?.classList.remove("expanded");
+    toggle?.setAttribute("aria-expanded", "false");
+    return;
+  }
+  detail.classList.remove("hidden");
+  card?.classList.add("expanded");
+  toggle?.setAttribute("aria-expanded", "true");
+
+  if (gestionNominaCache.has(key)) {
+    detail.innerHTML = renderGestionNominaTable(gestionNominaCache.get(key));
+    return;
+  }
+  detail.innerHTML = '<p class="muted-text">Calculando…</p>';
+  const { desde, hasta } = getGestionFilters();
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("calcular_nomina", {
+      p_historial_id: Number(historialId),
+      p_desde: desde || null,
+      p_hasta: hasta || null,
+    });
+    if (error) {
+      throw error;
+    }
+    gestionNominaCache.set(key, data || []);
+    detail.innerHTML = renderGestionNominaTable(data || []);
+  } catch (error) {
+    detail.innerHTML = `<p class="panel-status-message error">No se pudo calcular la nómina: ${escapeHtml(error.message)}</p>`;
   }
 }
 
@@ -16202,7 +16311,7 @@ async function loadGestion() {
     let historialQuery = supabase
       .from(HISTORIAL_DETAIL_VIEW)
       .select(
-        "id, personal_id, personal, fecha_alta, fecha_baja, jornada, jornada_maxima, coeficiente_temporalidad_miles"
+        "id, personal_id, personal, puesto_id, puesto, fecha_alta, fecha_baja, jornada, jornada_maxima, coeficiente_temporalidad_miles"
       )
       .lte("fecha_alta", hasta)
       .or(`fecha_baja.is.null,fecha_baja.gte.${desde}`)
@@ -16234,6 +16343,7 @@ async function loadGestion() {
     const personalCount = renderGestionPersonalOptions(personalRes.data ?? []);
     renderGestionHistorial(historialRes.data ?? []);
     renderGestionRegistros(resumenRes.data ?? []);
+    renderGestionNomina(historialRes.data ?? [], personalId, desde, hasta);
 
     if (gestionSummary) {
       const scope = personalId ? "1 persona" : `${personalCount} personas`;
@@ -23284,6 +23394,12 @@ async function init() {
   });
   gestionRefreshButton?.addEventListener("click", () => {
     void loadGestion();
+  });
+  gestionNominaList?.addEventListener("click", (event) => {
+    const historialId = event.target.closest("[data-gestion-nomina-historial]")?.dataset.gestionNominaHistorial;
+    if (historialId) {
+      void toggleGestionNomina(historialId);
+    }
   });
 
   const debouncedContabilidadFilters = debounce(reloadContabilidadFromFilters, 300);
