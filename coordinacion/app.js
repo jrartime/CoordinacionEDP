@@ -16217,6 +16217,19 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
       </div>`;
     })
     .join("");
+
+  // Tarjeta final: la nomina real de la persona. Suma los puestos y anade una
+  // sola vez lo que es de la persona (desplazamiento por dia trabajado,
+  // complementos, prorrateo) mas bases, deducciones y liquido.
+  gestionNominaList.innerHTML += `
+    <div class="gestion-nomina-card gestion-nomina-card-total" data-gestion-nomina-card="total">
+      <button type="button" class="gestion-nomina-toggle" data-gestion-nomina-total="${escapeHtml(personalId)}" aria-expanded="false">
+        <span class="gestion-nomina-caret">▾</span>
+        <span class="gestion-nomina-card-title">Total de la persona (todos los puestos)</span>
+        <span class="gestion-nomina-card-periodo">nómina completa</span>
+      </button>
+      <div class="gestion-nomina-detail hidden" data-gestion-nomina-detail="total"></div>
+    </div>`;
 }
 
 function renderGestionNominaTable(rows) {
@@ -16228,10 +16241,14 @@ function renderGestionNominaTable(rows) {
       ? ""
       : `${Number(value).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
+  // El servidor emite las líneas en varios bloques, así que se ordenan por
+  // `orden` antes de agrupar: así cada hijo (21+) cae justo tras su padre (20).
+  const ordered = [...rows].sort((left, right) => Number(left.orden) - Number(right.orden));
+
   // Las filas con detalle_de son el desglose de la línea anterior sin detalle_de
   // (p.ej. los componentes del prorrateo de pagas extra). Se anidan bajo ella.
   const groups = [];
-  for (const row of rows) {
+  for (const row of ordered) {
     if (row.detalle_de) {
       groups[groups.length - 1]?.children.push(row);
     } else {
@@ -16267,6 +16284,46 @@ function renderGestionNominaTable(rows) {
     })
     .join("");
   return `<table class="records-table gestion-compact-table gestion-nomina-table"><tbody>${body}</tbody></table>`;
+}
+
+async function toggleGestionNominaTotal(personalId) {
+  const detail = gestionNominaList?.querySelector('[data-gestion-nomina-detail="total"]');
+  const toggle = gestionNominaList?.querySelector("[data-gestion-nomina-total]");
+  const card = gestionNominaList?.querySelector('[data-gestion-nomina-card="total"]');
+  if (!detail) {
+    return;
+  }
+  if (!detail.classList.contains("hidden")) {
+    detail.classList.add("hidden");
+    card?.classList.remove("expanded");
+    toggle?.setAttribute("aria-expanded", "false");
+    return;
+  }
+  detail.classList.remove("hidden");
+  card?.classList.add("expanded");
+  toggle?.setAttribute("aria-expanded", "true");
+
+  if (gestionNominaCache.has("total")) {
+    detail.innerHTML = renderGestionNominaTable(gestionNominaCache.get("total"));
+    return;
+  }
+  detail.innerHTML = '<p class="muted-text">Calculando…</p>';
+  const { desde, hasta } = getGestionFilters();
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("calcular_nomina_persona", {
+      p_personal_id: Number(personalId),
+      p_desde: desde || null,
+      p_hasta: hasta || null,
+    });
+    if (error) {
+      throw error;
+    }
+    gestionNominaCache.set("total", data || []);
+    detail.innerHTML = renderGestionNominaTable(data || []);
+  } catch (error) {
+    detail.innerHTML = `<p class="panel-status-message error">No se pudo calcular el total: ${escapeHtml(error.message)}</p>`;
+  }
 }
 
 function toggleGestionNominaGroup(button) {
@@ -16309,7 +16366,9 @@ async function toggleGestionNomina(historialId) {
   const { desde, hasta } = getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
-    const { data, error } = await supabase.rpc("calcular_nomina", {
+    // Por puesto solo se muestran los devengos propios de ese puesto; las
+    // deducciones y lo que es de la persona van en la tarjeta del total.
+    const { data, error } = await supabase.rpc("calcular_nomina_devengos", {
       p_historial_id: Number(historialId),
       p_desde: desde || null,
       p_hasta: hasta || null,
@@ -23446,6 +23505,11 @@ async function init() {
     const groupToggle = event.target.closest("[data-nomina-group]");
     if (groupToggle) {
       toggleGestionNominaGroup(groupToggle);
+      return;
+    }
+    const totalPersonalId = event.target.closest("[data-gestion-nomina-total]")?.dataset.gestionNominaTotal;
+    if (totalPersonalId) {
+      void toggleGestionNominaTotal(totalPersonalId);
       return;
     }
     const historialId = event.target.closest("[data-gestion-nomina-historial]")?.dataset.gestionNominaHistorial;

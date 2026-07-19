@@ -3857,6 +3857,15 @@ th {
   white-space: normal;
 }
 
+.gestion-nomina-card-total {
+  border-color: var(--line-strong);
+  background: var(--panel-alt, #f7f9fc);
+}
+
+.gestion-nomina-card-total .gestion-nomina-card-title {
+  font-weight: 700;
+}
+
 .gestion-nomina-group-toggle {
   display: inline-flex;
   align-items: center;
