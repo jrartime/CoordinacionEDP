@@ -16227,17 +16227,60 @@ function renderGestionNominaTable(rows) {
     value == null
       ? ""
       : `${Number(value).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  const body = rows
-    .map((row) => {
-      const seccion = String(row.seccion || "");
-      return `<tr class="gestion-nomina-row gestion-nomina-${escapeHtml(seccion)}">
-        <td>${escapeHtml(row.concepto || "")}</td>
-        <td class="gestion-nomina-detalle">${escapeHtml(row.detalle || "")}</td>
-        <td class="num">${escapeHtml(money(row.importe))}</td>
+
+  // Las filas con detalle_de son el desglose de la línea anterior sin detalle_de
+  // (p.ej. los componentes del prorrateo de pagas extra). Se anidan bajo ella.
+  const groups = [];
+  for (const row of rows) {
+    if (row.detalle_de) {
+      groups[groups.length - 1]?.children.push(row);
+    } else {
+      groups.push({ row, children: [] });
+    }
+  }
+
+  const body = groups
+    .map((group, index) => {
+      const seccion = String(group.row.seccion || "");
+      const hasChildren = group.children.length > 0;
+      const concepto = escapeHtml(group.row.concepto || "");
+      const conceptoCell = hasChildren
+        ? `<button type="button" class="gestion-nomina-group-toggle" data-nomina-group="${index}" aria-expanded="false">
+             <span class="gestion-nomina-caret">▾</span>${concepto}
+           </button>`
+        : concepto;
+      const parent = `<tr class="gestion-nomina-row gestion-nomina-${escapeHtml(seccion)}">
+        <td>${conceptoCell}</td>
+        <td class="gestion-nomina-detalle">${escapeHtml(group.row.detalle || "")}</td>
+        <td class="num">${escapeHtml(money(group.row.importe))}</td>
       </tr>`;
+      const children = group.children
+        .map(
+          (child) => `<tr class="gestion-nomina-row gestion-nomina-child hidden" data-nomina-child="${index}">
+            <td>${escapeHtml(child.concepto || "")}</td>
+            <td class="gestion-nomina-detalle">${escapeHtml(child.detalle || "")}</td>
+            <td class="num">${escapeHtml(money(child.importe))}</td>
+          </tr>`
+        )
+        .join("");
+      return parent + children;
     })
     .join("");
   return `<table class="records-table gestion-compact-table gestion-nomina-table"><tbody>${body}</tbody></table>`;
+}
+
+function toggleGestionNominaGroup(button) {
+  const index = button.dataset.nominaGroup;
+  const table = button.closest("table");
+  if (!table) {
+    return;
+  }
+  const expanded = button.getAttribute("aria-expanded") === "true";
+  button.setAttribute("aria-expanded", String(!expanded));
+  button.classList.toggle("expanded", !expanded);
+  table.querySelectorAll(`[data-nomina-child="${index}"]`).forEach((row) => {
+    row.classList.toggle("hidden", expanded);
+  });
 }
 
 async function toggleGestionNomina(historialId) {
@@ -23400,6 +23443,11 @@ async function init() {
     void loadGestion();
   });
   gestionNominaList?.addEventListener("click", (event) => {
+    const groupToggle = event.target.closest("[data-nomina-group]");
+    if (groupToggle) {
+      toggleGestionNominaGroup(groupToggle);
+      return;
+    }
     const historialId = event.target.closest("[data-gestion-nomina-historial]")?.dataset.gestionNominaHistorial;
     if (historialId) {
       void toggleGestionNomina(historialId);
