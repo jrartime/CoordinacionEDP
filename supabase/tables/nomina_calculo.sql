@@ -22,9 +22,14 @@
 --     base + cada complemento con prorratea_en_extra). Las lineas de detalle NO
 --     suman al bruto: solo la linea suma. Cada componente se redondea antes de
 --     sumar para que el total sea exactamente lo que se muestra desglosado.
+--   * DIAS EFECTIVAMENTE TRABAJADOS (usados por el plus de transporte y por los
+--     complementos de unidad 'diario'): dias distintos con registros cuya
+--     situacion sea NORM o SUST, mas los de situacion FEST solo si la hora es
+--     FTRAB (festivo trabajado). Quedan fuera vacaciones, IT, permisos, asuntos
+--     propios, jornada irregular, etc.
 --   * Pluses del convenio: se activan con los flags tiene_* del historial y su
 --     importe sale del convenio del puesto vigente en la fecha de calculo.
---       - transporte: plus_transporte x dias efectivamente trabajados (registros)
+--       - transporte: plus_transporte x dias efectivamente trabajados (ver arriba)
 --       - nocturnidad: plus_hora_nocturna x horas_nocturnas (registros)
 --       - movilidad:   complemento_movilidad_pct x base
 --       - dedicacion:  complemento_dedicacion (mensual) x dias/30
@@ -117,8 +122,23 @@ begin
   v_pagas_anuales := coalesce(v_conv.pagas_anuales, 12)::integer;
   v_num_extras := greatest(v_pagas_anuales - 12, 0);
 
-  select count(distinct r.fecha), coalesce(sum(r.horas_nocturnas), 0)::numeric
-    into v_dias_trab, v_horas_noct
+  -- Dias efectivamente trabajados (plus de transporte y complementos diarios):
+  -- situaciones NORM y SUST siempre; FEST solo si la hora es FTRAB (festivo
+  -- trabajado). Quedan fuera vacaciones, IT, permisos, jornada irregular, etc.
+  select count(distinct r.fecha)
+    into v_dias_trab
+  from public.registros r
+  join public.situaciones s on s.id = r.situacion_id
+  left join public.tipo_horas th on th.id = r.tipo_hora_id
+  where r.personal_id = h.personal_id
+    and r.fecha >= v_desde and r.fecha <= v_hasta
+    and (
+      s.situacion in ('NORM', 'SUST')
+      or (s.situacion = 'FEST' and th.tipo_hora = 'FTRAB')
+    );
+
+  select coalesce(sum(r.horas_nocturnas), 0)::numeric
+    into v_horas_noct
   from public.registros r
   where r.personal_id = h.personal_id and r.fecha >= v_desde and r.fecha <= v_hasta;
 
