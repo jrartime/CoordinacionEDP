@@ -66,8 +66,9 @@ declare
   v_coef numeric;
   v_dias integer;
   v_base numeric;
-  v_num_pagas integer;
   v_prorrateo boolean;
+  v_pagas_anuales integer;
+  v_num_extras integer;
   v_dias_trab integer;
   v_horas_noct numeric;
   v_convenio_id integer;
@@ -101,10 +102,15 @@ begin
     select * into v_conv from public.get_convenio_salario_vigente(v_convenio_id, v_fecha_ref);
   end if;
 
-  select pc.num_pagas_extra, pc.prorrateo_pagas
-    into v_num_pagas, v_prorrateo
+  -- El numero de pagas es propiedad del convenio (pagas_anuales); de la tabla
+  -- personal solo se toma si esas pagas van prorrateadas.
+  select pc.prorrateo_pagas
+    into v_prorrateo
   from public.personal_confidencial pc
   where pc.personal_id = h.personal_id;
+
+  v_pagas_anuales := coalesce(v_conv.pagas_anuales, 12)::integer;
+  v_num_extras := greatest(v_pagas_anuales - 12, 0);
 
   select count(distinct r.fecha), coalesce(sum(r.horas_nocturnas), 0)
     into v_dias_trab, v_horas_noct
@@ -121,17 +127,17 @@ begin
     null::numeric, null::numeric, null::numeric,
     round(v_base, 2);
 
-  -- 2. Prorrateo pagas extra (si la persona las tiene prorrateadas segun
-  --    personal_confidencial). num_pagas_extra es el NUMERO de pagas extra
-  --    (0/2/3 en los datos, no el total de 14), asi que se reparten esas pagas
-  --    extra entre los 12 meses: base × num_pagas_extra / 12.
-  if coalesce(v_prorrateo, false) and coalesce(v_num_pagas, 0) > 0 then
+  -- 2. Prorrateo pagas extra. El nº de pagas sale del convenio (pagas_anuales):
+  --    las que exceden de 12 son las extras (14 -> 2, 15 -> 3). Solo se prorratea
+  --    si la persona las tiene prorrateadas (personal_confidencial.prorrateo_pagas):
+  --    base × nº_extras / 12.
+  if coalesce(v_prorrateo, false) and v_num_extras > 0 then
     return query select
       20,
       'Prorrateo pagas extra'::text,
-      format('%s pagas extra → %s/12 de la base', v_num_pagas, v_num_pagas),
+      format('%s pagas/año (12 + %s extra) → %s/12 de la base', v_pagas_anuales, v_num_extras, v_num_extras),
       round(v_base, 2), null::numeric, null::numeric,
-      round(v_base * v_num_pagas / 12.0, 2);
+      round(v_base * v_num_extras / 12.0, 2);
   end if;
 
   -- 3. Plus de transporte
