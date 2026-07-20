@@ -312,6 +312,26 @@ const SETTINGS_CATALOGS = {
     titleField: "nombre",
     usageReferences: [],
   },
+  convenios: {
+    label: "Convenios",
+    singularLabel: "convenio",
+    table: "convenios_categorias",
+    order: "convenio",
+    columns: "id,convenio,nivel,grupo_nivel,enlace,activo",
+    fields: [
+      { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
+      { key: "convenio", label: "Nombre del convenio", type: "text", required: true },
+      { key: "grupo_nivel", label: "Grupo y nivel", type: "text" },
+      { key: "activo", label: "Activo", type: "checkbox" },
+      { key: "nivel", label: "Categorías que incluye (texto del convenio)", type: "textarea" },
+      { key: "enlace", label: "Enlace (BOE, etc.)", type: "text" },
+    ],
+    listFields: ["grupo_nivel", "convenio", "activo"],
+    titleField: "convenio",
+    // El nombre es compartido por todas las tarifas de esa categoría, de ahí que
+    // se edite aquí y no dentro del formulario de una tarifa concreta.
+    usageReferences: [{ table: "puestos", label: "Puestos", column: "convenio_id" }],
+  },
   convenios_tarifas: {
     label: "Tarifas de convenio",
     singularLabel: "tarifa",
