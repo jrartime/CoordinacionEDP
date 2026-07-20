@@ -2979,7 +2979,9 @@
       return;
     }
 
-    const selection = getActivitiesSinglePersonal();
+    const selection = window.CoordinacionHistorial?.canAccess?.()
+      ? getActivitiesSinglePersonal()
+      : null;
     if (!selection) {
       activitiesHistorialZone.classList.add("hidden");
       activitiesHistorialZone.open = false;

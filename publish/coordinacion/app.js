@@ -20571,7 +20571,18 @@ function duplicateHistorialDetail() {
 // concilia-integrated.js) reutilicen el panel lateral y los datos del historial
 // laboral sin duplicar el formulario ni el mapa de campos.
 window.CoordinacionHistorial = {
+  // El historial laboral solo se ofrece a quien tenga concedida esa pestaña. El
+  // RLS ya acota los datos, pero sin esto un usuario de Actividades vería el
+  // panel (vacío o no) sin tener acceso al módulo.
+  canAccess() {
+    return currentAllowedPrivateTabs.has("historial");
+  },
+  // Cada entrada revalida el permiso: así un DOM obsoleto no puede consultar ni
+  // abrir el panel si la pestaña no está concedida.
   listForPersonal(personalId) {
+    if (!currentAllowedPrivateTabs.has("historial")) {
+      return Promise.resolve([]);
+    }
     return fetchHistorialForPersonal(personalId);
   },
   // Las filas ajenas se registran antes de abrir para que openHistorialDetail
@@ -20580,9 +20591,15 @@ window.CoordinacionHistorial = {
     historialExternalRows = Array.isArray(rows) ? rows : [];
   },
   openDetail(historialId) {
+    if (!currentAllowedPrivateTabs.has("historial")) {
+      return Promise.resolve();
+    }
     return openHistorialDetail(historialId);
   },
   openNew(seedRow = null) {
+    if (!currentAllowedPrivateTabs.has("historial")) {
+      return Promise.resolve();
+    }
     return openHistorialNew(seedRow, { copy: false });
   },
   onChange(listener) {
