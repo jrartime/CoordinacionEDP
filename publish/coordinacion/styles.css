@@ -1099,6 +1099,38 @@ textarea {
   align-self: center;
 }
 
+/* Historial laboral de la persona filtrada, dentro de Actividades. */
+.activities-historial-zone.hidden {
+  display: none;
+}
+
+.activities-historial-person {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.activities-historial-panel {
+  margin-top: 8px;
+}
+
+.activities-historial-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.activities-historial-actions button {
+  margin-top: 0;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+}
+
+#activities-historial-table tbody tr {
+  cursor: pointer;
+}
+
 .activities-records-generation-panel {
   display: grid;
   grid-template-columns: auto auto auto auto minmax(140px, 1fr);

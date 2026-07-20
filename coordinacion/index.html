@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260718-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260720-1" />
   </head>
   <body>
     <script>
@@ -1213,6 +1213,14 @@
                 </div>
               </section>
 
+            </section>
+
+            <!--
+              Paneles laterales del historial laboral. Cuelgan fuera de
+              #private-tab-panel-historial (que se oculta con display:none) para poder
+              abrirse tambien desde el panel de historial de la pestana Actividades.
+              Son .detail-panel (position:fixed), asi que se pintan igual aqui.
+            -->
               <section id="historial-detail-panel" class="detail-panel hidden">
                 <div id="historial-detail-overlay" class="detail-overlay"></div>
                 <aside class="detail-drawer records-detail-drawer">
@@ -1403,7 +1411,6 @@
                   </div>
                 </aside>
               </section>
-            </section>
 
             <section id="private-tab-panel-gestion" class="private-tab-panel hidden">
               <section class="card gestion-card">
@@ -5536,6 +5543,50 @@
 
             </form>
 
+            <!--
+              Historial laboral de la persona filtrada. Solo se muestra cuando los
+              filtros actuales dejan exactamente una persona en el listado.
+            -->
+            <details id="activities-historial-zone" class="programming-panel-zone activities-historial-zone hidden">
+              <summary>
+                Historial laboral
+                <span id="activities-historial-person" class="activities-historial-person"></span>
+              </summary>
+              <div class="activities-historial-panel">
+                <div class="activities-historial-actions">
+                  <button id="activities-historial-new-button" type="button" class="secondary-button">
+                    Añadir periodo
+                  </button>
+                  <button id="activities-historial-refresh-button" type="button" class="secondary-button">
+                    Actualizar
+                  </button>
+                  <span id="activities-historial-summary" class="summary-chip"></span>
+                </div>
+                <div class="table-scroll">
+                  <table id="activities-historial-table" class="records-table">
+                    <thead>
+                      <tr>
+                        <th>Tipo contratación</th>
+                        <th>Fecha alta</th>
+                        <th>Fecha baja</th>
+                        <th>Días</th>
+                        <th>Jornada</th>
+                        <th>Puesto</th>
+                        <th>Contrato</th>
+                        <th>Activo</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="activities-historial-table-body">
+                      <tr>
+                        <td colspan="9" class="empty-state">Filtra por una persona para ver su historial.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+
             <details class="programming-panel-zone activities-bulk-zone">
               <summary>Asignación masiva</summary>
               <div class="activities-bulk-assignment-panel">
@@ -7387,7 +7438,7 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260710-1" defer></script>
-    <script src="./app.js?v=20260719-2" defer></script>
+    <script src="./concilia-integrated.js?v=20260720-1" defer></script>
+    <script src="./app.js?v=20260720-1" defer></script>
   </body>
 </html>

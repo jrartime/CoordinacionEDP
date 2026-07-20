@@ -18332,6 +18332,58 @@ let historialReportDraft = null;
 // Se pone a true cuando el usuario edita a mano el texto del correo del informe,
 // para no sobrescribir su edición al cambiar de plantilla.
 let historialReportEmailTextDirty = false;
+// Periodos servidos por otros módulos (hoy el panel de Actividades). El panel
+// lateral los busca aquí cuando no están en el listado de la pestaña, para poder
+// abrirlos sin depender de los filtros del Historial laboral.
+let historialExternalRows = [];
+// Suscriptores que quieren recargar su propia vista tras crear/editar/borrar un
+// periodo desde el panel lateral.
+const historialChangeListeners = new Set();
+
+function findHistorialRow(historialId) {
+  const key = String(historialId);
+  return (
+    historialRows.find((item) => String(item.id) === key) ||
+    historialExternalRows.find((item) => String(item.id) === key) ||
+    null
+  );
+}
+
+// Los listeners pueden ser asíncronos: se esperan en serie para que quien haya
+// recargado sus filas las tenga listas antes de que se reabra el panel.
+async function notifyHistorialChanged() {
+  for (const listener of historialChangeListeners) {
+    try {
+      await listener();
+    } catch (error) {
+      console.error("No se pudo refrescar un consumidor del historial laboral", error);
+    }
+  }
+}
+
+function isHistorialTabActive() {
+  const panel = document.querySelector("#private-tab-panel-historial");
+  return Boolean(panel) && !panel.classList.contains("hidden");
+}
+
+// El listado de la pestaña se recarga solo al activarla (refreshPrivateTabData),
+// así que si está oculta nos ahorramos la consulta completa.
+async function reloadHistorialIfVisible() {
+  if (isHistorialTabActive()) {
+    await loadHistorial();
+  }
+}
+
+async function fetchHistorialForPersonal(personalId) {
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase
+    .from(HISTORIAL_DETAIL_VIEW)
+    .select(HISTORIAL_DETAIL_SELECT)
+    .eq("personal_id", personalId)
+    .order("fecha_alta", { ascending: false, nullsFirst: false });
+  if (error) throw error;
+  return data || [];
+}
 
 async function loadHistorialRelationOptions() {
   if (Object.keys(historialRelationOptionsCache).length) {
@@ -20249,7 +20301,7 @@ function renderHistorialDetailForm(row) {
 }
 
 async function openHistorialDetail(historialId) {
-  const row = historialRows.find((item) => String(item.id) === String(historialId));
+  const row = findHistorialRow(historialId);
   if (!row || !historialDetailPanel) {
     return;
   }
@@ -20268,7 +20320,9 @@ async function openHistorialDetail(historialId) {
   historialDetailPanel.classList.remove("hidden");
 }
 
-async function openHistorialNew(seedRow = null) {
+// `copy` distingue el duplicado real (arrastra todos los campos) de un alta que
+// solo llega con algún valor prerrellenado, como la persona desde Actividades.
+async function openHistorialNew(seedRow = null, { copy = Boolean(seedRow) } = {}) {
   if (!historialDetailPanel) {
     return;
   }
@@ -20276,7 +20330,7 @@ async function openHistorialNew(seedRow = null) {
   historialDetailMode = "new";
   historialDetailSnapshot = seedRow ? { ...seedRow, id: null } : {};
   if (historialDetailTitle) {
-    historialDetailTitle.textContent = seedRow ? "Nuevo periodo (copia)" : "Nuevo periodo";
+    historialDetailTitle.textContent = copy ? "Nuevo periodo (copia)" : "Nuevo periodo";
   }
   // En alta no aplican duplicar ni eliminar.
   ensureHistorialDetailReportButton();
@@ -20436,7 +20490,8 @@ async function saveHistorialDetail(event) {
         .single();
       if (error) throw error;
       closeHistorialDetail({ force: true });
-      await loadHistorial();
+      await reloadHistorialIfVisible();
+      await notifyHistorialChanged();
       if (data?.id != null) {
         await openHistorialDetail(data.id);
       }
@@ -20464,7 +20519,8 @@ async function saveHistorialDetail(event) {
     if (error) throw error;
     const savedId = historialDetailSnapshot.id;
     closeHistorialDetail({ force: true });
-    await loadHistorial();
+    await reloadHistorialIfVisible();
+    await notifyHistorialChanged();
     await openHistorialDetail(savedId);
     setStatus("Periodo guardado.", "success");
   } catch (error) {
@@ -20486,7 +20542,8 @@ async function deleteHistorialDetail() {
     const { error } = await supabase.from(HISTORIAL_TABLE).delete().eq("id", historialDetailSnapshot.id);
     if (error) throw error;
     closeHistorialDetail({ force: true });
-    await loadHistorial();
+    await reloadHistorialIfVisible();
+    await notifyHistorialChanged();
     setStatus("Periodo eliminado.", "success");
   } catch (error) {
     setStatus(`No se pudo eliminar el periodo: ${error.message}`, "error");
@@ -20509,6 +20566,33 @@ function duplicateHistorialDetail() {
   });
   void openHistorialNew(seed);
 }
+
+// Puente para que otros módulos (el panel de historial de Actividades, en
+// concilia-integrated.js) reutilicen el panel lateral y los datos del historial
+// laboral sin duplicar el formulario ni el mapa de campos.
+window.CoordinacionHistorial = {
+  listForPersonal(personalId) {
+    return fetchHistorialForPersonal(personalId);
+  },
+  // Las filas ajenas se registran antes de abrir para que openHistorialDetail
+  // pueda encontrarlas aunque no estén en el listado de la pestaña.
+  registerRows(rows) {
+    historialExternalRows = Array.isArray(rows) ? rows : [];
+  },
+  openDetail(historialId) {
+    return openHistorialDetail(historialId);
+  },
+  openNew(seedRow = null) {
+    return openHistorialNew(seedRow, { copy: false });
+  },
+  onChange(listener) {
+    if (typeof listener !== "function") {
+      return () => {};
+    }
+    historialChangeListeners.add(listener);
+    return () => historialChangeListeners.delete(listener);
+  },
+};
 
 // --- Asignación masiva ---
 function getHistorialBulkFieldConfig() {

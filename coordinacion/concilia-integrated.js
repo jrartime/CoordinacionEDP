@@ -200,6 +200,14 @@
   const filterActivityPersonalToggle = document.querySelector("[data-activity-personal-toggle]");
   const filterActivityInstalacion = document.querySelector("#filter-activity-instalacion");
   const clearActivitiesFiltersButton = document.querySelector("#clear-activities-filters-button");
+  const activitiesHistorialZone = document.querySelector("#activities-historial-zone");
+  const activitiesHistorialPerson = document.querySelector("#activities-historial-person");
+  const activitiesHistorialSummary = document.querySelector("#activities-historial-summary");
+  const activitiesHistorialTableBody = document.querySelector("#activities-historial-table-body");
+  const activitiesHistorialNewButton = document.querySelector("#activities-historial-new-button");
+  const activitiesHistorialRefreshButton = document.querySelector(
+    "#activities-historial-refresh-button"
+  );
   const activitiesBulkFieldSelect = document.querySelector("#activities-bulk-field");
   const activitiesBulkCurrentValueInput = document.querySelector("#activities-bulk-current-value");
   const activitiesBulkNewValueInput = document.querySelector("#activities-bulk-new-value");
@@ -340,6 +348,12 @@
   let filteredActivitiesRows = [];
   let activityPersonalFilterOptions = [];
   let activityPersonalFilterDebounceTimer = null;
+  // Panel de historial laboral: persona actualmente resuelta por los filtros y
+  // sus periodos ya cargados. Token para descartar respuestas fuera de orden.
+  let activitiesHistorialPersonalId = null;
+  let activitiesHistorialRows = [];
+  let activitiesHistorialRequestToken = 0;
+  let activitiesHistorialChangeBound = false;
   let activitiesBulkCurrentFilterActive = false;
   let activitiesRecordsSelectionMode = false;
   let selectedActivityRecordGeneratorIds = new Set();
@@ -2872,6 +2886,195 @@
     if (!activitiesScheduleReportPanel?.classList.contains("hidden")) {
       renderActivitiesScheduleReportPreview();
     }
+
+    void syncActivitiesHistorialPanel();
+  }
+
+  // --- Historial laboral de la persona filtrada ---
+  // app.js se carga despues que este fichero, asi que la suscripcion al puente se
+  // hace de forma perezosa en el primer sincronizado en vez de al iniciar.
+  function ensureActivitiesHistorialChangeBinding() {
+    if (activitiesHistorialChangeBound) {
+      return;
+    }
+    const api = window.CoordinacionHistorial;
+    if (!api?.onChange) {
+      return;
+    }
+    // Alta, edicion o borrado desde el panel lateral: recargamos nuestra copia.
+    api.onChange(() => loadActivitiesHistorial());
+    activitiesHistorialChangeBound = true;
+  }
+
+
+  // El filtro de personal es por nombre, asi que la persona se deduce del
+  // resultado: solo hay panel si todas las actividades filtradas son de la misma.
+  function getActivitiesSinglePersonal() {
+    if (!filteredActivitiesRows.length) {
+      return null;
+    }
+    let personalId = null;
+    let personal = "";
+    for (const activity of filteredActivitiesRows) {
+      const id = Number(activity.personal_id);
+      if (!id) {
+        return null;
+      }
+      if (personalId === null) {
+        personalId = id;
+        personal = String(activity.personal ?? "").trim();
+      } else if (personalId !== id) {
+        return null;
+      }
+    }
+    return personalId ? { personalId, personal } : null;
+  }
+
+  function renderActivitiesHistorialTable() {
+    if (!activitiesHistorialTableBody) {
+      return;
+    }
+
+    if (!activitiesHistorialRows.length) {
+      activitiesHistorialTableBody.innerHTML =
+        '<tr><td colspan="9" class="empty-state">Esta persona no tiene periodos de historial laboral.</td></tr>';
+      return;
+    }
+
+    activitiesHistorialTableBody.innerHTML = activitiesHistorialRows
+      .map((row) => {
+        const jornada = [row.jornada, row.jornada_maxima]
+          .filter((value) => value !== null && value !== undefined && value !== "")
+          .join(" / ");
+        const cells = [
+          row.tipo_contratacion || "",
+          formatDate(row.fecha_alta),
+          row.fecha_baja ? formatDate(row.fecha_baja) : "",
+          row.dias_periodo ?? "",
+          jornada,
+          row.puesto || row.puesto_texto || "",
+          row.contrato_laboral_clave || "",
+          row.activo ? "Si" : "",
+        ]
+          .map((value) => `<td>${escapeHtml(String(value ?? ""))}</td>`)
+          .join("");
+        const action = `<td class="records-row-actions"><button type="button" class="compact-button" data-activities-historial-edit="${escapeHtml(
+          row.id
+        )}" title="Editar periodo" aria-label="Editar periodo">&#9998;</button></td>`;
+        return `<tr data-activities-historial-id="${escapeHtml(row.id)}">${cells}${action}</tr>`;
+      })
+      .join("");
+  }
+
+  function setActivitiesHistorialMessage(message) {
+    if (activitiesHistorialTableBody) {
+      activitiesHistorialTableBody.innerHTML = `<tr><td colspan="9" class="empty-state">${escapeHtml(
+        message
+      )}</td></tr>`;
+    }
+  }
+
+  async function syncActivitiesHistorialPanel() {
+    if (!activitiesHistorialZone) {
+      return;
+    }
+
+    const selection = getActivitiesSinglePersonal();
+    if (!selection) {
+      activitiesHistorialZone.classList.add("hidden");
+      activitiesHistorialZone.open = false;
+      activitiesHistorialPersonalId = null;
+      activitiesHistorialRows = [];
+      return;
+    }
+
+    ensureActivitiesHistorialChangeBinding();
+    const alreadyLoaded = activitiesHistorialPersonalId === selection.personalId;
+    activitiesHistorialPersonalId = selection.personalId;
+    activitiesHistorialZone.classList.remove("hidden");
+    if (activitiesHistorialPerson) {
+      activitiesHistorialPerson.textContent = selection.personal
+        ? `· ${selection.personal}`
+        : `· ID ${selection.personalId}`;
+    }
+    if (alreadyLoaded) {
+      return;
+    }
+    await loadActivitiesHistorial();
+  }
+
+  async function loadActivitiesHistorial() {
+    const personalId = activitiesHistorialPersonalId;
+    const api = window.CoordinacionHistorial;
+    if (!personalId || !api?.listForPersonal) {
+      return;
+    }
+
+    const token = (activitiesHistorialRequestToken += 1);
+    if (activitiesHistorialSummary) {
+      activitiesHistorialSummary.textContent = "Cargando...";
+    }
+    setActivitiesHistorialMessage("Cargando historial laboral...");
+
+    try {
+      const rows = await api.listForPersonal(personalId);
+      if (token !== activitiesHistorialRequestToken || personalId !== activitiesHistorialPersonalId) {
+        return;
+      }
+      activitiesHistorialRows = rows;
+      if (activitiesHistorialSummary) {
+        activitiesHistorialSummary.textContent = `${rows.length} periodos`;
+      }
+      renderActivitiesHistorialTable();
+    } catch (error) {
+      if (token !== activitiesHistorialRequestToken) {
+        return;
+      }
+      activitiesHistorialRows = [];
+      if (activitiesHistorialSummary) {
+        activitiesHistorialSummary.textContent = "";
+      }
+      setActivitiesHistorialMessage("No se pudo cargar el historial laboral.");
+      setStatus(`No se pudo cargar el historial laboral: ${error.message}`, "error");
+    }
+  }
+
+  function openActivitiesHistorialDetail(historialId) {
+    const api = window.CoordinacionHistorial;
+    if (!api?.openDetail) {
+      return;
+    }
+    // El panel lateral busca la fila en su propio listado; le pasamos las nuestras
+    // porque la pestana Historial laboral puede estar sin cargar o filtrada.
+    api.registerRows(activitiesHistorialRows);
+    void api.openDetail(historialId);
+  }
+
+  function openActivitiesHistorialNew() {
+    const api = window.CoordinacionHistorial;
+    if (!api?.openNew || !activitiesHistorialPersonalId) {
+      return;
+    }
+    api.registerRows(activitiesHistorialRows);
+    void api.openNew({ personal_id: activitiesHistorialPersonalId });
+  }
+
+  function setupActivitiesHistorialPanel() {
+    activitiesHistorialNewButton?.addEventListener("click", openActivitiesHistorialNew);
+    activitiesHistorialRefreshButton?.addEventListener("click", () => {
+      void loadActivitiesHistorial();
+    });
+    activitiesHistorialTableBody?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-activities-historial-edit]");
+      if (button) {
+        openActivitiesHistorialDetail(button.dataset.activitiesHistorialEdit);
+        return;
+      }
+      const row = event.target.closest("[data-activities-historial-id]");
+      if (row) {
+        openActivitiesHistorialDetail(row.dataset.activitiesHistorialId);
+      }
+    });
   }
 
   function getActivitiesBulkFieldConfig() {
@@ -6935,6 +7138,7 @@
     refreshActivitiesButton.addEventListener("click", () => {
       void loadActivities();
     });
+    setupActivitiesHistorialPanel();
     openActivitiesReportButton.addEventListener("click", () => openActivitiesReport("installation"));
     openActivitiesPersonalReportButton.addEventListener("click", () => openActivitiesReport("personal"));
     openActivitiesScheduleReportButton?.addEventListener("click", openActivitiesScheduleReportPreview);
