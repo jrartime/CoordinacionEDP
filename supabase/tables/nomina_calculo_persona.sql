@@ -107,7 +107,11 @@ begin
     into v_compl_total
   from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c;
 
-  if coalesce(v_prorrateo, false) and v_extras > 0 then
+  -- La prorrata de pagas extra se calcula SIEMPRE, tenga o no prorrateo: si la
+  -- persona NO las tiene prorrateadas no se devenga (no la cobra este mes), pero
+  -- igualmente COTIZA (art. 147 LGSS), asi que suma a la base de la Seguridad
+  -- Social aunque no al bruto ni a la base de IRPF.
+  if v_extras > 0 then
     v_pe_base := round(v_base_total * v_extras / 12.0, 2);
     select coalesce(sum(round(c.importe * v_extras / 12.0, 2)), 0) into v_pe_compl
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
@@ -150,7 +154,8 @@ begin
     null::text
   from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c;
 
-  if (v_pe_base + v_pe_compl) <> 0 then
+  -- Solo se devenga si la persona tiene las pagas prorrateadas.
+  if coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
     return query select 20, 'devengo'::text, 'Prorrateo pagas extra'::text,
       format('%s pagas/año (12 + %s extra) → %s/12', v_pagas, v_extras, v_extras),
       null::numeric, null::numeric, v_pe_base + v_pe_compl, null::text;
@@ -165,8 +170,17 @@ begin
     where c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
 
-  v_bruto := v_dev_puestos + v_transporte + v_compl_total + v_pe_base + v_pe_compl;
-  v_base_cc := v_bruto; v_base_cp := v_bruto; v_base_irpf := v_bruto;
+  -- El bruto solo incluye la prorrata si se devenga (pagas prorrateadas).
+  v_bruto := v_dev_puestos + v_transporte + v_compl_total
+    + (case when coalesce(v_prorrateo, false) then v_pe_base + v_pe_compl else 0 end);
+
+  -- Bases: la de Seguridad Social siempre lleva la prorrata de pagas extra. Si
+  -- se devengo ya va dentro del bruto; si no, se suma aqui. La de IRPF es el
+  -- devengado real, sin la prorrata no cobrada.
+  v_base_cc := v_bruto
+    + (case when coalesce(v_prorrateo, false) then 0 else v_pe_base + v_pe_compl end);
+  v_base_cp := v_base_cc;
+  v_base_irpf := v_bruto;
 
   v_d_comunes   := round(v_base_cc  * coalesce(hp.cotizacion_comunes_pct, 0), 2);
   v_d_mei       := round(v_base_cc  * coalesce(hp.cotizacion_mei_pct, 0), 2);
@@ -176,6 +190,11 @@ begin
   v_ded_total   := v_d_comunes + v_d_mei + v_d_desempleo + v_d_formacion + v_d_irpf;
 
   return query select 500, 'total'::text, 'Total devengado (bruto)'::text, null::text, null::numeric, null::numeric, round(v_bruto,2), null::text;
+  if not coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
+    return query select 599, 'base'::text, 'P.P. pagas extra (solo cotiza)'::text,
+      format('%s pagas/año → %s/12 · no se devenga, suma a la base de S.S.', v_pagas, v_extras),
+      null::numeric, null::numeric, v_pe_base + v_pe_compl, null::text;
+  end if;
   return query select 600, 'base'::text, 'Base contingencias comunes'::text, null::text, null::numeric, null::numeric, round(v_base_cc,2), null::text;
   return query select 601, 'base'::text, 'Base contingencias profesionales'::text, null::text, null::numeric, null::numeric, round(v_base_cp,2), null::text;
   return query select 602, 'base'::text, 'Base IRPF'::text, null::text, null::numeric, null::numeric, round(v_base_irpf,2), null::text;
