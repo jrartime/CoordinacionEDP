@@ -312,6 +312,55 @@ const SETTINGS_CATALOGS = {
     titleField: "nombre",
     usageReferences: [],
   },
+  convenios_tarifas: {
+    label: "Tarifas de convenio",
+    singularLabel: "tarifa",
+    table: "convenios_categorias_salarios",
+    order: "vigente_desde",
+    columns:
+      "id,convenio_categoria_id,vigente_desde,salario_mensual,salario_anual,pagas_anuales," +
+      "hora_complementaria,hora_montaje,plus_transporte,plus_hora_nocturna," +
+      "complemento_movilidad_pct,complemento_dedicacion,notas",
+    fields: [
+      {
+        key: "convenio_categoria_id",
+        label: "Convenio / categoría",
+        type: "select",
+        required: true,
+        optionsFrom: {
+          table: "convenios_categorias",
+          columns: "id,convenio,grupo_nivel",
+          valueKey: "id",
+          order: "convenio",
+          label: (row) => [row.grupo_nivel, row.convenio].filter(Boolean).join(" · "),
+        },
+      },
+      { key: "vigente_desde", label: "Vigente desde", type: "date", required: true },
+      { key: "salario_mensual", label: "Salario mensual (€)", type: "number", step: "0.01" },
+      { key: "salario_anual", label: "Salario anual (€)", type: "number", step: "0.01" },
+      { key: "pagas_anuales", label: "Pagas anuales (14 = 12 + 2 extra)", type: "number", step: "1" },
+      { key: "hora_complementaria", label: "Hora complementaria (€)", type: "number", step: "0.0001" },
+      { key: "hora_montaje", label: "Hora de montaje (€)", type: "number", step: "0.0001" },
+      { key: "plus_transporte", label: "Plus transporte (€/día trabajado)", type: "number", step: "0.01" },
+      { key: "plus_hora_nocturna", label: "Plus hora nocturna (€)", type: "number", step: "0.0001" },
+      {
+        key: "complemento_movilidad_pct",
+        label: "Compl. movilidad (fracción: 0,10 = 10%)",
+        type: "number",
+        step: "0.0001",
+      },
+      { key: "complemento_dedicacion", label: "Compl. dedicación (€/mes)", type: "number", step: "0.01" },
+      { key: "notas", label: "Notas", type: "textarea" },
+    ],
+    listFields: ["convenio_categoria_id", "vigente_desde", "salario_mensual", "pagas_anuales"],
+    titleField: "vigente_desde",
+    usageReferences: [],
+    // El listado muestra el nombre del convenio, no su id.
+    cellValue: (row, field) =>
+      field === "convenio_categoria_id"
+        ? getSettingsDynamicOptionLabel(field, row[field])
+        : row[field],
+  },
 };
 const PERSONAL_VINCULACION_OPTIONS = [
   { value: "1", label: "Activo" },
@@ -1394,6 +1443,9 @@ let currentSettingsEditingId = "";
 let currentSettingsSortField = "puesto";
 let currentSettingsSortDirection = "asc";
 let currentSettingsAvailableFieldKeys = null;
+// Opciones de los select que se cargan de otra tabla (field.optionsFrom),
+// p.ej. la categoría de convenio al editar una tarifa. Clave: field.key.
+let currentSettingsDynamicOptions = new Map();
 let currentAllowedPrivateTabs = new Set(["programming"]);
 let currentUserIsAccessAdmin = false;
 let currentPanelTarget = getInitialPanelTarget();
@@ -12157,7 +12209,8 @@ function renderSettingsTable() {
         <tr>
           ${listFields
             .map((field, index) => {
-              const value = escapeHtml(formatSettingsCell(row[field]));
+              const raw = config.cellValue ? config.cellValue(row, field) : row[field];
+              const value = escapeHtml(formatSettingsCell(raw));
               if (index === 0) {
                 return `<td><button type="button" class="row-name-button" data-settings-edit="${escapeHtml(row.id)}" aria-label="Editar registro">${value}</button></td>`;
               }
@@ -12221,6 +12274,7 @@ async function loadSettingsManagement() {
 
   const supabase = await getSupabaseClient();
   currentSettingsAvailableFieldKeys = null;
+  await loadSettingsDynamicOptions(config, supabase);
   let { data, error } = await supabase
     .from(config.table)
     .select(config.columns)
@@ -12256,6 +12310,45 @@ async function loadSettingsManagement() {
   );
 }
 
+function getSettingsFieldOptions(field) {
+  return field.options || currentSettingsDynamicOptions.get(field.key) || [];
+}
+
+function getSettingsDynamicOptionLabel(fieldKey, value) {
+  if (value == null) {
+    return "";
+  }
+  const match = (currentSettingsDynamicOptions.get(fieldKey) || []).find(
+    (option) => option.value === String(value)
+  );
+  return match ? match.label : value;
+}
+
+// Carga las opciones de los select que vienen de otra tabla. Se hace al cargar
+// el catálogo, no al abrir el formulario, para que el listado también pueda
+// mostrar la etiqueta en vez del id.
+async function loadSettingsDynamicOptions(config, supabase) {
+  currentSettingsDynamicOptions = new Map();
+  const dynamicFields = (config.fields || []).filter((field) => field.optionsFrom);
+  for (const field of dynamicFields) {
+    const source = field.optionsFrom;
+    const { data, error } = await supabase
+      .from(source.table)
+      .select(source.columns)
+      .order(source.order, { ascending: true });
+    if (error) {
+      continue;
+    }
+    currentSettingsDynamicOptions.set(
+      field.key,
+      (data || []).map((row) => ({
+        value: String(row[source.valueKey]),
+        label: source.label(row),
+      }))
+    );
+  }
+}
+
 function renderSettingsDetailFields(row = {}) {
   const config = getSettingsCatalogConfig();
   if (!settingsDetailFields) {
@@ -12287,7 +12380,7 @@ function renderSettingsFieldInner(field, value, required, readonly) {
         `;
       }
       if (field.type === "select") {
-        const options = field.options || [];
+        const options = getSettingsFieldOptions(field);
         return `
           <label>
             ${escapeHtml(field.label)}
@@ -12361,10 +12454,13 @@ function renderSettingsFieldInner(field, value, required, readonly) {
           </label>
         `;
       }
+      // step es necesario en los numericos con decimales: sin el, el navegador
+      // rechaza valores como 3,10 al validar el formulario.
+      const step = field.step ? ` step="${escapeHtml(field.step)}"` : "";
       return `
         <label>
           ${escapeHtml(field.label)}
-          <input name="${escapeHtml(field.key)}" type="${field.type || "text"}" value="${escapeHtml(value ?? "")}"${required}${readonly} />
+          <input name="${escapeHtml(field.key)}" type="${field.type || "text"}" value="${escapeHtml(value ?? "")}"${step}${required}${readonly} />
         </label>
       `;
 }
