@@ -37,8 +37,14 @@
 --   * Tarifa de desplazamiento: la mayor entre los historiales del periodo que
 --     tengan el plus. No la del historial predominante: su convenio puede no
 --     tener tarifa aunque otro puesto de la persona si la tenga.
---   * Horas: HCOMP (2) y MONT (3) x get_puesto_precio_hora. FTRAB (4) PENDIENTE,
---     no hay precio/hora festivo definido.
+--   * Horas: HCOMP (2) y MONT (3) x get_puesto_precio_hora.
+--   * FTRAB (4): se paga como "Plus festivo trabajado" (codigo de nomina 12) a
+--     precio de hora de JORNADA COMPLETA (get_convenio_precio_hora_jc), no a
+--     precio de hora complementaria. CUIDADO: registros.horas de las filas FTRAB
+--     YA trae aplicado el x1,75 -- verificado contra el horario real de cada
+--     registro, el cociente horas/(hora_fin-hora_inicio) es exactamente 1,75 en
+--     175 de 187 filas de 2024-2026. Por eso NO se aplica aqui el multiplicador
+--     de tipo_horas: seria cobrar el recargo dos veces.
 --
 -- LIMITACIONES CONOCIDAS:
 --   * Los tipos de cotizacion y el convenio del total se toman del historial
@@ -52,6 +58,42 @@
 
 drop function if exists public.calcular_nomina(bigint, date, date);
 drop function if exists public.calcular_nomina_devengos(bigint, date, date);
+
+-- Precio de la hora a jornada completa segun convenio.
+--
+-- Convencion confirmada por el usuario (2026-07-20): salario ANUAL a jornada
+-- completa entre las horas anuales a jornada completa. Las horas del ano se
+-- cuentan tomando TODOS los dias de lunes a viernes (52 semanas x 5 + 1 = 261),
+-- festivos y vacaciones incluidos, por la jornada diaria (jornada_maxima / 5).
+-- Da 2088 h para 40 h semanales y 2009,7 h para 38,5 h, que son los divisores
+-- que usa el programa de nominas.
+--
+-- Es un precio CONSTANTE todo el ano: no depende de los dias laborables que
+-- tenga cada mes. Se descarto la variante mensual (salario_mensual entre dias
+-- L-V del mes x jornada diaria), que daba ~13% menos y un precio distinto cada
+-- mes.
+--
+-- salario_anual esta vacio en la mayoria de categorias, asi que se deriva de
+-- salario_mensual x pagas_anuales cuando falta (comprobado que cuadra donde
+-- estan los dos: 1221 x 14 = 17094).
+create or replace function public.get_convenio_precio_hora_jc(
+  p_convenio_categoria_id integer,
+  p_jornada_maxima numeric,
+  p_fecha date default current_date
+)
+returns numeric
+language sql stable security invoker set search_path = public
+as $$
+  select case
+    when coalesce(p_jornada_maxima, 0) <= 0 then null
+    else coalesce(cs.salario_anual, cs.salario_mensual * cs.pagas_anuales)
+         / (261 * p_jornada_maxima / 5.0)
+  end
+  from public.get_convenio_salario_vigente(p_convenio_categoria_id, p_fecha) cs;
+$$;
+
+revoke all on function public.get_convenio_precio_hora_jc(integer, numeric, date) from public;
+grant execute on function public.get_convenio_precio_hora_jc(integer, numeric, date) to authenticated;
 
 create or replace function public.calcular_nomina_devengos(
   p_historial_id bigint,
@@ -70,6 +112,7 @@ declare
   v_sal record; v_conv public.convenios_categorias_salarios;
   v_coef numeric; v_dias integer; v_base numeric;
   v_dias_trab integer; v_horas_noct numeric; v_convenio_id integer;
+  v_precio_hora_jc numeric;
 begin
   select * into h from public.historiales_laborales where id = p_historial_id;
   if h.id is null then return; end if;
@@ -153,6 +196,32 @@ begin
     and r.puesto_id = h.puesto_id
     and r.fecha >= v_desde and r.fecha <= v_hasta and th.id in (2, 3)
   group by th.id, th.tipo_hora having sum(r.horas) > 0;
+
+  -- Festivo trabajado (codigo de nomina 12). registros.horas de las filas FTRAB
+  -- YA trae aplicado el x1,75, asi que aqui NO se aplica el multiplicador de
+  -- tipo_horas: seria cobrar el recargo dos veces.
+  v_precio_hora_jc := public.get_convenio_precio_hora_jc(
+    v_convenio_id, h.jornada_maxima, v_fecha_ref
+  );
+
+  if coalesce(v_precio_hora_jc, 0) > 0 then
+    return query
+    select 80,
+      'Plus festivo trabajado'::text,
+      format('%s h festivas (×1,75 incluido) × %s€/h a jornada completa',
+             round(sum(r.horas)::numeric, 2), round(v_precio_hora_jc, 4)),
+      null::numeric,
+      round(sum(r.horas)::numeric, 2),
+      round(v_precio_hora_jc, 4),
+      round(sum(r.horas)::numeric * v_precio_hora_jc, 2),
+      null::text
+    from public.registros r
+    where r.personal_id = h.personal_id
+      and r.puesto_id = h.puesto_id
+      and r.fecha >= v_desde and r.fecha <= v_hasta
+      and r.tipo_hora_id = 4
+    having sum(r.horas) > 0;
+  end if;
 
   return;
 end;
