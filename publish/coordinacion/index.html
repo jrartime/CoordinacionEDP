@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260721-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260721-3" />
   </head>
   <body>
     <script>
@@ -1432,6 +1432,12 @@
                   <label class="filter-field">
                     Hasta
                     <input id="gestion-filter-hasta" name="fecha_hasta" type="date" />
+                  </label>
+                  <label class="filter-field">
+                    Empresa
+                    <select id="gestion-filter-empresa" name="empresa_id">
+                      <option value="">Todas las empresas</option>
+                    </select>
                   </label>
                   <label class="filter-field">
                     Personal
@@ -7439,6 +7445,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260720-2" defer></script>
-    <script src="./app.js?v=20260721-2" defer></script>
+    <script src="./app.js?v=20260721-3" defer></script>
   </body>
 </html>

@@ -37,6 +37,13 @@
 --   * Tarifa de desplazamiento: la mayor entre los historiales del periodo que
 --     tengan el plus. No la del historial predominante: su convenio puede no
 --     tener tarifa aunque otro puesto de la persona si la tenga.
+--   * EMPRESA: los registros de un historial son los de SU empresa. Sin ese
+--     filtro, una persona con el mismo puesto en EDP y en INTECA (caso real:
+--     Javier Cortavitarte, puesto 2 en las dos) se llevaba en cada historial las
+--     horas de la otra. Es la misma fuga que ya se corrigio con puesto_id.
+--     calcular_nomina_persona acepta ademas p_empresa_id para emitir la nomina
+--     de UNA empresa: sin el, el pluriempleo sale fundido en un solo calculo que
+--     no corresponde a ninguna nomina real.
 --   * Horas: HCOMP (2) y MONT (3) x get_puesto_precio_hora.
 --   * FTRAB (4): se paga como "Plus festivo trabajado" (codigo de nomina 12) a
 --     precio de hora de JORNADA COMPLETA (get_convenio_precio_hora_jc), no a
@@ -145,6 +152,7 @@ begin
   left join public.tipo_horas th on th.id = r.tipo_hora_id
   where r.personal_id = h.personal_id
     and r.puesto_id = h.puesto_id
+    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
     and r.fecha >= v_desde and r.fecha <= v_hasta
     and (s.situacion in ('NORM','SUST') or (s.situacion='FEST' and th.tipo_hora='FTRAB'));
 
@@ -153,6 +161,7 @@ begin
   from public.registros r
   where r.personal_id = h.personal_id
     and r.puesto_id = h.puesto_id
+    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
     and r.fecha >= v_desde and r.fecha <= v_hasta;
 
   return query select 10, 'Salario base'::text,
@@ -194,6 +203,7 @@ begin
   join public.tipo_horas th on th.id = r.tipo_hora_id
   where r.personal_id = h.personal_id
     and r.puesto_id = h.puesto_id
+    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
     and r.fecha >= v_desde and r.fecha <= v_hasta and th.id in (2, 3)
   group by th.id, th.tipo_hora having sum(r.horas) > 0;
 
@@ -218,6 +228,7 @@ begin
     from public.registros r
     where r.personal_id = h.personal_id
       and r.puesto_id = h.puesto_id
+      and (h.empresa_id is null or r.empresa_id = h.empresa_id)
       and r.fecha >= v_desde and r.fecha <= v_hasta
       and r.tipo_hora_id = 4
     having sum(r.horas) > 0;

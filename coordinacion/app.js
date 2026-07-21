@@ -16095,6 +16095,54 @@ const gestionPivotBody = document.querySelector("#gestion-pivot-body");
 const gestionNominaBlock = document.querySelector("#gestion-nomina-block");
 const gestionNominaHint = document.querySelector("#gestion-nomina-hint");
 const gestionNominaList = document.querySelector("#gestion-nomina-list");
+const gestionFilterEmpresa = document.querySelector("#gestion-filter-empresa");
+
+// La nómina se calcula por empresa, así que Gestión arranca acotada a EDP: es
+// la empresa del 99,5% de los periodos y el caso normal. "Todas" mezcla
+// empresas y produce un total que no corresponde a ninguna nómina real.
+const GESTION_EMPRESA_POR_DEFECTO = "EDP";
+let gestionEmpresasLoaded = false;
+
+async function loadGestionEmpresaOptions() {
+  if (gestionEmpresasLoaded || !gestionFilterEmpresa) {
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("empresas")
+      .select("id, empresa")
+      .order("empresa", { ascending: true });
+    if (error) throw error;
+    const rows = data || [];
+    gestionFilterEmpresa.innerHTML =
+      '<option value="">Todas las empresas</option>' +
+      rows
+        .map(
+          (row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.empresa ?? row.id)}</option>`
+        )
+        .join("");
+    const porDefecto = rows.find(
+      (row) => String(row.empresa ?? "").trim().toUpperCase() === GESTION_EMPRESA_POR_DEFECTO
+    );
+    if (porDefecto) {
+      gestionFilterEmpresa.value = String(porDefecto.id);
+    }
+    gestionEmpresasLoaded = true;
+  } catch (error) {
+    console.error("No se pudieron cargar las empresas de Gestión", error);
+  }
+}
+
+function resetGestionEmpresaPorDefecto() {
+  if (!gestionFilterEmpresa) {
+    return;
+  }
+  const opcion = Array.from(gestionFilterEmpresa.options).find(
+    (option) => option.textContent.trim().toUpperCase() === GESTION_EMPRESA_POR_DEFECTO
+  );
+  gestionFilterEmpresa.value = opcion ? opcion.value : "";
+}
 
 // Cache de desgloses de nomina ya calculados (historialId -> filas), para no
 // recalcular al plegar/desplegar. Se vacia al cambiar de filtro.
@@ -16109,6 +16157,7 @@ function getGestionFilters() {
     desde: gestionFilterDesde?.value || "",
     hasta: gestionFilterHasta?.value || "",
     personalId: gestionFilterPersonalHidden?.value || "",
+    empresaId: gestionFilterEmpresa?.value || "",
   };
 }
 
@@ -16504,13 +16553,15 @@ async function toggleGestionNominaTotal(personalId) {
     return;
   }
   detail.innerHTML = '<p class="muted-text">Calculando…</p>';
-  const { desde, hasta } = getGestionFilters();
+  const { desde, hasta, empresaId } = getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
+    // Sin empresa el total funde las de todas, y eso no es ninguna nómina real.
     const { data, error } = await supabase.rpc("calcular_nomina_persona", {
       p_personal_id: Number(personalId),
       p_desde: desde || null,
       p_hasta: hasta || null,
+      p_empresa_id: empresaId ? Number(empresaId) : null,
     });
     if (error) {
       throw error;
@@ -16580,7 +16631,8 @@ async function toggleGestionNomina(historialId) {
 }
 
 async function loadGestion() {
-  const { desde, hasta, personalId } = getGestionFilters();
+  await loadGestionEmpresaOptions();
+  const { desde, hasta, personalId, empresaId } = getGestionFilters();
   if (!desde || !hasta) {
     renderGestionEmpty("Selecciona un intervalo de fechas (Desde y Hasta).");
     return;
@@ -16624,6 +16676,9 @@ async function loadGestion() {
       .limit(HISTORIAL_FETCH_LIMIT);
     if (personalId) {
       historialQuery = historialQuery.eq("personal_id", personalId);
+    }
+    if (empresaId) {
+      historialQuery = historialQuery.eq("empresa_id", empresaId);
     }
 
     const [personalRes, resumenRes, historialRes] = await Promise.all([
@@ -23792,9 +23847,15 @@ async function init() {
   gestionFilterHasta?.addEventListener("change", () => {
     void loadGestion();
   });
+  gestionFilterEmpresa?.addEventListener("change", () => {
+    void loadGestion();
+  });
   gestionClearFiltersButton?.addEventListener("click", () => {
     gestionFiltersForm?.reset();
     clearPersonalPicker("gestion-filter");
+    // reset() deja el select en su opción del HTML ("Todas"), no en EDP:
+    // se vuelve a poner el valor por defecto a mano.
+    resetGestionEmpresaPorDefecto();
     void loadGestion();
   });
   gestionRefreshButton?.addEventListener("click", () => {

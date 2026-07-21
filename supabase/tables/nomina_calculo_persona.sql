@@ -19,9 +19,24 @@
 -- Los tipos de cotizacion y el numero de pagas salen del historial predominante
 -- (el de mas dias en el rango). Con dos contratos de convenios distintos, en la
 -- realidad habria dos cotizaciones separadas: limitacion conocida.
+--
+-- p_empresa_id acota la nomina a una empresa del grupo (EDP / INTECA). Sin el,
+-- una persona con contrato simultaneo en las dos obtiene UNA nomina con los
+-- devengos fundidos, que no corresponde a ninguna nomina real. La pestana
+-- Gestion arranca filtrada por EDP justo por esto.
+--
+-- LIMITACION que el parametro NO resuelve: los complementos de
+-- personal_complementos son de la PERSONA, no de la empresa, asi que se imputan
+-- enteros a la nomina de cualquier empresa que se pida. Por eso, con pluriempleo,
+-- la suma de las dos nominas por empresa es MAYOR que el calculo sin filtro:
+-- complementos y desplazamiento se cuentan en ambas. Repartirlos exige decidir
+-- que parte va a cada empresa.
+
+drop function if exists public.calcular_nomina_persona(integer, date, date);
 
 create or replace function public.calcular_nomina_persona(
-  p_personal_id integer, p_desde date, p_hasta date
+  p_personal_id integer, p_desde date, p_hasta date,
+  p_empresa_id integer default null
 )
 returns table (
   orden integer, seccion text, concepto text, detalle text,
@@ -48,6 +63,7 @@ begin
     into hp
   from public.historiales_laborales h
   where h.personal_id = p_personal_id
+    and (p_empresa_id is null or h.empresa_id = p_empresa_id)
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
   order by dias_solape desc, h.id limit 1;
   if hp.id is null then return; end if;
@@ -68,11 +84,13 @@ begin
   join public.situaciones s on s.id = r.situacion_id
   left join public.tipo_horas th on th.id = r.tipo_hora_id
   where r.personal_id = p_personal_id and r.fecha >= p_desde and r.fecha <= p_hasta
+    and (p_empresa_id is null or r.empresa_id = p_empresa_id)
     and (s.situacion in ('NORM','SUST') or (s.situacion='FEST' and th.tipo_hora='FTRAB'));
 
   select coalesce(sum(r.horas_nocturnas),0)::numeric into v_horas_noct
   from public.registros r
-  where r.personal_id = p_personal_id and r.fecha >= p_desde and r.fecha <= p_hasta;
+  where r.personal_id = p_personal_id and r.fecha >= p_desde and r.fecha <= p_hasta
+    and (p_empresa_id is null or r.empresa_id = p_empresa_id);
 
   select coalesce(sum(x.importe) filter (where x.concepto = 'Salario base'), 0),
          coalesce(sum(x.importe), 0)
@@ -82,6 +100,7 @@ begin
     from public.historiales_laborales h
     cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta) d
     where h.personal_id = p_personal_id
+      and (p_empresa_id is null or h.empresa_id = p_empresa_id)
       and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
     group by d.concepto
   ) x;
@@ -91,6 +110,7 @@ begin
   join public.puestos pu on pu.id = h.puesto_id
   cross join lateral public.get_convenio_salario_vigente(pu.convenio_id, greatest(h.fecha_alta, p_desde)) cs
   where h.personal_id = p_personal_id and h.tiene_plus_transporte
+    and (p_empresa_id is null or h.empresa_id = p_empresa_id)
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde);
 
   if v_tarifa_transp > 0 then
@@ -126,6 +146,7 @@ begin
     from public.historiales_laborales h
     cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta) d
     where h.personal_id = p_personal_id
+      and (p_empresa_id is null or h.empresa_id = p_empresa_id)
       and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
     group by d.concepto
   ) x;
@@ -219,5 +240,5 @@ begin
 end;
 $$;
 
-revoke all on function public.calcular_nomina_persona(integer, date, date) from public;
-grant execute on function public.calcular_nomina_persona(integer, date, date) to authenticated;
+revoke all on function public.calcular_nomina_persona(integer, date, date, integer) from public;
+grant execute on function public.calcular_nomina_persona(integer, date, date, integer) to authenticated;
