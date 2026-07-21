@@ -50,6 +50,17 @@
 --     calcular_nomina_persona acepta ademas p_empresa_id para emitir la nomina
 --     de UNA empresa: sin el, el pluriempleo sale fundido en un solo calculo que
 --     no corresponde a ninguna nomina real.
+--   * BASE DE CALCULO: convenios_categorias_salarios.base_calculo dice si la
+--     base sale del salario mensual (mensual/30 x dias_nomina), del diario
+--     (salario_diario x dias_nomina) o de la hora (salario_hora x horas REG
+--     realmente trabajadas). p_base_calculo lo sobrescribe puntualmente desde la
+--     pestana Gestion, para comparar sin tocar las tarifas.
+--     EL COEFICIENTE DE TEMPORALIDAD SOLO SE APLICA EN MENSUAL Y DIARIO: esas
+--     tarifas son a jornada completa y hay que reducirlas por la jornada de la
+--     persona. En el modo hora se multiplica por horas reales, que ya llevan la
+--     parcialidad dentro; aplicar el coeficiente la descontaria dos veces.
+--     Si falta la tarifa del modo pedido se cae a mensual y se dice en el
+--     detalle, en vez de devolver 0 en silencio.
 --   * Horas: HCOMP (2) y MONT (3) x get_puesto_precio_hora.
 --   * FTRAB (4): se paga como "Plus festivo trabajado" (codigo de nomina 12) a
 --     precio de hora de JORNADA COMPLETA (get_convenio_precio_hora_jc), no a
@@ -153,7 +164,8 @@ grant execute on function public.get_convenio_precio_hora_jc(integer, numeric, d
 create or replace function public.calcular_nomina_devengos(
   p_historial_id bigint,
   p_desde date default null,
-  p_hasta date default null
+  p_hasta date default null,
+  p_base_calculo text default null
 )
 returns table (
   orden integer, concepto text, detalle text,
@@ -168,6 +180,7 @@ declare
   v_coef numeric; v_dias integer; v_base numeric;
   v_dias_trab integer; v_horas_noct numeric; v_convenio_id integer;
   v_precio_hora_jc numeric;
+  v_modo text; v_horas_reg numeric; v_tarifa_dia numeric; v_detalle_base text;
 begin
   select * into h from public.historiales_laborales where id = p_historial_id;
   if h.id is null then return; end if;
@@ -184,7 +197,6 @@ begin
   v_coef := coalesce(h.coeficiente_temporalidad_miles, 1000) / 1000.0;
 
   select * into v_sal from public.get_puesto_salario_efectivo(h.puesto_id, v_fecha_ref);
-  v_base := coalesce(v_sal.salario_mensual, 0) * v_coef * v_dias / 30.0;
 
   select pu.convenio_id into v_convenio_id from public.puestos pu where pu.id = h.puesto_id;
   if v_convenio_id is not null then
@@ -212,8 +224,36 @@ begin
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
     and r.fecha >= v_desde and r.fecha <= v_hasta;
 
-  return query select 10, 'Salario base'::text,
-    format('%s€/mes × coef %s × %s/30 días', round(coalesce(v_sal.salario_mensual, 0), 2), round(v_coef, 3), v_dias),
+  -- Horas ordinarias (REG) del puesto y empresa: la cantidad del modo hora.
+  select coalesce(sum(r.horas), 0)::numeric
+    into v_horas_reg
+  from public.registros r
+  where r.personal_id = h.personal_id
+    and r.puesto_id = h.puesto_id
+    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+    and r.fecha >= v_desde and r.fecha <= v_hasta
+    and r.tipo_hora_id = 1;
+
+  v_modo := coalesce(nullif(trim(p_base_calculo), ''), v_conv.base_calculo, 'mensual');
+
+  if v_modo = 'hora' and coalesce(v_conv.salario_hora, 0) > 0 then
+    -- Sin coeficiente: las horas reales ya llevan la parcialidad dentro.
+    v_base := v_conv.salario_hora * v_horas_reg;
+    v_detalle_base := format('%s h REG × %s€/h', round(v_horas_reg, 2), v_conv.salario_hora);
+  elsif v_modo = 'diario' and coalesce(coalesce(v_conv.salario_diario, v_sal.salario_mensual / 30.0), 0) > 0 then
+    v_tarifa_dia := coalesce(v_conv.salario_diario, v_sal.salario_mensual / 30.0);
+    v_base := v_tarifa_dia * v_coef * v_dias;
+    v_detalle_base := format('%s€/día × coef %s × %s días%s',
+      round(v_tarifa_dia, 4), round(v_coef, 3), v_dias,
+      case when v_conv.salario_diario is null then ' (día = mensual/30)' else '' end);
+  else
+    v_base := coalesce(v_sal.salario_mensual, 0) * v_coef * v_dias / 30.0;
+    v_detalle_base := format('%s€/mes × coef %s × %s/30 días%s',
+      round(coalesce(v_sal.salario_mensual, 0), 2), round(v_coef, 3), v_dias,
+      case when v_modo <> 'mensual' then format(' · sin tarifa %s, se usa mensual', v_modo) else '' end);
+  end if;
+
+  return query select 10, 'Salario base'::text, v_detalle_base,
     null::numeric, null::numeric, null::numeric, round(v_base, 2), null::text;
 
   if coalesce(h.tiene_nocturnidad, false) and coalesce(v_conv.plus_hora_nocturna, 0) > 0 then
@@ -286,5 +326,7 @@ begin
 end;
 $$;
 
-revoke all on function public.calcular_nomina_devengos(bigint, date, date) from public;
-grant execute on function public.calcular_nomina_devengos(bigint, date, date) to authenticated;
+drop function if exists public.calcular_nomina_devengos(bigint, date, date);
+
+revoke all on function public.calcular_nomina_devengos(bigint, date, date, text) from public;
+grant execute on function public.calcular_nomina_devengos(bigint, date, date, text) to authenticated;

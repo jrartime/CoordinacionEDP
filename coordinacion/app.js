@@ -339,7 +339,7 @@ const SETTINGS_CATALOGS = {
     order: "vigente_desde",
     columns:
       "id,convenio_categoria_id,vigente_desde,salario_mensual,salario_anual,pagas_anuales," +
-      "salario_diario,salario_hora," +
+      "salario_diario,salario_hora,base_calculo," +
       "hora_complementaria,hora_montaje,plus_transporte,plus_hora_nocturna," +
       "complemento_movilidad_pct,complemento_dedicacion,notas",
     fields: [
@@ -364,6 +364,16 @@ const SETTINGS_CATALOGS = {
       // convenio fija su propio precio de día u hora ordinaria.
       { key: "salario_diario", label: "Salario diario (€) — vacío = mensual/30", type: "number", step: "0.0001" },
       { key: "salario_hora", label: "Salario hora ordinaria (€)", type: "number", step: "0.0001" },
+      {
+        key: "base_calculo",
+        label: "Base de cálculo de la nómina",
+        type: "select",
+        options: [
+          { value: "mensual", label: "Mensual (mensual/30 × días)" },
+          { value: "diario", label: "Diario (salario diario × días)" },
+          { value: "hora", label: "Hora (salario hora × horas REG trabajadas)" },
+        ],
+      },
       { key: "hora_complementaria", label: "Hora complementaria (€)", type: "number", step: "0.0001" },
       { key: "hora_montaje", label: "Hora de montaje (€)", type: "number", step: "0.0001" },
       { key: "plus_transporte", label: "Plus transporte (€/día trabajado)", type: "number", step: "0.01" },
@@ -377,8 +387,10 @@ const SETTINGS_CATALOGS = {
       { key: "complemento_dedicacion", label: "Compl. dedicación (€/mes)", type: "number", step: "0.01" },
       { key: "notas", label: "Notas", type: "textarea" },
     ],
-    listFields: ["convenio_categoria_id", "vigente_desde", "salario_mensual", "pagas_anuales"],
+    listFields: ["convenio_categoria_id", "vigente_desde", "salario_mensual", "base_calculo"],
     titleField: "vigente_desde",
+    // La columna es NOT NULL en base: una tarifa nueva debe salir ya en mensual.
+    newDefaults: { base_calculo: "mensual" },
     usageReferences: [],
     // El listado muestra el nombre del convenio, no su id.
     cellValue: (row, field) =>
@@ -16101,6 +16113,9 @@ const gestionNominaBlock = document.querySelector("#gestion-nomina-block");
 const gestionNominaHint = document.querySelector("#gestion-nomina-hint");
 const gestionNominaList = document.querySelector("#gestion-nomina-list");
 const gestionFilterEmpresa = document.querySelector("#gestion-filter-empresa");
+// Vacío = cada convenio manda con su base_calculo. Elegir un modo lo fuerza para
+// todos los puestos del cálculo, para poder comparar sin tocar las tarifas.
+const gestionFilterBaseCalculo = document.querySelector("#gestion-filter-base-calculo");
 
 // La nómina se calcula por empresa, así que Gestión arranca acotada a EDP: es
 // la empresa del 99,5% de los periodos y el caso normal. "Todas" mezcla
@@ -16163,6 +16178,7 @@ function getGestionFilters() {
     hasta: gestionFilterHasta?.value || "",
     personalId: gestionFilterPersonalHidden?.value || "",
     empresaId: gestionFilterEmpresa?.value || "",
+    baseCalculo: gestionFilterBaseCalculo?.value || "",
   };
 }
 
@@ -16558,7 +16574,7 @@ async function toggleGestionNominaTotal(personalId) {
     return;
   }
   detail.innerHTML = '<p class="muted-text">Calculando…</p>';
-  const { desde, hasta, empresaId } = getGestionFilters();
+  const { desde, hasta, empresaId, baseCalculo } = getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
     // Sin empresa el total funde las de todas, y eso no es ninguna nómina real.
@@ -16567,6 +16583,7 @@ async function toggleGestionNominaTotal(personalId) {
       p_desde: desde || null,
       p_hasta: hasta || null,
       p_empresa_id: empresaId ? Number(empresaId) : null,
+      p_base_calculo: baseCalculo || null,
     });
     if (error) {
       throw error;
@@ -16615,7 +16632,7 @@ async function toggleGestionNomina(historialId) {
     return;
   }
   detail.innerHTML = '<p class="muted-text">Calculando…</p>';
-  const { desde, hasta } = getGestionFilters();
+  const { desde, hasta, baseCalculo } = getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
     // Por puesto solo se muestran los devengos propios de ese puesto; las
@@ -16624,6 +16641,7 @@ async function toggleGestionNomina(historialId) {
       p_historial_id: Number(historialId),
       p_desde: desde || null,
       p_hasta: hasta || null,
+      p_base_calculo: baseCalculo || null,
     });
     if (error) {
       throw error;
@@ -23853,6 +23871,9 @@ async function init() {
     void loadGestion();
   });
   gestionFilterEmpresa?.addEventListener("change", () => {
+    void loadGestion();
+  });
+  gestionFilterBaseCalculo?.addEventListener("change", () => {
     void loadGestion();
   });
   gestionClearFiltersButton?.addEventListener("click", () => {
