@@ -3841,6 +3841,30 @@ th {
   background: var(--panel);
 }
 
+/* Periodos solapados del mismo puesto: la nómina sale duplicada. */
+.gestion-nomina-warning {
+  border: 1px solid #f0a3a3;
+  border-left: 4px solid #c0392b;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fdf2f2;
+  color: #7d2620;
+  font-size: 0.82rem;
+}
+
+.gestion-nomina-warning p {
+  margin: 0 0 6px;
+}
+
+.gestion-nomina-warning p:last-child {
+  margin-bottom: 0;
+}
+
+.gestion-nomina-warning ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+}
+
 .gestion-nomina-card.expanded {
   border-color: var(--line-strong);
 }

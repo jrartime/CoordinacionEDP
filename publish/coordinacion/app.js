@@ -16300,6 +16300,56 @@ function renderGestionEmpty(message) {
 // una persona seleccionada (si no, serían decenas de periodos sin foco). Cada
 // periodo se despliega bajo demanda y se calcula en el servidor con
 // calcular_nomina(historial_id, desde, hasta), acotado al rango del filtro.
+// Dos periodos del MISMO puesto que se pisan hacen que el total sume dos veces
+// el salario base, las horas y los pluses de ese tramo: calcular_nomina_persona
+// agrupa los devengos por concepto y suma los de todos los historiales. Es un
+// error de datos (ver la vista historiales_laborales_solapes), pero mientras
+// exista hay que avisarlo en vez de emitir un cálculo duplicado en silencio.
+// Las fechas son ISO, así que se comparan como texto.
+function findGestionNominaOverlaps(rows) {
+  const pairs = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    for (let j = i + 1; j < rows.length; j += 1) {
+      const a = rows[i];
+      const b = rows[j];
+      if (String(a.puesto_id ?? "") !== String(b.puesto_id ?? "")) {
+        continue;
+      }
+      const aFin = a.fecha_baja || "9999-12-31";
+      const bFin = b.fecha_baja || "9999-12-31";
+      if (a.fecha_alta <= bFin && b.fecha_alta <= aFin) {
+        pairs.push([a, b]);
+      }
+    }
+  }
+  return pairs;
+}
+
+function renderGestionNominaOverlapWarning(rows) {
+  const pairs = findGestionNominaOverlaps(rows);
+  if (!pairs.length) {
+    return "";
+  }
+  const items = pairs
+    .map(([a, b]) => {
+      const puesto = a.puesto || (a.puesto_id != null ? `Puesto ${a.puesto_id}` : "Sin puesto");
+      const rango = (row) =>
+        `${formatGestionDate(row.fecha_alta)} – ${formatGestionDate(row.fecha_baja) || "indefinido"}`;
+      return `<li>${escapeHtml(puesto)}: periodo <strong>${escapeHtml(a.id)}</strong> (${escapeHtml(
+        rango(a)
+      )}) y <strong>${escapeHtml(b.id)}</strong> (${escapeHtml(rango(b))})</li>`;
+    })
+    .join("");
+  return `<div class="gestion-nomina-warning" role="alert">
+      <p><strong>Atención: el total está duplicado.</strong> Esta persona tiene ${pairs.length}
+      ${pairs.length === 1 ? "par de periodos solapados" : "pares de periodos solapados"} del mismo puesto,
+      y la nómina suma los devengos de todos: el salario base, las horas y los pluses de los días
+      solapados se cobran dos veces.</p>
+      <ul>${items}</ul>
+      <p>Corrige las fechas en Historial laboral antes de dar por buena esta nómina.</p>
+    </div>`;
+}
+
 function renderGestionNomina(rows, personalId, desde, hasta) {
   gestionNominaCache.clear();
   if (!gestionNominaBlock) {
@@ -16319,7 +16369,8 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
   if (!gestionNominaList) {
     return;
   }
-  gestionNominaList.innerHTML = applicable
+  gestionNominaList.innerHTML = renderGestionNominaOverlapWarning(applicable);
+  gestionNominaList.innerHTML += applicable
     .map((row) => {
       const puesto = row.puesto || (row.puesto_id != null ? `Puesto ${row.puesto_id}` : "Sin puesto");
       const periodo = `${formatGestionDate(row.fecha_alta)} – ${formatGestionDate(row.fecha_baja) || "indefinido"}`;
