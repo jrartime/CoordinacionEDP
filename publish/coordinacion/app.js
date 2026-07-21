@@ -339,6 +339,7 @@ const SETTINGS_CATALOGS = {
     order: "vigente_desde",
     columns:
       "id,convenio_categoria_id,vigente_desde,salario_mensual,salario_anual,pagas_anuales," +
+      "salario_diario,salario_hora," +
       "hora_complementaria,hora_montaje,plus_transporte,plus_hora_nocturna," +
       "complemento_movilidad_pct,complemento_dedicacion,notas",
     fields: [
@@ -359,6 +360,10 @@ const SETTINGS_CATALOGS = {
       { key: "salario_mensual", label: "Salario mensual (€)", type: "number", step: "0.01" },
       { key: "salario_anual", label: "Salario anual (€)", type: "number", step: "0.01" },
       { key: "pagas_anuales", label: "Pagas anuales (14 = 12 + 2 extra)", type: "number", step: "1" },
+      // Vacíos, el motor deriva el día como mensual/30. Rellenar solo si el
+      // convenio fija su propio precio de día u hora ordinaria.
+      { key: "salario_diario", label: "Salario diario (€) — vacío = mensual/30", type: "number", step: "0.0001" },
+      { key: "salario_hora", label: "Salario hora ordinaria (€)", type: "number", step: "0.0001" },
       { key: "hora_complementaria", label: "Hora complementaria (€)", type: "number", step: "0.0001" },
       { key: "hora_montaje", label: "Hora de montaje (€)", type: "number", step: "0.0001" },
       { key: "plus_transporte", label: "Plus transporte (€/día trabajado)", type: "number", step: "0.01" },
