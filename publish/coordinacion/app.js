@@ -16300,12 +16300,16 @@ function renderGestionEmpty(message) {
 // una persona seleccionada (si no, serían decenas de periodos sin foco). Cada
 // periodo se despliega bajo demanda y se calcula en el servidor con
 // calcular_nomina(historial_id, desde, hasta), acotado al rango del filtro.
-// Dos periodos del MISMO puesto que se pisan hacen que el total sume dos veces
-// el salario base, las horas y los pluses de ese tramo: calcular_nomina_persona
-// agrupa los devengos por concepto y suma los de todos los historiales. Es un
-// error de datos (ver la vista historiales_laborales_solapes), pero mientras
-// exista hay que avisarlo en vez de emitir un cálculo duplicado en silencio.
-// Las fechas son ISO, así que se comparan como texto.
+// Dos periodos del MISMO puesto que se pisan hacen que calcular_nomina_persona
+// sume los devengos de ambos (agrupa por concepto y suma todos los historiales).
+// Hay dos causas muy distintas, y solo una es un error:
+//   * Misma empresa -> error de datos: el salario base, las horas y los pluses
+//     de los días solapados se cobran dos veces.
+//   * Empresas distintas -> pluriempleo legítimo (aquí EDP + INTECA). El dato
+//     está bien, pero en realidad serían DOS nóminas separadas, una por empresa,
+//     con sus propias cotizaciones; el motor las funde en un solo cálculo.
+// Ver la vista historiales_laborales_solapes. Las fechas son ISO, así que se
+// comparan como texto.
 function findGestionNominaOverlaps(rows) {
   const pairs = [];
   for (let i = 0; i < rows.length; i += 1) {
@@ -16318,7 +16322,11 @@ function findGestionNominaOverlaps(rows) {
       const aFin = a.fecha_baja || "9999-12-31";
       const bFin = b.fecha_baja || "9999-12-31";
       if (a.fecha_alta <= bFin && b.fecha_alta <= aFin) {
-        pairs.push([a, b]);
+        pairs.push({
+          a,
+          b,
+          mismaEmpresa: String(a.empresa_id ?? "") === String(b.empresa_id ?? ""),
+        });
       }
     }
   }
@@ -16330,24 +16338,45 @@ function renderGestionNominaOverlapWarning(rows) {
   if (!pairs.length) {
     return "";
   }
-  const items = pairs
-    .map(([a, b]) => {
-      const puesto = a.puesto || (a.puesto_id != null ? `Puesto ${a.puesto_id}` : "Sin puesto");
-      const rango = (row) =>
-        `${formatGestionDate(row.fecha_alta)} – ${formatGestionDate(row.fecha_baja) || "indefinido"}`;
-      return `<li>${escapeHtml(puesto)}: periodo <strong>${escapeHtml(a.id)}</strong> (${escapeHtml(
-        rango(a)
-      )}) y <strong>${escapeHtml(b.id)}</strong> (${escapeHtml(rango(b))})</li>`;
-    })
-    .join("");
-  return `<div class="gestion-nomina-warning" role="alert">
-      <p><strong>Atención: el total está duplicado.</strong> Esta persona tiene ${pairs.length}
-      ${pairs.length === 1 ? "par de periodos solapados" : "pares de periodos solapados"} del mismo puesto,
-      y la nómina suma los devengos de todos: el salario base, las horas y los pluses de los días
-      solapados se cobran dos veces.</p>
-      <ul>${items}</ul>
-      <p>Corrige las fechas en Historial laboral antes de dar por buena esta nómina.</p>
-    </div>`;
+  const rango = (row) =>
+    `${formatGestionDate(row.fecha_alta)} – ${formatGestionDate(row.fecha_baja) || "indefinido"}`;
+  const item = ({ a, b, mismaEmpresa }) => {
+    const puesto = a.puesto || (a.puesto_id != null ? `Puesto ${a.puesto_id}` : "Sin puesto");
+    const empresas = mismaEmpresa
+      ? ""
+      : ` · ${escapeHtml(a.empresa || "sin empresa")} / ${escapeHtml(b.empresa || "sin empresa")}`;
+    return `<li>${escapeHtml(puesto)}: periodo <strong>${escapeHtml(a.id)}</strong> (${escapeHtml(
+      rango(a)
+    )}) y <strong>${escapeHtml(b.id)}</strong> (${escapeHtml(rango(b))})${empresas}</li>`;
+  };
+
+  const duplicados = pairs.filter((pair) => pair.mismaEmpresa);
+  const pluriempleo = pairs.filter((pair) => !pair.mismaEmpresa);
+  let html = "";
+
+  if (duplicados.length) {
+    html += `<div class="gestion-nomina-warning" role="alert">
+        <p><strong>Atención: el total está duplicado.</strong> Esta persona tiene
+        ${duplicados.length} ${duplicados.length === 1 ? "par de periodos solapados" : "pares de periodos solapados"}
+        del mismo puesto y la misma empresa, y la nómina suma los devengos de todos: el salario base,
+        las horas y los pluses de los días solapados se cobran dos veces.</p>
+        <ul>${duplicados.map(item).join("")}</ul>
+        <p>Corrige las fechas en Historial laboral antes de dar por buena esta nómina.</p>
+      </div>`;
+  }
+
+  if (pluriempleo.length) {
+    html += `<div class="gestion-nomina-warning gestion-nomina-warning-info" role="alert">
+        <p><strong>Periodos simultáneos en empresas distintas.</strong> Esta persona tiene
+        ${pluriempleo.length} ${pluriempleo.length === 1 ? "periodo solapado" : "periodos solapados"}
+        con otra empresa del grupo. El dato es correcto, pero este cálculo los funde en una sola
+        nómina: en realidad son dos, una por empresa, con sus propias bases y cotizaciones.</p>
+        <ul>${pluriempleo.map(item).join("")}</ul>
+        <p>Usa el desglose por puesto en vez del total mientras el motor no separe por empresa.</p>
+      </div>`;
+  }
+
+  return html;
 }
 
 function renderGestionNomina(rows, personalId, desde, hasta) {
@@ -16584,7 +16613,9 @@ async function loadGestion() {
     let historialQuery = supabase
       .from(HISTORIAL_DETAIL_VIEW)
       .select(
-        "id, personal_id, personal, puesto_id, puesto, fecha_alta, fecha_baja, jornada, jornada_maxima, coeficiente_temporalidad_miles"
+        // empresa_* lo usa el aviso de solapes: dos periodos simultáneos son
+        // pluriempleo legítimo si son de empresas distintas del grupo.
+        "id, personal_id, personal, puesto_id, puesto, empresa_id, empresa, fecha_alta, fecha_baja, jornada, jornada_maxima, coeficiente_temporalidad_miles"
       )
       .lte("fecha_alta", hasta)
       .or(`fecha_baja.is.null,fecha_baja.gte.${desde}`)

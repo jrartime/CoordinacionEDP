@@ -3865,6 +3865,15 @@ th {
   padding-left: 18px;
 }
 
+/* Pluriempleo: el dato es correcto, solo informa de que el total funde dos
+   nóminas. Se distingue en ámbar del error rojo de duplicado. */
+.gestion-nomina-warning-info {
+  border-color: #e0b978;
+  border-left-color: #b8791a;
+  background: #fdf8ef;
+  color: #7a5310;
+}
+
 .gestion-nomina-card.expanded {
   border-color: var(--line-strong);
 }
