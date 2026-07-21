@@ -90,6 +90,16 @@ Resumen de los cambios completados, decisiones clave y estado actual del proyect
 - **Reglas de documento**: fecha documento propuesta = fecha comienzo - 15 dias. La UI avisa si el movimiento parece llamamiento/variacion/subrogacion y la plantilla seleccionada no coincide. El PDF se descarga como `Personal - tipo de movimiento - YYYY-MM-DD.pdf`, manteniendo espacios y acentos.
 - **Publicacion local**: cambios replicados en `publish/coordinacion/`; ultimo cache-busting aplicado `app.js?v=20260714-12`.
 
+## 9. Revisión de julio, filtros de Registros y solapes por empresa (21/07/2026)
+
+- **Nóminas reales de referencia**: revisados `01.pdf` (38 páginas de julio) y `Laura González Balbona.pdf` (una nómina de junio y una liquidación de julio duplicada en el primer PDF). La estructura ordinaria confirma salario base proporcional, mes natural completo pagado como 30 días, prorrata de dos extras `base × 2/12` y las deducciones habituales (CC 4,70 %, MEI 0,15 %, formación 0,10 %, desempleo generalmente 1,55 % e IRPF individual).
+- **Limitaciones confirmadas del motor de nómina**: todavía no reproduce vacaciones no disfrutadas, parte proporcional de vacaciones del finiquito, absentismo, incapacidad temporal/prestación de enfermedad ni el bloque de finiquito. Tampoco aplica topes mínimos/máximos de cotización; las nóminas reales demuestran casos donde la base de Seguridad Social supera el devengado. No dar por bueno el líquido del motor para esos casos hasta implementar estas reglas.
+- **Filtros de fecha de Registros**: `Desde` y `Hasta` pasan de 120 a 155 px. Se reduce el espacio reservado a la derecha y se coloca la `×` inmediatamente a la izquierda del calendario nativo, ambos dentro del control, para que la fecha completa sea visible. CSS `styles.css?v=20260721-4`.
+- **Validación de solapes de Historial laboral**: un aviso solo se considera sospechoso cuando coinciden persona, puesto, intervalo y **empresa**. Periodos simultáneos en empresas distintas son pluriempleo legítimo y no muestran confirmación. Dos periodos con `empresa_id` nulo sí se consideran de la misma empresa a estos efectos.
+- **Guardado individual**: `findSuspiciousHistorialOverlaps` consulta ahora `empresa_id/empresa`, e `isLegitHistorialOverlap` descarta primero las parejas de empresas distintas. El texto del aviso deja explícito que se trata del mismo puesto y la misma empresa.
+- **Asignación masiva**: el mismo criterio se aplica al cambiar `fecha_alta`, `fecha_baja` o `empresa_id`. Cambiar una empresa puede convertir un pluriempleo antes legítimo en un solape sospechoso, por lo que también se comprueba antes de confirmar el lote. JS `app.js?v=20260721-6`.
+- **Publicación/verificación local**: fuentes replicadas en `publish/coordinacion/` mediante `publish.ps1 -SkipConfig`; `check.ps1`, `node --check` y `git diff --check` correctos. Cambios pendientes de commit y de subida a IONOS.
+
 ---
 
 ## Estado actual

@@ -34,13 +34,17 @@
 
 drop function if exists public.calcular_nomina_persona(integer, date, date);
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer);
+drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text);
 
 create or replace function public.calcular_nomina_persona(
   p_personal_id integer, p_desde date, p_hasta date,
   p_empresa_id integer default null,
   -- Sobrescribe el base_calculo de la tarifa de convenio para TODOS los puestos
   -- del calculo. Vacio = cada convenio manda con el suyo.
-  p_base_calculo text default null
+  p_base_calculo text default null,
+  -- Que hacer con la diferencia entre horas REG y jornada teorica:
+  -- 'exceso' (por defecto), 'ambos' (tambien descuenta el defecto), 'ninguno'.
+  p_ajuste_jornada text default 'exceso'
 )
 returns table (
   orden integer, seccion text, concepto text, detalle text,
@@ -102,7 +106,7 @@ begin
   from (
     select d.concepto, sum(d.importe) as importe
     from public.historiales_laborales h
-    cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo) d
+    cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada) d
     where h.personal_id = p_personal_id
       and (p_empresa_id is null or h.empresa_id = p_empresa_id)
       and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
@@ -148,7 +152,7 @@ begin
   from (
     select min(d.orden) as orden, d.concepto, sum(d.importe) as importe
     from public.historiales_laborales h
-    cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo) d
+    cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada) d
     where h.personal_id = p_personal_id
       and (p_empresa_id is null or h.empresa_id = p_empresa_id)
       and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
@@ -244,5 +248,5 @@ begin
 end;
 $$;
 
-revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text) from public;
-grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text) to authenticated;
+revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text) from public;
+grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text) to authenticated;

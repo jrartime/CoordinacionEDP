@@ -61,6 +61,13 @@
 --     parcialidad dentro; aplicar el coeficiente la descontaria dos veces.
 --     Si falta la tarifa del modo pedido se cae a mensual y se dice en el
 --     detalle, en vez de devolver 0 en silencio.
+--   * COMPLEMENTO DE PUESTO (codigo 60, orden 65): exceso de horas REG sobre la
+--     jornada teorica del periodo (horas_teoricas_jornada). p_ajuste_jornada
+--     decide: 'exceso' (por defecto) solo paga lo trabajado de mas, 'ambos'
+--     ademas descuenta el defecto, 'ninguno' no emite la linea. La pestana
+--     Gestion lo expone como filtro "Ajuste de jornada".
+--   * DESCUENTO POR ABSENTISMO (codigo 790, orden 90): horas PNR (tipo 5) a
+--     hora_complementaria del convenio, en negativo.
 --   * Horas: HCOMP (2) y MONT (3) x get_puesto_precio_hora.
 --   * FTRAB (4): se paga como "Plus festivo trabajado" (codigo de nomina 12) a
 --     precio de hora de JORNADA COMPLETA (get_convenio_precio_hora_jc), no a
@@ -114,6 +121,46 @@ $$;
 revoke all on function public.dias_nomina(date, date) from public;
 grant execute on function public.dias_nomina(date, date) to authenticated;
 
+-- Horas que "tocaba" trabajar en el periodo segun la jornada semanal del
+-- contrato. Por cada mes natural que toque el periodo:
+--   dias de lunes a viernes del mes x (jornada / 5) x proporcion de dias
+--   naturales del mes que cubre el periodo.
+-- Julio 2026 tiene 23 dias L-V: a jornada completa de 40 h son 23 x 8 = 184 h;
+-- a 20 h/semana, 92 h; y 5 dias naturales de julio a JC son 184 x 5/31 =
+-- 29,6774 h. Reproduce la hoja "horas mes.xlsx" del usuario (40 celdas).
+create or replace function public.horas_teoricas_jornada(
+  p_desde date, p_hasta date, p_jornada numeric
+)
+returns numeric
+language sql
+immutable
+set search_path = public
+as $$
+  select coalesce(sum(
+    (
+      select count(*)
+      from generate_series(m.ini, m.fin, interval '1 day') d
+      where extract(isodow from d) < 6
+    )::numeric
+    * (coalesce(p_jornada, 0) / 5.0)
+    * ((least(p_hasta, m.fin) - greatest(p_desde, m.ini) + 1)::numeric
+       / (m.fin - m.ini + 1)::numeric)
+  ), 0)
+  from (
+    select d::date as ini,
+           (d + interval '1 month' - interval '1 day')::date as fin
+    from generate_series(
+      date_trunc('month', p_desde::timestamp),
+      date_trunc('month', p_hasta::timestamp),
+      interval '1 month'
+    ) d
+  ) m
+  where p_desde <= m.fin and p_hasta >= m.ini;
+$$;
+
+revoke all on function public.horas_teoricas_jornada(date, date, numeric) from public;
+grant execute on function public.horas_teoricas_jornada(date, date, numeric) to authenticated;
+
 -- Precio de la hora a jornada completa segun convenio.
 --
 -- Convencion confirmada por el usuario (2026-07-20): salario ANUAL a jornada
@@ -165,7 +212,8 @@ create or replace function public.calcular_nomina_devengos(
   p_historial_id bigint,
   p_desde date default null,
   p_hasta date default null,
-  p_base_calculo text default null
+  p_base_calculo text default null,
+  p_ajuste_jornada text default 'exceso'
 )
 returns table (
   orden integer, concepto text, detalle text,
@@ -181,6 +229,8 @@ declare
   v_dias_trab integer; v_horas_noct numeric; v_convenio_id integer;
   v_precio_hora_jc numeric;
   v_modo text; v_horas_reg numeric; v_tarifa_dia numeric; v_detalle_base text;
+  v_horas_teoricas numeric; v_dif_jornada numeric; v_precio_jornada numeric;
+  v_extras integer; v_ajuste text; v_horas_pnr numeric;
 begin
   select * into h from public.historiales_laborales where id = p_historial_id;
   if h.id is null then return; end if;
@@ -195,6 +245,7 @@ begin
   v_fecha_ref := v_desde;
   v_dias := public.dias_nomina(v_desde, v_hasta);
   v_coef := coalesce(h.coeficiente_temporalidad_miles, 1000) / 1000.0;
+  v_ajuste := coalesce(nullif(trim(p_ajuste_jornada), ''), 'exceso');
 
   select * into v_sal from public.get_puesto_salario_efectivo(h.puesto_id, v_fecha_ref);
 
@@ -202,6 +253,8 @@ begin
   if v_convenio_id is not null then
     select * into v_conv from public.get_convenio_salario_vigente(v_convenio_id, v_fecha_ref);
   end if;
+
+  v_extras := greatest(coalesce(v_conv.pagas_anuales, 12)::integer - 12, 0);
 
   -- Dias y horas SOLO del puesto de este historial (si no, dos historiales
   -- solapados con puestos distintos se llevarian cada uno las horas del otro).
@@ -233,6 +286,15 @@ begin
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
     and r.fecha >= v_desde and r.fecha <= v_hasta
     and r.tipo_hora_id = 1;
+
+  select coalesce(sum(r.horas), 0)::numeric
+    into v_horas_pnr
+  from public.registros r
+  where r.personal_id = h.personal_id
+    and r.puesto_id = h.puesto_id
+    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+    and r.fecha >= v_desde and r.fecha <= v_hasta
+    and r.tipo_hora_id = 5;
 
   v_modo := coalesce(nullif(trim(p_base_calculo), ''), v_conv.base_calculo, 'mensual');
 
@@ -275,6 +337,26 @@ begin
       format('%s€/mes × %s/30 días', v_conv.complemento_dedicacion, v_dias),
       null::numeric, null::numeric, null::numeric,
       round(v_conv.complemento_dedicacion * v_dias / 30.0, 2), null::text;
+  end if;
+
+  -- Complemento de puesto (60): exceso de horas REG sobre la jornada teorica.
+  -- Se valora al precio hora del propio contrato INCLUYENDO la parte de pagas
+  -- extra, y esa parte va siempre, tenga o no prorrateo (decision del usuario).
+  --   (base + base x extras/12) / horas_teoricas
+  -- Ejemplo: 1221 EUR/mes, 14 pagas, 184 h teoricas de julio -> 7,7418 EUR/h;
+  -- 188 h trabajadas = 4 de exceso = 30,97 EUR.
+  v_horas_teoricas := public.horas_teoricas_jornada(v_desde, v_hasta, h.jornada);
+  if v_ajuste <> 'ninguno' and v_horas_teoricas > 0 then
+    v_dif_jornada := v_horas_reg - v_horas_teoricas;
+    v_precio_jornada := (v_base * (1 + v_extras / 12.0)) / v_horas_teoricas;
+    if v_dif_jornada > 0 or (v_ajuste = 'ambos' and v_dif_jornada <> 0) then
+      return query select 65, 'Complemento de puesto'::text,
+        format('%s h REG − %s h teóricas = %s h × %s€/h (base + %s/12 pagas)',
+               round(v_horas_reg, 2), round(v_horas_teoricas, 2),
+               round(v_dif_jornada, 2), round(v_precio_jornada, 4), v_extras),
+        null::numeric, round(v_dif_jornada, 2), round(v_precio_jornada, 4),
+        round(v_dif_jornada * v_precio_jornada, 2), null::text;
+    end if;
   end if;
 
   return query
@@ -322,11 +404,21 @@ begin
     having sum(r.horas) > 0;
   end if;
 
+  -- Descuento por absentismo (790): horas PNR (permiso no retribuido, tipo 5)
+  -- valoradas a hora_complementaria del convenio, en NEGATIVO.
+  if v_horas_pnr > 0 and coalesce(v_conv.hora_complementaria, 0) > 0 then
+    return query select 90, 'Descuento por absentismo'::text,
+      format('%s h PNR × %s€/h', round(v_horas_pnr, 2), v_conv.hora_complementaria),
+      null::numeric, round(v_horas_pnr, 2), v_conv.hora_complementaria,
+      round(-1 * v_horas_pnr * v_conv.hora_complementaria, 2), null::text;
+  end if;
+
   return;
 end;
 $$;
 
 drop function if exists public.calcular_nomina_devengos(bigint, date, date);
+drop function if exists public.calcular_nomina_devengos(bigint, date, date, text);
 
-revoke all on function public.calcular_nomina_devengos(bigint, date, date, text) from public;
-grant execute on function public.calcular_nomina_devengos(bigint, date, date, text) to authenticated;
+revoke all on function public.calcular_nomina_devengos(bigint, date, date, text, text) from public;
+grant execute on function public.calcular_nomina_devengos(bigint, date, date, text, text) to authenticated;

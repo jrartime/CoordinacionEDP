@@ -2080,7 +2080,7 @@ button.tag-chip.warm-button:hover {
 /* Registros: contrato y servicio algo más anchos; personal e instalación más
    estrechos. (Historial comparte la clase, por eso se escopa al form de registros.) */
 .private-tab-panel #records-filters-form.records-filters-compact {
-  grid-template-columns: 120px 120px 250px 150px 120px 110px minmax(120px, 1fr) auto;
+  grid-template-columns: 155px 155px 250px 150px 120px 110px minmax(120px, 1fr) auto;
 }
 
 /* Historial laboral: fechas algo más anchas (alta desde/alta hasta y baja
@@ -2947,6 +2947,17 @@ th {
 #historial-filters-form .filter-control-row > select:not([multiple]),
 #historial-filters-form .filter-control-row > input[type="date"] {
   padding-right: 44px;
+}
+
+/* Registros necesita mostrar completa la fecha aun con los dos controles a la
+   derecha. La x queda inmediatamente a la izquierda del calendario nativo. */
+#records-filters-form .filter-control-row > input[type="date"] {
+  padding-right: 38px;
+}
+
+#records-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button {
+  right: 20px;
+  width: 16px;
 }
 #programming-filters-form .filter-control-row > input[type="text"],
 #programming-filters-form .filter-control-row > input[type="search"],

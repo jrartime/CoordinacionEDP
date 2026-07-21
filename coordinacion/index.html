@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260721-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260721-4" />
   </head>
   <body>
     <script>
@@ -1446,6 +1446,14 @@
                       <option value="mensual">Mensual</option>
                       <option value="diario">Diario</option>
                       <option value="hora">Hora</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Ajuste de jornada
+                    <select id="gestion-filter-ajuste-jornada" name="ajuste_jornada">
+                      <option value="exceso">Solo el exceso</option>
+                      <option value="ambos">Exceso y defecto</option>
+                      <option value="ninguno">No aplicar</option>
                     </select>
                   </label>
                   <label class="filter-field">
@@ -7454,6 +7462,6 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260720-2" defer></script>
-    <script src="./app.js?v=20260721-5" defer></script>
+    <script src="./app.js?v=20260721-7" defer></script>
   </body>
 </html>

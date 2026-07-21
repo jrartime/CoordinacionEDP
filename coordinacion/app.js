@@ -16116,6 +16116,10 @@ const gestionFilterEmpresa = document.querySelector("#gestion-filter-empresa");
 // Vacío = cada convenio manda con su base_calculo. Elegir un modo lo fuerza para
 // todos los puestos del cálculo, para poder comparar sin tocar las tarifas.
 const gestionFilterBaseCalculo = document.querySelector("#gestion-filter-base-calculo");
+// Qué hacer con la diferencia entre horas REG y jornada teórica del periodo:
+// solo pagar el exceso (por defecto), pagar exceso y descontar defecto, o no
+// emitir la línea del complemento de puesto.
+const gestionFilterAjusteJornada = document.querySelector("#gestion-filter-ajuste-jornada");
 
 // La nómina se calcula por empresa, así que Gestión arranca acotada a EDP: es
 // la empresa del 99,5% de los periodos y el caso normal. "Todas" mezcla
@@ -16179,6 +16183,7 @@ function getGestionFilters() {
     personalId: gestionFilterPersonalHidden?.value || "",
     empresaId: gestionFilterEmpresa?.value || "",
     baseCalculo: gestionFilterBaseCalculo?.value || "",
+    ajusteJornada: gestionFilterAjusteJornada?.value || "exceso",
   };
 }
 
@@ -16574,7 +16579,7 @@ async function toggleGestionNominaTotal(personalId) {
     return;
   }
   detail.innerHTML = '<p class="muted-text">Calculando…</p>';
-  const { desde, hasta, empresaId, baseCalculo } = getGestionFilters();
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada } = getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
     // Sin empresa el total funde las de todas, y eso no es ninguna nómina real.
@@ -16584,6 +16589,7 @@ async function toggleGestionNominaTotal(personalId) {
       p_hasta: hasta || null,
       p_empresa_id: empresaId ? Number(empresaId) : null,
       p_base_calculo: baseCalculo || null,
+      p_ajuste_jornada: ajusteJornada,
     });
     if (error) {
       throw error;
@@ -16632,7 +16638,7 @@ async function toggleGestionNomina(historialId) {
     return;
   }
   detail.innerHTML = '<p class="muted-text">Calculando…</p>';
-  const { desde, hasta, baseCalculo } = getGestionFilters();
+  const { desde, hasta, baseCalculo, ajusteJornada } = getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
     // Por puesto solo se muestran los devengos propios de ese puesto; las
@@ -16642,6 +16648,7 @@ async function toggleGestionNomina(historialId) {
       p_desde: desde || null,
       p_hasta: hasta || null,
       p_base_calculo: baseCalculo || null,
+      p_ajuste_jornada: ajusteJornada,
     });
     if (error) {
       throw error;
@@ -20543,8 +20550,9 @@ function collectHistorialDetailPayload({ full = false } = {}) {
 //      completo y las VARIACION lo subdividen, así que conviven a propósito.
 //   2. Puestos distintos: la persona ocupa dos puestos a la vez (p. ej. Monitorado
 //      Deportivo y Conc. Monitorado), que es un caso real y frecuente.
-// Lo que no tiene lectura definida es un solape del mismo puesto que no sea envoltura y
-// tramo: casi siempre es un duplicado. Se avisa sin bloquear.
+//   3. Empresas distintas: es pluriempleo legítimo y cada empresa genera su nómina.
+// Lo que no tiene lectura definida es un solape del mismo puesto y la misma empresa que
+// no sea envoltura y tramo: casi siempre es un duplicado. Se avisa sin bloquear.
 const HISTORIAL_MOV_BAJA = "BAJA";
 const HISTORIAL_MOV_VARIACION = "VARIACION";
 const HISTORIAL_OVERLAP_PREVIEW = 6;
@@ -20554,6 +20562,9 @@ function normalizeHistorialMovimiento(value) {
 }
 
 function isLegitHistorialOverlap(row, other) {
+  if (String(row?.empresa_id ?? "") !== String(other?.empresa_id ?? "")) {
+    return true;
+  }
   const a = normalizeHistorialMovimiento(row?.movimiento);
   const b = normalizeHistorialMovimiento(other?.movimiento);
   const esEnvolturaYTramo =
@@ -20586,7 +20597,7 @@ async function findSuspiciousHistorialOverlaps(row, excludeId) {
     // significa periodo abierto, así que no acota por ese lado.
     let query = supabase
       .from(HISTORIAL_DETAIL_VIEW)
-      .select("id, fecha_alta, fecha_baja, movimiento, puesto_id, puesto")
+      .select("id, fecha_alta, fecha_baja, movimiento, empresa_id, empresa, puesto_id, puesto")
       .eq("personal_id", row.personal_id)
       .or(`fecha_baja.is.null,fecha_baja.gte.${row.fecha_alta}`);
     if (row.fecha_baja) {
@@ -20617,10 +20628,10 @@ async function confirmHistorialOverlap(row, excludeId) {
   const rest = overlaps.length - lines.length;
   const listado = lines.join("\n") + (rest > 0 ? `\n  · y ${rest} más` : "");
   return window.confirm(
-    `Este periodo se solapa en fechas con ${overlaps.length} periodo(s) del mismo puesto de esta persona:\n\n` +
+    `Este periodo se solapa en fechas con ${overlaps.length} periodo(s) del mismo puesto y la misma empresa de esta persona:\n\n` +
       `${listado}\n\n` +
       "Un solape solo es normal entre el contrato completo (BAJA) y sus tramos (VARIACION), " +
-      "o entre dos puestos distintos a la vez. Si esto es una variación, indícalo en el campo " +
+      "entre dos puestos distintos o entre empresas distintas. Si esto es una variación, indícalo en el campo " +
       "Movimiento.\n\n" +
       "¿Guardar igualmente?"
   );
@@ -20975,9 +20986,10 @@ function collectSuspiciousPairs(rows) {
 
 // Solapes que la masiva CREARIA, restando los que ya existen: avisar de los previos seria
 // ruido y bloquearia ediciones legitimas sobre datos ya sucios.
-// Solo fecha_alta y fecha_baja pueden mover un periodo, asi que el resto de campos ni consulta.
+// Las fechas pueden mover un periodo y la empresa puede convertir un pluriempleo legitimo
+// en un solape dentro de la misma empresa; el resto de campos no crea conflictos nuevos.
 async function findHistorialBulkNewOverlaps(field, newValue, targetRows) {
-  if (field !== "fecha_alta" && field !== "fecha_baja") {
+  if (field !== "fecha_alta" && field !== "fecha_baja" && field !== "empresa_id") {
     return [];
   }
   const personalIds = [...new Set(targetRows.map((row) => row.personal_id).filter((id) => id != null))];
@@ -20988,7 +21000,7 @@ async function findHistorialBulkNewOverlaps(field, newValue, targetRows) {
   // historialRows solo tiene la pagina cargada; hacen falta TODOS los periodos de esa gente.
   const { data, error } = await supabase
     .from(HISTORIAL_DETAIL_VIEW)
-    .select("id, personal_id, personal, fecha_alta, fecha_baja, movimiento, puesto_id, puesto")
+    .select("id, personal_id, personal, fecha_alta, fecha_baja, movimiento, empresa_id, empresa, puesto_id, puesto")
     .in("personal_id", personalIds);
   if (error) throw error;
 
@@ -21098,16 +21110,16 @@ async function applyHistorialBulkAssignment() {
   // Se avisa dentro de la confirmación que ya existía, para no encadenar dos diálogos.
   // Un fallo aquí no impide la masiva: el aviso es una ayuda, no un guardián.
   let overlapWarning = "";
-  if (field === "fecha_alta" || field === "fecha_baja") {
+  if (field === "fecha_alta" || field === "fecha_baja" || field === "empresa_id") {
     setStatus("Comprobando solapes…");
     try {
       const nuevos = await findHistorialBulkNewOverlaps(field, newValue, matches);
       if (nuevos.length) {
         overlapWarning =
-          `\n\n⚠ Además, crearía ${nuevos.length} solape${nuevos.length !== 1 ? "s" : ""} nuevo${nuevos.length !== 1 ? "s" : ""} del mismo puesto:\n\n` +
+          `\n\n⚠ Además, crearía ${nuevos.length} solape${nuevos.length !== 1 ? "s" : ""} nuevo${nuevos.length !== 1 ? "s" : ""} del mismo puesto y la misma empresa:\n\n` +
           `${describeHistorialBulkNewOverlaps(nuevos)}\n\n` +
           "Un solape solo es normal entre el contrato completo (BAJA) y sus tramos (VARIACION), " +
-          "o entre dos puestos distintos a la vez.";
+          "entre puestos distintos o entre empresas distintas.";
       }
     } catch (_error) {
       overlapWarning = "\n\n(No se pudo comprobar si crearía solapes.)";
@@ -23874,6 +23886,9 @@ async function init() {
     void loadGestion();
   });
   gestionFilterBaseCalculo?.addEventListener("change", () => {
+    void loadGestion();
+  });
+  gestionFilterAjusteJornada?.addEventListener("change", () => {
     void loadGestion();
   });
   gestionClearFiltersButton?.addEventListener("click", () => {

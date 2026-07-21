@@ -123,6 +123,12 @@ y deja constancia en `contexto-previo.md`.
 - En los informes de Registros y Actividades, la celda de contrato muestra tambien el servicio asociado.
 - En la asignacion masiva de Registros y Actividades, si se cambia `contrato_id` se limpia `servicio_id` y se muestra aviso. Si se cambia `servicio_id`, el frontend valida que el servicio pertenezca al contrato de todos los elementos objetivo.
 - El blindaje anterior se complementa con triggers SQL en Supabase para evitar incoherencias aunque un cambio no pase por la interfaz.
+- Los avisos de solape de Historial laboral solo tratan como conflicto los periodos de la misma persona, puesto y empresa. Los periodos simultaneos en empresas distintas se consideran pluriempleo legitimo.
+
+## Nominas: limitaciones conocidas
+
+- El calculo ordinario contempla salario base, prorrata de pagas, complementos, bases, deducciones e IRPF, pero todavia no reproduce vacaciones de finiquito, absentismo ni incapacidad temporal.
+- Los topes minimos y maximos de cotizacion aun no estan aplicados. En meses parciales la base de Seguridad Social calculada puede diferir de la nomina real aunque el devengado ordinario cuadre.
 
 ## Desarrollo local
 
