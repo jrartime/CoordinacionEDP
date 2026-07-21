@@ -231,9 +231,17 @@ declare
   v_modo text; v_horas_reg numeric; v_tarifa_dia numeric; v_detalle_base text;
   v_horas_teoricas numeric; v_dif_jornada numeric; v_precio_jornada numeric;
   v_extras integer; v_ajuste text; v_horas_pnr numeric;
+  v_camb_id integer;
 begin
   select * into h from public.historiales_laborales where id = p_historial_id;
   if h.id is null then return; end if;
+
+  -- Situacion CAMB ("Cambio de actividad"): el turno le tocaba a esta persona
+  -- pero lo cubrio OTRA, asi que NO ha trabajado esas horas y no cuentan en
+  -- ninguna medida. Caso real (Katherine Fernandez, 04/06/2026): NORM 15:30-22:30
+  -- en la Piscina de la Corredoria y CAMB 16:00-23:30 en Fozaneldi, horarios
+  -- solapados. Aparece con REG, HCOMP y PNR, de ahi que el filtro se repita.
+  select s.id into v_camb_id from public.situaciones s where s.situacion = 'CAMB';
 
   v_desde := greatest(h.fecha_alta, coalesce(p_desde, h.fecha_alta));
   v_hasta := least(
@@ -275,6 +283,7 @@ begin
   where r.personal_id = h.personal_id
     and r.puesto_id = h.puesto_id
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+    and r.situacion_id is distinct from v_camb_id
     and r.fecha >= v_desde and r.fecha <= v_hasta;
 
   -- Horas ordinarias (REG) del puesto y empresa: la cantidad del modo hora.
@@ -284,6 +293,7 @@ begin
   where r.personal_id = h.personal_id
     and r.puesto_id = h.puesto_id
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+    and r.situacion_id is distinct from v_camb_id
     and r.fecha >= v_desde and r.fecha <= v_hasta
     and r.tipo_hora_id = 1;
 
@@ -293,6 +303,7 @@ begin
   where r.personal_id = h.personal_id
     and r.puesto_id = h.puesto_id
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+    and r.situacion_id is distinct from v_camb_id
     and r.fecha >= v_desde and r.fecha <= v_hasta
     and r.tipo_hora_id = 5;
 
@@ -374,6 +385,7 @@ begin
   where r.personal_id = h.personal_id
     and r.puesto_id = h.puesto_id
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+    and r.situacion_id is distinct from v_camb_id
     and r.fecha >= v_desde and r.fecha <= v_hasta and th.id in (2, 3)
   group by th.id, th.tipo_hora having sum(r.horas) > 0;
 
@@ -399,6 +411,7 @@ begin
     where r.personal_id = h.personal_id
       and r.puesto_id = h.puesto_id
       and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+      and r.situacion_id is distinct from v_camb_id
       and r.fecha >= v_desde and r.fecha <= v_hasta
       and r.tipo_hora_id = 4
     having sum(r.horas) > 0;
