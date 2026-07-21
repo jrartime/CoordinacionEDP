@@ -22,7 +22,13 @@
 --
 -- CONVENCIONES:
 --   * Salario diario = salario_mensual / 30.
---   * base = salario_mensual_puesto x (coeficiente/1000) x (dias_ventana / 30).
+--   * base = salario_mensual_puesto x (coeficiente/1000) x (dias_nomina / 30).
+--   * DIAS DE NOMINA (dias_nomina): un mes natural COMPLETO cuenta 30 dias
+--     aunque tenga 28 o 31; los tramos parciales cuentan sus dias reales.
+--     Confirmado contra la nomina real de Javier Cortavitarte de mayo de 2026
+--     (31 dias naturales, pagados como "30,00 x 40,700 = 1.221,00"). Antes se
+--     usaba (fecha_hasta - fecha_desde + 1) y los meses de 31 dias cobraban
+--     31/30 de la mensualidad.
 --   * Ventana = interseccion del periodo del historial con [desde, hasta]. Los
 --     contratos indefinidos (fecha_baja null) exigen pasar el rango.
 --   * DIAS EFECTIVAMENTE TRABAJADOS: dias distintos con registros de situacion
@@ -66,6 +72,37 @@
 drop function if exists public.calcular_nomina(bigint, date, date);
 drop function if exists public.calcular_nomina_devengos(bigint, date, date);
 
+-- Dias a efectos de nomina: un mes natural COMPLETO cuenta 30 dias aunque tenga
+-- 28 o 31; los tramos parciales cuentan sus dias reales. Ver la nota de
+-- cabecera: sale de la nomina real de mayo de 2026.
+create or replace function public.dias_nomina(p_desde date, p_hasta date)
+returns integer
+language sql
+immutable
+set search_path = public
+as $$
+  select coalesce(sum(
+    case
+      -- El tramo cubre el mes natural entero: 30 por convencion.
+      when greatest(p_desde, m.ini) = m.ini and least(p_hasta, m.fin) = m.fin then 30
+      else (least(p_hasta, m.fin) - greatest(p_desde, m.ini) + 1)
+    end
+  )::integer, 0)
+  from (
+    select d::date as ini,
+           (d + interval '1 month' - interval '1 day')::date as fin
+    from generate_series(
+      date_trunc('month', p_desde::timestamp),
+      date_trunc('month', p_hasta::timestamp),
+      interval '1 month'
+    ) d
+  ) m
+  where p_desde <= m.fin and p_hasta >= m.ini;
+$$;
+
+revoke all on function public.dias_nomina(date, date) from public;
+grant execute on function public.dias_nomina(date, date) to authenticated;
+
 -- Precio de la hora a jornada completa segun convenio.
 --
 -- Convencion confirmada por el usuario (2026-07-20): salario ANUAL a jornada
@@ -79,6 +116,17 @@ drop function if exists public.calcular_nomina_devengos(bigint, date, date);
 -- tenga cada mes. Se descarto la variante mensual (salario_mensual entre dias
 -- L-V del mes x jornada diaria), que daba ~13% menos y un precio distinto cada
 -- mes.
+--
+-- DISCREPANCIA CONOCIDA CON EL PROGRAMA DE NOMINAS (2026-07-21): la nomina real
+-- de Javier Cortavitarte de mayo de 2026 paga el concepto 12 "Plus festivos y
+-- domingos" a 239,12 = 24,5 h x 9,76, y 9,76 es la hora_complementaria del
+-- convenio, no este precio de jornada completa (8,1868 para 40 h). Es decir, el
+-- programa de nominas usa la hora complementaria.
+--
+-- DECISION DEL USUARIO: la formula anual es la correcta y lo que esta mal es el
+-- programa de nominas. NO cambiar a hora_complementaria. Si en el futuro se
+-- revisa, el cambio seria usar cs.hora_complementaria en la linea del plus de
+-- festivo de calcular_nomina_devengos.
 --
 -- salario_anual esta vacio en la mayoria de categorias, asi que se deriva de
 -- salario_mensual x pagas_anuales cuando falta (comprobado que cuadra donde
@@ -132,7 +180,7 @@ begin
   if v_hasta < v_desde then return; end if;
 
   v_fecha_ref := v_desde;
-  v_dias := (v_hasta - v_desde) + 1;
+  v_dias := public.dias_nomina(v_desde, v_hasta);
   v_coef := coalesce(h.coeficiente_temporalidad_miles, 1000) / 1000.0;
 
   select * into v_sal from public.get_puesto_salario_efectivo(h.puesto_id, v_fecha_ref);
