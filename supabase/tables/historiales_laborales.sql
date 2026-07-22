@@ -354,10 +354,14 @@ as $$
 begin
   if new.fecha_alta is not null and new.fecha_baja is not null then
     new.dias_periodo = (new.fecha_baja - new.fecha_alta) + 1;
+  else
+    new.dias_periodo = null;
   end if;
 
   if new.jornada is not null and new.jornada_maxima is not null and new.jornada_maxima <> 0 then
     new.coeficiente_temporalidad_miles = round((new.jornada / new.jornada_maxima) * 1000)::integer;
+  else
+    new.coeficiente_temporalidad_miles = null;
   end if;
 
   new.updated_at = now();

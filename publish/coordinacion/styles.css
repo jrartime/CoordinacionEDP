@@ -2120,6 +2120,14 @@ button.tag-chip.warm-button:hover {
   grid-template-columns: 145px 145px 150px 90px 90px 90px minmax(190px, 1fr) auto;
 }
 
+/* Gestión solo tiene cuatro filtros, así que la rejilla de ocho columnas que
+   comparte con Registros le venía grande: Personal caía en la columna de 90px.
+   Personal lleva ancho fijo y el sobrante se lo come una última columna vacía:
+   con 1fr en Personal el buscador se estiraba a lo ancho de la tarjeta. */
+.private-tab-panel #gestion-filters-form.records-filters-compact {
+  grid-template-columns: 120px 120px 140px 190px auto minmax(0, 1fr);
+}
+
 /* Cada columna de fecha del historial apila dos campos (desde/hasta). */
 .historial-date-stack {
   display: flex;

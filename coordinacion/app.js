@@ -21059,6 +21059,45 @@ function renderHistorialDetailForm(row) {
   }).join("");
 }
 
+function calculateHistorialPeriodDays(fechaAlta, fechaBaja) {
+  const startMatch = String(fechaAlta || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const endMatch = String(fechaBaja || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!startMatch || !endMatch) return null;
+  const start = Date.UTC(Number(startMatch[1]), Number(startMatch[2]) - 1, Number(startMatch[3]));
+  const end = Date.UTC(Number(endMatch[1]), Number(endMatch[2]) - 1, Number(endMatch[3]));
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+  return Math.round((end - start) / 86400000) + 1;
+}
+
+function calculateHistorialTemporalCoefficient(jornada, jornadaMaxima) {
+  if (jornada === null || jornada === undefined || jornada === "" ||
+      jornadaMaxima === null || jornadaMaxima === undefined || jornadaMaxima === "") {
+    return null;
+  }
+  const value = Number(jornada);
+  const maximum = Number(jornadaMaxima);
+  if (!Number.isFinite(value) || !Number.isFinite(maximum) || maximum === 0) return null;
+  return Math.round((value / maximum) * 1000);
+}
+
+function syncHistorialDetailCalculatedFields() {
+  if (!historialDetailForm) return;
+  const daysControl = historialDetailForm.elements.dias_periodo;
+  const coefficientControl = historialDetailForm.elements.coeficiente_temporalidad_miles;
+  if (daysControl) {
+    daysControl.value = calculateHistorialPeriodDays(
+      historialDetailForm.elements.fecha_alta?.value,
+      historialDetailForm.elements.fecha_baja?.value
+    ) ?? "";
+  }
+  if (coefficientControl) {
+    coefficientControl.value = calculateHistorialTemporalCoefficient(
+      historialDetailForm.elements.jornada?.value,
+      historialDetailForm.elements.jornada_maxima?.value
+    ) ?? "";
+  }
+}
+
 async function openHistorialDetail(historialId) {
   const row = findHistorialRow(historialId);
   if (!row || !historialDetailPanel) {
@@ -21133,6 +21172,19 @@ function collectHistorialDetailPayload({ full = false } = {}) {
       payload[field.key] = nextValue;
     }
   });
+
+  if (full || "fecha_alta" in payload || "fecha_baja" in payload) {
+    payload.dias_periodo = calculateHistorialPeriodDays(
+      historialDetailForm.elements.fecha_alta?.value,
+      historialDetailForm.elements.fecha_baja?.value
+    );
+  }
+  if (full || "jornada" in payload || "jornada_maxima" in payload) {
+    payload.coeficiente_temporalidad_miles = calculateHistorialTemporalCoefficient(
+      historialDetailForm.elements.jornada?.value,
+      historialDetailForm.elements.jornada_maxima?.value
+    );
+  }
   return payload;
 }
 
@@ -21660,6 +21712,30 @@ function describeHistorialBulkDateConflicts(field, newValue, conflicts) {
   return lines.join("\n") + (rest > 0 ? `\n  · y ${rest} más` : "");
 }
 
+function getHistorialBulkCalculatedField(field) {
+  if (field === "fecha_alta" || field === "fecha_baja") return "dias_periodo";
+  if (field === "jornada" || field === "jornada_maxima") {
+    return "coeficiente_temporalidad_miles";
+  }
+  return "";
+}
+
+function getHistorialBulkCalculatedValue(row, field, newValue) {
+  if (field === "fecha_alta" || field === "fecha_baja") {
+    return calculateHistorialPeriodDays(
+      field === "fecha_alta" ? newValue : row.fecha_alta,
+      field === "fecha_baja" ? newValue : row.fecha_baja
+    );
+  }
+  if (field === "jornada" || field === "jornada_maxima") {
+    return calculateHistorialTemporalCoefficient(
+      field === "jornada" ? newValue : row.jornada,
+      field === "jornada_maxima" ? newValue : row.jornada_maxima
+    );
+  }
+  return null;
+}
+
 async function applyHistorialBulkAssignment() {
   const field = historialBulkFieldSelect?.value;
   const config = getHistorialBulkFieldConfig();
@@ -21739,18 +21815,48 @@ async function applyHistorialBulkAssignment() {
     ? `¿Cambiar ${config.label} a "${newLabel}" en ${matches.length} periodo${matches.length !== 1 ? "s" : ""} seleccionado${matches.length !== 1 ? "s" : ""}?`
     : `¿Cambiar ${config.label} de "${currentLabel}" a "${newLabel}" en ${matches.length} periodo${matches.length !== 1 ? "s" : ""}?`;
 
-  if (!confirm(resumen + overlapWarning)) {
+  const calculatedField = getHistorialBulkCalculatedField(field);
+  const calculationWarning = calculatedField === "dias_periodo"
+    ? "\n\nLos días del periodo se recalcularán automáticamente."
+    : calculatedField === "coeficiente_temporalidad_miles"
+      ? "\n\nEl coeficiente de temporalidad se recalculará automáticamente."
+      : "";
+
+  if (!confirm(resumen + calculationWarning + overlapWarning)) {
     return;
   }
 
   try {
     const supabase = await getSupabaseClient();
-    const ids = matches.map((row) => row.id);
-    const { error } = await supabase
-      .from(HISTORIAL_TABLE)
-      .update({ [field]: newValue })
-      .in("id", ids);
-    if (error) throw error;
+    if (calculatedField) {
+      const calculableIds = [];
+      const emptyCalculatedIds = [];
+      matches.forEach((row) => {
+        const calculatedValue = getHistorialBulkCalculatedValue(row, field, newValue);
+        (calculatedValue === null ? emptyCalculatedIds : calculableIds).push(row.id);
+      });
+      if (calculableIds.length) {
+        const { error } = await supabase
+          .from(HISTORIAL_TABLE)
+          .update({ [field]: newValue })
+          .in("id", calculableIds);
+        if (error) throw error;
+      }
+      if (emptyCalculatedIds.length) {
+        const { error } = await supabase
+          .from(HISTORIAL_TABLE)
+          .update({ [field]: newValue, [calculatedField]: null })
+          .in("id", emptyCalculatedIds);
+        if (error) throw error;
+      }
+    } else {
+      const ids = matches.map((row) => row.id);
+      const { error } = await supabase
+        .from(HISTORIAL_TABLE)
+        .update({ [field]: newValue })
+        .in("id", ids);
+      if (error) throw error;
+    }
     await loadHistorial();
     setStatus(
       `${config.label} actualizado en ${matches.length} periodo${matches.length !== 1 ? "s" : ""}.`,
@@ -24836,6 +24942,11 @@ async function init() {
   });
   historialDetailForm?.addEventListener("submit", (event) => {
     void saveHistorialDetail(event);
+  });
+  historialDetailForm?.addEventListener("input", (event) => {
+    if (["fecha_alta", "fecha_baja", "jornada", "jornada_maxima"].includes(event.target?.name)) {
+      syncHistorialDetailCalculatedFields();
+    }
   });
   historialDetailCloseButton?.addEventListener("click", closeHistorialDetail);
   historialDetailCancelButton?.addEventListener("click", closeHistorialDetail);
