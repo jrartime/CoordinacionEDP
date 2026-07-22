@@ -66,9 +66,12 @@
 --       - PLUS DE DISPONIBILIDAD (codigo 93, orden 65): lo que aportan las horas
 --         REG por encima de la jornada teorica; en negativo, el defecto que ni
 --         siquiera el montaje cubre.
---       - COMPLEMENTO DE PUESTO (codigo 60, orden 66): lo que aporta el montaje
---         POR ENCIMA de lo que ya cubre la jornada. Si las horas REG no llegan a
---         la jornada, el montaje la absorbe primero y solo el sobrante se paga.
+--       - COMPLEMENTO DE PUESTO (codigo 60, orden 66) y HORAS COMPLEMENTARIAS
+--         (codigo 67, orden 67): lo que aportan el montaje (MONT) y las
+--         complementarias (HCOMP) POR ENCIMA de lo que ya cubre la jornada. Si
+--         las horas REG no llegan a la jornada, ambas la absorben primero -como
+--         una bolsa comun- y solo el sobrante se paga, repartido entre las dos
+--         en proporcion a su valor.
 --     Por defecto (p_ajuste vacio) lo decide la MODALIDAD DE PAGO del historial:
 --     Jornada -> 'ninguno' (sin exceso ni defecto; el montaje se paga entero),
 --     Horas totales -> 'ambos', Horas brutas/liquidas -> 'ninguno' (sin
@@ -78,8 +81,8 @@
 --     jornada".
 --   * DESCUENTO POR ABSENTISMO (codigo 790, orden 90): horas PNR (tipo 5) a
 --     hora_complementaria del convenio, en negativo.
---   * Horas: HCOMP (2) -> linea "Horas HCOMP" x get_puesto_precio_hora. MONT (3)
---     NO tiene linea propia: entra en el reparto del complemento de puesto.
+--   * Ni MONT (3) ni HCOMP (2) tienen ya linea de horas suelta: entran en el
+--     reparto de arriba (complemento de puesto y horas complementarias).
 --   * FTRAB (4): se paga como "Plus festivo trabajado" (codigo de nomina 12) a
 --     precio de hora de JORNADA COMPLETA (get_convenio_precio_hora_jc), no a
 --     precio de hora complementaria. CUIDADO: registros.horas de las filas FTRAB
@@ -241,27 +244,25 @@ declare
   v_precio_hora_jc numeric;
   v_modo text; v_horas_reg numeric; v_tarifa_dia numeric; v_detalle_base text;
   v_horas_teoricas numeric; v_precio_jornada numeric;
-  v_horas_jornada numeric;
   v_extras integer; v_ajuste text; v_horas_pnr numeric;
   v_sit_excluidas integer[];
   v_modalidad text;
-  v_valor_jornada numeric; v_valor_reg numeric; v_valor_mont numeric;
-  v_horas_mont numeric; v_precio_mont numeric;
-  v_dif numeric; v_exceso_reg numeric; v_aporta_mont numeric;
+  v_horas_jornada numeric;
+  v_valor_jornada numeric; v_valor_reg numeric;
+  v_horas_mont numeric; v_precio_mont numeric; v_valor_mont numeric;
+  v_horas_hcomp numeric; v_precio_hcomp numeric; v_valor_hcomp numeric;
+  v_valor_extra numeric; v_factor numeric;
+  v_dif numeric; v_exceso_reg numeric; v_aporta_extra numeric;
+  v_pago_mont numeric; v_pago_hcomp numeric;
 begin
   select * into h from public.historiales_laborales where id = p_historial_id;
   if h.id is null then return; end if;
 
-  -- Situaciones cuyas horas NO son trabajo de esta persona y deben contar cero
-  -- en todas las medidas de horas:
+  -- Situaciones cuyas horas NO son trabajo de esta persona y cuentan cero:
   --   * CAMB ("Cambio de actividad"): el turno le tocaba pero lo cubrio OTRA.
-  --     Caso real (Katherine Fernandez, 04/06/2026): NORM 15:30-22:30 en la
-  --     Piscina de la Corredoria y CAMB 16:00-23:30 en Fozaneldi, horarios
-  --     solapados; no puede estar en los dos.
   --   * LG ("Incapacidad o Permiso de Larga Duracion").
-  -- Ambas aparecen con REG, HCOMP y PNR, de ahi que el filtro se repita en cada
-  -- agregado. v_dias_trab ya las excluye (solo admite NORM/SUST y FEST+FTRAB).
-  -- Para anadir otra situacion basta con meter su codigo en esta lista.
+  -- Ambas aparecen con REG, HCOMP y PNR. El resto (VAC, IT, FEST, PR, AP,
+  -- JIRR...) SI cuentan como jornada cumplida porque llevan horas REG.
   select coalesce(array_agg(s.id), '{}'::integer[]) into v_sit_excluidas
   from public.situaciones s where s.situacion in ('CAMB', 'LG');
 
@@ -275,6 +276,7 @@ begin
   v_fecha_ref := v_desde;
   v_dias := public.dias_nomina(v_desde, v_hasta);
   v_coef := coalesce(h.coeficiente_temporalidad_miles, 1000) / 1000.0;
+
   -- Ajuste de jornada: si p_ajuste_jornada trae valor se fuerza; si viene vacio
   -- manda la modalidad de pago del historial:
   --   Jornada          -> ninguno (se paga la jornada, sin exceso ni defecto)
@@ -297,63 +299,38 @@ begin
 
   v_extras := greatest(coalesce(v_conv.pagas_anuales, 12)::integer - 12, 0);
 
-  -- Dias y horas SOLO del puesto de este historial (si no, dos historiales
-  -- solapados con puestos distintos se llevarian cada uno las horas del otro).
-  select count(distinct r.fecha)
-    into v_dias_trab
+  -- Dias y horas SOLO del puesto y la empresa de este historial (si no, dos
+  -- historiales solapados se llevarian cada uno las horas del otro).
+  select count(distinct r.fecha) into v_dias_trab
   from public.registros r
   join public.situaciones s on s.id = r.situacion_id
   left join public.tipo_horas th on th.id = r.tipo_hora_id
-  where r.personal_id = h.personal_id
-    and r.puesto_id = h.puesto_id
+  where r.personal_id = h.personal_id and r.puesto_id = h.puesto_id
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
     and r.fecha >= v_desde and r.fecha <= v_hasta
     and (s.situacion in ('NORM','SUST') or (s.situacion='FEST' and th.tipo_hora='FTRAB'));
 
-  select coalesce(sum(r.horas_nocturnas), 0)::numeric
-    into v_horas_noct
+  select coalesce(sum(r.horas_nocturnas), 0)::numeric into v_horas_noct
   from public.registros r
-  where r.personal_id = h.personal_id
-    and r.puesto_id = h.puesto_id
+  where r.personal_id = h.personal_id and r.puesto_id = h.puesto_id
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
     and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
     and r.fecha >= v_desde and r.fecha <= v_hasta;
 
-  -- Horas ordinarias (REG) del puesto y empresa: la cantidad del modo hora.
-  select coalesce(sum(r.horas), 0)::numeric
-    into v_horas_reg
+  select coalesce(sum(r.horas) filter (where r.tipo_hora_id = 1), 0)::numeric,
+         coalesce(sum(r.horas) filter (where r.tipo_hora_id = 5), 0)::numeric,
+         coalesce(sum(r.horas) filter (where r.tipo_hora_id = 3), 0)::numeric,
+         coalesce(sum(r.horas) filter (where r.tipo_hora_id = 2), 0)::numeric
+    into v_horas_reg, v_horas_pnr, v_horas_mont, v_horas_hcomp
   from public.registros r
-  where r.personal_id = h.personal_id
-    and r.puesto_id = h.puesto_id
+  where r.personal_id = h.personal_id and r.puesto_id = h.puesto_id
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
     and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
-    and r.fecha >= v_desde and r.fecha <= v_hasta
-    and r.tipo_hora_id = 1;
-
-  select coalesce(sum(r.horas), 0)::numeric
-    into v_horas_pnr
-  from public.registros r
-  where r.personal_id = h.personal_id
-    and r.puesto_id = h.puesto_id
-    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
-    and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
-    and r.fecha >= v_desde and r.fecha <= v_hasta
-    and r.tipo_hora_id = 5;
-
-  select coalesce(sum(r.horas), 0)::numeric
-    into v_horas_mont
-  from public.registros r
-  where r.personal_id = h.personal_id
-    and r.puesto_id = h.puesto_id
-    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
-    and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
-    and r.fecha >= v_desde and r.fecha <= v_hasta
-    and r.tipo_hora_id = 3;
+    and r.fecha >= v_desde and r.fecha <= v_hasta;
 
   v_modo := coalesce(nullif(trim(p_base_calculo), ''), v_conv.base_calculo, 'mensual');
 
   if v_modo = 'hora' and coalesce(v_conv.salario_hora, 0) > 0 then
-    -- Sin coeficiente: las horas reales ya llevan la parcialidad dentro.
     v_base := v_conv.salario_hora * v_horas_reg;
     v_detalle_base := format('%s h REG × %s€/h', round(v_horas_reg, 2), v_conv.salario_hora);
   elsif v_modo = 'diario' and coalesce(coalesce(v_conv.salario_diario, v_sal.salario_mensual / 30.0), 0) > 0 then
@@ -394,47 +371,51 @@ begin
   end if;
 
   -- ---- Jornada realizada vs jornada contratada ----
-  -- Se suma lo realizado (horas REG valoradas + montaje) y se compara con el
-  -- valor de la jornada contratada:
+  -- Se suma lo realizado y se compara con el valor de la jornada contratada:
   --   valor_jornada = base + su parte de pagas extra  (base x (1 + extras/12))
   --   precio_hora   = valor_jornada / horas_teoricas
   --   valor_reg     = precio_hora x horas (REG+PNR)
-  --   valor_montaje = horas MONT x precio de montaje
-  --   diferencia    = valor_reg + valor_montaje - valor_jornada
+  --   extras        = montaje (MONT) + complementarias (HCOMP), a su precio
+  --   diferencia    = valor_reg + extras - valor_jornada
   --
   --   * diferencia > 0: lo que aportan las horas REG por encima de la jornada va
-  --     al PLUS DE DISPONIBILIDAD (93) y el resto -lo que aporta el montaje por
-  --     encima de lo ya cubierto- al COMPLEMENTO DE PUESTO (60).
-  --   * diferencia < 0: el montaje no llega a cubrir la jornada; no hay 60 y el
-  --     defecto va al 93 (solo con ajuste 'ambos').
+  --     al PLUS DE DISPONIBILIDAD (93); el resto se reparte entre COMPLEMENTO DE
+  --     PUESTO (60, montaje) y HORAS COMPLEMENTARIAS (67) en proporcion a su
+  --     valor.
+  --   * diferencia < 0: montaje y complementarias no llegan a cubrir la jornada;
+  --     no se paga ninguno de los dos y el defecto va al 93 (solo con 'ambos').
   --
-  -- Ejemplo real (David Jimenez, junio 2026, jornada 40 -> 176 h teoricas):
-  --   base 1261,62 + pagas 210,27 = 1471,89; 70 h REG = 1471,89/176x70 = 585,41;
-  --   102 h montaje = 1064,88; suma 1650,29; exceso 178,40 -> complemento 60.
-  --   No hay plus de disponibilidad: el montaje absorbe la jornada no cubierta.
+  -- Es decir: MONTAJE Y COMPLEMENTARIAS COMPLETAN PRIMERO EL SALARIO BASE Y LAS
+  -- PAGAS, y solo se cobra el sobrante.
   --
-  -- PNR cuenta como jornada cumplida (se descuenta aparte en el 790). El resto de
-  -- situaciones (VAC, IT, FEST, PR, AP, JIRR...) ya cuentan porque llevan horas
-  -- REG; solo CAMB y LG quedan a cero (v_sit_excluidas).
+  -- Ejemplos reales validados (junio 2026):
+  --   * David Jimenez (hist 5521), jornada 40 -> 176 h teoricas: base 1261,62 +
+  --     pagas 210,27 = 1471,89; 70 h REG = 585,41; 102 h montaje = 1064,88;
+  --     886,48 absorbidos -> complemento de puesto 178,40, sin plus 93.
+  --   * Lara Rodriguez (hist 5881), un solo dia y todo complementarias: 5 h =
+  --     50,25; absorbe 31,55 -> horas complementarias 18,70, sin plus 93.
+  --   * David Rodriguez Recio (hist 5345): las REG ya superan la jornada, asi que
+  --     el montaje se paga entero -> plus 93 141,72 y complemento 60 542,88.
+  --
+  -- PNR cuenta como jornada cumplida (se descuenta aparte en el 790).
   v_horas_jornada := v_horas_reg + v_horas_pnr;
   v_horas_teoricas := public.horas_teoricas_jornada(v_desde, v_hasta, h.jornada);
   v_valor_jornada := v_base * (1 + v_extras / 12.0);
-  v_precio_mont := public.get_puesto_precio_hora(h.puesto_id, 3, v_fecha_ref);
-  v_valor_mont := round(v_horas_mont * coalesce(v_precio_mont, 0), 2);
+
+  v_precio_mont  := public.get_puesto_precio_hora(h.puesto_id, 3, v_fecha_ref);
+  v_precio_hcomp := public.get_puesto_precio_hora(h.puesto_id, 2, v_fecha_ref);
+  v_valor_mont  := round(v_horas_mont  * coalesce(v_precio_mont, 0), 2);
+  v_valor_hcomp := round(v_horas_hcomp * coalesce(v_precio_hcomp, 0), 2);
+  v_valor_extra := v_valor_mont + v_valor_hcomp;
 
   if v_ajuste = 'ninguno' or coalesce(v_horas_teoricas, 0) <= 0 then
-    -- Modalidad Jornada (o sin jornada teorica): no hay exceso ni defecto que
-    -- repartir, el montaje se paga entero.
-    if v_valor_mont <> 0 then
-      return query select 66, 'Complemento de puesto'::text,
-        format('%s h montaje × %s€/h', round(v_horas_mont, 2), round(v_precio_mont, 4)),
-        null::numeric, round(v_horas_mont, 2), round(v_precio_mont, 4),
-        v_valor_mont, null::text;
-    end if;
+    -- Modalidad Jornada: nada que repartir, montaje y complementarias enteras.
+    v_pago_mont  := v_valor_mont;
+    v_pago_hcomp := v_valor_hcomp;
   else
     v_precio_jornada := v_valor_jornada / v_horas_teoricas;
     v_valor_reg := round(v_precio_jornada * v_horas_jornada, 2);
-    v_dif := v_valor_reg + v_valor_mont - v_valor_jornada;
+    v_dif := v_valor_reg + v_valor_extra - v_valor_jornada;
     v_exceso_reg := greatest(v_valor_reg - v_valor_jornada, 0);
 
     if v_dif > 0 then
@@ -445,70 +426,60 @@ begin
           null::numeric, round(v_horas_jornada - v_horas_teoricas, 2),
           round(v_precio_jornada, 4), round(v_exceso_reg, 2), null::text;
       end if;
-      v_aporta_mont := v_dif - v_exceso_reg;
-      if v_aporta_mont > 0 then
-        return query select 66, 'Complemento de puesto'::text,
-          format('%s h montaje × %s€/h = %s€%s',
-                 round(v_horas_mont, 2), round(v_precio_mont, 4), v_valor_mont,
-                 case when v_aporta_mont < v_valor_mont
-                      then format(' · %s€ absorbidos por la jornada no cubierta',
-                                  round(v_valor_mont - v_aporta_mont, 2))
+      v_aporta_extra := v_dif - v_exceso_reg;
+      v_factor := case when v_valor_extra > 0 then v_aporta_extra / v_valor_extra else 0 end;
+      v_pago_mont  := round(v_valor_mont  * v_factor, 2);
+      v_pago_hcomp := round(v_valor_hcomp * v_factor, 2);
+    else
+      v_pago_mont := 0; v_pago_hcomp := 0;
+      if v_dif < 0 and v_ajuste = 'ambos' then
+        return query select 65, 'Plus de disponibilidad'::text,
+          format('%s h (REG+PNR) de %s h teóricas%s',
+                 round(v_horas_jornada, 2), round(v_horas_teoricas, 2),
+                 case when v_valor_extra > 0
+                      then format('; %s€ de montaje/complementarias no cubren la diferencia', v_valor_extra)
                       else '' end),
-          null::numeric, round(v_horas_mont, 2), round(v_precio_mont, 4),
-          round(v_aporta_mont, 2), null::text;
+          null::numeric, round(v_horas_jornada - v_horas_teoricas, 2),
+          round(v_precio_jornada, 4), round(v_dif, 2), null::text;
       end if;
-    elsif v_dif < 0 and v_ajuste = 'ambos' then
-      return query select 65, 'Plus de disponibilidad'::text,
-        format('%s h (REG+PNR) de %s h teóricas%s',
-               round(v_horas_jornada, 2), round(v_horas_teoricas, 2),
-               case when v_valor_mont > 0
-                    then format('; %s€ de montaje no cubren la diferencia', v_valor_mont)
-                    else '' end),
-        null::numeric, round(v_horas_jornada - v_horas_teoricas, 2),
-        round(v_precio_jornada, 4), round(v_dif, 2), null::text;
     end if;
   end if;
 
-  return query
-  select
-    (70 + row_number() over (order by th.id))::integer,
-    (case when th.id = 3 then 'Complemento de puesto' else 'Horas ' || th.tipo_hora end)::text,
-    format('%s h × %s€/h', round(sum(r.horas)::numeric, 2), round(public.get_puesto_precio_hora(h.puesto_id, th.id, v_fecha_ref), 4)),
-    null::numeric,
-    round(sum(r.horas)::numeric, 2),
-    round(public.get_puesto_precio_hora(h.puesto_id, th.id, v_fecha_ref), 4),
-    round(sum(r.horas)::numeric * public.get_puesto_precio_hora(h.puesto_id, th.id, v_fecha_ref), 2),
-    null::text
-  from public.registros r
-  join public.tipo_horas th on th.id = r.tipo_hora_id
-  where r.personal_id = h.personal_id
-    and r.puesto_id = h.puesto_id
-    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
-    and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
-    and r.fecha >= v_desde and r.fecha <= v_hasta and th.id = 2
-  group by th.id, th.tipo_hora having sum(r.horas) > 0;
+  if v_pago_mont <> 0 then
+    return query select 66, 'Complemento de puesto'::text,
+      format('%s h montaje × %s€/h = %s€%s',
+             round(v_horas_mont, 2), round(v_precio_mont, 4), v_valor_mont,
+             case when v_pago_mont < v_valor_mont
+                  then format(' · %s€ absorbidos por la jornada', round(v_valor_mont - v_pago_mont, 2))
+                  else '' end),
+      null::numeric, round(v_horas_mont, 2), round(v_precio_mont, 4), v_pago_mont, null::text;
+  end if;
 
-  -- Festivo trabajado (codigo de nomina 12). registros.horas de las filas FTRAB
-  -- YA trae aplicado el x1,75, asi que aqui NO se aplica el multiplicador de
-  -- tipo_horas: seria cobrar el recargo dos veces.
+  if v_pago_hcomp <> 0 then
+    return query select 67, 'Horas complementarias'::text,
+      format('%s h × %s€/h = %s€%s',
+             round(v_horas_hcomp, 2), round(v_precio_hcomp, 4), v_valor_hcomp,
+             case when v_pago_hcomp < v_valor_hcomp
+                  then format(' · %s€ absorbidos por la jornada', round(v_valor_hcomp - v_pago_hcomp, 2))
+                  else '' end),
+      null::numeric, round(v_horas_hcomp, 2), round(v_precio_hcomp, 4), v_pago_hcomp, null::text;
+  end if;
+
+  -- Festivo trabajado (codigo 12). registros.horas de las filas FTRAB YA trae
+  -- aplicado el x1,75, asi que NO se aplica el multiplicador de tipo_horas.
   v_precio_hora_jc := public.get_convenio_precio_hora_jc(
     v_convenio_id, h.jornada_maxima, v_fecha_ref
   );
 
   if coalesce(v_precio_hora_jc, 0) > 0 then
     return query
-    select 80,
-      'Plus festivo trabajado'::text,
+    select 80, 'Plus festivo trabajado'::text,
       format('%s h festivas (×1,75 incluido) × %s€/h a jornada completa',
              round(sum(r.horas)::numeric, 2), round(v_precio_hora_jc, 4)),
-      null::numeric,
-      round(sum(r.horas)::numeric, 2),
-      round(v_precio_hora_jc, 4),
-      round(sum(r.horas)::numeric * v_precio_hora_jc, 2),
-      null::text
+      null::numeric, round(sum(r.horas)::numeric, 2), round(v_precio_hora_jc, 4),
+      round(sum(r.horas)::numeric * v_precio_hora_jc, 2), null::text
     from public.registros r
-    where r.personal_id = h.personal_id
-      and r.puesto_id = h.puesto_id
+    where r.personal_id = h.personal_id and r.puesto_id = h.puesto_id
       and (h.empresa_id is null or r.empresa_id = h.empresa_id)
       and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
       and r.fecha >= v_desde and r.fecha <= v_hasta
@@ -516,8 +487,7 @@ begin
     having sum(r.horas) > 0;
   end if;
 
-  -- Descuento por absentismo (790): horas PNR (permiso no retribuido, tipo 5)
-  -- valoradas a hora_complementaria del convenio, en NEGATIVO.
+  -- Descuento por absentismo (790): horas PNR a hora_complementaria, negativo.
   if v_horas_pnr > 0 and coalesce(v_conv.hora_complementaria, 0) > 0 then
     return query select 90, 'Descuento por absentismo'::text,
       format('%s h PNR × %s€/h', round(v_horas_pnr, 2), v_conv.hora_complementaria),
