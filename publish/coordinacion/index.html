@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260722-9" />
+    <link rel="stylesheet" href="./styles.css?v=20260722-11" />
   </head>
   <body>
     <script>
@@ -1570,6 +1570,11 @@
                   <div class="results-summary">
                     <p id="gestion-summary" class="summary-chip">Selecciona un intervalo de fechas.</p>
                   </div>
+                  <div class="results-actions">
+                    <button id="gestion-edit-personal-button" type="button" class="secondary-button hidden">
+                      Ver y editar persona
+                    </button>
+                  </div>
                 </div>
 
                 <!--
@@ -1577,25 +1582,27 @@
                   cómo se calcula. Por eso van aquí y no en el formulario de filtros.
                 -->
                 <div class="gestion-calc-options">
-                  <span class="gestion-calc-options-label">Cálculo de nómina</span>
-                  <label class="filter-field">
-                    Base de cálculo
-                    <select id="gestion-filter-base-calculo" name="base_calculo">
-                      <option value="">Según convenio</option>
-                      <option value="mensual">Mensual</option>
-                      <option value="diario">Diario</option>
-                      <option value="hora">Hora</option>
-                    </select>
-                  </label>
-                  <label class="filter-field">
-                    Ajuste de jornada
-                    <select id="gestion-filter-ajuste-jornada" name="ajuste_jornada">
-                      <option value="">Según modalidad de pago</option>
-                      <option value="exceso">Forzar: solo el exceso</option>
-                      <option value="ambos">Forzar: exceso y defecto</option>
-                      <option value="ninguno">Forzar: no aplicar</option>
-                    </select>
-                  </label>
+                  <span class="gestion-calc-options-label">Opciones nómina</span>
+                  <div class="gestion-calc-options-controls">
+                    <label class="filter-field">
+                      Base de cálculo
+                      <select id="gestion-filter-base-calculo" name="base_calculo">
+                        <option value="">Según convenio</option>
+                        <option value="mensual">Mensual</option>
+                        <option value="diario">Diario</option>
+                        <option value="hora">Hora</option>
+                      </select>
+                    </label>
+                    <label class="filter-field">
+                      Ajuste de jornada
+                      <select id="gestion-filter-ajuste-jornada" name="ajuste_jornada">
+                        <option value="">Según modalidad de pago</option>
+                        <option value="exceso">Forzar: solo el exceso</option>
+                        <option value="ambos">Forzar: exceso y defecto</option>
+                        <option value="ninguno">Forzar: no aplicar</option>
+                      </select>
+                    </label>
+                  </div>
                 </div>
 
                 <div class="gestion-grid">
@@ -1657,6 +1664,35 @@
                   </p>
                   <div id="gestion-nomina-list" class="gestion-nomina-list"></div>
                 </section>
+
+                <section id="gestion-personal-panel" class="detail-panel hidden">
+                  <div id="gestion-personal-overlay" class="detail-overlay"></div>
+                  <aside class="detail-drawer gestion-personal-drawer">
+                    <div class="detail-header">
+                      <div><p class="eyebrow">Gestión</p><h3>Datos de la persona</h3></div>
+                      <button id="gestion-personal-close-button" type="button" class="secondary-button">Cerrar y guardar</button>
+                    </div>
+                    <div id="gestion-personal-content"></div>
+                  </aside>
+                </section>
+
+                <div id="gestion-records-backdrop" class="panel-backdrop hidden"></div>
+                <aside id="gestion-records-panel" class="report-panel gestion-records-panel hidden">
+                  <div class="side-panel-header">
+                    <div class="section-heading">
+                      <p class="eyebrow">Gestión</p>
+                      <h2>Registros del periodo</h2>
+                      <p id="gestion-records-summary">—</p>
+                    </div>
+                    <button id="gestion-records-close-button" type="button" class="secondary-button">Cerrar</button>
+                  </div>
+                  <div class="table-wrapper gestion-records-table-wrapper">
+                    <table class="records-table gestion-compact-table">
+                      <thead><tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Horas</th><th>Contrato / Servicio</th><th>Puesto</th><th>Situación</th><th>Tipo hora</th></tr></thead>
+                      <tbody id="gestion-records-table-body"><tr><td colspan="8" class="empty-state">Abre el detalle para cargar registros.</td></tr></tbody>
+                    </table>
+                  </div>
+                </aside>
               </section>
             </section>
 
@@ -7523,6 +7559,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260722-4" defer></script>
-    <script src="./app.js?v=20260722-11" defer></script>
+    <script src="./app.js?v=20260722-13" defer></script>
   </body>
 </html>

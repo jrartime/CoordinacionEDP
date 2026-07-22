@@ -118,6 +118,14 @@ Resumen de los cambios completados, decisiones clave y estado actual del proyect
 
 _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 
+## 10. Gestión enlazada con Personal, Historial y Registros (22/07/2026)
+
+- **Edición de persona desde Gestión**: cuando hay una persona filtrada aparece `Ver y editar persona`. La ficha existente de Personal se reutiliza dentro de un drawer temporal (no se duplica el formulario); `Cerrar y guardar` persiste los cambios y recarga Gestión. El botón solo aparece con acceso a la pestaña Personal.
+- **Historiales solapados editables**: el nombre de la persona en cada periodo funciona como enlace y abre el panel lateral existente de Historial laboral. Los cambios notificados por `CoordinacionHistorial.onChange` recargan Gestión. Se respeta el permiso de la pestaña Historial.
+- **Detalle de horas**: pulsar el pivote `Horas de registros` abre un panel flotante con los registros reales de la persona y el intervalo, respetando también el filtro de empresa. Cada fila puede abrir el editor completo de Registro; al cerrarlo se recargan el pivote y el listado flotante.
+- **Opciones de nómina**: el antiguo bloque `Cálculo de nómina` pasa a llamarse `Opciones nómina`. `Base de cálculo` y `Ajuste de jornada` usan el tamaño/tipografía de los filtros compactos y se apilan en la columna izquierda, reservando la derecha para futuras opciones.
+- **Permisos y publicación**: los enlaces de edición comprueban las pestañas `personal`, `historial` y `registros`; los cambios están replicados en `publish/coordinacion/` con cache-busting de JS/CSS.
+
 ## Notas de entorno / convenciones
 
 - Sin framework de build; JS vanilla. `index.html` carga solo `app.js` + `concilia-integrated.js` (los `coordinacion/modules/*.js` son un refactor **no conectado / código muerto**).

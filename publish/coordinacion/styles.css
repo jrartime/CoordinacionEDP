@@ -3974,6 +3974,43 @@ th {
   background: var(--panel);
 }
 
+#gestion-pivot-table tbody tr,
+[data-gestion-record-id] {
+  cursor: pointer;
+}
+
+#gestion-pivot-table tbody td,
+[data-gestion-record-id] td {
+  cursor: pointer;
+}
+
+#gestion-pivot-table tbody tr:hover,
+[data-gestion-record-id]:hover {
+  background: #f3f7fc;
+}
+
+.gestion-personal-drawer {
+  width: min(980px, 96vw);
+}
+
+.gestion-personal-drawer .personal-detail-panel {
+  border: 0;
+  box-shadow: none;
+}
+
+.gestion-records-panel {
+  inset: 28px;
+}
+
+.gestion-records-table-wrapper {
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+}
+
+.gestion-records-table-wrapper .records-table {
+  min-width: 980px;
+}
+
 @media (max-width: 900px) {
   .gestion-grid,
   .conciliacion-grid {
@@ -4005,10 +4042,10 @@ th {
 
 /* Opciones que alteran el cálculo de la nómina (no son filtros de datos). */
 .gestion-calc-options {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 6px 18px;
+  align-items: start;
   margin: 4px 0 12px;
   padding: 10px 12px;
   border: 1px solid var(--line);
@@ -4017,14 +4054,31 @@ th {
 }
 
 .gestion-calc-options-label {
-  align-self: center;
+  grid-column: 1 / -1;
   font-size: 0.78rem;
   font-weight: 700;
   color: var(--muted);
 }
 
+.gestion-calc-options-controls {
+  grid-column: 1;
+  display: grid;
+  gap: 5px;
+}
+
 .gestion-calc-options .filter-field {
-  min-width: 190px;
+  min-width: 0;
+  gap: 1px;
+  font-size: 0.72rem;
+}
+
+.private-tab-panel .gestion-calc-options .filter-field select {
+  width: 100%;
+  height: 28px;
+  padding: 3px 6px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 /* Periodos solapados del mismo puesto: la nómina sale duplicada. */

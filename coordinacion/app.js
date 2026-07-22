@@ -11380,8 +11380,10 @@ async function savePersonal(event) {
 
     await loadPersonalManagement(String(payload.id));
     setPersonalStatus("Ficha guardada correctamente.", "success");
+    return true;
   } catch (error) {
     setPersonalStatus(error?.message || "No se pudo guardar la ficha de personal.", "error");
+    return false;
   } finally {
     personalSaveButton?.removeAttribute("disabled");
   }
@@ -15804,6 +15806,11 @@ async function closeRecordDetail(skipSave = false) {
   recordDetailSnapshot = null;
   recordDetailPanel?.classList.add("hidden");
   renderRecordsTable();
+  if (gestionRecordDetailOpen) {
+    gestionRecordDetailOpen = false;
+    await loadGestion();
+    await openGestionRecordsPanel();
+  }
 }
 
 function cancelRecordDetailEdit() {
@@ -16711,12 +16718,27 @@ const gestionFilterBaseCalculo = document.querySelector("#gestion-filter-base-ca
 // Vacío = "según modalidad de pago" del historial (Jornada no aplica, Horas
 // totales aplica exceso y defecto); los demás valores fuerzan el criterio.
 const gestionFilterAjusteJornada = document.querySelector("#gestion-filter-ajuste-jornada");
+const gestionEditPersonalButton = document.querySelector("#gestion-edit-personal-button");
+const gestionPersonalPanel = document.querySelector("#gestion-personal-panel");
+const gestionPersonalOverlay = document.querySelector("#gestion-personal-overlay");
+const gestionPersonalCloseButton = document.querySelector("#gestion-personal-close-button");
+const gestionPersonalContent = document.querySelector("#gestion-personal-content");
+const gestionRecordsPanel = document.querySelector("#gestion-records-panel");
+const gestionRecordsBackdrop = document.querySelector("#gestion-records-backdrop");
+const gestionRecordsCloseButton = document.querySelector("#gestion-records-close-button");
+const gestionRecordsSummary = document.querySelector("#gestion-records-summary");
+const gestionRecordsTableBody = document.querySelector("#gestion-records-table-body");
+const personalDetailSection = document.querySelector(".personal-detail-panel");
+let personalDetailHome = null;
+let gestionRecordDetailOpen = false;
 
 // La nómina se calcula por empresa, así que Gestión arranca acotada a EDP: es
 // la empresa del 99,5% de los periodos y el caso normal. "Todas" mezcla
 // empresas y produce un total que no corresponde a ninguna nómina real.
 const GESTION_EMPRESA_POR_DEFECTO = "EDP";
 let gestionEmpresasLoaded = false;
+let gestionHistorialRows = [];
+let gestionDetailRecordRows = [];
 
 async function loadGestionEmpresaOptions() {
   if (gestionEmpresasLoaded || !gestionFilterEmpresa) {
@@ -16818,10 +16840,15 @@ function renderGestionPersonalOptions(rows) {
   if (selected && !map.has(String(selected))) {
     clearPersonalPicker("gestion-filter");
   }
+  gestionEditPersonalButton?.classList.toggle(
+    "hidden",
+    !gestionFilterPersonalHidden?.value || !currentAllowedPrivateTabs.has("personal")
+  );
   return map.size;
 }
 
 function renderGestionHistorial(rows) {
+  gestionHistorialRows = rows;
   if (gestionHistorialCount) {
     gestionHistorialCount.textContent = `${rows.length} ${rows.length === 1 ? "periodo" : "periodos"}`;
   }
@@ -16852,8 +16879,11 @@ function renderGestionHistorial(rows) {
         coef = String(Math.round((jornada / maxima) * 1000));
       }
       const personalLabel = row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : "");
+      const personalCell = currentAllowedPrivateTabs.has("historial")
+        ? `<button type="button" class="row-name-button" data-gestion-edit-historial="${escapeHtml(row.id)}" title="Abrir historial laboral">${escapeHtml(personalLabel)}</button>`
+        : escapeHtml(personalLabel);
       return `<tr>
-        <td>${escapeHtml(personalLabel)}</td>
+        <td>${personalCell}</td>
         <td>${escapeHtml(formatGestionDate(row.fecha_alta))}</td>
         <td>${escapeHtml(formatGestionDate(row.fecha_baja) || "—")}</td>
         <td class="num">${escapeHtml(jornadaLabel)}</td>
@@ -21059,6 +21089,126 @@ function renderHistorialDetailForm(row) {
   }).join("");
 }
 
+async function openGestionPersonalDetail() {
+  if (!currentAllowedPrivateTabs.has("personal")) {
+    setStatus("No tienes acceso a la pestaña Personal.", "error");
+    return;
+  }
+  const personalId = gestionFilterPersonalHidden?.value || "";
+  if (!personalId || !personalDetailSection || !gestionPersonalContent) return;
+  if (!personalDetailHome) {
+    personalDetailHome = {
+      parent: personalDetailSection.parentNode,
+      nextSibling: personalDetailSection.nextSibling,
+    };
+  }
+  gestionPersonalContent.appendChild(personalDetailSection);
+  gestionPersonalPanel?.classList.remove("hidden");
+  await loadPersonalManagement(personalId);
+}
+
+async function closeGestionPersonalDetail() {
+  if (currentPersonalMode === "edit" || currentPersonalMode === "new") {
+    const saved = await savePersonal({ preventDefault() {} });
+    if (!saved) return;
+  }
+  if (personalDetailHome?.parent && personalDetailSection) {
+    personalDetailHome.parent.insertBefore(personalDetailSection, personalDetailHome.nextSibling);
+  }
+  gestionPersonalPanel?.classList.add("hidden");
+  await loadGestion();
+}
+
+async function openGestionHistorialDetail(historialId) {
+  if (!currentAllowedPrivateTabs.has("historial")) {
+    setStatus("No tienes acceso a la pestaña Historial laboral.", "error");
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from(HISTORIAL_DETAIL_VIEW)
+      .select(HISTORIAL_DETAIL_SELECT)
+      .eq("id", historialId)
+      .single();
+    if (error) throw error;
+    historialRows = [data, ...historialRows.filter((item) => String(item.id) !== String(historialId))];
+    await openHistorialDetail(historialId);
+  } catch (error) {
+    setStatus(`No se pudo abrir el historial: ${error.message}`, "error");
+  }
+}
+
+function closeGestionRecordsPanel() {
+  gestionRecordsPanel?.classList.add("hidden");
+  gestionRecordsBackdrop?.classList.add("hidden");
+}
+
+async function openGestionRecordsPanel() {
+  const { desde, hasta, personalId, empresaId } = getGestionFilters();
+  if (!desde || !hasta || !personalId) {
+    setStatus("Selecciona una persona y un intervalo para ver sus registros.", "error");
+    return;
+  }
+  gestionRecordsPanel?.classList.remove("hidden");
+  gestionRecordsBackdrop?.classList.remove("hidden");
+  if (gestionRecordsSummary) gestionRecordsSummary.textContent = "Cargando registros…";
+  if (gestionRecordsTableBody) {
+    gestionRecordsTableBody.innerHTML = '<tr><td colspan="8" class="empty-state">Cargando…</td></tr>';
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    let query = supabase
+      .from("registros_detalle")
+      .select(RECORD_SELECT_COLUMNS)
+      .eq("personal_id", Number(personalId))
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .order("fecha", { ascending: true })
+      .order("hora_inicio", { ascending: true })
+      .limit(RECORDS_LOAD_LIMIT);
+    if (empresaId) query = query.eq("empresa_id", Number(empresaId));
+    const { data, error } = await query;
+    if (error) throw error;
+    gestionDetailRecordRows = data || [];
+    const personName = personalPickers.get("gestion-filter")?.inputEl?.value || `ID ${personalId}`;
+    if (gestionRecordsSummary) {
+      gestionRecordsSummary.textContent = `${personName} · ${formatGestionDate(desde)} – ${formatGestionDate(hasta)} · ${gestionDetailRecordRows.length} registros`;
+    }
+    gestionRecordsTableBody.innerHTML = gestionDetailRecordRows.length
+      ? gestionDetailRecordRows.map((row) => `<tr data-gestion-record-id="${escapeHtml(row.id)}">
+          <td>${escapeHtml(formatGestionDate(row.fecha))}</td>
+          <td>${escapeHtml(String(row.hora_inicio || "").slice(0, 5))}</td>
+          <td>${escapeHtml(String(row.hora_fin || "").slice(0, 5))}</td>
+          <td class="num">${escapeHtml(formatGestionHoras(row.horas))}</td>
+          <td>${escapeHtml(formatRecordReportContractService(row))}</td>
+          <td>${escapeHtml(row.puesto || "")}</td>
+          <td>${escapeHtml(row.situacion || "")}</td>
+          <td>${escapeHtml(row.tipo_hora || "")}</td>
+        </tr>`).join("")
+      : '<tr><td colspan="8" class="empty-state">No hay registros en el intervalo.</td></tr>';
+  } catch (error) {
+    if (gestionRecordsSummary) gestionRecordsSummary.textContent = "No se pudieron cargar los registros.";
+    if (gestionRecordsTableBody) {
+      gestionRecordsTableBody.innerHTML = `<tr><td colspan="8" class="empty-state">${escapeHtml(error.message)}</td></tr>`;
+    }
+  }
+}
+
+async function openGestionRecordDetail(recordId) {
+  if (!currentAllowedPrivateTabs.has("registros")) {
+    setStatus("No tienes acceso a la edición de Registros.", "error");
+    return;
+  }
+  const row = gestionDetailRecordRows.find((item) => String(item.id) === String(recordId));
+  if (!row) return;
+  recordsRows = [row, ...recordsRows.filter((item) => String(item.id) !== String(recordId))];
+  gestionRecordDetailOpen = true;
+  gestionRecordsPanel?.classList.add("hidden");
+  gestionRecordsBackdrop?.classList.add("hidden");
+  await openRecordDetail(recordId);
+}
+
 function calculateHistorialPeriodDays(fechaAlta, fechaBaja) {
   const startMatch = String(fechaAlta || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const endMatch = String(fechaBaja || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -24620,6 +24770,31 @@ async function init() {
     void loadGestion();
   });
   gestionRefreshButton?.addEventListener("click", () => {
+    void loadGestion();
+  });
+  gestionEditPersonalButton?.addEventListener("click", () => {
+    void openGestionPersonalDetail();
+  });
+  gestionPersonalCloseButton?.addEventListener("click", () => {
+    void closeGestionPersonalDetail();
+  });
+  gestionPersonalOverlay?.addEventListener("click", () => {
+    void closeGestionPersonalDetail();
+  });
+  gestionHistorialTableBody?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-gestion-edit-historial]");
+    if (button) void openGestionHistorialDetail(button.dataset.gestionEditHistorial);
+  });
+  document.querySelector("#gestion-pivot-table")?.addEventListener("click", () => {
+    void openGestionRecordsPanel();
+  });
+  gestionRecordsCloseButton?.addEventListener("click", closeGestionRecordsPanel);
+  gestionRecordsBackdrop?.addEventListener("click", closeGestionRecordsPanel);
+  gestionRecordsTableBody?.addEventListener("click", (event) => {
+    const row = event.target.closest("[data-gestion-record-id]");
+    if (row) void openGestionRecordDetail(row.dataset.gestionRecordId);
+  });
+  window.CoordinacionHistorial?.onChange(() => {
     void loadGestion();
   });
   gestionNominaList?.addEventListener("click", (event) => {
