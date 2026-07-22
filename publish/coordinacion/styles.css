@@ -3852,6 +3852,30 @@ th {
   background: var(--panel);
 }
 
+/* Opciones que alteran el cálculo de la nómina (no son filtros de datos). */
+.gestion-calc-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.gestion-calc-options-label {
+  align-self: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.gestion-calc-options .filter-field {
+  min-width: 190px;
+}
+
 /* Periodos solapados del mismo puesto: la nómina sale duplicada. */
 .gestion-nomina-warning {
   border: 1px solid #f0a3a3;

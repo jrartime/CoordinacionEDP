@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260721-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260722-1" />
   </head>
   <body>
     <script>
@@ -1440,23 +1440,6 @@
                     </select>
                   </label>
                   <label class="filter-field">
-                    Base de cálculo
-                    <select id="gestion-filter-base-calculo" name="base_calculo">
-                      <option value="">Según convenio</option>
-                      <option value="mensual">Mensual</option>
-                      <option value="diario">Diario</option>
-                      <option value="hora">Hora</option>
-                    </select>
-                  </label>
-                  <label class="filter-field">
-                    Ajuste de jornada
-                    <select id="gestion-filter-ajuste-jornada" name="ajuste_jornada">
-                      <option value="exceso">Solo el exceso</option>
-                      <option value="ambos">Exceso y defecto</option>
-                      <option value="ninguno">No aplicar</option>
-                    </select>
-                  </label>
-                  <label class="filter-field">
                     Personal
                     <div class="filter-field-stack personal-picker-stack">
                       <input
@@ -1497,6 +1480,32 @@
                   <div class="results-summary">
                     <p id="gestion-summary" class="summary-chip">Selecciona un intervalo de fechas.</p>
                   </div>
+                </div>
+
+                <!--
+                  Opciones de cálculo de la nómina. No son filtros de datos: alteran
+                  cómo se calcula. Por eso van aquí y no en el formulario de filtros.
+                -->
+                <div class="gestion-calc-options">
+                  <span class="gestion-calc-options-label">Cálculo de nómina</span>
+                  <label class="filter-field">
+                    Base de cálculo
+                    <select id="gestion-filter-base-calculo" name="base_calculo">
+                      <option value="">Según convenio</option>
+                      <option value="mensual">Mensual</option>
+                      <option value="diario">Diario</option>
+                      <option value="hora">Hora</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Ajuste de jornada
+                    <select id="gestion-filter-ajuste-jornada" name="ajuste_jornada">
+                      <option value="">Según modalidad de pago</option>
+                      <option value="exceso">Forzar: solo el exceso</option>
+                      <option value="ambos">Forzar: exceso y defecto</option>
+                      <option value="ninguno">Forzar: no aplicar</option>
+                    </select>
+                  </label>
                 </div>
 
                 <div class="gestion-grid">
@@ -7462,6 +7471,6 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260720-2" defer></script>
-    <script src="./app.js?v=20260721-7" defer></script>
+    <script src="./app.js?v=20260722-1" defer></script>
   </body>
 </html>

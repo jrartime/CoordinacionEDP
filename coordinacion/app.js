@@ -16116,9 +16116,9 @@ const gestionFilterEmpresa = document.querySelector("#gestion-filter-empresa");
 // Vacío = cada convenio manda con su base_calculo. Elegir un modo lo fuerza para
 // todos los puestos del cálculo, para poder comparar sin tocar las tarifas.
 const gestionFilterBaseCalculo = document.querySelector("#gestion-filter-base-calculo");
-// Qué hacer con la diferencia entre horas REG y jornada teórica del periodo:
-// solo pagar el exceso (por defecto), pagar exceso y descontar defecto, o no
-// emitir la línea del complemento de puesto.
+// Qué hacer con la diferencia entre horas REG y jornada teórica del periodo.
+// Vacío = "según modalidad de pago" del historial (Jornada no aplica, Horas
+// totales aplica exceso y defecto); los demás valores fuerzan el criterio.
 const gestionFilterAjusteJornada = document.querySelector("#gestion-filter-ajuste-jornada");
 
 // La nómina se calcula por empresa, así que Gestión arranca acotada a EDP: es
@@ -16183,7 +16183,8 @@ function getGestionFilters() {
     personalId: gestionFilterPersonalHidden?.value || "",
     empresaId: gestionFilterEmpresa?.value || "",
     baseCalculo: gestionFilterBaseCalculo?.value || "",
-    ajusteJornada: gestionFilterAjusteJornada?.value || "exceso",
+    // Vacío significa "según modalidad de pago"; se envía null al RPC.
+    ajusteJornada: gestionFilterAjusteJornada?.value || "",
   };
 }
 
@@ -16589,7 +16590,7 @@ async function toggleGestionNominaTotal(personalId) {
       p_hasta: hasta || null,
       p_empresa_id: empresaId ? Number(empresaId) : null,
       p_base_calculo: baseCalculo || null,
-      p_ajuste_jornada: ajusteJornada,
+      p_ajuste_jornada: ajusteJornada || null,
     });
     if (error) {
       throw error;
@@ -16648,7 +16649,7 @@ async function toggleGestionNomina(historialId) {
       p_desde: desde || null,
       p_hasta: hasta || null,
       p_base_calculo: baseCalculo || null,
-      p_ajuste_jornada: ajusteJornada,
+      p_ajuste_jornada: ajusteJornada || null,
     });
     if (error) {
       throw error;

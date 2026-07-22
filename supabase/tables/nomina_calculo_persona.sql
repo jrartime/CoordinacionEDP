@@ -44,7 +44,7 @@ create or replace function public.calcular_nomina_persona(
   p_base_calculo text default null,
   -- Que hacer con la diferencia entre horas REG y jornada teorica:
   -- 'exceso' (por defecto), 'ambos' (tambien descuenta el defecto), 'ninguno'.
-  p_ajuste_jornada text default 'exceso'
+  p_ajuste_jornada text default null
 )
 returns table (
   orden integer, seccion text, concepto text, detalle text,

@@ -62,10 +62,13 @@
 --     Si falta la tarifa del modo pedido se cae a mensual y se dice en el
 --     detalle, en vez de devolver 0 en silencio.
 --   * COMPLEMENTO DE PUESTO (codigo 60, orden 65): exceso de horas REG sobre la
---     jornada teorica del periodo (horas_teoricas_jornada). p_ajuste_jornada
---     decide: 'exceso' (por defecto) solo paga lo trabajado de mas, 'ambos'
---     ademas descuenta el defecto, 'ninguno' no emite la linea. La pestana
---     Gestion lo expone como filtro "Ajuste de jornada".
+--     jornada teorica del periodo (horas_teoricas_jornada). Por defecto (p_ajuste
+--     vacio) lo decide la MODALIDAD DE PAGO del historial: Jornada -> no aplica,
+--     Horas totales -> aplica exceso y defecto, Horas brutas/liquidas -> no
+--     aplica (aun sin desarrollar). p_ajuste_jornada fuerza el criterio:
+--     'exceso' solo paga lo trabajado de mas, 'ambos' ademas descuenta el
+--     defecto, 'ninguno' no emite la linea. La pestana Gestion lo expone en la
+--     zona "Calculo de nomina" como "Ajuste de jornada".
 --   * DESCUENTO POR ABSENTISMO (codigo 790, orden 90): horas PNR (tipo 5) a
 --     hora_complementaria del convenio, en negativo.
 --   * Horas: HCOMP (2) y MONT (3) x get_puesto_precio_hora.
@@ -213,7 +216,7 @@ create or replace function public.calcular_nomina_devengos(
   p_desde date default null,
   p_hasta date default null,
   p_base_calculo text default null,
-  p_ajuste_jornada text default 'exceso'
+  p_ajuste_jornada text default null
 )
 returns table (
   orden integer, concepto text, detalle text,
@@ -232,6 +235,7 @@ declare
   v_horas_teoricas numeric; v_dif_jornada numeric; v_precio_jornada numeric;
   v_extras integer; v_ajuste text; v_horas_pnr numeric;
   v_sit_excluidas integer[];
+  v_modalidad text;
 begin
   select * into h from public.historiales_laborales where id = p_historial_id;
   if h.id is null then return; end if;
@@ -259,7 +263,18 @@ begin
   v_fecha_ref := v_desde;
   v_dias := public.dias_nomina(v_desde, v_hasta);
   v_coef := coalesce(h.coeficiente_temporalidad_miles, 1000) / 1000.0;
-  v_ajuste := coalesce(nullif(trim(p_ajuste_jornada), ''), 'exceso');
+  -- Ajuste de jornada: si p_ajuste_jornada trae valor se fuerza; si viene vacio
+  -- manda la modalidad de pago del historial:
+  --   Jornada          -> ninguno (se paga la jornada, sin exceso ni defecto)
+  --   Horas totales    -> ambos   (se pagan las horas reales, exceso y defecto)
+  --   Horas brutas/liq -> ninguno (aun sin desarrollar; no aplicar de momento)
+  v_ajuste := nullif(trim(p_ajuste_jornada), '');
+  if v_ajuste is null then
+    select lower(mp.modalidad_pago) into v_modalidad
+    from public.historiales_laborales_modalidades_pago mp
+    where mp.id = h.modalidad_pago_id;
+    v_ajuste := case when v_modalidad = 'horas totales' then 'ambos' else 'ninguno' end;
+  end if;
 
   select * into v_sal from public.get_puesto_salario_efectivo(h.puesto_id, v_fecha_ref);
 
