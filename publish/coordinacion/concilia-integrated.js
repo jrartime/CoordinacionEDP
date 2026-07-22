@@ -342,6 +342,12 @@
   let activityInstallationRows = [];
   let activityServiceRows = [];
   let activityContractNocturnidad = new Map();
+  // Situaciones cuyo turno NO lo realiza la persona de la actividad: CAMB (lo cubrio
+  // otra) y LG (licencia). El registro se genera igual para dejar traza del turno,
+  // pero sin horas y sin facturar ni abonar. Mismo criterio que el motor de nomina
+  // (`v_sit_excluidas` en supabase/tables/nomina_calculo.sql).
+  const SITUACIONES_SIN_HORAS = ["CAMB", "LG"];
+  let activitySituacionesSinHoras = new Set();
   let activityContractPersonalRows = [];
   let activityContractInstallationRows = [];
   let activityUsesContractAssignments = false;
@@ -2470,6 +2476,12 @@
       activityInstallationRows = instalacionRows;
       activityServiceRows = servicioRows;
 
+      activitySituacionesSinHoras = new Set(
+        (situacionRows ?? [])
+          .filter((row) => SITUACIONES_SIN_HORAS.includes(String(row.situacion || "").trim().toUpperCase()))
+          .map((row) => Number(row.id))
+      );
+
       activityContractNocturnidad = new Map(
         (contratoRows ?? []).map((row) => [
           Number(row.id),
@@ -4479,11 +4491,14 @@
 
   function buildRecordsForActivity(activity, existingKeys, options = {}) {
     const dates = getActivityGeneratedDates(activity, options);
-    const hours = getActivityGeneratedHours(activity);
-    const nightHours = getActivityNightHours(
-      activity,
-      activityContractNocturnidad.get(Number(activity.contrato_id))
-    );
+    const sinHoras = activitySituacionesSinHoras.has(Number(activity.situacion_id));
+    const hours = sinHoras ? null : getActivityGeneratedHours(activity);
+    const nightHours = sinHoras
+      ? null
+      : getActivityNightHours(
+          activity,
+          activityContractNocturnidad.get(Number(activity.contrato_id))
+        );
     return dates
       .map((date) => ({
         actividad_id: activity.id,
@@ -4503,8 +4518,8 @@
         horas: hours,
         horas_nocturnas: nightHours,
         activo: true,
-        facturar: true,
-        abonar: true,
+        facturar: !sinHoras,
+        abonar: !sinHoras,
         descanso: false,
         sustitucion: false,
         festivo: false,
