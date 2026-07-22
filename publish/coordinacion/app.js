@@ -15404,7 +15404,18 @@ async function applyRecordsBulkAssignment() {
   }
 }
 
-async function loadRecords() {
+// `force` tira los catálogos cacheados antes de recargar. Hace falta cuando los
+// registros han cambiado por fuera de esta pestaña (generación desde Actividades)
+// o cuando el usuario pide refrescar a mano: las facetas se cachean por rango de
+// fechas, así que sin invalidarlas las personas e instalaciones recién añadidas
+// no aparecen en los desplegables aunque sus registros ya existan.
+async function loadRecords({ force = false } = {}) {
+  if (force) {
+    recordsFacetKey = null;
+    recordsFacetRows = [];
+    recordRelationOptionsCache = {};
+    recordsFilterContratos = null;
+  }
   invalidateRecordsReportPreview();
   if (recordsSummary) {
     recordsSummary.textContent = "Cargando registros...";
@@ -16608,7 +16619,9 @@ window.CoordinacionRegistros = {
     void showRecordsForActivity(activityId);
   },
   refresh() {
-    void loadRecords();
+    // Llega desde Actividades tras generar registros: puede haber personal o
+    // instalaciones que hasta ahora no tenían ninguno, así que se fuerza.
+    void loadRecords({ force: true });
   },
 };
 
@@ -24826,7 +24839,7 @@ async function init() {
     void exportRecordsCompactReportPdf(recordsReportPreviewRows)
   );
   recordsRefreshButton?.addEventListener("click", () => {
-    void loadRecords();
+    void loadRecords({ force: true });
   });
   recordsEditModeInput?.addEventListener("change", () => {
     renderRecordsTable();
