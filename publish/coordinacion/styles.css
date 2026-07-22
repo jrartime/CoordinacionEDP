@@ -4158,6 +4158,12 @@ th {
   color: var(--text);
 }
 
+/* Y `button:hover` le pone el fondo de acento: aquí no es un botón, es la
+   cabecera de una tarjeta, así que se queda como está. */
+.gestion-nomina-toggle:hover {
+  background: transparent;
+}
+
 .gestion-nomina-caret {
   transition: transform 0.15s ease;
   color: var(--muted);
