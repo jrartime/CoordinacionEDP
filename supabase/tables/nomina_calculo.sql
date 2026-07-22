@@ -247,7 +247,7 @@ declare
   v_extras integer; v_ajuste text; v_horas_pnr numeric;
   v_sit_excluidas integer[];
   v_modalidad text;
-  v_horas_jornada numeric;
+  v_horas_jornada numeric; v_horas_bout numeric;
   v_valor_jornada numeric; v_valor_reg numeric;
   v_horas_mont numeric; v_precio_mont numeric; v_valor_mont numeric;
   v_horas_hcomp numeric; v_precio_hcomp numeric; v_valor_hcomp numeric;
@@ -320,8 +320,9 @@ begin
   select coalesce(sum(r.horas) filter (where r.tipo_hora_id = 1), 0)::numeric,
          coalesce(sum(r.horas) filter (where r.tipo_hora_id = 5), 0)::numeric,
          coalesce(sum(r.horas) filter (where r.tipo_hora_id = 3), 0)::numeric,
-         coalesce(sum(r.horas) filter (where r.tipo_hora_id = 2), 0)::numeric
-    into v_horas_reg, v_horas_pnr, v_horas_mont, v_horas_hcomp
+         coalesce(sum(r.horas) filter (where r.tipo_hora_id = 2), 0)::numeric,
+         coalesce(sum(r.horas) filter (where r.tipo_hora_id = 8), 0)::numeric
+    into v_horas_reg, v_horas_pnr, v_horas_mont, v_horas_hcomp, v_horas_bout
   from public.registros r
   where r.personal_id = h.personal_id and r.puesto_id = h.puesto_id
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
@@ -374,7 +375,7 @@ begin
   -- Se suma lo realizado y se compara con el valor de la jornada contratada:
   --   valor_jornada = base + su parte de pagas extra  (base x (1 + extras/12))
   --   precio_hora   = valor_jornada / horas_teoricas
-  --   valor_reg     = precio_hora x horas (REG+PNR)
+  --   valor_reg     = precio_hora x horas (REG+PNR+bolsa)
   --   extras        = montaje (MONT) + complementarias (HCOMP), a su precio
   --   diferencia    = valor_reg + extras - valor_jornada
   --
@@ -398,7 +399,13 @@ begin
   --     el montaje se paga entero -> plus 93 141,72 y complemento 60 542,88.
   --
   -- PNR cuenta como jornada cumplida (se descuenta aparte en el 790).
-  v_horas_jornada := v_horas_reg + v_horas_pnr;
+  -- BOUT (tipo 8, salida de bolsa) tambien: la persona libra gastando saldo de
+  -- su bolsa de horas, asi que ese dia esta cubierto. BIN (tipo 7, entrada) NO:
+  -- son horas que solo se apuntan al saldo para gastarlas mas adelante, no se
+  -- pagan ni cuentan como jornada.
+  -- Caso real (Javier Diaz Gonzalez, junio 2026): 84,5 h REG + 48 h BOUT con
+  -- situacion VAC (6 dias librados con la bolsa, bolsa_horas -8 cada uno).
+  v_horas_jornada := v_horas_reg + v_horas_pnr + v_horas_bout;
   v_horas_teoricas := public.horas_teoricas_jornada(v_desde, v_hasta, h.jornada);
   v_valor_jornada := v_base * (1 + v_extras / 12.0);
 
@@ -421,7 +428,7 @@ begin
     if v_dif > 0 then
       if v_exceso_reg > 0 then
         return query select 65, 'Plus de disponibilidad'::text,
-          format('%s h (REG+PNR) sobre %s h teóricas × %s€/h',
+          format('%s h (REG+PNR+bolsa) sobre %s h teóricas × %s€/h',
                  round(v_horas_jornada, 2), round(v_horas_teoricas, 2), round(v_precio_jornada, 4)),
           null::numeric, round(v_horas_jornada - v_horas_teoricas, 2),
           round(v_precio_jornada, 4), round(v_exceso_reg, 2), null::text;
@@ -434,7 +441,7 @@ begin
       v_pago_mont := 0; v_pago_hcomp := 0;
       if v_dif < 0 and v_ajuste = 'ambos' then
         return query select 65, 'Plus de disponibilidad'::text,
-          format('%s h (REG+PNR) de %s h teóricas%s',
+          format('%s h (REG+PNR+bolsa) de %s h teóricas%s',
                  round(v_horas_jornada, 2), round(v_horas_teoricas, 2),
                  case when v_valor_extra > 0
                       then format('; %s€ de montaje/complementarias no cubren la diferencia', v_valor_extra)
