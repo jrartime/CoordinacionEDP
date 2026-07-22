@@ -805,6 +805,19 @@ const recordSubstitutionReasonSelect = document.querySelector("#record-substitut
 const recordSubstitutionPersonSelect = document.querySelector("#record-substitution-person");
 const recordSubstitutionConfirmButton = document.querySelector("#record-substitution-confirm-button");
 const recordSubstitutionCancelButton = document.querySelector("#record-substitution-cancel-button");
+const recordSubstitutionTipoHoraSelect = document.querySelector("#record-substitution-tipo-hora");
+const recordsBulkSubstitutionButton = document.querySelector("#records-bulk-substitution-button");
+const recordsBulkSubstitutionPanel = document.querySelector("#records-bulk-substitution-panel");
+const recordsBulkSubstitutionOverlay = document.querySelector("#records-bulk-substitution-overlay");
+const recordsBulkSubstitutionInfo = document.querySelector("#records-bulk-substitution-info");
+const recordsBulkSubstitutionReasonSelect = document.querySelector("#records-bulk-substitution-reason");
+const recordsBulkSubstitutionPersonSelect = document.querySelector("#records-bulk-substitution-person");
+const recordsBulkSubstitutionTipoHoraSelect = document.querySelector("#records-bulk-substitution-tipo-hora");
+const recordsBulkSubstitutionList = document.querySelector("#records-bulk-substitution-list");
+const recordsBulkSubstitutionSelectAll = document.querySelector("#records-bulk-substitution-select-all");
+const recordsBulkSubstitutionCount = document.querySelector("#records-bulk-substitution-count");
+const recordsBulkSubstitutionConfirmButton = document.querySelector("#records-bulk-substitution-confirm-button");
+const recordsBulkSubstitutionCancelButton = document.querySelector("#records-bulk-substitution-cancel-button");
 const controlFiltersForm = document.querySelector("#control-filters-form");
 const controlDateFromInput = document.querySelector("#control-date-from");
 const controlDateToInput = document.querySelector("#control-date-to");
@@ -15920,6 +15933,72 @@ function renderRecordSubstitutionBadge(row) {
   return ` <span class="record-sub-badge ${info.badgeClass}" title="${escapeHtml(info.title)}">${escapeHtml(info.badgeText)}</span>`;
 }
 
+// Un turno solo se puede sustituir una vez: ni las filas que ya son de un
+// sustituto ni los titulares ya sustituidos vuelven a entrar.
+function canSubstituteRecord(row) {
+  return Boolean(row?.id) && !isRecordSubstituteRow(row) && !row.sustituto_personal_id;
+}
+
+// El sustituto trabaja el turno del titular, asi que por defecto hereda su tipo
+// de hora; el desplegable permite cambiarlo (montaje, complementarias, etc.).
+function fillRecordSubstitutionTipoHoraSelect(select, preferredId) {
+  if (!select) return;
+  const options = recordRelationOptionsCache.tipo_hora_id || [];
+  const fallback = findRecordRelationIdByLabel("tipo_hora_id", "REG");
+  const selected = preferredId ?? fallback;
+  select.innerHTML = options
+    .map(
+      (option) =>
+        `<option value="${escapeHtml(option.value)}" ${
+          String(option.value) === String(selected) ? "selected" : ""
+        }>${escapeHtml(option.label)}</option>`
+    )
+    .join("");
+}
+
+// Marca de ausencia sobre la fila del titular. Pasa por
+// withRecordSituacionSideEffects para que LG siga la misma regla que en el resto
+// de la pestaña: sin horas y sin facturar ni abonar, de modo que el turno se
+// facture una sola vez, por la fila del sustituto.
+async function buildRecordSubstitutionTitularPatch(titular, reason) {
+  const patch = {};
+  if (reason.situacionCode) {
+    const situacionId = findRecordRelationIdByLabel("situacion_id", reason.situacionCode);
+    if (situacionId != null) patch.situacion_id = situacionId;
+  }
+  if (reason.tipoHoraCode) {
+    const tipoHoraId = findRecordRelationIdByLabel("tipo_hora_id", reason.tipoHoraCode);
+    if (tipoHoraId != null) patch.tipo_hora_id = tipoHoraId;
+  }
+  if (reason.hdNegative) {
+    patch.hd = -Math.abs(Number(titular.horas) || 0);
+  }
+  return withRecordSituacionSideEffects(titular, patch);
+}
+
+// Fila del sustituto: copia del turno. titular/sustituto son derivados de
+// sustituye_registro_id, por eso no se copian.
+function buildRecordSubstitutionInsert(titular, sustitutoId, tipoHoraId) {
+  const excludeKeys = new Set(["id", "control"]);
+  const derivedKeys = new Set(RECORD_DETAIL_LABEL_COLUMNS);
+  const insertData = {};
+  for (const column of RECORD_COLUMNS) {
+    if (excludeKeys.has(column.key) || derivedKeys.has(column.key) || column.derived) continue;
+    if (titular[column.key] !== undefined) insertData[column.key] = titular[column.key];
+  }
+  insertData.personal_id = sustitutoId;
+  insertData.sustitucion = true;
+  insertData.facturar = true;
+  insertData.abonar = true;
+  insertData.hd = 0;
+  insertData.sustituye_registro_id = titular.id;
+  const sustSituacionId = findRecordRelationIdByLabel("situacion_id", "SUST");
+  if (sustSituacionId != null) insertData.situacion_id = sustSituacionId;
+  insertData.tipo_hora_id =
+    tipoHoraId ?? titular.tipo_hora_id ?? findRecordRelationIdByLabel("tipo_hora_id", "REG");
+  return insertData;
+}
+
 function openRecordSubstitutionPanel() {
   if (!recordDetailSnapshot?.id || !recordSubstitutionPanel) return;
 
@@ -15942,6 +16021,10 @@ function openRecordSubstitutionPanel() {
     getRecordRelationOptionsForContract("personal_id", recordDetailSnapshot.contrato_id)
   );
   clearPersonalPicker("substitution");
+  fillRecordSubstitutionTipoHoraSelect(
+    recordSubstitutionTipoHoraSelect,
+    recordDetailSnapshot.tipo_hora_id
+  );
   if (recordSubstitutionInfo) {
     const titularName = recordDetailSnapshot.personal || `ID ${recordDetailSnapshot.personal_id ?? "?"}`;
     const fecha = formatRecordDisplayValue(recordDetailSnapshot, getRecordColumn("fecha"));
@@ -15976,40 +16059,9 @@ async function confirmRecordSubstitution() {
     return;
   }
 
-  // Fila del titular ausente. El sustituto se deduce del enlace de la fila nueva,
-  // por eso no se guarda titular/sustituto: solo el motivo de ausencia.
-  const titularPatch = {};
-  if (reason.situacionCode) {
-    const situacionId = findRecordRelationIdByLabel("situacion_id", reason.situacionCode);
-    if (situacionId != null) titularPatch.situacion_id = situacionId;
-  }
-  if (reason.tipoHoraCode) {
-    const tipoHoraId = findRecordRelationIdByLabel("tipo_hora_id", reason.tipoHoraCode);
-    if (tipoHoraId != null) titularPatch.tipo_hora_id = tipoHoraId;
-  }
-  if (reason.hdNegative) {
-    const horas = Number(titular.horas) || 0;
-    titularPatch.hd = -Math.abs(horas);
-  }
-
-  // Fila del sustituto (copia del turno). titular/sustituto son derivados, no se copian.
-  const excludeKeys = new Set(["id", "control"]);
-  const derivedKeys = new Set(RECORD_DETAIL_LABEL_COLUMNS);
-  const insertData = {};
-  for (const column of RECORD_COLUMNS) {
-    if (excludeKeys.has(column.key) || derivedKeys.has(column.key) || column.derived) continue;
-    if (titular[column.key] !== undefined) insertData[column.key] = titular[column.key];
-  }
-  insertData.personal_id = sustitutoId;
-  insertData.sustitucion = true;
-  insertData.facturar = true;
-  insertData.abonar = true;
-  insertData.hd = 0;
-  insertData.sustituye_registro_id = titular.id;
-  const sustSituacionId = findRecordRelationIdByLabel("situacion_id", "SUST");
-  if (sustSituacionId != null) insertData.situacion_id = sustSituacionId;
-  // El sustituto trabaja horas normales: conserva el tipo de hora original del turno.
-  insertData.tipo_hora_id = titular.tipo_hora_id ?? findRecordRelationIdByLabel("tipo_hora_id", "REG");
+  const tipoHoraId = Number(recordSubstitutionTipoHoraSelect?.value || "") || null;
+  const titularPatch = await buildRecordSubstitutionTitularPatch(titular, reason);
+  const insertData = buildRecordSubstitutionInsert(titular, sustitutoId, tipoHoraId);
 
   try {
     const supabase = await getSupabaseClient();
@@ -16088,6 +16140,252 @@ function updateRecordSubstitutionButtons() {
   }
   if (recordDetailRemoveSubstitutionButton) {
     recordDetailRemoveSubstitutionButton.classList.toggle("hidden", !isPartOfSub);
+  }
+}
+
+// --- Sustitución masiva ---
+// Toma los mismos registros que la asignación masiva (los marcados con el tick,
+// o los que cumplen los filtros) y cubre de golpe todos los turnos de la persona
+// ausente. La lista del panel permite descartar turnos sueltos antes de aplicar.
+let recordsBulkSubstitutionCandidates = [];
+let recordsBulkSubstitutionSelected = new Set();
+
+// Tope de turnos que se listan de una vez. Sustituir a una persona un mes son 20
+// o 30 filas; si salen cientos es que faltan filtros, y pintar esa lista de ticks
+// deja el navegador colgado.
+const RECORDS_BULK_SUBSTITUTION_MAX = 300;
+
+// A diferencia de la asignación masiva, aquí no hay "valor actual" que empareje:
+// se parte de lo que hay filtrado, o de lo marcado si la selección está activa.
+function getRecordsBulkSubstitutionSourceRows() {
+  return recordsSelectionMode ? getSelectedRecordRowsForBulkAction() : filteredRecordsRows;
+}
+
+function renderRecordsBulkSubstitutionList() {
+  if (!recordsBulkSubstitutionList) return;
+
+  if (!recordsBulkSubstitutionCandidates.length) {
+    recordsBulkSubstitutionList.innerHTML =
+      `<p class="records-substitution-empty">No hay turnos sustituibles en la selección.</p>`;
+  } else {
+    recordsBulkSubstitutionList.innerHTML = recordsBulkSubstitutionCandidates
+      .map((row) => {
+        const checked = recordsBulkSubstitutionSelected.has(String(row.id)) ? "checked" : "";
+        const fecha = formatRecordDisplayValue(row, getRecordColumn("fecha"));
+        const horario = `${String(row.hora_inicio ?? "").slice(0, 5)}-${String(row.hora_fin ?? "").slice(0, 5)}`;
+        const detalle = [row.instalacion, row.puesto, row.tipo_hora]
+          .map((value) => String(value ?? "").trim())
+          .filter(Boolean)
+          .join(" · ");
+        return `
+          <label class="records-substitution-item">
+            <input type="checkbox" data-bulk-sub-id="${escapeHtml(row.id)}" ${checked} />
+            <span>
+              <strong>${escapeHtml(fecha)}</strong> ${escapeHtml(horario)}
+              · ${escapeHtml(row.personal ?? `ID ${row.personal_id ?? "?"}`)}
+              ${detalle ? `<br /><span class="records-substitution-item-detail">${escapeHtml(detalle)}</span>` : ""}
+            </span>
+          </label>
+        `;
+      })
+      .join("");
+  }
+
+  const total = recordsBulkSubstitutionCandidates.length;
+  const marcados = recordsBulkSubstitutionSelected.size;
+  if (recordsBulkSubstitutionCount) {
+    recordsBulkSubstitutionCount.textContent = `${marcados} de ${total} seleccionado${marcados !== 1 ? "s" : ""}`;
+  }
+  if (recordsBulkSubstitutionSelectAll) {
+    recordsBulkSubstitutionSelectAll.checked = Boolean(total) && marcados === total;
+    recordsBulkSubstitutionSelectAll.indeterminate = marcados > 0 && marcados < total;
+    recordsBulkSubstitutionSelectAll.disabled = !total;
+  }
+  if (recordsBulkSubstitutionConfirmButton) {
+    recordsBulkSubstitutionConfirmButton.disabled = !marcados;
+  }
+}
+
+function openRecordsBulkSubstitutionPanel() {
+  if (!recordsBulkSubstitutionPanel) return;
+
+  const targets = getRecordsBulkSubstitutionSourceRows();
+  if (!targets.length) {
+    setStatus(
+      recordsSelectionMode
+        ? "Marca los registros que quieres sustituir."
+        : "Filtra primero los registros que quieres sustituir.",
+      "error"
+    );
+    return;
+  }
+  if (targets.length > RECORDS_BULK_SUBSTITUTION_MAX) {
+    setStatus(
+      `Hay ${targets.length} registros filtrados. Acota los filtros (persona y fechas) o marca con el tick los que quieras sustituir: el panel admite hasta ${RECORDS_BULK_SUBSTITUTION_MAX}.`,
+      "error"
+    );
+    return;
+  }
+
+  recordsBulkSubstitutionCandidates = targets.filter(canSubstituteRecord);
+  const descartados = targets.length - recordsBulkSubstitutionCandidates.length;
+  if (!recordsBulkSubstitutionCandidates.length) {
+    setStatus("Todos esos registros forman ya parte de una sustitución.", "error");
+    return;
+  }
+  recordsBulkSubstitutionSelected = new Set(
+    recordsBulkSubstitutionCandidates.map((row) => String(row.id))
+  );
+
+  if (recordsBulkSubstitutionReasonSelect) {
+    recordsBulkSubstitutionReasonSelect.innerHTML = RECORD_SUBSTITUTION_REASONS.map(
+      (reason) => `<option value="${reason.value}">${escapeHtml(reason.label)}</option>`
+    ).join("");
+  }
+
+  // El sustituto se busca entre el personal del contrato cuando todos los turnos
+  // son del mismo; si hay varios, se ofrece el catálogo completo.
+  const contratos = new Set(
+    recordsBulkSubstitutionCandidates.map((row) => String(row.contrato_id ?? ""))
+  );
+  setPersonalPickerOptions(
+    "bulk-substitution",
+    getRecordRelationOptionsForContract(
+      "personal_id",
+      contratos.size === 1 ? recordsBulkSubstitutionCandidates[0].contrato_id : null
+    )
+  );
+  clearPersonalPicker("bulk-substitution");
+
+  const tiposHora = new Set(
+    recordsBulkSubstitutionCandidates.map((row) => String(row.tipo_hora_id ?? ""))
+  );
+  fillRecordSubstitutionTipoHoraSelect(
+    recordsBulkSubstitutionTipoHoraSelect,
+    tiposHora.size === 1 ? recordsBulkSubstitutionCandidates[0].tipo_hora_id : null
+  );
+
+  if (recordsBulkSubstitutionInfo) {
+    const titulares = new Map();
+    for (const row of recordsBulkSubstitutionCandidates) {
+      const key = String(row.personal_id ?? "");
+      if (!titulares.has(key)) {
+        titulares.set(key, row.personal || `ID ${row.personal_id ?? "?"}`);
+      }
+    }
+    const nombres = Array.from(titulares.values());
+    const partes = [
+      nombres.length === 1
+        ? `Titular: ${nombres[0]}`
+        : `${nombres.length} titulares: ${nombres.slice(0, 3).join(", ")}${nombres.length > 3 ? "…" : ""}`,
+    ];
+    if (descartados) {
+      partes.push(
+        `${descartados} registro${descartados !== 1 ? "s" : ""} descartado${descartados !== 1 ? "s" : ""} por formar parte ya de una sustitución.`
+      );
+    }
+    recordsBulkSubstitutionInfo.textContent = partes.join(" · ");
+  }
+
+  renderRecordsBulkSubstitutionList();
+  recordsBulkSubstitutionPanel.classList.remove("hidden");
+}
+
+function closeRecordsBulkSubstitutionPanel() {
+  recordsBulkSubstitutionPanel?.classList.add("hidden");
+  clearPersonalPicker("bulk-substitution");
+  recordsBulkSubstitutionCandidates = [];
+  recordsBulkSubstitutionSelected = new Set();
+}
+
+async function confirmRecordsBulkSubstitution() {
+  const reasonValue = recordsBulkSubstitutionReasonSelect?.value || "";
+  const reason = RECORD_SUBSTITUTION_REASONS.find((r) => r.value === reasonValue);
+  const sustitutoId = Number(recordsBulkSubstitutionPersonSelect?.value || "");
+  const tipoHoraId = Number(recordsBulkSubstitutionTipoHoraSelect?.value || "") || null;
+
+  if (!reason) {
+    setStatus("Selecciona un motivo de ausencia.", "error");
+    return;
+  }
+  if (!sustitutoId) {
+    setStatus("Selecciona la persona que sustituye.", "error");
+    return;
+  }
+
+  const titulares = recordsBulkSubstitutionCandidates.filter((row) =>
+    recordsBulkSubstitutionSelected.has(String(row.id))
+  );
+  if (!titulares.length) {
+    setStatus("Marca al menos un turno para sustituir.", "error");
+    return;
+  }
+  // Nadie se sustituye a si mismo: esos turnos se quedan fuera.
+  const propios = titulares.filter((row) => Number(row.personal_id) === sustitutoId);
+  const aplicables = titulares.filter((row) => Number(row.personal_id) !== sustitutoId);
+  if (!aplicables.length) {
+    setStatus("El sustituto es el titular de todos los turnos marcados.", "error");
+    return;
+  }
+
+  const sustitutoNombre =
+    (recordRelationOptionsCache.personal_id || []).find(
+      (option) => String(option.value) === String(sustitutoId)
+    )?.label || `ID ${sustitutoId}`;
+  const aviso = propios.length
+    ? `\n\nAviso: ${propios.length} turno${propios.length !== 1 ? "s" : ""} se descarta${propios.length !== 1 ? "n" : ""} porque el sustituto es el propio titular.`
+    : "";
+  if (
+    !confirm(
+      `Se marcarán ${aplicables.length} turno${aplicables.length !== 1 ? "s" : ""} como ${reason.value} y se crearán otras tantas filas con ${sustitutoNombre} cubriéndolos. ¿Continuar?${aviso}`
+    )
+  ) {
+    return;
+  }
+
+  if (recordsBulkSubstitutionConfirmButton) {
+    recordsBulkSubstitutionConfirmButton.disabled = true;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+
+    // Los parches del titular solo difieren en hd (PNR lo pone en negativo segun
+    // las horas del turno), asi que se agrupan los identicos en un update.
+    const grupos = new Map();
+    for (const titular of aplicables) {
+      const patch = await buildRecordSubstitutionTitularPatch(titular, reason);
+      const key = JSON.stringify(patch);
+      if (!grupos.has(key)) grupos.set(key, { patch, ids: [] });
+      grupos.get(key).ids.push(titular.id);
+    }
+    for (const grupo of grupos.values()) {
+      if (!Object.keys(grupo.patch).length) continue;
+      const { error } = await supabase
+        .from("registros")
+        .update(grupo.patch)
+        .in("id", grupo.ids);
+      if (error) throw error;
+    }
+
+    const inserts = aplicables.map((titular) =>
+      buildRecordSubstitutionInsert(titular, sustitutoId, tipoHoraId)
+    );
+    const { error: insertError } = await supabase.from("registros").insert(inserts);
+    if (insertError) throw insertError;
+
+    closeRecordsBulkSubstitutionPanel();
+    clearRecordsBulkSelection();
+    await loadRecords();
+    setStatus(
+      `Sustituciones registradas (${reason.value}): ${aplicables.length} turno${aplicables.length !== 1 ? "s" : ""} cubierto${aplicables.length !== 1 ? "s" : ""} por ${sustitutoNombre}.`,
+      "success"
+    );
+  } catch (error) {
+    setStatus(`No se pudieron registrar las sustituciones: ${error.message}`, "error");
+  } finally {
+    if (recordsBulkSubstitutionConfirmButton) {
+      recordsBulkSubstitutionConfirmButton.disabled = false;
+    }
   }
 }
 
@@ -24001,6 +24299,11 @@ async function init() {
     hiddenId: "record-substitution-person",
     suggestionsId: "record-substitution-person-suggestions",
   });
+  setupPersonalPicker("bulk-substitution", {
+    inputId: "records-bulk-substitution-person-input",
+    hiddenId: "records-bulk-substitution-person",
+    suggestionsId: "records-bulk-substitution-person-suggestions",
+  });
   historialFiltersForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     void loadHistorial();
@@ -24637,6 +24940,41 @@ async function init() {
   });
   recordSubstitutionCancelButton?.addEventListener("click", closeRecordSubstitutionPanel);
   recordSubstitutionOverlay?.addEventListener("click", closeRecordSubstitutionPanel);
+  recordsBulkSubstitutionButton?.addEventListener("click", openRecordsBulkSubstitutionPanel);
+  recordsBulkSubstitutionCancelButton?.addEventListener("click", closeRecordsBulkSubstitutionPanel);
+  recordsBulkSubstitutionOverlay?.addEventListener("click", closeRecordsBulkSubstitutionPanel);
+  recordsBulkSubstitutionConfirmButton?.addEventListener("click", () => {
+    void confirmRecordsBulkSubstitution();
+  });
+  recordsBulkSubstitutionSelectAll?.addEventListener("change", (event) => {
+    recordsBulkSubstitutionSelected = event.target.checked
+      ? new Set(recordsBulkSubstitutionCandidates.map((row) => String(row.id)))
+      : new Set();
+    renderRecordsBulkSubstitutionList();
+  });
+  recordsBulkSubstitutionList?.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-bulk-sub-id]");
+    if (!checkbox) return;
+    const id = String(checkbox.dataset.bulkSubId);
+    if (checkbox.checked) {
+      recordsBulkSubstitutionSelected.add(id);
+    } else {
+      recordsBulkSubstitutionSelected.delete(id);
+    }
+    // Solo se refresca la cabecera: repintar la lista perderia el scroll.
+    const total = recordsBulkSubstitutionCandidates.length;
+    const marcados = recordsBulkSubstitutionSelected.size;
+    if (recordsBulkSubstitutionCount) {
+      recordsBulkSubstitutionCount.textContent = `${marcados} de ${total} seleccionado${marcados !== 1 ? "s" : ""}`;
+    }
+    if (recordsBulkSubstitutionSelectAll) {
+      recordsBulkSubstitutionSelectAll.checked = Boolean(total) && marcados === total;
+      recordsBulkSubstitutionSelectAll.indeterminate = marcados > 0 && marcados < total;
+    }
+    if (recordsBulkSubstitutionConfirmButton) {
+      recordsBulkSubstitutionConfirmButton.disabled = !marcados;
+    }
+  });
   recordDetailOverlay?.addEventListener("click", closeRecordDetail);
   controlClearFiltersButton?.addEventListener("click", clearControlFilters);
   controlTotalsButton?.addEventListener("click", openControlTotalsPanel);

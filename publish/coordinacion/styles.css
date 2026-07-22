@@ -2536,6 +2536,73 @@ button.tag-chip.warm-button:hover {
   background: rgba(245, 158, 11, 0.07);
 }
 
+/* Lista de turnos del panel de sustitución masiva. Puede traer cientos de
+   filas, así que scrollea dentro del cajón en vez de estirarlo. */
+.records-substitution-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+/* Los label del proyecto apilan en columna por defecto; estos dos van en linea
+   con su tick, asi que reponen la direccion. */
+.records-substitution-check-all {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.records-substitution-check-all input {
+  width: auto;
+  margin: 0;
+}
+
+.records-substitution-list {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.records-substitution-item {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  cursor: pointer;
+  margin: 0;
+}
+
+.records-substitution-item:hover {
+  background: rgba(14, 165, 233, 0.07);
+}
+
+.records-substitution-item input {
+  width: auto;
+  margin: 2px 0 0;
+  flex-shrink: 0;
+}
+
+.records-substitution-item-detail {
+  color: var(--muted, #64748b);
+}
+
+.records-substitution-empty {
+  padding: 10px;
+  color: var(--muted, #64748b);
+  font-size: 0.85rem;
+}
+
 .records-detail-form .detail-field-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260722-6" />
+    <link rel="stylesheet" href="./styles.css?v=20260722-7" />
   </head>
   <body>
     <script>
@@ -808,6 +808,20 @@
                   </div>
                 </details>
 
+                <details class="programming-panel-zone">
+                  <summary>Sustituciones</summary>
+                  <div class="activities-bulk-assignment-panel">
+                    <p class="muted-text">
+                      Abre el panel para elegir los turnos de una persona ausente, quién
+                      los cubre y con qué tipo de hora. Se marcará la ausencia en cada
+                      turno y se creará la fila del sustituto enlazada al titular.
+                    </p>
+                    <button id="records-bulk-substitution-button" type="button">
+                      Preparar sustituciones
+                    </button>
+                  </div>
+                </details>
+
                 <div class="results-toolbar section-summary-toolbar">
                   <div class="results-summary">
                     <p id="records-summary" class="summary-chip">Cargando registros...</p>
@@ -949,6 +963,10 @@
                         ></div>
                       </div>
                     </label>
+                    <label>
+                      Tipo de hora del sustituto
+                      <select id="record-substitution-tipo-hora"></select>
+                    </label>
                     <p class="muted-text">
                       Se marcará la ausencia en la fila del titular y se creará una fila nueva
                       con el sustituto trabajando ese turno, enlazada al titular.
@@ -956,6 +974,81 @@
                     <div class="detail-actions">
                       <button id="record-substitution-confirm-button" type="button">
                         Confirmar sustitución
+                      </button>
+                    </div>
+                  </div>
+                </aside>
+              </section>
+
+              <section id="records-bulk-substitution-panel" class="detail-panel hidden">
+                <div id="records-bulk-substitution-overlay" class="detail-overlay"></div>
+                <aside
+                  class="detail-drawer record-substitution-drawer"
+                  aria-labelledby="records-bulk-substitution-title"
+                >
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Registros</p>
+                      <h3 id="records-bulk-substitution-title">Sustitución masiva</h3>
+                    </div>
+                    <button
+                      id="records-bulk-substitution-cancel-button"
+                      type="button"
+                      class="secondary-button"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+
+                  <p id="records-bulk-substitution-info" class="control-totals-filter-summary"></p>
+
+                  <div class="detail-form">
+                    <label>
+                      Motivo de la ausencia del titular
+                      <select id="records-bulk-substitution-reason"></select>
+                    </label>
+                    <label>
+                      Persona que sustituye
+                      <div class="filter-field-stack">
+                        <input
+                          id="records-bulk-substitution-person-input"
+                          type="text"
+                          autocomplete="off"
+                          placeholder="Buscar persona"
+                        />
+                        <input id="records-bulk-substitution-person" type="hidden" />
+                        <div
+                          id="records-bulk-substitution-person-suggestions"
+                          class="filter-suggestions filter-suggestions-full hidden"
+                        ></div>
+                      </div>
+                    </label>
+                    <label>
+                      Tipo de hora del sustituto
+                      <select id="records-bulk-substitution-tipo-hora"></select>
+                    </label>
+
+                    <div class="records-substitution-list-header">
+                      <label class="records-substitution-check-all">
+                        <input
+                          id="records-bulk-substitution-select-all"
+                          type="checkbox"
+                          checked
+                        />
+                        Turnos a sustituir
+                      </label>
+                      <span
+                        id="records-bulk-substitution-count"
+                        class="control-selected-delete-count"
+                      >
+                        0 seleccionados
+                      </span>
+                    </div>
+                    <div id="records-bulk-substitution-list" class="records-substitution-list"></div>
+
+                    <div class="detail-actions">
+                      <button id="records-bulk-substitution-confirm-button" type="button">
+                        Confirmar sustituciones
                       </button>
                     </div>
                   </div>
@@ -7430,6 +7523,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260722-4" defer></script>
-    <script src="./app.js?v=20260722-7" defer></script>
+    <script src="./app.js?v=20260722-8" defer></script>
   </body>
 </html>
