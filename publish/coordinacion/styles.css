@@ -4118,6 +4118,29 @@ th {
   border-color: var(--line-strong);
 }
 
+/* Cabecera de la tarjeta: el tick que incluye el periodo en la nómina va fuera
+   del botón que despliega el detalle (un checkbox dentro de un button no es
+   HTML válido y el clic dispararía las dos cosas). */
+.gestion-nomina-card-head {
+  display: flex;
+  align-items: center;
+}
+
+.gestion-nomina-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 0 0 10px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.gestion-nomina-check input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
 .gestion-nomina-toggle {
   display: flex;
   align-items: center;
@@ -4129,6 +4152,10 @@ th {
   cursor: pointer;
   text-align: left;
   font-size: 0.8rem;
+  /* La regla global de `button` pinta el texto en blanco (botones de fondo
+     sólido). Esta tarjeta es transparente, así que el título salía blanco sobre
+     blanco: solo se leía el periodo, que sí trae color propio. */
+  color: var(--text);
 }
 
 .gestion-nomina-caret {

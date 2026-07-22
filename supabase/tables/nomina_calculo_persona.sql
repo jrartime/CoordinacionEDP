@@ -32,9 +32,22 @@
 -- complementos y desplazamiento se cuentan en ambas. Repartirlos exige decidir
 -- que parte va a cada empresa.
 
+-- p_historial_ids acota el calculo a unos periodos concretos. Sirve para el caso
+-- de una persona con DOS vidas laborales que NO se solapan dentro del mismo mes
+-- (alta, baja, y mas tarde otra alta): en la realidad son dos nominas separadas,
+-- cada una con su alta y su baja en Seguridad Social, sus dias trabajados y sus
+-- propios tipos de cotizacion, no una sola nomina por la suma. Pasando un solo
+-- id se obtiene esa nomina; pasando los dos, la suma. Nulo = todos los del rango
+-- (comportamiento de siempre).
+--
+-- Al acotar, los dias trabajados y las horas nocturnas se cuentan solo dentro de
+-- las fechas de los periodos elegidos, no de todo el rango del filtro: si no, el
+-- plus de transporte de una nomina se llevaria los dias de la otra.
+
 drop function if exists public.calcular_nomina_persona(integer, date, date);
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer);
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text);
+drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text);
 
 create or replace function public.calcular_nomina_persona(
   p_personal_id integer, p_desde date, p_hasta date,
@@ -44,7 +57,9 @@ create or replace function public.calcular_nomina_persona(
   p_base_calculo text default null,
   -- Que hacer con la diferencia entre horas REG y jornada teorica:
   -- 'exceso' (por defecto), 'ambos' (tambien descuenta el defecto), 'ninguno'.
-  p_ajuste_jornada text default null
+  p_ajuste_jornada text default null,
+  -- Periodos de historial laboral a incluir. Nulo = todos los del rango.
+  p_historial_ids bigint[] default null
 )
 returns table (
   orden integer, seccion text, concepto text, detalle text,
@@ -72,6 +87,7 @@ begin
   from public.historiales_laborales h
   where h.personal_id = p_personal_id
     and (p_empresa_id is null or h.empresa_id = p_empresa_id)
+    and (p_historial_ids is null or h.id = any(p_historial_ids))
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
   order by dias_solape desc, h.id limit 1;
   if hp.id is null then return; end if;
@@ -93,12 +109,20 @@ begin
   left join public.tipo_horas th on th.id = r.tipo_hora_id
   where r.personal_id = p_personal_id and r.fecha >= p_desde and r.fecha <= p_hasta
     and (p_empresa_id is null or r.empresa_id = p_empresa_id)
+    and (p_historial_ids is null or exists (
+      select 1 from public.historiales_laborales h2
+      where h2.id = any(p_historial_ids) and h2.personal_id = p_personal_id
+        and r.fecha >= h2.fecha_alta and (h2.fecha_baja is null or r.fecha <= h2.fecha_baja)))
     and (s.situacion in ('NORM','SUST') or (s.situacion='FEST' and th.tipo_hora='FTRAB'));
 
   select coalesce(sum(r.horas_nocturnas),0)::numeric into v_horas_noct
   from public.registros r
   where r.personal_id = p_personal_id and r.fecha >= p_desde and r.fecha <= p_hasta
-    and (p_empresa_id is null or r.empresa_id = p_empresa_id);
+    and (p_empresa_id is null or r.empresa_id = p_empresa_id)
+    and (p_historial_ids is null or exists (
+      select 1 from public.historiales_laborales h2
+      where h2.id = any(p_historial_ids) and h2.personal_id = p_personal_id
+        and r.fecha >= h2.fecha_alta and (h2.fecha_baja is null or r.fecha <= h2.fecha_baja)));
 
   select coalesce(sum(x.importe) filter (where x.concepto = 'Salario base'), 0),
          coalesce(sum(x.importe), 0)
@@ -109,6 +133,7 @@ begin
     cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada) d
     where h.personal_id = p_personal_id
       and (p_empresa_id is null or h.empresa_id = p_empresa_id)
+      and (p_historial_ids is null or h.id = any(p_historial_ids))
       and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
     group by d.concepto
   ) x;
@@ -119,6 +144,7 @@ begin
   cross join lateral public.get_convenio_salario_vigente(pu.convenio_id, greatest(h.fecha_alta, p_desde)) cs
   where h.personal_id = p_personal_id and h.tiene_plus_transporte
     and (p_empresa_id is null or h.empresa_id = p_empresa_id)
+    and (p_historial_ids is null or h.id = any(p_historial_ids))
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde);
 
   if v_tarifa_transp > 0 then
@@ -155,6 +181,7 @@ begin
     cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada) d
     where h.personal_id = p_personal_id
       and (p_empresa_id is null or h.empresa_id = p_empresa_id)
+      and (p_historial_ids is null or h.id = any(p_historial_ids))
       and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
     group by d.concepto
   ) x;
@@ -248,5 +275,5 @@ begin
 end;
 $$;
 
-revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text) from public;
-grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text) to authenticated;
+revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[]) from public;
+grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[]) to authenticated;

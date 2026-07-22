@@ -16784,6 +16784,9 @@ function resetGestionEmpresaPorDefecto() {
 // Cache de desgloses de nomina ya calculados (historialId -> filas), para no
 // recalcular al plegar/desplegar. Se vacia al cambiar de filtro.
 const gestionNominaCache = new Map();
+// Periodos de historial marcados para la nómina. Ver renderGestionNomina.
+let gestionNominaSelectedIds = new Set();
+let gestionNominaTotalCount = 0;
 
 // Token para descartar respuestas obsoletas si el usuario cambia el filtro
 // mientras hay una carga en vuelo.
@@ -17076,6 +17079,73 @@ function renderGestionNominaOverlapWarning(rows) {
   return html;
 }
 
+// Dos periodos que NO se pisan son dos vidas laborales distintas dentro del mismo
+// rango: alta, baja, y mas tarde otra alta. En la realidad son DOS nóminas, cada
+// una con su liquidación, sus días trabajados y sus propios tipos de cotización,
+// no una sola por la suma. Por eso cada periodo lleva su tick.
+function findGestionNominaSeparatePairs(rows) {
+  const pairs = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    for (let j = i + 1; j < rows.length; j += 1) {
+      const a = rows[i];
+      const b = rows[j];
+      const aFin = a.fecha_baja || "9999-12-31";
+      const bFin = b.fecha_baja || "9999-12-31";
+      if (a.fecha_alta > bFin || b.fecha_alta > aFin) {
+        pairs.push({ a, b });
+      }
+    }
+  }
+  return pairs;
+}
+
+function renderGestionNominaSeparateNote(rows) {
+  if (!findGestionNominaSeparatePairs(rows).length) {
+    return "";
+  }
+  return `<div class="gestion-nomina-warning gestion-nomina-warning-info" role="alert">
+      <p><strong>Periodos separados en el mismo rango.</strong> Esta persona tiene altas y bajas
+      que no se solapan, así que le corresponde <strong>una nómina por periodo</strong>, cada una
+      con su liquidación.</p>
+      <p>Marca un solo periodo para obtener su nómina; con varios marcados, el cálculo los suma
+      en una sola, que es lo que se venía haciendo pero no es ninguna nómina real.</p>
+    </div>`;
+}
+
+function getGestionNominaSelectedIds() {
+  return Array.from(gestionNominaSelectedIds);
+}
+
+// El total depende de qué periodos estén marcados, así que su caché se tira al
+// cambiar la selección y la tarjeta se recalcula si estaba abierta.
+function onGestionNominaSelectionChange() {
+  gestionNominaCache.delete("total");
+  const total = gestionNominaList?.querySelector('[data-gestion-nomina-card="total"]');
+  const detail = total?.querySelector('[data-gestion-nomina-detail="total"]');
+  const title = total?.querySelector(".gestion-nomina-card-title");
+  const periodo = total?.querySelector(".gestion-nomina-card-periodo");
+  const marcados = gestionNominaSelectedIds.size;
+
+  if (title) {
+    title.textContent =
+      marcados === gestionNominaTotalCount
+        ? "Total de la persona (todos los periodos)"
+        : `Nómina de ${marcados} periodo${marcados !== 1 ? "s" : ""} de ${gestionNominaTotalCount}`;
+  }
+  if (periodo) {
+    periodo.textContent = marcados ? "nómina completa" : "sin periodos marcados";
+  }
+  if (detail && !detail.classList.contains("hidden")) {
+    if (!marcados) {
+      detail.innerHTML = '<p class="muted-text">Marca al menos un periodo.</p>';
+    } else {
+      const personalId = total?.querySelector("[data-gestion-nomina-total]")?.dataset.gestionNominaTotal;
+      detail.classList.add("hidden");
+      void toggleGestionNominaTotal(personalId);
+    }
+  }
+}
+
 function renderGestionNomina(rows, personalId, desde, hasta) {
   gestionNominaCache.clear();
   if (!gestionNominaBlock) {
@@ -17095,17 +17165,27 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
   if (!gestionNominaList) {
     return;
   }
+  // Todos marcados de salida: el total arranca siendo el de siempre.
+  gestionNominaSelectedIds = new Set(applicable.map((row) => String(row.id)));
+  gestionNominaTotalCount = applicable.length;
+
   gestionNominaList.innerHTML = renderGestionNominaOverlapWarning(applicable);
+  gestionNominaList.innerHTML += renderGestionNominaSeparateNote(applicable);
   gestionNominaList.innerHTML += applicable
     .map((row) => {
       const puesto = row.puesto || (row.puesto_id != null ? `Puesto ${row.puesto_id}` : "Sin puesto");
       const periodo = `${formatGestionDate(row.fecha_alta)} – ${formatGestionDate(row.fecha_baja) || "indefinido"}`;
       return `<div class="gestion-nomina-card" data-gestion-nomina-card="${escapeHtml(row.id)}">
-        <button type="button" class="gestion-nomina-toggle" data-gestion-nomina-historial="${escapeHtml(row.id)}" aria-expanded="false">
-          <span class="gestion-nomina-caret">▾</span>
-          <span class="gestion-nomina-card-title">${escapeHtml(puesto)}</span>
-          <span class="gestion-nomina-card-periodo">${escapeHtml(periodo)}</span>
-        </button>
+        <div class="gestion-nomina-card-head">
+          <label class="gestion-nomina-check" title="Incluir este periodo en la nómina">
+            <input type="checkbox" data-gestion-nomina-pick="${escapeHtml(row.id)}" checked />
+          </label>
+          <button type="button" class="gestion-nomina-toggle" data-gestion-nomina-historial="${escapeHtml(row.id)}" aria-expanded="false">
+            <span class="gestion-nomina-caret">▾</span>
+            <span class="gestion-nomina-card-title">${escapeHtml(puesto)}</span>
+            <span class="gestion-nomina-card-periodo">${escapeHtml(periodo)}</span>
+          </button>
+        </div>
         <div class="gestion-nomina-detail hidden" data-gestion-nomina-detail="${escapeHtml(row.id)}"></div>
       </div>`;
     })
@@ -17118,7 +17198,7 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
     <div class="gestion-nomina-card gestion-nomina-card-total" data-gestion-nomina-card="total">
       <button type="button" class="gestion-nomina-toggle" data-gestion-nomina-total="${escapeHtml(personalId)}" aria-expanded="false">
         <span class="gestion-nomina-caret">▾</span>
-        <span class="gestion-nomina-card-title">Total de la persona (todos los puestos)</span>
+        <span class="gestion-nomina-card-title">Total de la persona (todos los periodos)</span>
         <span class="gestion-nomina-card-periodo">nómina completa</span>
       </button>
       <div class="gestion-nomina-detail hidden" data-gestion-nomina-detail="total"></div>
@@ -17200,11 +17280,18 @@ async function toggleGestionNominaTotal(personalId) {
     detail.innerHTML = renderGestionNominaTable(gestionNominaCache.get("total"));
     return;
   }
+  const seleccionados = getGestionNominaSelectedIds();
+  if (!seleccionados.length) {
+    detail.innerHTML = '<p class="muted-text">Marca al menos un periodo.</p>';
+    return;
+  }
   detail.innerHTML = '<p class="muted-text">Calculando…</p>';
   const { desde, hasta, empresaId, baseCalculo, ajusteJornada } = getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
     // Sin empresa el total funde las de todas, y eso no es ninguna nómina real.
+    // p_historial_ids acota a los periodos marcados: con uno solo sale su nómina
+    // separada, con todos el total de siempre.
     const { data, error } = await supabase.rpc("calcular_nomina_persona", {
       p_personal_id: Number(personalId),
       p_desde: desde || null,
@@ -17212,6 +17299,7 @@ async function toggleGestionNominaTotal(personalId) {
       p_empresa_id: empresaId ? Number(empresaId) : null,
       p_base_calculo: baseCalculo || null,
       p_ajuste_jornada: ajusteJornada || null,
+      p_historial_ids: seleccionados.map(Number),
     });
     if (error) {
       throw error;
@@ -24797,7 +24885,20 @@ async function init() {
   window.CoordinacionHistorial?.onChange(() => {
     void loadGestion();
   });
+  gestionNominaList?.addEventListener("change", (event) => {
+    const pick = event.target.closest("[data-gestion-nomina-pick]");
+    if (!pick) return;
+    const id = String(pick.dataset.gestionNominaPick);
+    if (pick.checked) {
+      gestionNominaSelectedIds.add(id);
+    } else {
+      gestionNominaSelectedIds.delete(id);
+    }
+    onGestionNominaSelectionChange();
+  });
   gestionNominaList?.addEventListener("click", (event) => {
+    // El tick vive dentro de la cabecera pero no despliega la tarjeta.
+    if (event.target.closest("[data-gestion-nomina-pick]")) return;
     const groupToggle = event.target.closest("[data-nomina-group]");
     if (groupToggle) {
       toggleGestionNominaGroup(groupToggle);
