@@ -214,6 +214,7 @@
   const activitiesBulkCurrentSelect = document.querySelector("#activities-bulk-current-select");
   const activitiesBulkNewSelect = document.querySelector("#activities-bulk-new-select");
   const activitiesBulkApplyButton = document.querySelector("#activities-bulk-apply-button");
+  const activitiesBulkClearFieldsButton = document.querySelector("#activities-bulk-clear-fields-button");
   const activitiesBulkSelectButton = document.querySelector("#activities-bulk-select-button");
   const activitiesBulkMatchCount = document.querySelector("#activities-bulk-match-count");
   const activitiesSelectRecordsButton = document.querySelector("#activities-select-records-button");
@@ -357,6 +358,7 @@
   let activitiesBulkCurrentFilterActive = false;
   let activitiesRecordsSelectionMode = false;
   let selectedActivityRecordGeneratorIds = new Set();
+  let activitiesRecordsEstimateVersion = 0;
   let lastActivitiesReportGroups = [];
   let currentActivitiesReportMode = "installation";
   let activitiesSort = [
@@ -3213,6 +3215,14 @@
     }
   }
 
+  function clearActivitiesBulkFields() {
+    if (activitiesBulkFieldSelect) activitiesBulkFieldSelect.value = "fecha_inicio";
+    resetActivitiesBulkCurrentFilter();
+    if (activitiesBulkNewValueInput) activitiesBulkNewValueInput.value = "";
+    if (activitiesBulkNewSelect) activitiesBulkNewSelect.value = ACTIVITY_BULK_UNSET_VALUE;
+    applyActivitiesFilters();
+  }
+
   function hasActivityBulkCurrentFilter() {
     const config = getActivitiesBulkFieldConfig();
     if (config.type === "select" || config.type === "boolean") {
@@ -4589,6 +4599,13 @@
         return;
       }
 
+      if (!confirm(
+        `Se van a introducir ${rowsToInsert.length} registro${rowsToInsert.length === 1 ? "" : "s"} en la tabla Registros. ¿Quieres continuar?`
+      )) {
+        setStatus("Generación de registros cancelada.", "success");
+        return;
+      }
+
       const { error: insertError } = await supabase.from("registros").insert(rowsToInsert);
       if (insertError) {
         throw insertError;
@@ -4623,8 +4640,17 @@
         ? `${selectedCount} seleccionados de ${filteredActivitiesRows.length}`
         : "Activa la selección para marcar actividades";
     }
-    activitiesSelectRecordsButton?.classList.toggle("hidden", activitiesRecordsSelectionMode);
-    activitiesCancelRecordsSelectionButton?.classList.toggle("hidden", !activitiesRecordsSelectionMode);
+    if (activitiesSelectRecordsButton) {
+      activitiesSelectRecordsButton.classList.remove("hidden");
+      activitiesSelectRecordsButton.textContent = activitiesRecordsSelectionMode
+        ? "Cancelar selección"
+        : "Seleccionar registros";
+    }
+    if (activitiesBulkSelectButton) {
+      activitiesBulkSelectButton.textContent = activitiesRecordsSelectionMode
+        ? "Limpiar selección"
+        : "Seleccionar";
+    }
     if (activitiesRecordsSelectAllCheckbox) {
       activitiesRecordsSelectAllCheckbox.checked =
         Boolean(filteredActivitiesRows.length) && selectedCount === filteredActivitiesRows.length;
@@ -4634,9 +4660,14 @@
         !activitiesRecordsSelectionMode || filteredActivitiesRows.length === 0;
     }
     if (activitiesGenerateRecordsDialogButton) {
-      activitiesGenerateRecordsDialogButton.disabled = selectedCount === 0;
+      activitiesGenerateRecordsDialogButton.disabled =
+        selectedCount === 0 ||
+        !activitiesRecordsDateFrom?.value ||
+        !activitiesRecordsDateTo?.value ||
+        activitiesRecordsDateTo.value < activitiesRecordsDateFrom.value;
     }
     syncActivitiesBulkAssignmentUi();
+    void updateActivitiesRecordsGenerationEstimate();
   }
 
   function setActivitiesRecordsSelectionMode(enabled) {
@@ -4645,6 +4676,56 @@
       selectedActivityRecordGeneratorIds = new Set();
     }
     renderActivitiesTable();
+  }
+
+  async function updateActivitiesRecordsGenerationEstimate() {
+    const version = ++activitiesRecordsEstimateVersion;
+    if (!activitiesRecordsGenerationSummary) return;
+    const selectedIds = getSelectedActivityRecordGeneratorIds();
+    const fechaDesde = activitiesRecordsDateFrom?.value || "";
+    const fechaHasta = activitiesRecordsDateTo?.value || "";
+
+    if (!selectedIds.length) {
+      activitiesRecordsGenerationSummary.textContent = "Selecciona al menos una actividad.";
+      return;
+    }
+    if (!fechaDesde || !fechaHasta) {
+      activitiesRecordsGenerationSummary.textContent = "Indica las fechas desde y hasta.";
+      return;
+    }
+    if (fechaHasta < fechaDesde) {
+      activitiesRecordsGenerationSummary.textContent = "La fecha hasta no puede ser anterior a la fecha desde.";
+      return;
+    }
+
+    activitiesRecordsGenerationSummary.textContent = "Calculando los registros que se van a introducir...";
+    try {
+      const activities = selectedIds
+        .map((id) => activitiesRows.find((row) => String(row.id) === String(id)))
+        .filter(Boolean);
+      const supabase = await getSupabaseClient();
+      const { data, error } = await supabase
+        .from("registros")
+        .select("actividad_id,fecha,hora_inicio,hora_fin,personal_id")
+        .in("actividad_id", activities.map((activity) => activity.id));
+      if (error) throw error;
+      const existingKeys = new Set((data ?? []).map(getActivityRecordKey));
+      const count = activities.reduce(
+        (total, activity) => total + buildRecordsForActivity(
+          activity,
+          existingKeys,
+          { fechaDesde, fechaHasta }
+        ).length,
+        0
+      );
+      if (version !== activitiesRecordsEstimateVersion) return;
+      activitiesRecordsGenerationSummary.textContent = count
+        ? `Se van a introducir ${count} registro${count === 1 ? "" : "s"} en la tabla Registros.`
+        : "No hay registros nuevos que introducir en ese intervalo.";
+    } catch (error) {
+      if (version !== activitiesRecordsEstimateVersion) return;
+      activitiesRecordsGenerationSummary.textContent = `No se pudo calcular la previsión: ${error.message}`;
+    }
   }
 
   function openActivitiesRecordsGenerationPanel() {
@@ -4699,7 +4780,7 @@
         submitButton.disabled = true;
       }
       await generateRecordsForActivities(selectedIds, { fechaDesde, fechaHasta });
-      closeActivitiesRecordsGenerationPanel();
+      await updateActivitiesRecordsGenerationEstimate();
     } finally {
       if (submitButton) {
         submitButton.disabled = false;
@@ -7203,11 +7284,12 @@
     activitiesBulkApplyButton?.addEventListener("click", () => {
       void applyActivitiesBulkAssignment();
     });
+    activitiesBulkClearFieldsButton?.addEventListener("click", clearActivitiesBulkFields);
     activitiesBulkSelectButton?.addEventListener("click", () => {
-      setActivitiesRecordsSelectionMode(true);
+      setActivitiesRecordsSelectionMode(!activitiesRecordsSelectionMode);
     });
     activitiesSelectRecordsButton?.addEventListener("click", () => {
-      setActivitiesRecordsSelectionMode(true);
+      setActivitiesRecordsSelectionMode(!activitiesRecordsSelectionMode);
     });
     activitiesRecordsSelectAllCheckbox?.addEventListener("change", () => {
       const filteredIds = filteredActivitiesRows.map((activity) => String(activity.id));
@@ -7218,13 +7300,8 @@
       }
       renderActivitiesTable();
     });
-    activitiesCancelRecordsSelectionButton?.addEventListener("click", () => {
-      setActivitiesRecordsSelectionMode(false);
-    });
-    activitiesGenerateRecordsDialogButton?.addEventListener("click", openActivitiesRecordsGenerationPanel);
-    closeActivitiesRecordsGenerationButton?.addEventListener("click", closeActivitiesRecordsGenerationPanel);
-    cancelActivitiesRecordsGenerationButton?.addEventListener("click", closeActivitiesRecordsGenerationPanel);
-    activitiesRecordsGenerationBackdrop?.addEventListener("click", closeActivitiesRecordsGenerationPanel);
+    activitiesRecordsDateFrom?.addEventListener("change", syncActivitiesRecordsSelectionUi);
+    activitiesRecordsDateTo?.addEventListener("change", syncActivitiesRecordsSelectionUi);
     activitiesRecordsGenerationForm?.addEventListener("submit", (event) => {
       void handleActivitiesRecordsGenerationSubmit(event);
     });

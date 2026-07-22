@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260722-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260722-6" />
   </head>
   <body>
     <script>
@@ -796,9 +796,6 @@
                     <button id="records-bulk-select-button" type="button" class="secondary-button">
                       Seleccionar
                     </button>
-                    <button id="records-bulk-clear-selection-button" type="button" class="secondary-button hidden">
-                      Limpiar selección
-                    </button>
                     <button id="records-bulk-delete-button" type="button" class="danger-button hidden">
                       Borrar seleccionados
                     </button>
@@ -1156,11 +1153,11 @@
                     <button id="historial-bulk-apply-button" type="button">
                       Aplicar
                     </button>
+                    <button id="historial-bulk-clear-fields-button" type="button" class="secondary-button">
+                      Limpiar campos
+                    </button>
                     <button id="historial-bulk-select-button" type="button" class="secondary-button">
                       Seleccionar
-                    </button>
-                    <button id="historial-bulk-clear-selection-button" type="button" class="secondary-button hidden">
-                      Limpiar selección
                     </button>
                     <span id="historial-bulk-match-count" class="control-selected-delete-count">
                       0 coincidencias
@@ -5657,6 +5654,9 @@
                 <button id="activities-bulk-apply-button" type="button">
                   Aplicar
                 </button>
+                <button id="activities-bulk-clear-fields-button" type="button" class="secondary-button">
+                  Limpiar campos
+                </button>
                 <button id="activities-bulk-select-button" type="button" class="secondary-button">
                   Seleccionar
                 </button>
@@ -5668,50 +5668,10 @@
 
             <details class="programming-panel-zone activities-records-zone">
               <summary>Generación de registros</summary>
-              <div class="activities-records-generation-panel">
+              <form id="activities-records-generation-form" class="activities-records-generation-panel">
                 <button id="activities-select-records-button" type="button" class="secondary-button">
                   Seleccionar registros
                 </button>
-                <button id="activities-generate-records-dialog-button" type="button">
-                  Generar registros
-                </button>
-                <button
-                  id="activities-cancel-records-selection-button"
-                  type="button"
-                  class="secondary-button hidden"
-                >
-                  Cancelar selección
-                </button>
-                <span id="activities-records-selection-count" class="control-selected-delete-count">
-                  0 seleccionados
-                </span>
-              </div>
-            </details>
-
-            <div id="activities-records-generation-backdrop" class="panel-backdrop hidden"></div>
-            <aside
-              id="activities-records-generation-panel"
-              class="side-panel hidden"
-              aria-labelledby="activities-records-generation-title"
-            >
-              <div class="side-panel-header">
-                <div class="section-heading">
-                  <p class="eyebrow">Registros</p>
-                  <h2 id="activities-records-generation-title">Generar registros</h2>
-                  <p id="activities-records-generation-summary">
-                    Define el intervalo para generar registros desde las actividades seleccionadas.
-                  </p>
-                </div>
-                <button
-                  id="close-activities-records-generation-button"
-                  class="secondary-button compact-button"
-                  type="button"
-                >
-                  Cerrar
-                </button>
-              </div>
-
-              <form id="activities-records-generation-form" class="side-panel-form">
                 <label>
                   Fecha desde
                   <input id="activities-records-date-from" name="fecha_desde" type="date" required />
@@ -5720,18 +5680,17 @@
                   Fecha hasta
                   <input id="activities-records-date-to" name="fecha_hasta" type="date" required />
                 </label>
-                <div class="activity-actions">
-                  <button type="submit">Generar registros</button>
-                  <button
-                    id="cancel-activities-records-generation-button"
-                    type="button"
-                    class="secondary-button"
-                  >
-                    Cancelar
-                  </button>
-                </div>
+                <button id="activities-generate-records-dialog-button" type="submit">
+                  Generar registros
+                </button>
+                <span id="activities-records-selection-count" class="control-selected-delete-count">
+                  0 seleccionados
+                </span>
+                <span id="activities-records-generation-summary" class="control-selected-delete-count activities-records-generation-summary">
+                  Selecciona actividades e indica el intervalo de fechas.
+                </span>
               </form>
-            </aside>
+            </details>
 
             <div class="table-wrap activities-table-wrap">
               <table class="activities-table">
@@ -7470,7 +7429,7 @@
     <script src="./config.js" defer></script>
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260720-2" defer></script>
-    <script src="./app.js?v=20260722-1" defer></script>
+    <script src="./concilia-integrated.js?v=20260722-2" defer></script>
+    <script src="./app.js?v=20260722-6" defer></script>
   </body>
 </html>
