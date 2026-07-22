@@ -44,10 +44,33 @@
 -- las fechas de los periodos elegidos, no de todo el rango del filtro: si no, el
 -- plus de transporte de una nomina se llevaria los dias de la otra.
 
+-- NOMINA MANUAL (p_manual_*). Fija el salario a mano y se impone a todo lo que
+-- se derivaria del historial y del convenio: sustituye los devengos por puesto
+-- (salario base, plus de disponibilidad, complemento de puesto, horas
+-- complementarias) por el importe indicado. Lo demas -- complementos de la
+-- persona, plus de transporte, bases, cotizaciones y liquido -- se sigue
+-- calculando igual.
+--
+--   p_manual_modo: 'periodo' (el importe es el del periodo entero),
+--     'diario' (importe x dias naturales de alta dentro del rango) u
+--     'hora' (importe x horas trabajadas del periodo).
+--   p_manual_pagas_incluidas: si el importe YA lleva dentro la prorrata de las
+--     pagas extra, se parte (12/pagas para el salario base, el resto es la
+--     prorrata). Si no, la prorrata se calcula encima como siempre.
+--   p_manual_complementos / p_manual_transporte: lo que YA va dentro del importe
+--     y por tanto no se vuelve a sumar. Marcar la antiguedad no la borra, la da
+--     por pagada dentro del salario indicado.
+--
+-- Ejemplo: 91 EUR/dia en julio con pagas incluidas, marcando antiguedad y
+-- transporte, sobre alguien con 14 pagas y un complemento absorbible de 420,84:
+--   91 x 31 = 2821 -> base 2821 x 12/14 = 2418,00 y prorrata 403,00
+--   + 420,84 del complemento no marcado = 3241,84 de bruto.
+
 drop function if exists public.calcular_nomina_persona(integer, date, date);
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer);
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text);
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text);
+drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[]);
 
 create or replace function public.calcular_nomina_persona(
   p_personal_id integer, p_desde date, p_hasta date,
@@ -59,7 +82,13 @@ create or replace function public.calcular_nomina_persona(
   -- 'exceso' (por defecto), 'ambos' (tambien descuenta el defecto), 'ninguno'.
   p_ajuste_jornada text default null,
   -- Periodos de historial laboral a incluir. Nulo = todos los del rango.
-  p_historial_ids bigint[] default null
+  p_historial_ids bigint[] default null,
+  -- Nomina manual: importe del salario. Nulo = calculo normal.
+  p_manual_importe numeric default null,
+  p_manual_modo text default null,
+  p_manual_pagas_incluidas boolean default false,
+  p_manual_complementos bigint[] default null,
+  p_manual_transporte boolean default false
 )
 returns table (
   orden integer, seccion text, concepto text, detalle text,
@@ -81,6 +110,10 @@ declare
   v_bruto numeric; v_base_cc numeric; v_base_cp numeric; v_base_irpf numeric;
   v_d_comunes numeric; v_d_mei numeric; v_d_desempleo numeric;
   v_d_formacion numeric; v_d_irpf numeric; v_ded_total numeric;
+  v_manual boolean := p_manual_importe is not null;
+  v_manual_excl bigint[] := coalesce(p_manual_complementos, '{}'::bigint[]);
+  v_manual_dias integer := 0; v_manual_horas numeric := 0;
+  v_manual_total numeric := 0; v_manual_detalle text;
 begin
   select h.*, (least(coalesce(h.fecha_baja, p_hasta), p_hasta) - greatest(h.fecha_alta, p_desde) + 1) as dias_solape
     into hp
@@ -124,6 +157,41 @@ begin
       where h2.id = any(p_historial_ids) and h2.personal_id = p_personal_id
         and r.fecha >= h2.fecha_alta and (h2.fecha_baja is null or r.fecha <= h2.fecha_baja)));
 
+  -- Multiplicadores de la nomina manual. Los dias son los naturales de alta
+  -- dentro del rango (julio entero con un contrato abierto = 31, no los 30 del
+  -- mes comercial que usa el calculo por convenio: aqui manda lo que se teclea).
+  if v_manual then
+    select coalesce(sum(least(coalesce(h.fecha_baja, p_hasta), p_hasta)
+                        - greatest(h.fecha_alta, p_desde) + 1), 0)
+      into v_manual_dias
+    from public.historiales_laborales h
+    where h.personal_id = p_personal_id
+      and (p_empresa_id is null or h.empresa_id = p_empresa_id)
+      and (p_historial_ids is null or h.id = any(p_historial_ids))
+      and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde);
+
+    select coalesce(sum(r.horas), 0)::numeric into v_manual_horas
+    from public.registros r
+    join public.situaciones s on s.id = r.situacion_id
+    left join public.tipo_horas th on th.id = r.tipo_hora_id
+    where r.personal_id = p_personal_id and r.fecha >= p_desde and r.fecha <= p_hasta
+      and (p_empresa_id is null or r.empresa_id = p_empresa_id)
+      and (p_historial_ids is null or exists (
+        select 1 from public.historiales_laborales h2
+        where h2.id = any(p_historial_ids) and h2.personal_id = p_personal_id
+          and r.fecha >= h2.fecha_alta and (h2.fecha_baja is null or r.fecha <= h2.fecha_baja)))
+      and (s.situacion in ('NORM','SUST') or (s.situacion='FEST' and th.tipo_hora='FTRAB'));
+
+    v_manual_total := round(p_manual_importe * case p_manual_modo
+      when 'diario' then v_manual_dias
+      when 'hora' then v_manual_horas
+      else 1 end, 2);
+    v_manual_detalle := case p_manual_modo
+      when 'diario' then format('manual: %s€ × %s días', p_manual_importe, v_manual_dias)
+      when 'hora' then format('manual: %s€ × %s horas', p_manual_importe, v_manual_horas)
+      else format('manual: %s€ del periodo', p_manual_importe) end;
+  end if;
+
   select coalesce(sum(x.importe) filter (where x.concepto = 'Salario base'), 0),
          coalesce(sum(x.importe), 0)
     into v_base_total, v_dev_puestos
@@ -138,6 +206,16 @@ begin
     group by d.concepto
   ) x;
 
+  -- El importe manual sustituye por completo a los devengos por puesto.
+  if v_manual then
+    if p_manual_pagas_incluidas and v_pagas > 12 then
+      v_base_total := round(v_manual_total * 12.0 / v_pagas, 2);
+    else
+      v_base_total := v_manual_total;
+    end if;
+    v_dev_puestos := v_base_total;
+  end if;
+
   select coalesce(max(cs.plus_transporte), 0) into v_tarifa_transp
   from public.historiales_laborales h
   join public.puestos pu on pu.id = h.puesto_id
@@ -147,6 +225,10 @@ begin
     and (p_historial_ids is null or h.id = any(p_historial_ids))
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde);
 
+  -- Marcado como incluido en la nomina manual: ya va dentro del importe.
+  if p_manual_transporte then
+    v_tarifa_transp := 0;
+  end if;
   if v_tarifa_transp > 0 then
     v_transporte := round(v_tarifa_transp * v_dias_trab, 2);
   end if;
@@ -159,32 +241,44 @@ begin
         when 'por_hora' then c.importe * (case c.medida_horas when 'horas_nocturnas' then v_horas_noct else 0 end)
         else c.importe end end, 2)), 0)
     into v_compl_total
-  from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c;
+  from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
+  where not (c.id = any(v_manual_excl));
 
   -- La prorrata de pagas extra se calcula SIEMPRE, tenga o no prorrateo: si la
   -- persona NO las tiene prorrateadas no se devenga (no la cobra este mes), pero
   -- igualmente COTIZA (art. 147 LGSS), asi que suma a la base de la Seguridad
   -- Social aunque no al bruto ni a la base de IRPF.
   if v_extras > 0 then
-    v_pe_base := round(v_base_total * v_extras / 12.0, 2);
+    -- Con el importe manual llevando ya la prorrata dentro, esta es el resto de
+    -- partir el total; si no, se calcula encima del salario base como siempre.
+    if v_manual and p_manual_pagas_incluidas then
+      v_pe_base := v_manual_total - v_base_total;
+    else
+      v_pe_base := round(v_base_total * v_extras / 12.0, 2);
+    end if;
     select coalesce(sum(round(c.importe * v_extras / 12.0, 2)), 0) into v_pe_compl
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
-    where c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
+    where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
 
-  return query
-  select x.orden, 'devengo'::text, x.concepto, null::text, null::numeric, null::numeric,
-         round(x.importe, 2), null::text
-  from (
-    select min(d.orden) as orden, d.concepto, sum(d.importe) as importe
-    from public.historiales_laborales h
-    cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada) d
-    where h.personal_id = p_personal_id
-      and (p_empresa_id is null or h.empresa_id = p_empresa_id)
-      and (p_historial_ids is null or h.id = any(p_historial_ids))
-      and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
-    group by d.concepto
-  ) x;
+  if v_manual then
+    return query select 10, 'devengo'::text, 'Salario base'::text, v_manual_detalle,
+      null::numeric, null::numeric, v_base_total, null::text;
+  else
+    return query
+    select x.orden, 'devengo'::text, x.concepto, null::text, null::numeric, null::numeric,
+           round(x.importe, 2), null::text
+    from (
+      select min(d.orden) as orden, d.concepto, sum(d.importe) as importe
+      from public.historiales_laborales h
+      cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada) d
+      where h.personal_id = p_personal_id
+        and (p_empresa_id is null or h.empresa_id = p_empresa_id)
+        and (p_historial_ids is null or h.id = any(p_historial_ids))
+        and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
+      group by d.concepto
+    ) x;
+  end if;
 
   if v_transporte <> 0 then
     return query select 30, 'devengo'::text, 'Plus de transporte'::text,
@@ -208,7 +302,8 @@ begin
         when 'por_hora' then c.importe * (case c.medida_horas when 'horas_nocturnas' then v_horas_noct else 0 end)
         else c.importe end end, 2),
     null::text
-  from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c;
+  from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
+  where not (c.id = any(v_manual_excl));
 
   -- Solo se devenga si la persona tiene las pagas prorrateadas.
   if coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
@@ -216,14 +311,16 @@ begin
       format('%s pagas/año (12 + %s extra) → %s/12', v_pagas, v_extras, v_extras),
       null::numeric, null::numeric, v_pe_base + v_pe_compl, null::text;
     return query select 21, 'devengo'::text, 'Salario base'::text,
-      format('%s€ × %s/12', round(v_base_total,2), v_extras),
+      case when v_manual and p_manual_pagas_incluidas
+        then format('%s€ − %s€ (ya incluida en el importe manual)', v_manual_total, round(v_base_total,2))
+        else format('%s€ × %s/12', round(v_base_total,2), v_extras) end,
       null::numeric, null::numeric, v_pe_base, 'prorrateo_extra'::text;
     return query
     select (22 + row_number() over (order by c.orden_calculo, c.nombre))::integer,
       'devengo'::text, c.nombre, format('%s€ × %s/12', c.importe, v_extras),
       null::numeric, null::numeric, round(c.importe * v_extras / 12.0, 2), 'prorrateo_extra'::text
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
-    where c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
+    where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
 
   -- El bruto solo incluye la prorrata si se devenga (pagas prorrateadas).
@@ -275,5 +372,5 @@ begin
 end;
 $$;
 
-revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[]) from public;
-grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[]) to authenticated;
+revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean) from public;
+grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean) to authenticated;

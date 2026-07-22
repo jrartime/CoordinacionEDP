@@ -4081,6 +4081,108 @@ th {
   line-height: 1.2;
 }
 
+/* --- Nómina manual --- */
+.gestion-manual {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.gestion-manual-switch {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.gestion-manual-switch input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.gestion-manual-controles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.gestion-manual-importe {
+  display: grid;
+  grid-template-columns: 120px 150px;
+  gap: 6px;
+}
+
+.private-tab-panel .gestion-manual-importe input,
+.private-tab-panel .gestion-manual-importe select {
+  width: 100%;
+  height: 28px;
+  padding: 3px 6px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.gestion-manual-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px 8px;
+  background: var(--panel);
+}
+
+.gestion-manual-box legend {
+  padding: 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.gestion-manual-option {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.gestion-manual-option input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* La lista de complementos crece con la persona: se limita y scrollea. */
+.gestion-manual-box-complementos {
+  min-width: 240px;
+}
+
+.gestion-manual-complementos {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 96px;
+  overflow-y: auto;
+}
+
+.gestion-manual-complementos .muted-text {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
 /* Periodos solapados del mismo puesto: la nómina sale duplicada. */
 .gestion-nomina-warning {
   border: 1px solid #f0a3a3;

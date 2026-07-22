@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260722-14" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-1" />
   </head>
   <body>
     <script>
@@ -1602,6 +1602,58 @@
                         <option value="ninguno">Forzar: no aplicar</option>
                       </select>
                     </label>
+                  </div>
+
+                  <!--
+                    Nómina manual: el importe tecleado se impone a lo que saldría
+                    del historial y del convenio. Ver calcular_nomina_persona
+                    (p_manual_*) en supabase/tables/nomina_calculo_persona.sql.
+                  -->
+                  <div class="gestion-manual">
+                    <label class="gestion-manual-switch">
+                      <input id="gestion-manual-activa" type="checkbox" />
+                      Nómina manual
+                    </label>
+
+                    <div id="gestion-manual-controles" class="gestion-manual-controles hidden">
+                      <div class="gestion-manual-importe">
+                        <label class="filter-field">
+                          Salario base
+                          <input
+                            id="gestion-manual-importe"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0,00"
+                          />
+                        </label>
+                        <label class="filter-field">
+                          Se calcula como
+                          <select id="gestion-manual-modo">
+                            <option value="periodo">Salario periodo</option>
+                            <option value="diario">Salario diario</option>
+                            <option value="hora">Salario hora</option>
+                          </select>
+                        </label>
+                      </div>
+
+                      <fieldset class="gestion-manual-box">
+                        <legend>Pagas extras</legend>
+                        <label class="gestion-manual-option">
+                          <input type="radio" name="gestion-manual-pagas" value="no" checked />
+                          No incluidas
+                        </label>
+                        <label class="gestion-manual-option">
+                          <input type="radio" name="gestion-manual-pagas" value="si" />
+                          Incluidas
+                        </label>
+                      </fieldset>
+
+                      <fieldset class="gestion-manual-box gestion-manual-box-complementos">
+                        <legend>Complementos y pluses incluidos</legend>
+                        <div id="gestion-manual-complementos" class="gestion-manual-complementos"></div>
+                      </fieldset>
+                    </div>
                   </div>
                 </div>
 
@@ -7559,6 +7611,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260722-4" defer></script>
-    <script src="./app.js?v=20260722-14" defer></script>
+    <script src="./app.js?v=20260723-2" defer></script>
   </body>
 </html>

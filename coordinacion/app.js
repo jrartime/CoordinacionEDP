@@ -16718,6 +16718,18 @@ const gestionFilterBaseCalculo = document.querySelector("#gestion-filter-base-ca
 // Vacío = "según modalidad de pago" del historial (Jornada no aplica, Horas
 // totales aplica exceso y defecto); los demás valores fuerzan el criterio.
 const gestionFilterAjusteJornada = document.querySelector("#gestion-filter-ajuste-jornada");
+// Nómina manual: el importe tecleado se impone a lo que saldría del historial y
+// del convenio. Los complementos marcados se dan por incluidos DENTRO de ese
+// importe, así que no se vuelven a sumar. Ver p_manual_* en
+// supabase/tables/nomina_calculo_persona.sql.
+const gestionManualActiva = document.querySelector("#gestion-manual-activa");
+const gestionManualControles = document.querySelector("#gestion-manual-controles");
+const gestionManualImporte = document.querySelector("#gestion-manual-importe");
+const gestionManualModo = document.querySelector("#gestion-manual-modo");
+const gestionManualComplementos = document.querySelector("#gestion-manual-complementos");
+// Plus de transporte: no es un complemento de la persona sino una tarifa del
+// convenio, así que va en la lista con una clave propia en vez de un id.
+const GESTION_MANUAL_TRANSPORTE = "transporte";
 const gestionEditPersonalButton = document.querySelector("#gestion-edit-personal-button");
 const gestionPersonalPanel = document.querySelector("#gestion-personal-panel");
 const gestionPersonalOverlay = document.querySelector("#gestion-personal-overlay");
@@ -16801,7 +16813,93 @@ function getGestionFilters() {
     baseCalculo: gestionFilterBaseCalculo?.value || "",
     // Vacío significa "según modalidad de pago"; se envía null al RPC.
     ajusteJornada: gestionFilterAjusteJornada?.value || "",
+    manual: getGestionManualOptions(),
   };
+}
+
+// Devuelve null cuando la nómina manual está apagada o sin importe: así el RPC
+// recibe p_manual_importe nulo y calcula como siempre.
+function getGestionManualOptions() {
+  if (!gestionManualActiva?.checked) {
+    return null;
+  }
+  const importe = Number(gestionManualImporte?.value);
+  if (!Number.isFinite(importe)) {
+    return null;
+  }
+  const marcados = Array.from(
+    gestionManualComplementos?.querySelectorAll("[data-gestion-manual-compl]:checked") || []
+  ).map((input) => input.dataset.gestionManualCompl);
+  return {
+    importe,
+    modo: gestionManualModo?.value || "periodo",
+    pagasIncluidas:
+      document.querySelector('input[name="gestion-manual-pagas"]:checked')?.value === "si",
+    complementos: marcados
+      .filter((key) => key !== GESTION_MANUAL_TRANSPORTE)
+      .map(Number),
+    transporte: marcados.includes(GESTION_MANUAL_TRANSPORTE),
+  };
+}
+
+// Los complementos son de la persona y las tarifas del convenio dependen de su
+// puesto, así que la lista se rehace en cada carga de Gestión. Se conserva lo ya
+// marcado para no perder la selección al recalcular.
+async function renderGestionManualComplementos(personalId, desde, historialRows) {
+  if (!gestionManualComplementos) return;
+  const previos = new Set(
+    Array.from(gestionManualComplementos.querySelectorAll("[data-gestion-manual-compl]:checked"))
+      .map((input) => input.dataset.gestionManualCompl)
+  );
+
+  if (!personalId) {
+    gestionManualComplementos.innerHTML =
+      '<p class="muted-text">Selecciona una persona.</p>';
+    return;
+  }
+
+  let complementos = [];
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("get_personal_complementos_vigentes", {
+      p_personal_id: Number(personalId),
+      p_fecha: desde || null,
+    });
+    if (error) throw error;
+    complementos = data || [];
+  } catch (error) {
+    gestionManualComplementos.innerHTML = `<p class="muted-text">No se pudieron cargar los complementos: ${escapeHtml(error.message)}</p>`;
+    return;
+  }
+
+  const items = complementos.map((row) => ({
+    key: String(row.id),
+    label: row.nombre,
+    detalle: formatGestionImporte(row.importe),
+  }));
+  if ((historialRows || []).some((row) => row.tiene_plus_transporte)) {
+    items.push({ key: GESTION_MANUAL_TRANSPORTE, label: "Plus de transporte", detalle: "por día trabajado" });
+  }
+
+  if (!items.length) {
+    gestionManualComplementos.innerHTML =
+      '<p class="muted-text">Esta persona no tiene complementos ni pluses.</p>';
+    return;
+  }
+  gestionManualComplementos.innerHTML = items
+    .map(
+      (item) => `<label class="gestion-manual-option">
+        <input type="checkbox" data-gestion-manual-compl="${escapeHtml(item.key)}" ${previos.has(item.key) ? "checked" : ""} />
+        ${escapeHtml(item.label)}${item.detalle ? ` <span class="muted-text">(${escapeHtml(item.detalle)})</span>` : ""}
+      </label>`
+    )
+    .join("");
+}
+
+function formatGestionImporte(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "";
+  return `${number.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
 function formatGestionHoras(value, blankZero = false) {
@@ -17116,6 +17214,20 @@ function getGestionNominaSelectedIds() {
   return Array.from(gestionNominaSelectedIds);
 }
 
+// Tira la caché del total y lo recalcula si la tarjeta está abierta. Lo usan
+// tanto los ticks de periodo como las opciones de nómina manual.
+function recalcularGestionNominaTotal() {
+  gestionNominaCache.delete("total");
+  const detail = gestionNominaList?.querySelector('[data-gestion-nomina-detail="total"]');
+  if (!detail || detail.classList.contains("hidden")) {
+    return;
+  }
+  const personalId = gestionNominaList
+    ?.querySelector("[data-gestion-nomina-total]")?.dataset.gestionNominaTotal;
+  detail.classList.add("hidden");
+  void toggleGestionNominaTotal(personalId);
+}
+
 // El total depende de qué periodos estén marcados, así que su caché se tira al
 // cambiar la selección y la tarjeta se recalcula si estaba abierta.
 function onGestionNominaSelectionChange() {
@@ -17135,15 +17247,11 @@ function onGestionNominaSelectionChange() {
   if (periodo) {
     periodo.textContent = marcados ? "nómina completa" : "sin periodos marcados";
   }
-  if (detail && !detail.classList.contains("hidden")) {
-    if (!marcados) {
-      detail.innerHTML = '<p class="muted-text">Marca al menos un periodo.</p>';
-    } else {
-      const personalId = total?.querySelector("[data-gestion-nomina-total]")?.dataset.gestionNominaTotal;
-      detail.classList.add("hidden");
-      void toggleGestionNominaTotal(personalId);
-    }
+  if (detail && !detail.classList.contains("hidden") && !marcados) {
+    detail.innerHTML = '<p class="muted-text">Marca al menos un periodo.</p>';
+    return;
   }
+  recalcularGestionNominaTotal();
 }
 
 function renderGestionNomina(rows, personalId, desde, hasta) {
@@ -17286,7 +17394,7 @@ async function toggleGestionNominaTotal(personalId) {
     return;
   }
   detail.innerHTML = '<p class="muted-text">Calculando…</p>';
-  const { desde, hasta, empresaId, baseCalculo, ajusteJornada } = getGestionFilters();
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual } = getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
     // Sin empresa el total funde las de todas, y eso no es ninguna nómina real.
@@ -17300,6 +17408,11 @@ async function toggleGestionNominaTotal(personalId) {
       p_base_calculo: baseCalculo || null,
       p_ajuste_jornada: ajusteJornada || null,
       p_historial_ids: seleccionados.map(Number),
+      p_manual_importe: manual ? manual.importe : null,
+      p_manual_modo: manual ? manual.modo : null,
+      p_manual_pagas_incluidas: manual ? manual.pagasIncluidas : false,
+      p_manual_complementos: manual ? manual.complementos : null,
+      p_manual_transporte: manual ? manual.transporte : false,
     });
     if (error) {
       throw error;
@@ -17407,7 +17520,9 @@ async function loadGestion() {
       .select(
         // empresa_* lo usa el aviso de solapes: dos periodos simultáneos son
         // pluriempleo legítimo si son de empresas distintas del grupo.
-        "id, personal_id, personal, puesto_id, puesto, empresa_id, empresa, fecha_alta, fecha_baja, jornada, jornada_maxima, coeficiente_temporalidad_miles"
+        // tiene_plus_transporte decide si el plus aparece en la lista de la
+        // nómina manual (es tarifa de convenio, no complemento de la persona).
+        "id, personal_id, personal, puesto_id, puesto, empresa_id, empresa, fecha_alta, fecha_baja, jornada, jornada_maxima, coeficiente_temporalidad_miles, tiene_plus_transporte"
       )
       .lte("fecha_alta", hasta)
       .or(`fecha_baja.is.null,fecha_baja.gte.${desde}`)
@@ -17443,6 +17558,7 @@ async function loadGestion() {
     renderGestionHistorial(historialRes.data ?? []);
     renderGestionRegistros(resumenRes.data ?? []);
     renderGestionNomina(historialRes.data ?? [], personalId, desde, hasta);
+    void renderGestionManualComplementos(personalId, desde, historialRes.data ?? []);
 
     if (gestionSummary) {
       const scope = personalId ? "1 persona" : `${personalCount} personas`;
@@ -24849,6 +24965,16 @@ async function init() {
   gestionFilterAjusteJornada?.addEventListener("change", () => {
     void loadGestion();
   });
+  // La nómina manual no recarga Gestión (los historiales y las horas no cambian):
+  // basta con rehacer el total, que es lo único que depende de estas opciones.
+  gestionManualActiva?.addEventListener("change", () => {
+    gestionManualControles?.classList.toggle("hidden", !gestionManualActiva.checked);
+    recalcularGestionNominaTotal();
+  });
+  document.querySelector(".gestion-manual-controles")?.addEventListener("change", () => {
+    recalcularGestionNominaTotal();
+  });
+  gestionManualImporte?.addEventListener("input", debounce(recalcularGestionNominaTotal, 400));
   gestionClearFiltersButton?.addEventListener("click", () => {
     gestionFiltersForm?.reset();
     clearPersonalPicker("gestion-filter");
