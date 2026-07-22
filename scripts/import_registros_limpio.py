@@ -238,6 +238,9 @@ def main() -> int:
     ap.add_argument("--service-role-key", default=os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
     ap.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
     ap.add_argument("--limit", type=int, default=None)
+    # Para reanudar tras un corte: el insert es upsert por legacy_id_hora, asi
+    # que repetir filas es inocuo, pero saltarlas ahorra mucho tiempo.
+    ap.add_argument("--start-offset", type=int, default=0)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -276,7 +279,9 @@ def main() -> int:
         return 2
 
     total = len(filas)
-    for start in range(0, total, args.batch_size):
+    if args.start_offset:
+        print(f"Reanudando desde la fila {args.start_offset}.")
+    for start in range(args.start_offset, total, args.batch_size):
         post_batch(args.url, args.service_role_key, filas[start:start + args.batch_size])
         print(f"  {min(start + args.batch_size, total)}/{total}", flush=True)
 
