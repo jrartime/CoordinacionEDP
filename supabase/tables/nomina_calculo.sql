@@ -61,17 +61,21 @@
 --     parcialidad dentro; aplicar el coeficiente la descontaria dos veces.
 --     Si falta la tarifa del modo pedido se cae a mensual y se dice en el
 --     detalle, en vez de devolver 0 en silencio.
---   * COMPLEMENTO DE PUESTO (codigo 60, orden 65): exceso de horas REG sobre la
---     jornada teorica del periodo (horas_teoricas_jornada). Por defecto (p_ajuste
---     vacio) lo decide la MODALIDAD DE PAGO del historial: Jornada -> no aplica,
---     Horas totales -> aplica exceso y defecto, Horas brutas/liquidas -> no
---     aplica (aun sin desarrollar). p_ajuste_jornada fuerza el criterio:
+--   * PLUS DE DISPONIBILIDAD (codigo 93, orden 65): exceso/defecto de horas REG
+--     sobre la jornada teorica del periodo (horas_teoricas_jornada). Por defecto
+--     (p_ajuste vacio) lo decide la MODALIDAD DE PAGO del historial: Jornada ->
+--     no aplica, Horas totales -> aplica exceso y defecto, Horas brutas/liquidas
+--     -> no aplica (aun sin desarrollar). p_ajuste_jornada fuerza el criterio:
 --     'exceso' solo paga lo trabajado de mas, 'ambos' ademas descuenta el
 --     defecto, 'ninguno' no emite la linea. La pestana Gestion lo expone en la
 --     zona "Calculo de nomina" como "Ajuste de jornada".
+--   * COMPLEMENTO DE PUESTO (codigo 60): horas de MONTAJE (tipo 3) al precio de
+--     montaje del convenio. Independiente del plus de disponibilidad: el montaje
+--     NO cuenta para la jornada del 93 (decision del usuario 2026-07-22).
 --   * DESCUENTO POR ABSENTISMO (codigo 790, orden 90): horas PNR (tipo 5) a
 --     hora_complementaria del convenio, en negativo.
---   * Horas: HCOMP (2) y MONT (3) x get_puesto_precio_hora.
+--   * Horas: HCOMP (2) -> "Horas complementarias"; MONT (3) -> "Complemento de
+--     puesto" (codigo 60). Ambas x get_puesto_precio_hora.
 --   * FTRAB (4): se paga como "Plus festivo trabajado" (codigo de nomina 12) a
 --     precio de hora de JORNADA COMPLETA (get_convenio_precio_hora_jc), no a
 --     precio de hora complementaria. CUIDADO: registros.horas de las filas FTRAB
@@ -388,7 +392,7 @@ begin
     v_dif_jornada := v_horas_jornada - v_horas_teoricas;
     v_precio_jornada := (v_base * (1 + v_extras / 12.0)) / v_horas_teoricas;
     if v_dif_jornada > 0 or (v_ajuste = 'ambos' and v_dif_jornada <> 0) then
-      return query select 65, 'Complemento de puesto'::text,
+      return query select 65, 'Plus de disponibilidad'::text,
         format('%s h (REG+PNR) − %s h teóricas = %s h × %s€/h (base + %s/12 pagas)',
                round(v_horas_jornada, 2), round(v_horas_teoricas, 2),
                round(v_dif_jornada, 2), round(v_precio_jornada, 4), v_extras),
@@ -400,7 +404,7 @@ begin
   return query
   select
     (70 + row_number() over (order by th.id))::integer,
-    ('Horas ' || th.tipo_hora)::text,
+    (case when th.id = 3 then 'Complemento de puesto' else 'Horas ' || th.tipo_hora end)::text,
     format('%s h × %s€/h', round(sum(r.horas)::numeric, 2), round(public.get_puesto_precio_hora(h.puesto_id, th.id, v_fecha_ref), 4)),
     null::numeric,
     round(sum(r.horas)::numeric, 2),
