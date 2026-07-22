@@ -233,6 +233,7 @@ declare
   v_precio_hora_jc numeric;
   v_modo text; v_horas_reg numeric; v_tarifa_dia numeric; v_detalle_base text;
   v_horas_teoricas numeric; v_dif_jornada numeric; v_precio_jornada numeric;
+  v_horas_jornada numeric;
   v_extras integer; v_ajuste text; v_horas_pnr numeric;
   v_sit_excluidas integer[];
   v_modalidad text;
@@ -377,14 +378,19 @@ begin
   --   (base + base x extras/12) / horas_teoricas
   -- Ejemplo: 1221 EUR/mes, 14 pagas, 184 h teoricas de julio -> 7,7418 EUR/h;
   -- 188 h trabajadas = 4 de exceso = 30,97 EUR.
+  -- PNR (permiso no retribuido) cuenta como jornada cumplida: no genera defecto
+  -- en el complemento de puesto, pero se descuenta aparte en el 790. El resto de
+  -- situaciones (VAC, IT, FEST, PR, AP, JIRR...) ya cuentan porque llevan horas
+  -- REG; solo CAMB y LG quedan a cero (v_sit_excluidas).
+  v_horas_jornada := v_horas_reg + v_horas_pnr;
   v_horas_teoricas := public.horas_teoricas_jornada(v_desde, v_hasta, h.jornada);
   if v_ajuste <> 'ninguno' and v_horas_teoricas > 0 then
-    v_dif_jornada := v_horas_reg - v_horas_teoricas;
+    v_dif_jornada := v_horas_jornada - v_horas_teoricas;
     v_precio_jornada := (v_base * (1 + v_extras / 12.0)) / v_horas_teoricas;
     if v_dif_jornada > 0 or (v_ajuste = 'ambos' and v_dif_jornada <> 0) then
       return query select 65, 'Complemento de puesto'::text,
-        format('%s h REG − %s h teóricas = %s h × %s€/h (base + %s/12 pagas)',
-               round(v_horas_reg, 2), round(v_horas_teoricas, 2),
+        format('%s h (REG+PNR) − %s h teóricas = %s h × %s€/h (base + %s/12 pagas)',
+               round(v_horas_jornada, 2), round(v_horas_teoricas, 2),
                round(v_dif_jornada, 2), round(v_precio_jornada, 4), v_extras),
         null::numeric, round(v_dif_jornada, 2), round(v_precio_jornada, 4),
         round(v_dif_jornada * v_precio_jornada, 2), null::text;
