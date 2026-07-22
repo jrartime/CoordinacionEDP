@@ -15898,19 +15898,37 @@ function findRecordRelationIdByLabel(field, label) {
 }
 
 // Devuelve { titularId, subIds } si el registro forma parte de una sustitucion.
+// Las sustituciones encadenan: si el sustituto tambien falta, su fila se sustituye
+// a su vez, asi que al deshacer hay que arrastrar toda la rama que cuelga.
+function collectRecordSubstitutionDescendants(rootId) {
+  const ids = [];
+  const pending = [String(rootId)];
+  const seen = new Set(pending);
+  while (pending.length) {
+    const currentId = pending.pop();
+    for (const row of recordsRows) {
+      if (String(row.sustituye_registro_id) !== currentId) continue;
+      const id = String(row.id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      ids.push(row.id);
+      pending.push(id);
+    }
+  }
+  return ids;
+}
+
 function resolveRecordSubstitutionGroup(row) {
   if (!row) return null;
   if (row.sustituye_registro_id) {
+    // Se deshace la sustitucion de la que ESTA fila es el sustituto: cae ella,
+    // sus hermanas y todo lo que cuelgue de cualquiera de ellas.
     const titularId = row.sustituye_registro_id;
-    const subIds = recordsRows
-      .filter((r) => String(r.sustituye_registro_id) === String(titularId))
-      .map((r) => r.id);
-    if (!subIds.includes(row.id)) subIds.push(row.id);
+    const subIds = collectRecordSubstitutionDescendants(titularId);
+    if (!subIds.some((id) => String(id) === String(row.id))) subIds.push(row.id);
     return { titularId, subIds };
   }
-  const subIds = recordsRows
-    .filter((r) => String(r.sustituye_registro_id) === String(row.id))
-    .map((r) => r.id);
+  const subIds = collectRecordSubstitutionDescendants(row.id);
   return subIds.length ? { titularId: row.id, subIds } : null;
 }
 
@@ -15919,23 +15937,30 @@ function isRecordSubstituteRow(row) {
 }
 
 function getRecordSubstitutionInfo(row) {
-  if (isRecordSubstituteRow(row)) {
-    const titularName = String(row?.titular_personal ?? "").trim();
-    return {
-      title: titularName ? `Sustituye a ${titularName}` : "Fila de sustitución",
-      badgeText: "↻ Sustituto",
-      badgeClass: "record-sub-badge-sustituto",
-    };
+  const esSustituto = isRecordSubstituteRow(row);
+  const estaSustituido = Boolean(row?.sustituto_personal_id);
+  if (!esSustituto && !estaSustituido) return null;
+
+  const titularName = String(row?.titular_personal ?? "").trim();
+  const sustitutoName = String(row?.sustituto_personal ?? "").trim();
+  const partes = [];
+  if (esSustituto) partes.push(titularName ? `Sustituye a ${titularName}` : "Fila de sustitución");
+  if (estaSustituido) {
+    partes.push(sustitutoName ? `Sustituido por ${sustitutoName}` : "Titular sustituido");
   }
-  if (row?.sustituto_personal_id) {
-    const sustitutoName = String(row?.sustituto_personal ?? "").trim();
-    return {
-      title: sustitutoName ? `Sustituido por ${sustitutoName}` : "Titular sustituido",
-      badgeText: "✦ Sustituido",
-      badgeClass: "record-sub-badge-titular",
-    };
-  }
-  return null;
+
+  // Un sustituto al que a su vez han sustituido lleva las dos marcas: interesa
+  // ver de un vistazo que el turno ha cambiado de manos dos veces.
+  return {
+    title: partes.join(" · "),
+    badgeText: esSustituto && estaSustituido ? "↻✦ Recambiado" : esSustituto ? "↻ Sustituto" : "✦ Sustituido",
+    badgeClass:
+      esSustituto && estaSustituido
+        ? "record-sub-badge-recambiado"
+        : esSustituto
+          ? "record-sub-badge-sustituto"
+          : "record-sub-badge-titular",
+  };
 }
 
 function renderRecordSubstitutionBadge(row) {
@@ -15944,10 +15969,11 @@ function renderRecordSubstitutionBadge(row) {
   return ` <span class="record-sub-badge ${info.badgeClass}" title="${escapeHtml(info.title)}">${escapeHtml(info.badgeText)}</span>`;
 }
 
-// Un turno solo se puede sustituir una vez: ni las filas que ya son de un
-// sustituto ni los titulares ya sustituidos vuelven a entrar.
+// Un turno no se puede sustituir dos veces a la vez, pero si en cadena: la fila
+// de un sustituto que tambien falta se sustituye a su vez. Lo unico que bloquea
+// es que ESA fila ya tenga a alguien cubriendola.
 function canSubstituteRecord(row) {
-  return Boolean(row?.id) && !isRecordSubstituteRow(row) && !row.sustituto_personal_id;
+  return Boolean(row?.id) && !row.sustituto_personal_id;
 }
 
 // El sustituto trabaja el turno del titular, asi que por defecto hereda su tipo
@@ -16010,14 +16036,23 @@ function buildRecordSubstitutionInsert(titular, sustitutoId, tipoHoraId) {
   return insertData;
 }
 
+// Cabecera del panel. Cuando la fila ya es de un sustituto conviene decirlo:
+// el ausente no es el titular original del turno, sino quien lo estaba cubriendo.
+function describeRecordSubstitutionTitular(row) {
+  const nombre = row.personal || `ID ${row.personal_id ?? "?"}`;
+  const fecha = formatRecordDisplayValue(row, getRecordColumn("fecha"));
+  const horario = `${String(row.hora_inicio ?? "").slice(0, 5)}-${String(row.hora_fin ?? "").slice(0, 5)}`;
+  const sustituyeA = String(row.titular_personal ?? "").trim();
+  const etiqueta = isRecordSubstituteRow(row)
+    ? `Ausente: ${nombre}${sustituyeA ? ` (sustituía a ${sustituyeA})` : " (era el sustituto)"}`
+    : `Titular: ${nombre}`;
+  return `${etiqueta} · ${fecha} · ${horario}`;
+}
+
 function openRecordSubstitutionPanel() {
   if (!recordDetailSnapshot?.id || !recordSubstitutionPanel) return;
 
-  if (isRecordSubstituteRow(recordDetailSnapshot)) {
-    setStatus("Este registro ya es una fila de sustituto. Usa 'Quitar sustitución' si quieres revertir.", "error");
-    return;
-  }
-  if (recordDetailSnapshot.sustituto_personal_id) {
+  if (!canSubstituteRecord(recordDetailSnapshot)) {
     setStatus("Este registro ya tiene una sustitución asignada.", "error");
     return;
   }
@@ -16037,9 +16072,7 @@ function openRecordSubstitutionPanel() {
     recordDetailSnapshot.tipo_hora_id
   );
   if (recordSubstitutionInfo) {
-    const titularName = recordDetailSnapshot.personal || `ID ${recordDetailSnapshot.personal_id ?? "?"}`;
-    const fecha = formatRecordDisplayValue(recordDetailSnapshot, getRecordColumn("fecha"));
-    recordSubstitutionInfo.textContent = `Titular: ${titularName} · ${fecha} · ${String(recordDetailSnapshot.hora_inicio ?? "").slice(0, 5)}-${String(recordDetailSnapshot.hora_fin ?? "").slice(0, 5)}`;
+    recordSubstitutionInfo.textContent = describeRecordSubstitutionTitular(recordDetailSnapshot);
   }
   recordSubstitutionPanel.classList.remove("hidden");
 }
@@ -16104,15 +16137,35 @@ async function removeRecordSubstitution() {
     setStatus("Este registro no forma parte de una sustitución.", "error");
     return;
   }
-  if (!confirm("¿Quitar la sustitución? Se borrará la fila del sustituto y el titular volverá a estado normal.")) {
+  const nSubs = group.subIds.length;
+  if (
+    !confirm(
+      nSubs > 1
+        ? `¿Quitar la sustitución? Se borrarán ${nSubs} filas encadenadas de sustitutos y el turno volverá a quien lo tenía.`
+        : "¿Quitar la sustitución? Se borrará la fila del sustituto y el titular volverá a estado normal."
+    )
+  ) {
     return;
   }
 
-  const normSituacionId = findRecordRelationIdByLabel("situacion_id", "NORM");
-  const regTipoHoraId = findRecordRelationIdByLabel("tipo_hora_id", "REG");
+  // A quien se revierte puede ser a su vez el sustituto de otro (cadena): en ese
+  // caso vuelve a SUST, no a NORM, porque sigue cubriendo el turno de un tercero.
+  const titularRow = recordsRows.find((r) => String(r.id) === String(group.titularId));
+  const revertSituacionCode = titularRow?.sustituye_registro_id ? "SUST" : "NORM";
+  const revertSituacionId = findRecordRelationIdByLabel("situacion_id", revertSituacionCode);
   const titularRevert = { hd: 0 };
-  if (normSituacionId != null) titularRevert.situacion_id = normSituacionId;
-  if (regTipoHoraId != null) titularRevert.tipo_hora_id = regTipoHoraId;
+  if (revertSituacionId != null) titularRevert.situacion_id = revertSituacionId;
+  // Solo PNR toca el tipo de hora al marcar la ausencia, asi que solo PNR se
+  // deshace: un montaje sustituido tiene que volver a ser montaje.
+  if (String(titularRow?.tipo_hora ?? "").trim().toUpperCase() === "PNR") {
+    const regTipoHoraId = findRecordRelationIdByLabel("tipo_hora_id", "REG");
+    if (regTipoHoraId != null) titularRevert.tipo_hora_id = regTipoHoraId;
+  }
+  // Si la ausencia era LG, la fila se quedo sin horas y sin ticks: al deshacer,
+  // salir de LG los recupera.
+  const titularRevertFinal = titularRow
+    ? await withRecordSituacionSideEffects(titularRow, titularRevert)
+    : titularRevert;
 
   try {
     const supabase = await getSupabaseClient();
@@ -16125,7 +16178,7 @@ async function removeRecordSubstitution() {
     }
     const { error: revertError } = await supabase
       .from("registros")
-      .update(titularRevert)
+      .update(titularRevertFinal)
       .eq("id", group.titularId);
     if (revertError) throw revertError;
 
@@ -16143,14 +16196,21 @@ async function removeRecordSubstitution() {
 
 function updateRecordSubstitutionButtons() {
   const row = recordDetailSnapshot;
-  const group = resolveRecordSubstitutionGroup(row);
-  const isPartOfSub = Boolean(group) || isRecordSubstituteRow(row) || Boolean(row?.sustituto_personal_id);
+  const formaParte =
+    Boolean(resolveRecordSubstitutionGroup(row)) ||
+    isRecordSubstituteRow(row) ||
+    Boolean(row?.sustituto_personal_id);
 
+  // Los dos botones pueden convivir: la fila de un sustituto se puede deshacer
+  // y, si aun no la cubre nadie, sustituir a su vez.
   if (recordDetailSubstitutionButton) {
-    recordDetailSubstitutionButton.classList.toggle("hidden", isPartOfSub);
+    recordDetailSubstitutionButton.classList.toggle("hidden", !canSubstituteRecord(row));
+    recordDetailSubstitutionButton.textContent = isRecordSubstituteRow(row)
+      ? "Sustituir al sustituto"
+      : "Marcar sustitución";
   }
   if (recordDetailRemoveSubstitutionButton) {
-    recordDetailRemoveSubstitutionButton.classList.toggle("hidden", !isPartOfSub);
+    recordDetailRemoveSubstitutionButton.classList.toggle("hidden", !formaParte);
   }
 }
 
