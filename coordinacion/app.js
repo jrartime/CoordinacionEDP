@@ -15263,11 +15263,29 @@ async function applyRecordsBulkAssignment() {
     return;
   }
 
+  // Ver withRecordSituacionSideEffects: entrar en CAMB/LG vacía las horas y quita
+  // los ticks; salir de ellas los recalcula y los vuelve a marcar.
+  const changesSituacion = field === "situacion_id";
+  const reglasSituacion = changesSituacion ? window.CoordinacionActividades : null;
+  let situacionDestinoSinHoras = false;
+  let situacionFilasARestaurar = [];
+  if (reglasSituacion) {
+    await reglasSituacion.loadRecordRules();
+    situacionDestinoSinHoras = reglasSituacion.situacionSinHoras(newValue);
+    situacionFilasARestaurar = situacionDestinoSinHoras
+      ? []
+      : matches.filter((row) => reglasSituacion.situacionSinHoras(row.situacion_id));
+  }
+
   const warning =
     field === "contrato_id"
       ? "\n\nAviso: al cambiar el contrato se dejará el servicio sin asignar en esos registros. Después tendrás que asignar un servicio del nuevo contrato."
       : field === "servicio_id" && newValue !== null
         ? "\n\nAviso: si el servicio pertenece a otro contrato, se actualizará también el contrato de esos registros."
+      : situacionDestinoSinHoras
+        ? "\n\nAviso: esos turnos no los trabaja el titular del registro, así que se quedarán sin horas y sin facturar ni abonar."
+      : situacionFilasARestaurar.length
+        ? `\n\nAviso: ${situacionFilasARestaurar.length} registro${situacionFilasARestaurar.length !== 1 ? "s salen" : " sale"} de CAMB o LG: se recalcularán las horas a partir del horario y se volverán a marcar Facturar y Abonar.`
       : "";
   const confirmText =
     (recordsSelectionMode
@@ -15291,7 +15309,52 @@ async function applyRecordsBulkAssignment() {
         : field === "servicio_id" && newValue !== null
           ? { servicio_id: newValue, contrato_id: newServiceContractId }
           : { [field]: newValue };
-    if (recalculateHours) {
+    if (situacionDestinoSinHoras) {
+      const { error } = await supabase
+        .from("registros")
+        .update({ ...updatePayload, horas: null, horas_nocturnas: null, facturar: false, abonar: false })
+        .in("id", ids);
+      if (error) throw error;
+    } else if (situacionFilasARestaurar.length) {
+      const idsARestaurar = new Set(situacionFilasARestaurar.map((row) => String(row.id)));
+      const idsSinCambioExtra = ids.filter((id) => !idsARestaurar.has(String(id)));
+      if (idsSinCambioExtra.length) {
+        const { error } = await supabase
+          .from("registros")
+          .update(updatePayload)
+          .in("id", idsSinCambioExtra);
+        if (error) throw error;
+      }
+      // Las horas recalculadas dependen del horario de cada fila, así que se
+      // agrupan las que coinciden para no lanzar un update por registro.
+      const gruposHoras = new Map();
+      for (const row of situacionFilasARestaurar) {
+        const horas = calculateRecordHours(row.hora_inicio, row.hora_fin);
+        const nocturnas = reglasSituacion.horasNocturnas(
+          row.contrato_id,
+          row.hora_inicio,
+          row.hora_fin
+        );
+        const key = `${horas}|${nocturnas}`;
+        if (!gruposHoras.has(key)) {
+          gruposHoras.set(key, { horas, nocturnas, ids: [] });
+        }
+        gruposHoras.get(key).ids.push(row.id);
+      }
+      for (const grupo of gruposHoras.values()) {
+        const { error } = await supabase
+          .from("registros")
+          .update({
+            ...updatePayload,
+            horas: grupo.horas,
+            horas_nocturnas: grupo.nocturnas,
+            facturar: true,
+            abonar: true,
+          })
+          .in("id", grupo.ids);
+        if (error) throw error;
+      }
+    } else if (recalculateHours) {
       const rowsByHours = new Map();
       for (const row of matches) {
         const start = field === "hora_inicio" ? newValue : row.hora_inicio;
@@ -15312,10 +15375,15 @@ async function applyRecordsBulkAssignment() {
       if (error) throw error;
     }
     await loadRecords();
+    const resumen = `${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}.`;
     setStatus(
       field === "contrato_id"
-        ? `${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}. El servicio se ha dejado sin asignar.`
-        : `${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}.`,
+        ? `${resumen} El servicio se ha dejado sin asignar.`
+        : situacionDestinoSinHoras
+          ? `${resumen} Se han dejado sin horas y sin facturar ni abonar.`
+        : situacionFilasARestaurar.length
+          ? `${resumen} En ${situacionFilasARestaurar.length} se han recalculado las horas y marcado Facturar y Abonar.`
+        : resumen,
       "success"
     );
   } catch (error) {
@@ -15394,16 +15462,56 @@ function patchTouchesRecordRelation(patch) {
   return Object.keys(patch).some((key) => getRecordColumn(key)?.relationLabelKey || key === "actividad_id");
 }
 
+// CAMB (el turno lo cubrió otra persona) y LG (licencia) no los trabaja el titular
+// del registro: se quedan sin horas y sin facturar ni abonar. Al salir de esas
+// situaciones se recalculan las horas desde el horario y se vuelven a marcar los
+// ticks. Mismo criterio que la generación desde Actividades (de donde vienen las
+// reglas, para no duplicar el cálculo de nocturnidad) y que el motor de nómina.
+async function withRecordSituacionSideEffects(row, patch) {
+  if (!Object.prototype.hasOwnProperty.call(patch, "situacion_id")) {
+    return patch;
+  }
+  const reglas = window.CoordinacionActividades;
+  if (!reglas || !row) {
+    return patch;
+  }
+  await reglas.loadRecordRules();
+
+  const antes = reglas.situacionSinHoras(row.situacion_id);
+  const despues = reglas.situacionSinHoras(patch.situacion_id);
+  if (antes === despues) {
+    return patch;
+  }
+  if (despues) {
+    return { ...patch, horas: null, horas_nocturnas: null, facturar: false, abonar: false };
+  }
+
+  const pick = (key) =>
+    Object.prototype.hasOwnProperty.call(patch, key) ? patch[key] : row[key];
+  const start = pick("hora_inicio");
+  const end = pick("hora_fin");
+  return {
+    ...patch,
+    horas: calculateRecordHours(start, end),
+    horas_nocturnas: reglas.horasNocturnas(pick("contrato_id"), start, end),
+    facturar: true,
+    abonar: true,
+  };
+}
+
 async function saveRecordPatch(recordId, patch) {
+  const row = recordsRows.find((item) => String(item.id) === String(recordId));
+  const finalPatch = await withRecordSituacionSideEffects(row, patch);
+
   const supabase = await getSupabaseClient();
-  const { error } = await supabase.from("registros").update(patch).eq("id", recordId);
+  const { error } = await supabase.from("registros").update(finalPatch).eq("id", recordId);
 
   if (error) {
     throw error;
   }
 
-  updateRecordRowsLocally(recordId, patch);
-  if (patchTouchesRecordRelation(patch)) {
+  updateRecordRowsLocally(recordId, finalPatch);
+  if (patchTouchesRecordRelation(finalPatch)) {
     await loadRecords();
   }
 }

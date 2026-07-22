@@ -4489,6 +4489,78 @@
     return Math.round((overlap / 60) * 100) / 100;
   }
 
+  // Puente para que la pestaña Registros (app.js) aplique las mismas reglas al
+  // cambiar la situación de un registro ya creado, sin duplicar ni el cálculo de
+  // la franja nocturna ni los ids de CAMB/LG.
+  //
+  // Los catálogos de Actividades pueden no estar cargados todavía (la pestaña
+  // quizá no se haya abierto), así que se piden bajo demanda. La nocturnidad se
+  // guarda aparte porque el catálogo de Actividades solo trae contratos activos
+  // y un registro puede colgar de uno cerrado.
+  let recordRulesNightMap = null;
+  let recordRulesPromise = null;
+
+  async function loadRecordRules() {
+    if (activitySituacionesSinHoras.size && recordRulesNightMap) {
+      return;
+    }
+    if (!recordRulesPromise) {
+      recordRulesPromise = (async () => {
+        const supabase = await getSupabaseClient();
+        const [situaciones, contratos] = await Promise.all([
+          activitySituacionesSinHoras.size
+            ? Promise.resolve({ data: null, error: null })
+            : supabase.from("situaciones").select("id,situacion"),
+          recordRulesNightMap
+            ? Promise.resolve({ data: null, error: null })
+            : supabase
+                .from("contratos")
+                .select("id,tiene_nocturnidad,nocturnidad_inicio,nocturnidad_fin"),
+        ]);
+        if (situaciones.error) throw situaciones.error;
+        if (contratos.error) throw contratos.error;
+        if (situaciones.data) {
+          activitySituacionesSinHoras = new Set(
+            situaciones.data
+              .filter((row) =>
+                SITUACIONES_SIN_HORAS.includes(String(row.situacion || "").trim().toUpperCase())
+              )
+              .map((row) => Number(row.id))
+          );
+        }
+        if (contratos.data) {
+          recordRulesNightMap = new Map(
+            contratos.data.map((row) => [
+              Number(row.id),
+              {
+                tiene: Boolean(row.tiene_nocturnidad),
+                inicio: row.nocturnidad_inicio,
+                fin: row.nocturnidad_fin,
+              },
+            ])
+          );
+        }
+      })().finally(() => {
+        recordRulesPromise = null;
+      });
+    }
+    return recordRulesPromise;
+  }
+
+  window.CoordinacionActividades = {
+    loadRecordRules,
+    situacionSinHoras(situacionId) {
+      return situacionId != null && activitySituacionesSinHoras.has(Number(situacionId));
+    },
+    horasNocturnas(contratoId, horaInicio, horaFin) {
+      const config = recordRulesNightMap?.get(Number(contratoId));
+      if (!config) {
+        return 0;
+      }
+      return getActivityNightHours({ hora_inicio: horaInicio, hora_fin: horaFin }, config);
+    },
+  };
+
   function buildRecordsForActivity(activity, existingKeys, options = {}) {
     const dates = getActivityGeneratedDates(activity, options);
     const sinHoras = activitySituacionesSinHoras.has(Number(activity.situacion_id));
