@@ -61,21 +61,25 @@
 --     parcialidad dentro; aplicar el coeficiente la descontaria dos veces.
 --     Si falta la tarifa del modo pedido se cae a mensual y se dice en el
 --     detalle, en vez de devolver 0 en silencio.
---   * PLUS DE DISPONIBILIDAD (codigo 93, orden 65): exceso/defecto de horas REG
---     sobre la jornada teorica del periodo (horas_teoricas_jornada). Por defecto
---     (p_ajuste vacio) lo decide la MODALIDAD DE PAGO del historial: Jornada ->
---     no aplica, Horas totales -> aplica exceso y defecto, Horas brutas/liquidas
---     -> no aplica (aun sin desarrollar). p_ajuste_jornada fuerza el criterio:
---     'exceso' solo paga lo trabajado de mas, 'ambos' ademas descuenta el
---     defecto, 'ninguno' no emite la linea. La pestana Gestion lo expone en la
---     zona "Calculo de nomina" como "Ajuste de jornada".
---   * COMPLEMENTO DE PUESTO (codigo 60): horas de MONTAJE (tipo 3) al precio de
---     montaje del convenio. Independiente del plus de disponibilidad: el montaje
---     NO cuenta para la jornada del 93 (decision del usuario 2026-07-22).
+--   * JORNADA REALIZADA vs CONTRATADA -> dos conceptos que se reparten una misma
+--     diferencia (ver el bloque comentado dentro de la funcion):
+--       - PLUS DE DISPONIBILIDAD (codigo 93, orden 65): lo que aportan las horas
+--         REG por encima de la jornada teorica; en negativo, el defecto que ni
+--         siquiera el montaje cubre.
+--       - COMPLEMENTO DE PUESTO (codigo 60, orden 66): lo que aporta el montaje
+--         POR ENCIMA de lo que ya cubre la jornada. Si las horas REG no llegan a
+--         la jornada, el montaje la absorbe primero y solo el sobrante se paga.
+--     Por defecto (p_ajuste vacio) lo decide la MODALIDAD DE PAGO del historial:
+--     Jornada -> 'ninguno' (sin exceso ni defecto; el montaje se paga entero),
+--     Horas totales -> 'ambos', Horas brutas/liquidas -> 'ninguno' (sin
+--     desarrollar). p_ajuste_jornada fuerza el criterio: 'exceso' solo paga lo
+--     trabajado de mas, 'ambos' ademas descuenta el defecto, 'ninguno' no reparte.
+--     La pestana Gestion lo expone en la zona "Calculo de nomina" como "Ajuste de
+--     jornada".
 --   * DESCUENTO POR ABSENTISMO (codigo 790, orden 90): horas PNR (tipo 5) a
 --     hora_complementaria del convenio, en negativo.
---   * Horas: HCOMP (2) -> "Horas complementarias"; MONT (3) -> "Complemento de
---     puesto" (codigo 60). Ambas x get_puesto_precio_hora.
+--   * Horas: HCOMP (2) -> linea "Horas HCOMP" x get_puesto_precio_hora. MONT (3)
+--     NO tiene linea propia: entra en el reparto del complemento de puesto.
 --   * FTRAB (4): se paga como "Plus festivo trabajado" (codigo de nomina 12) a
 --     precio de hora de JORNADA COMPLETA (get_convenio_precio_hora_jc), no a
 --     precio de hora complementaria. CUIDADO: registros.horas de las filas FTRAB
@@ -236,11 +240,14 @@ declare
   v_dias_trab integer; v_horas_noct numeric; v_convenio_id integer;
   v_precio_hora_jc numeric;
   v_modo text; v_horas_reg numeric; v_tarifa_dia numeric; v_detalle_base text;
-  v_horas_teoricas numeric; v_dif_jornada numeric; v_precio_jornada numeric;
+  v_horas_teoricas numeric; v_precio_jornada numeric;
   v_horas_jornada numeric;
   v_extras integer; v_ajuste text; v_horas_pnr numeric;
   v_sit_excluidas integer[];
   v_modalidad text;
+  v_valor_jornada numeric; v_valor_reg numeric; v_valor_mont numeric;
+  v_horas_mont numeric; v_precio_mont numeric;
+  v_dif numeric; v_exceso_reg numeric; v_aporta_mont numeric;
 begin
   select * into h from public.historiales_laborales where id = p_historial_id;
   if h.id is null then return; end if;
@@ -333,6 +340,16 @@ begin
     and r.fecha >= v_desde and r.fecha <= v_hasta
     and r.tipo_hora_id = 5;
 
+  select coalesce(sum(r.horas), 0)::numeric
+    into v_horas_mont
+  from public.registros r
+  where r.personal_id = h.personal_id
+    and r.puesto_id = h.puesto_id
+    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+    and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
+    and r.fecha >= v_desde and r.fecha <= v_hasta
+    and r.tipo_hora_id = 3;
+
   v_modo := coalesce(nullif(trim(p_base_calculo), ''), v_conv.base_calculo, 'mensual');
 
   if v_modo = 'hora' and coalesce(v_conv.salario_hora, 0) > 0 then
@@ -376,28 +393,79 @@ begin
       round(v_conv.complemento_dedicacion * v_dias / 30.0, 2), null::text;
   end if;
 
-  -- Complemento de puesto (60): exceso de horas REG sobre la jornada teorica.
-  -- Se valora al precio hora del propio contrato INCLUYENDO la parte de pagas
-  -- extra, y esa parte va siempre, tenga o no prorrateo (decision del usuario).
-  --   (base + base x extras/12) / horas_teoricas
-  -- Ejemplo: 1221 EUR/mes, 14 pagas, 184 h teoricas de julio -> 7,7418 EUR/h;
-  -- 188 h trabajadas = 4 de exceso = 30,97 EUR.
-  -- PNR (permiso no retribuido) cuenta como jornada cumplida: no genera defecto
-  -- en el complemento de puesto, pero se descuenta aparte en el 790. El resto de
+  -- ---- Jornada realizada vs jornada contratada ----
+  -- Se suma lo realizado (horas REG valoradas + montaje) y se compara con el
+  -- valor de la jornada contratada:
+  --   valor_jornada = base + su parte de pagas extra  (base x (1 + extras/12))
+  --   precio_hora   = valor_jornada / horas_teoricas
+  --   valor_reg     = precio_hora x horas (REG+PNR)
+  --   valor_montaje = horas MONT x precio de montaje
+  --   diferencia    = valor_reg + valor_montaje - valor_jornada
+  --
+  --   * diferencia > 0: lo que aportan las horas REG por encima de la jornada va
+  --     al PLUS DE DISPONIBILIDAD (93) y el resto -lo que aporta el montaje por
+  --     encima de lo ya cubierto- al COMPLEMENTO DE PUESTO (60).
+  --   * diferencia < 0: el montaje no llega a cubrir la jornada; no hay 60 y el
+  --     defecto va al 93 (solo con ajuste 'ambos').
+  --
+  -- Ejemplo real (David Jimenez, junio 2026, jornada 40 -> 176 h teoricas):
+  --   base 1261,62 + pagas 210,27 = 1471,89; 70 h REG = 1471,89/176x70 = 585,41;
+  --   102 h montaje = 1064,88; suma 1650,29; exceso 178,40 -> complemento 60.
+  --   No hay plus de disponibilidad: el montaje absorbe la jornada no cubierta.
+  --
+  -- PNR cuenta como jornada cumplida (se descuenta aparte en el 790). El resto de
   -- situaciones (VAC, IT, FEST, PR, AP, JIRR...) ya cuentan porque llevan horas
   -- REG; solo CAMB y LG quedan a cero (v_sit_excluidas).
   v_horas_jornada := v_horas_reg + v_horas_pnr;
   v_horas_teoricas := public.horas_teoricas_jornada(v_desde, v_hasta, h.jornada);
-  if v_ajuste <> 'ninguno' and v_horas_teoricas > 0 then
-    v_dif_jornada := v_horas_jornada - v_horas_teoricas;
-    v_precio_jornada := (v_base * (1 + v_extras / 12.0)) / v_horas_teoricas;
-    if v_dif_jornada > 0 or (v_ajuste = 'ambos' and v_dif_jornada <> 0) then
+  v_valor_jornada := v_base * (1 + v_extras / 12.0);
+  v_precio_mont := public.get_puesto_precio_hora(h.puesto_id, 3, v_fecha_ref);
+  v_valor_mont := round(v_horas_mont * coalesce(v_precio_mont, 0), 2);
+
+  if v_ajuste = 'ninguno' or coalesce(v_horas_teoricas, 0) <= 0 then
+    -- Modalidad Jornada (o sin jornada teorica): no hay exceso ni defecto que
+    -- repartir, el montaje se paga entero.
+    if v_valor_mont <> 0 then
+      return query select 66, 'Complemento de puesto'::text,
+        format('%s h montaje × %s€/h', round(v_horas_mont, 2), round(v_precio_mont, 4)),
+        null::numeric, round(v_horas_mont, 2), round(v_precio_mont, 4),
+        v_valor_mont, null::text;
+    end if;
+  else
+    v_precio_jornada := v_valor_jornada / v_horas_teoricas;
+    v_valor_reg := round(v_precio_jornada * v_horas_jornada, 2);
+    v_dif := v_valor_reg + v_valor_mont - v_valor_jornada;
+    v_exceso_reg := greatest(v_valor_reg - v_valor_jornada, 0);
+
+    if v_dif > 0 then
+      if v_exceso_reg > 0 then
+        return query select 65, 'Plus de disponibilidad'::text,
+          format('%s h (REG+PNR) sobre %s h teóricas × %s€/h',
+                 round(v_horas_jornada, 2), round(v_horas_teoricas, 2), round(v_precio_jornada, 4)),
+          null::numeric, round(v_horas_jornada - v_horas_teoricas, 2),
+          round(v_precio_jornada, 4), round(v_exceso_reg, 2), null::text;
+      end if;
+      v_aporta_mont := v_dif - v_exceso_reg;
+      if v_aporta_mont > 0 then
+        return query select 66, 'Complemento de puesto'::text,
+          format('%s h montaje × %s€/h = %s€%s',
+                 round(v_horas_mont, 2), round(v_precio_mont, 4), v_valor_mont,
+                 case when v_aporta_mont < v_valor_mont
+                      then format(' · %s€ absorbidos por la jornada no cubierta',
+                                  round(v_valor_mont - v_aporta_mont, 2))
+                      else '' end),
+          null::numeric, round(v_horas_mont, 2), round(v_precio_mont, 4),
+          round(v_aporta_mont, 2), null::text;
+      end if;
+    elsif v_dif < 0 and v_ajuste = 'ambos' then
       return query select 65, 'Plus de disponibilidad'::text,
-        format('%s h (REG+PNR) − %s h teóricas = %s h × %s€/h (base + %s/12 pagas)',
+        format('%s h (REG+PNR) de %s h teóricas%s',
                round(v_horas_jornada, 2), round(v_horas_teoricas, 2),
-               round(v_dif_jornada, 2), round(v_precio_jornada, 4), v_extras),
-        null::numeric, round(v_dif_jornada, 2), round(v_precio_jornada, 4),
-        round(v_dif_jornada * v_precio_jornada, 2), null::text;
+               case when v_valor_mont > 0
+                    then format('; %s€ de montaje no cubren la diferencia', v_valor_mont)
+                    else '' end),
+        null::numeric, round(v_horas_jornada - v_horas_teoricas, 2),
+        round(v_precio_jornada, 4), round(v_dif, 2), null::text;
     end if;
   end if;
 
@@ -417,7 +485,7 @@ begin
     and r.puesto_id = h.puesto_id
     and (h.empresa_id is null or r.empresa_id = h.empresa_id)
     and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
-    and r.fecha >= v_desde and r.fecha <= v_hasta and th.id in (2, 3)
+    and r.fecha >= v_desde and r.fecha <= v_hasta and th.id = 2
   group by th.id, th.tipo_hora having sum(r.horas) > 0;
 
   -- Festivo trabajado (codigo de nomina 12). registros.horas de las filas FTRAB
