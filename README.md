@@ -125,6 +125,8 @@ y deja constancia en `contexto-previo.md`.
 
 ## Informes y asignacion masiva
 
+- Al seleccionar una persona y un intervalo completo en Registros, la barra de resultados muestra un resumen compacto de Horas, HC, HFest, HMon, PNR, Noct y Total, seguido de las horas teoricas calculadas a partir de los historiales laborales solapados.
+- El panel lateral de Registros prioriza los campos operativos. Categoria, HC, HF, HM, horas diurnas, clases, horas 2 y año permanecen almacenados y disponibles para informes/calculos, pero no se muestran en ese formulario.
 - Registros incluye previsualizacion flotante de informe con dos salidas: PDF clasico y PDF compacto. La previsualizacion consulta todos los registros filtrados y muestra advertencia si el volumen supera el limite configurado.
 - Actividades incluye previsualizacion flotante del informe de horarios filtrado, agrupado por personal, con descarga PDF posterior.
 - Historial laboral incluye informes PDF de llamamiento, variacion y subrogacion desde un periodo seleccionado. Las plantillas se configuran desde Historial laboral > Configuracion de informes y los datos documentales de empresa desde Configuracion > Empresas.

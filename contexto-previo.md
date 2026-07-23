@@ -150,6 +150,13 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Contador de horas**: el `Total:` del pivote pasa a `Total: 145,5 h de 140,8 h teóricas`. Las teóricas vienen de `get_gestion_horas_teoricas`, que suma `horas_teoricas_jornada` del tramo de cada periodo que solape el rango.
 - **Despliegue requerido**: ejecutar `supabase/tables/nominas.sql` y `supabase/tables/nomina_calculo_persona.sql` en el SQL Editor de Supabase. Ya están aplicados en el proyecto real; el fichero es la copia de referencia.
 
+## 13. Resumen de periodo y simplificacion del editor de Registros (23/07/2026)
+
+- **Resumen condicionado por filtros**: cuando Registros tiene una persona y las dos fechas seleccionadas, se muestra entre el contador de filas y la previsualizacion un resumen compacto de `Horas`, `HC`, `HFest`, `HMon`, `PNR`, `Noct` y `Total`.
+- **Horas teoricas**: debajo del resumen se presenta la jornada teorica correspondiente a los historiales laborales que solapan el intervalo. El calculo reutiliza `get_gestion_horas_teoricas`; si falta alguno de los tres filtros, el resumen permanece oculto.
+- **Panel lateral simplificado**: se ocultan `categoria_id`, `hc`, `hf`, `hm`, `horas_diurnas`, `clases`, `horas_2` y `anio`. El cambio es solo de presentacion: no elimina columnas, no altera informes ni calculos y al duplicar se conservan los valores originales.
+- **Publicacion**: fuentes y copia de `publish/coordinacion/` sincronizadas; cache-busting de JavaScript en `app.js?v=20260723-12`.
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.
