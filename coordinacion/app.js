@@ -147,6 +147,16 @@ const RECORD_REQUIRED_FIELDS = new Map([
   ["puesto_id", "Puesto"],
   ["funcion_id", "Función"],
 ]);
+const RECORD_DETAIL_HIDDEN_FIELDS = new Set([
+  "categoria_id",
+  "hc",
+  "hf",
+  "hm",
+  "horas_diurnas",
+  "clases",
+  "horas_2",
+  "anio",
+]);
 const RECORD_EMPTY_FILTER_VALUE = "__record_filter_empty__";
 const RECORD_BULK_UNSET_VALUE = "__unset__";
 const RECORD_BULK_EMPTY_VALUE = "__empty__";
@@ -852,6 +862,9 @@ const recordsFiltersForm = document.querySelector("#records-filters-form");
 const recordsTableHead = document.querySelector("#records-table-head");
 const recordsTableBody = document.querySelector("#records-table-body");
 const recordsSummary = document.querySelector("#records-summary");
+const recordsPeriodSummary = document.querySelector("#records-period-summary");
+const recordsPeriodSummaryValues = document.querySelector("#records-period-summary-values");
+const recordsPeriodSummaryTheoretical = document.querySelector("#records-period-summary-theoretical");
 const recordsEditModeInput = document.querySelector("#records-edit-mode");
 const recordsRefreshButton = document.querySelector("#records-refresh-button");
 const recordsClearFiltersButton = document.querySelector("#records-clear-filters-button");
@@ -1461,6 +1474,8 @@ let currentControlSort = {
 let recordsRows = [];
 let filteredRecordsRows = [];
 let recordsChangesRows = [];
+let recordsPeriodSummaryRequestToken = 0;
+const recordsTheoreticalHoursCache = new Map();
 let selectedRecordId = "";
 let recordsSelectionMode = false;
 let selectedRecordIds = new Set();
@@ -13935,6 +13950,92 @@ function formatRecordHours(value) {
   return n.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+function getRecordsPeriodTotals(rows) {
+  const totals = { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0 };
+  rows.forEach((row) => addRecordReportHours(totals, row));
+  totals.total =
+    totals.horas + totals.hc + totals.hfest + totals.hmon + totals.pnr + totals.noct;
+  return totals;
+}
+
+function renderRecordsPeriodTotals(totals) {
+  if (!recordsPeriodSummaryValues) return;
+  const fields = [
+    ["Horas", "horas"],
+    ["HC", "hc"],
+    ["HFest", "hfest"],
+    ["HMon", "hmon"],
+    ["PNR", "pnr"],
+    ["Noct", "noct"],
+    ["Total", "total"],
+  ];
+  recordsPeriodSummaryValues.innerHTML = fields
+    .map(
+      ([label, key]) =>
+        `<span class="records-period-summary-item">${label} <strong>${escapeHtml(
+          formatRecordHours(totals[key])
+        )}</strong></span>`
+    )
+    .join("");
+}
+
+async function updateRecordsPeriodSummary() {
+  if (!recordsPeriodSummary) return;
+  const filters = getRecordsFilterValues();
+  const complete =
+    Boolean(filters.fechaDesde) &&
+    Boolean(filters.fechaHasta) &&
+    Boolean(filters.personalId) &&
+    filters.fechaDesde <= filters.fechaHasta;
+  const token = ++recordsPeriodSummaryRequestToken;
+
+  if (!complete) {
+    recordsPeriodSummary.classList.add("hidden");
+    return;
+  }
+
+  recordsPeriodSummary.classList.remove("hidden");
+  renderRecordsPeriodTotals(getRecordsPeriodTotals(filteredRecordsRows));
+  if (recordsPeriodSummaryTheoretical) {
+    recordsPeriodSummaryTheoretical.textContent = "Horas teóricas según historial laboral: calculando…";
+  }
+
+  const cacheKey = `${filters.fechaDesde}|${filters.fechaHasta}|${filters.personalId}`;
+  if (recordsTheoreticalHoursCache.has(cacheKey)) {
+    if (recordsPeriodSummaryTheoretical) {
+      recordsPeriodSummaryTheoretical.textContent =
+        `Horas teóricas según historiales solapados: ${
+          formatRecordHours(recordsTheoreticalHoursCache.get(cacheKey))
+        }`;
+    }
+    return;
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("get_gestion_horas_teoricas", {
+      p_desde: filters.fechaDesde,
+      p_hasta: filters.fechaHasta,
+      p_personal_id: Number(filters.personalId),
+      p_empresa_id: null,
+    });
+    if (error) throw error;
+    if (token !== recordsPeriodSummaryRequestToken) return;
+    const theoreticalHours = Number(data ?? 0);
+    recordsTheoreticalHoursCache.set(cacheKey, theoreticalHours);
+    if (recordsPeriodSummaryTheoretical) {
+      recordsPeriodSummaryTheoretical.textContent =
+        `Horas teóricas según historiales solapados: ${formatRecordHours(theoreticalHours)}`;
+    }
+  } catch (_) {
+    if (token !== recordsPeriodSummaryRequestToken) return;
+    if (recordsPeriodSummaryTheoretical) {
+      recordsPeriodSummaryTheoretical.textContent =
+        "Horas teóricas según historiales solapados: no disponibles";
+    }
+  }
+}
+
 function buildRecordsSummaryText(rows) {
   const n = rows.length;
   let horas = 0;
@@ -13966,6 +14067,7 @@ function renderRecordsTable() {
   if (recordsSummary) {
     recordsSummary.textContent = buildRecordsSummaryText(filteredRecordsRows);
   }
+  void updateRecordsPeriodSummary();
 
   const listColumns = getRecordsListColumns();
   const editable = Boolean(recordsEditModeInput?.checked);
@@ -15520,8 +15622,11 @@ async function loadRecords({ force = false } = {}) {
     recordsFacetRows = [];
     recordRelationOptionsCache = {};
     recordsFilterContratos = null;
+    recordsTheoreticalHoursCache.clear();
   }
   invalidateRecordsReportPreview();
+  recordsPeriodSummaryRequestToken += 1;
+  recordsPeriodSummary?.classList.add("hidden");
   if (recordsSummary) {
     recordsSummary.textContent = "Cargando registros...";
   }
@@ -15860,7 +15965,9 @@ function renderRecordDetailForm(row) {
   }
 
   recordDetailTitle.textContent = `Registro ${row.id}`;
-  recordDetailFields.innerHTML = RECORD_COLUMNS.map((column) => {
+  recordDetailFields.innerHTML = RECORD_COLUMNS.filter(
+    (column) => !RECORD_DETAIL_HIDDEN_FIELDS.has(column.key)
+  ).map((column) => {
     const value = row[column.key];
     const name = escapeHtml(column.key);
     const label = escapeHtml(column.label);

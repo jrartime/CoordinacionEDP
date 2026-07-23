@@ -687,6 +687,47 @@ textarea {
   width: 100%;
 }
 
+.records-period-summary {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 0;
+  margin-inline: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #344054;
+  font-size: 0.7rem;
+  line-height: 1.1;
+}
+
+.records-period-summary.hidden {
+  display: none;
+}
+
+.records-period-summary-values {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px 9px;
+}
+
+.records-period-summary-item {
+  white-space: nowrap;
+}
+
+.records-period-summary-item strong {
+  color: var(--text);
+}
+
+.records-period-summary-theoretical {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
 .results-summary {
   display: flex;
   flex-wrap: wrap;
@@ -4142,10 +4183,13 @@ th {
   background: var(--panel);
 }
 
-/* Opciones que alteran el cálculo de la nómina (no son filtros de datos). */
+/* Opciones que alteran el cálculo de la nómina (no son filtros de datos).
+   Dos columnas: los selectores de cálculo a la izquierda -- que son estrechos
+   y no necesitan más -- y la nómina manual a su derecha, ocupando el alto de
+   las dos filas de la izquierda. */
 .gestion-calc-options {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(170px, 210px) minmax(0, 1fr);
   gap: 6px 18px;
   align-items: start;
   margin: 4px 0 12px;
@@ -4156,7 +4200,8 @@ th {
 }
 
 .gestion-calc-options-label {
-  grid-column: 1 / -1;
+  grid-column: 1;
+  grid-row: 1;
   font-size: 0.78rem;
   font-weight: 700;
   color: var(--muted);
@@ -4164,6 +4209,7 @@ th {
 
 .gestion-calc-options-controls {
   grid-column: 1;
+  grid-row: 2;
   display: grid;
   gap: 5px;
 }
@@ -4184,11 +4230,13 @@ th {
 }
 
 /* --- Nómina manual --- */
+/* Segunda columna del bloque, separada con una línea vertical en vez de la
+   horizontal que llevaba cuando iba debajo a todo el ancho. */
 .gestion-manual {
-  grid-column: 1 / -1;
-  border-top: 1px solid var(--line);
-  margin-top: 8px;
-  padding-top: 8px;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  border-left: 1px solid var(--line);
+  padding-left: 18px;
 }
 
 .gestion-manual-switch {
@@ -4283,6 +4331,24 @@ th {
 .gestion-manual-complementos .muted-text {
   margin: 0;
   font-size: 0.72rem;
+}
+
+/* Sin sitio para las dos columnas, la nómina manual vuelve debajo y recupera
+   el separador horizontal. */
+@media (max-width: 900px) {
+  .gestion-calc-options {
+    grid-template-columns: 1fr;
+  }
+
+  .gestion-manual {
+    grid-column: 1;
+    grid-row: auto;
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    margin-top: 8px;
+    padding-top: 8px;
+  }
 }
 
 /* Periodos solapados del mismo puesto: la nómina sale duplicada. */

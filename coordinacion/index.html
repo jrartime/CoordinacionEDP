@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260723-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-5" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-7" />
   </head>
   <body>
     <script>
@@ -828,6 +828,10 @@
                 <div class="results-toolbar section-summary-toolbar">
                   <div class="results-summary">
                     <p id="records-summary" class="summary-chip">Cargando registros...</p>
+                  </div>
+                  <div id="records-period-summary" class="records-period-summary hidden" aria-live="polite">
+                    <div id="records-period-summary-values" class="records-period-summary-values"></div>
+                    <p id="records-period-summary-theoretical" class="records-period-summary-theoretical"></p>
                   </div>
                   <div class="results-actions">
                     <button id="records-report-preview-button" type="button" class="secondary-button">
@@ -7734,6 +7738,6 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260723-2" defer></script>
-    <script src="./app.js?v=20260723-10" defer></script>
+    <script src="./app.js?v=20260723-12" defer></script>
   </body>
 </html>
