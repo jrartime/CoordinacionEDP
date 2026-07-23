@@ -306,7 +306,7 @@
   const conciliaSubtabs = Array.from(document.querySelectorAll(".concilia-subtabs"));
 
   function renderIcon(name) {
-    return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg#icon-${name}"></use></svg>`;
+    return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260723-1#icon-${name}"></use></svg>`;
   }
 
   // supabaseClient y currentSession gestionados por shared/supabase-client.js
@@ -2648,6 +2648,17 @@
 
     if (!formData.get("servicio_id")) {
       setStatus("Selecciona un servicio para la actividad.", "error");
+      return null;
+    }
+
+    const selectedService = activityServiceRows.find(
+      (service) => String(service.id) === String(formData.get("servicio_id"))
+    );
+    if (
+      !selectedService ||
+      String(selectedService.contrato_id) !== String(formData.get("contrato_id"))
+    ) {
+      setStatus("El servicio seleccionado no pertenece al contrato de la actividad.", "error");
       return null;
     }
 
@@ -7288,11 +7299,11 @@
       void handleActivitySubmit(event);
     });
     activityContrato?.addEventListener("change", () => {
-      renderActivityServiceOptions(activityServicio, activityContrato.value);
+      renderActivityServiceOptions(activityServicio, activityContrato.value, "");
       renderActivityContractScopedOptions(activityForm);
     });
     editActivityContrato?.addEventListener("change", () => {
-      renderActivityServiceOptions(editActivityServicio, editActivityContrato.value);
+      renderActivityServiceOptions(editActivityServicio, editActivityContrato.value, "");
       renderActivityContractScopedOptions(activityEditForm);
     });
     clearActivityFormButton.addEventListener("click", () => {

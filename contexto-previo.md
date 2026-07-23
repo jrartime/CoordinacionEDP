@@ -126,7 +126,33 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Opciones de nómina**: el antiguo bloque `Cálculo de nómina` pasa a llamarse `Opciones nómina`. `Base de cálculo` y `Ajuste de jornada` usan el tamaño/tipografía de los filtros compactos y se apilan en la columna izquierda, reservando la derecha para futuras opciones.
 - **Permisos y publicación**: los enlaces de edición comprueban las pestañas `personal`, `historial` y `registros`; los cambios están replicados en `publish/coordinacion/` con cache-busting de JS/CSS.
 
+## 11. Historial y reversión de Registros (23/07/2026)
+
+- **Auditoría persistente**: `supabase/tables/registros_cambios.sql` registra altas, ediciones y eliminaciones con las versiones anterior/nueva, fecha y usuario. El historial empieza a recopilar cambios cuando se aplica esta migración; no reconstruye versiones anteriores.
+- **Permisos**: la lectura se limita a los contratos visibles del perfil. La RPC `revertir_registro_cambio` es `SECURITY INVOKER`, por lo que conserva el RLS de escritura de `registros`.
+- **Reversión segura**: si el registro tiene una edición posterior, obliga a revertir primero el cambio más reciente para no sobrescribir trabajo nuevo.
+- **Panel de Registros**: `Últimos cambios` muestra las 50 operaciones más recientes y permite abrir el editor habitual o revertir la operación.
+- **Despliegue requerido**: ejecutar `supabase/tables/registros_cambios.sql` en el SQL Editor de Supabase antes de publicar la interfaz.
+- **Campos obligatorios**: `supabase/tables/registros_campos_obligatorios.sql` impide nuevas altas o modificaciones sin `fecha`, `personal_id`, `puesto_id` y `funcion_id`. Usa restricciones `NOT VALID` para no bloquear el despliegue por filas históricas incompletas; la interfaz marca esos cuatro controles como obligatorios y evita vaciarlos también en edición Excel, ficha, duplicado y asignación masiva.
+
+## 12. Nóminas persistidas: la Fase 6 y el registro laboral (23/07/2026)
+
+- **La nómina emitida se congela**: `supabase/tables/nominas.sql` crea `nominas` (cabecera con totales y los parámetros con los que se calculó) y `nomina_lineas` (el desglose entero). A partir de la emisión la nómina se **lee de esas tablas**, así que corregir después una tarifa de convenio, un complemento o una regla del motor ya no la mueve.
+- **Una nómina puede tener varios periodos, y un mes varias nóminas**: la clave de unicidad es `personal_id + empresa_id + periodo + historial_ids`. Dos contratos simultáneos son **una** nómina con dos periodos; dos vidas laborales que no se solapan son **dos** nóminas del mismo mes.
+- **No es solo el recibo, es el registro laboral**. Además de las líneas se guardan:
+  - `nomina_historiales`: la foto del contrato de cada periodo/puesto — convenio y sus tarifas, jornada, coeficiente, horas teóricas, modalidad de pago y ajuste realmente aplicado, flags de pluses y tipos de cotización.
+  - `nomina_horas`: las horas por puesto × tipo de hora × situación, con días, número de registros y **los ids de los registros de origen**. Incluye las excluidas (CAMB/LG) marcadas, para que el registro esté completo.
+  - `nomina_lineas` con `ambito`: `persona` son las líneas que suman; `puesto` es el mismo dinero explicado historial a historial. Cada línea lleva `cantidad`, `precio` y `codigo_nomina` además del detalle en prosa.
+- **Cambio en el motor**: `calcular_nomina_persona` devuelve ahora `cantidad` y `precio` (antes se perdían al agregar). Hubo que **dropear y recrear la función**: no se puede cambiar el tipo de retorno con `create or replace`. Los importes no varían. Al agregar entre puestos la cantidad se suma pero el precio solo se conserva si todos coinciden.
+- **Editar conceptos**: `emitir_nomina` acepta `p_lineas jsonb`; esas líneas sustituyen a las del motor y la nómina queda marcada `editada`. El expediente se congela igual — lo trabajado no se edita, solo lo que se paga por ello. Las filas de desglose (`detalle_de`) no entran en el editor.
+- **Reemitir y anular**: emitir sobre un periodo que ya tiene nómina viva da error salvo que se pida reemplazar; entonces la anterior queda `anulada` y la nueva la referencia con `sustituye_a`. Anular nunca borra: conserva el desglose como histórico.
+- **UI de Gestión**: botones `Emitir nómina` y `Editar nómina` en la tarjeta del total; bloque `Nóminas emitidas` donde cada una despliega el recibo congelado y, debajo, el expediente por periodo, con `Editar` y `Anular`. Todo limitado a admin, igual que la RLS de las cuatro tablas.
+- **Contador de horas**: el `Total:` del pivote pasa a `Total: 145,5 h de 140,8 h teóricas`. Las teóricas vienen de `get_gestion_horas_teoricas`, que suma `horas_teoricas_jornada` del tramo de cada periodo que solape el rango.
+- **Despliegue requerido**: ejecutar `supabase/tables/nominas.sql` y `supabase/tables/nomina_calculo_persona.sql` en el SQL Editor de Supabase. Ya están aplicados en el proyecto real; el fichero es la copia de referencia.
+
 ## Notas de entorno / convenciones
+
+- **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.
 
 - Sin framework de build; JS vanilla. `index.html` carga solo `app.js` + `concilia-integrated.js` (los `coordinacion/modules/*.js` son un refactor **no conectado / código muerto**).
 - Versionado de assets con `?v=YYYYMMDD-N` (bumpear al editar JS/CSS).

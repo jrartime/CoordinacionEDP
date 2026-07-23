@@ -1375,9 +1375,34 @@ td {
 }
 
 .side-panel .side-panel-header,
+.report-panel > .side-panel-header,
+.summary-panel > .side-panel-header,
 #activity-create-panel .side-panel-header,
 #activity-edit-panel .side-panel-header {
+  position: sticky;
+  top: -14px;
+  z-index: 12;
   gap: 8px;
+  margin: -14px -14px 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
+}
+
+.side-panel > form > .activity-actions {
+  position: sticky;
+  bottom: -14px;
+  z-index: 11;
+  margin: 8px -14px -14px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
+}
+
+.side-panel > form > .activity-actions > .danger-button:first-child {
+  margin-right: auto;
 }
 
 .side-panel .section-heading,

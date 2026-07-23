@@ -141,6 +141,12 @@ const RECORD_SELECT_COLUMNS = Array.from(
   new Set([...RECORD_COLUMNS.map((column) => column.key), ...RECORD_DETAIL_LABEL_COLUMNS])
 ).join(",");
 const RECORDS_LOAD_LIMIT = 5000;
+const RECORD_REQUIRED_FIELDS = new Map([
+  ["fecha", "Fecha"],
+  ["personal_id", "Personal"],
+  ["puesto_id", "Puesto"],
+  ["funcion_id", "Función"],
+]);
 const RECORD_EMPTY_FILTER_VALUE = "__record_filter_empty__";
 const RECORD_BULK_UNSET_VALUE = "__unset__";
 const RECORD_BULK_EMPTY_VALUE = "__empty__";
@@ -616,7 +622,7 @@ const isCoordinationPanel =
   window.location.pathname.split("/").filter(Boolean)[0] === "coordinacion";
 
 function renderIcon(name) {
-  return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260608-1#icon-${name}"></use></svg>`;
+  return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260723-1#icon-${name}"></use></svg>`;
 }
 
 function escapeButtonLabel(value) {
@@ -628,7 +634,13 @@ function escapeButtonLabel(value) {
 }
 
 function decorateActionButton(button, icon, mode = "icon-only") {
-  if (!button || button.dataset.iconDecorated === `${icon}:${mode}`) {
+  if (
+    !button ||
+    (
+      button.dataset.iconDecorated === `${icon}:${mode}` &&
+      button.querySelector(".button-icon")
+    )
+  ) {
     return;
   }
 
@@ -651,47 +663,103 @@ function decorateActionButton(button, icon, mode = "icon-only") {
   button.innerHTML = `${renderIcon(icon)}<span>${escapeButtonLabel(label)}</span>`;
 }
 
-function decorateStaticActionButtons() {
-  document.querySelectorAll("button").forEach((button) => {
-    const label = (button.textContent || "").trim().replace(/\s+/g, " ");
+function getActionButtonDecoration(button, label) {
+  const explicitIcon = button.dataset.icon;
+  if (explicitIcon) {
+    return { icon: explicitIcon, mode: button.dataset.iconMode || "icon-only" };
+  }
+
+  const id = button.id || "";
+  if (/previous|anterior/.test(id)) return { icon: "previous", mode: "icon-only" };
+  if (/next|siguiente/.test(id)) return { icon: "next", mode: "icon-only" };
+  if (/(add|assign)-/.test(id) || /-add-/.test(id)) return { icon: "move-right", mode: "icon-only" };
+  if (/(remove|unassign)-/.test(id) || /-remove-/.test(id)) return { icon: "move-left", mode: "icon-only" };
+
+  if (/^Cerrar(?:\b| panel)/i.test(label)) return { icon: "close", mode: "icon-only" };
+  if (/^(Nuevo|Nueva)\b/i.test(label)) return { icon: "new", mode: "icon-only" };
+  if (/^Editar\b/i.test(label)) return { icon: "edit", mode: "icon-only" };
+  if (/^Duplicar\b/i.test(label)) return { icon: "duplicate", mode: "icon-only" };
+  if (/^Actualizar\b/i.test(label)) return { icon: "refresh", mode: "icon-only" };
+  if (/^Recalcular\b/i.test(label)) return { icon: "refresh", mode: "icon-text" };
+  if (/^Copiar\b/i.test(label)) return { icon: "copy", mode: "icon-only" };
+  if (/^(Borrar|Eliminar)\b/i.test(label)) {
+    const mode = button.closest(".detail-actions, .activity-actions") ? "icon-text" : "icon-only";
+    return { icon: "delete", mode };
+  }
+  if (/^Guardar\b/i.test(label)) return { icon: "save", mode: "icon-text" };
+  if (/^(Exportar|Descargar)\b/i.test(label) || /^(PDF|Excel|CSV|PNG)$/i.test(label)) {
+    return { icon: "download", mode: "icon-text" };
+  }
+  if (/^Cargar\b/i.test(label)) return { icon: "upload", mode: "icon-text" };
+  if (/^Procesar\b/i.test(label)) return { icon: "upload", mode: "icon-text" };
+  if (/^(Aplicar|Confirmar|Insertar|Crear registro)\b/i.test(label)) {
+    return { icon: "check", mode: "icon-text" };
+  }
+  if (/^(Generar informe|Informe)\b/i.test(label)) return { icon: "report", mode: "icon-text" };
+  if (/^Generar registros\b/i.test(label)) return { icon: "calendar", mode: "icon-text" };
+  if (/^Ver registros\b/i.test(label)) return { icon: "calendar", mode: "icon-text" };
+  if (/^(Limpiar|Vaciar|Quitar todas)\b/i.test(label)) return { icon: "clear", mode: "icon-text" };
+  if (/^(Cancelar|Descartar)\b/i.test(label)) return { icon: "undo", mode: "icon-text" };
+  if (/^Revertir\b/i.test(label)) return { icon: "revert", mode: "icon-text" };
+  if (/^Archivar\b/i.test(label)) return { icon: "archive", mode: "icon-text" };
+  if (/^Ver PNG\b/i.test(label)) return { icon: "image", mode: "icon-text" };
+  if (/^(Incluir todas|Marcar todo)\b/i.test(label)) return { icon: "select-all", mode: "icon-text" };
+  if (/^Seleccionar\b/i.test(label)) return { icon: "select-all", mode: "icon-text" };
+  if (/^(Últimos cambios|Historial)\b/i.test(label)) return { icon: "history", mode: "icon-text" };
+  if (/^(Marcar sustitución|Quitar sustitución)\b/i.test(label)) {
+    return { icon: "users", mode: "icon-text" };
+  }
+  return null;
+}
+
+function decorateStaticActionButtons(root = document) {
+  const buttons = root.matches?.("button")
+    ? [root]
+    : Array.from(root.querySelectorAll?.("button") || []);
+  buttons.forEach((button) => {
+    const visibleLabel = (button.textContent || "").trim();
+    const preferAriaLabel =
+      Boolean(button.querySelector(".button-icon")) ||
+      Boolean(button.dataset.icon) ||
+      /^[<>]$/.test(visibleLabel);
+    const label = (
+      preferAriaLabel
+        ? button.getAttribute("aria-label") || visibleLabel
+        : visibleLabel || button.getAttribute("aria-label") || ""
+    )
+      .trim()
+      .replace(/\s+/g, " ");
     if (!label) {
       return;
     }
-
-    if (label === "Cerrar") {
-      decorateActionButton(button, "close", "icon-only");
-      return;
+    const decoration = getActionButtonDecoration(button, label);
+    if (decoration?.icon === "close") {
+      const panelTitle = button
+        .closest("aside, .detail-drawer, .side-panel, .report-panel, .summary-panel")
+        ?.querySelector("h2, h3, h4")
+        ?.textContent
+        ?.trim();
+      if (panelTitle) {
+        button.setAttribute("aria-label", `Cerrar panel: ${panelTitle}`);
+      }
     }
+    if (decoration) decorateActionButton(button, decoration.icon, decoration.mode);
+  });
+}
 
-    if (button.type === "button" && /^(Nuevo|Nueva)\b/.test(label)) {
-      decorateActionButton(button, "new", "icon-only");
-      return;
-    }
-
-    if (/^(Borrar|Eliminar)\b/.test(label)) {
-      decorateActionButton(button, "delete", "icon-only");
-      return;
-    }
-
-    if (/^Guardar\b/.test(label)) {
-      decorateActionButton(button, "save", "icon-text");
-      return;
-    }
-
-    if (/^(Exportar|Descargar)\b/.test(label)) {
-      decorateActionButton(button, "download", "icon-text");
-      return;
-    }
-
-    if (/^Cargar\b/.test(label)) {
-      decorateActionButton(button, "file", "icon-text");
-      return;
-    }
-
-    if (/^(Resumen|Informe)\b/.test(label)) {
-      decorateActionButton(button, "file", "icon-text");
+function observeDynamicActionButtons() {
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          decorateStaticActionButtons(node);
+        } else if (node.parentElement?.matches("button")) {
+          decorateStaticActionButtons(node.parentElement);
+        }
+      });
     }
   });
+  observer.observe(document.body, { childList: true, subtree: true });
 }
 
 const publicPanel = document.querySelector("#public-panel");
@@ -787,6 +855,12 @@ const recordsSummary = document.querySelector("#records-summary");
 const recordsEditModeInput = document.querySelector("#records-edit-mode");
 const recordsRefreshButton = document.querySelector("#records-refresh-button");
 const recordsClearFiltersButton = document.querySelector("#records-clear-filters-button");
+const recordsChangesButton = document.querySelector("#records-changes-button");
+const recordsChangesPanel = document.querySelector("#records-changes-panel");
+const recordsChangesOverlay = document.querySelector("#records-changes-overlay");
+const recordsChangesCloseButton = document.querySelector("#records-changes-close-button");
+const recordsChangesRefreshButton = document.querySelector("#records-changes-refresh-button");
+const recordsChangesTableBody = document.querySelector("#records-changes-table-body");
 const recordDetailPanel = document.querySelector("#record-detail-panel");
 const recordDetailOverlay = document.querySelector("#record-detail-overlay");
 const recordDetailForm = document.querySelector("#record-detail-form");
@@ -1222,6 +1296,7 @@ const contractServiceNameInput = document.querySelector("#contract-service-name"
 const contractServiceDescriptionInput = document.querySelector("#contract-service-description");
 const contractServiceActiveInput = document.querySelector("#contract-service-active");
 const contractServiceClearButton = document.querySelector("#contract-service-clear-button");
+const contractServiceDeleteButton = document.querySelector("#contract-service-delete-button");
 const contractServicesList = document.querySelector("#contract-services-list");
 const contractPersonalSection = document.querySelector("#contract-personal-section");
 const contractPersonalFilter = document.querySelector("#contract-personal-filter");
@@ -1385,6 +1460,7 @@ let currentControlSort = {
 };
 let recordsRows = [];
 let filteredRecordsRows = [];
+let recordsChangesRows = [];
 let selectedRecordId = "";
 let recordsSelectionMode = false;
 let selectedRecordIds = new Set();
@@ -10571,13 +10647,19 @@ function renderPersonalComplementosList() {
             <span>${escapeHtml(valor)} · ${escapeHtml(vigencia)}${escapeHtml(prorrateaTag)}</span>
           </div>
           <div class="action-buttons">
-            <button type="button" class="secondary-button" data-personal-complemento-edit="${escapeHtml(row.id)}">
+            <button
+              type="button"
+              class="secondary-button"
+              data-icon="edit"
+              aria-label="Editar complemento: ${escapeHtml(catalogo?.nombre || `Complemento ${row.complemento_id}`)}"
+              data-personal-complemento-edit="${escapeHtml(row.id)}"
+            >
               Editar
             </button>
             <button
               type="button"
               class="danger-button tooltip-button"
-              aria-label="Eliminar complemento"
+              aria-label="Eliminar complemento: ${escapeHtml(catalogo?.nombre || `Complemento ${row.complemento_id}`)}"
               data-personal-complemento-delete="${escapeHtml(row.id)}"
             >
               ${renderIcon("delete")}
@@ -11834,6 +11916,7 @@ function resetContractServiceForm() {
   if (contractServiceActiveInput) {
     contractServiceActiveInput.checked = true;
   }
+  contractServiceDeleteButton?.classList.add("hidden");
 }
 
 function syncContractNightFieldsState() {
@@ -12038,6 +12121,7 @@ function editContractService(serviceId) {
   if (contractServiceActiveInput) {
     contractServiceActiveInput.checked = Boolean(service.activo);
   }
+  contractServiceDeleteButton?.classList.remove("hidden");
   contractServiceNameInput?.focus();
 }
 
@@ -12054,6 +12138,9 @@ async function deleteContractService(serviceId) {
     return;
   }
 
+  if (String(contractServiceIdInput?.value || "") === String(serviceId)) {
+    resetContractServiceForm();
+  }
   await loadContractsManagement();
   renderContractServicesList();
   setContractsStatus("Servicio eliminado correctamente.", "success");
@@ -13561,6 +13648,14 @@ function parseRecordFieldValue(rawValue, column) {
   return String(rawValue);
 }
 
+function validateRecordRequiredFields(record) {
+  for (const [field, label] of RECORD_REQUIRED_FIELDS) {
+    if (record?.[field] == null || record[field] === "") {
+      throw new Error(`El campo ${label} es obligatorio.`);
+    }
+  }
+}
+
 function normalizeRecordComparableValue(value, column) {
   const parsed = parseRecordFieldValue(value, column);
   if (parsed === null || parsed === undefined) {
@@ -13736,6 +13831,8 @@ function renderRecordEditableControl(row, column) {
       ? ""
       : `<option value="${escapeHtml(current)}" selected>${escapeHtml(currentLabel || current)}</option>`;
     return `<select ${commonAttrs} data-record-lazy-options="true" ${
+      RECORD_REQUIRED_FIELDS.has(column.key) ? "required" : ""
+    } ${
       column.readonly ? "disabled" : ""
     }><option value="">-</option>${currentOption}</select>`;
   }
@@ -13765,6 +13862,8 @@ function renderRecordEditableControl(row, column) {
         : value ?? "";
 
   return `<input ${commonAttrs} type="${inputType}"${step} value="${escapeHtml(inputValue)}" ${
+    RECORD_REQUIRED_FIELDS.has(column.key) ? "required" : ""
+  } ${
     column.readonly ? "readonly" : ""
   } />`;
 }
@@ -15266,6 +15365,10 @@ async function applyRecordsBulkAssignment() {
     : config.type === "number" ? (Number(rawNewValue) || null)
     : ["select"].includes(config.type) ? (Number(rawNewValue) || rawNewValue || null)
     : rawNewValue || null;
+  if (RECORD_REQUIRED_FIELDS.has(field) && newValue == null) {
+    setStatus(`El campo ${RECORD_REQUIRED_FIELDS.get(field)} es obligatorio y no se puede vaciar.`, "error");
+    return;
+  }
 
   const currentLabel = normalizeRecordBulkValue(getRecordBulkControlValue("current"), config);
   const newLabel = rawNewValue === RECORD_BULK_EMPTY_VALUE ? "Vacío" : normalizeRecordBulkValue(rawNewValue, config);
@@ -15528,6 +15631,7 @@ async function withRecordSituacionSideEffects(row, patch) {
 async function saveRecordPatch(recordId, patch) {
   const row = recordsRows.find((item) => String(item.id) === String(recordId));
   const finalPatch = await withRecordSituacionSideEffects(row, patch);
+  validateRecordRequiredFields({ ...(row || {}), ...finalPatch });
 
   const supabase = await getSupabaseClient();
   const { error } = await supabase.from("registros").update(finalPatch).eq("id", recordId);
@@ -15681,15 +15785,47 @@ async function loadRecordsFacets(filters) {
 
 function renderRecordRelationSelect(name, value, options, readonly) {
   const current = value ?? "";
+  const required = RECORD_REQUIRED_FIELDS.has(name);
   let html = `<option value="">— Ninguno —</option>`;
   html += (options || [])
     .map((o) => `<option value="${escapeHtml(o.value)}" ${String(o.value) === String(current) ? "selected" : ""}>${escapeHtml(o.label)}</option>`)
     .join("");
-  return `<select name="${name}" ${readonly ? "disabled" : ""}>${html}</select>`;
+  return `<select name="${name}" ${required ? "required" : ""} ${readonly ? "disabled" : ""}>${html}</select>`;
 }
 
 function getRecordRelationOptionsForContract(field, contractId) {
-  const catalog = recordRelationOptionsCache[field] || [];
+  let catalog = field === "contrato_id" && Array.isArray(recordsFilterContratos)
+    ? recordsFilterContratos
+    : recordRelationOptionsCache[field] || [];
+  if (field === "servicio_id") {
+    if (contractId == null || contractId === "") {
+      return [];
+    }
+    catalog = catalog.filter(
+      (option) => String(option.contrato_id ?? "") === String(contractId)
+    );
+  }
+  // Un registro histórico puede pertenecer a un contrato ya inactivo o que el
+  // perfil ha dejado de tener asignado. Se conserva solo su valor actual para
+  // no borrarlo accidentalmente al editar otro campo; el resto de opciones
+  // procede exclusivamente de get_records_filter_contratos().
+  if (
+    field === "contrato_id" &&
+    contractId != null &&
+    contractId !== "" &&
+    !catalog.some((option) => String(option.value) === String(contractId))
+  ) {
+    const current = (recordRelationOptionsCache.contrato_id || []).find(
+      (option) => String(option.value) === String(contractId)
+    );
+    catalog = [
+      {
+        value: contractId,
+        label: `${current?.label || `Contrato ${contractId}`} (actual, no disponible)`,
+      },
+      ...catalog,
+    ];
+  }
   if (contractId == null || contractId === "") return catalog;
 
   const assignedValues = new Set();
@@ -15766,8 +15902,161 @@ function renderRecordDetailForm(row) {
 
     return `<label>${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
       inputValue
-    )}" ${column.readonly ? "readonly" : ""} /></label>`;
+    )}" ${RECORD_REQUIRED_FIELDS.has(column.key) ? "required" : ""} ${
+      column.readonly ? "readonly" : ""
+    } /></label>`;
   }).join("");
+}
+
+function getRecordChangeRelationLabel(field, value) {
+  if (value == null || value === "") return "—";
+  const option = (recordRelationOptionsCache[field] || []).find(
+    (item) => String(item.value) === String(value)
+  );
+  return option?.label || `#${value}`;
+}
+
+function getRecordChangeSnapshot(change) {
+  return change.nuevo || change.anterior || {};
+}
+
+function getRecordChangeFieldCount(change) {
+  if (change.accion !== "update") return null;
+  const previous = change.anterior || {};
+  const next = change.nuevo || {};
+  const ignored = new Set(["control"]);
+  return new Set([...Object.keys(previous), ...Object.keys(next)])
+    .size
+    ? [...new Set([...Object.keys(previous), ...Object.keys(next)])].filter(
+        (key) => !ignored.has(key) && JSON.stringify(previous[key]) !== JSON.stringify(next[key])
+      ).length
+    : 0;
+}
+
+function formatRecordChangeTimestamp(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : date.toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+}
+
+function renderRecordsChanges() {
+  if (!recordsChangesTableBody) return;
+  if (!recordsChangesRows.length) {
+    recordsChangesTableBody.innerHTML =
+      '<tr><td colspan="8" class="empty-state">Todavía no hay cambios registrados.</td></tr>';
+    return;
+  }
+
+  const actionLabels = { insert: "Alta", update: "Edición", delete: "Eliminación" };
+  recordsChangesTableBody.innerHTML = recordsChangesRows.map((change) => {
+    const snapshot = getRecordChangeSnapshot(change);
+    const fieldCount = getRecordChangeFieldCount(change);
+    const actionDetail = fieldCount == null ? "" : ` · ${fieldCount} ${fieldCount === 1 ? "campo" : "campos"}`;
+    const canEdit = change.accion !== "delete";
+    return `
+      <tr>
+        <td>${escapeHtml(formatRecordChangeTimestamp(change.cambiado_en))}</td>
+        <td><span class="records-change-badge records-change-badge-${escapeHtml(change.accion)}">${escapeHtml(
+          actionLabels[change.accion] || change.accion
+        )}</span>${escapeHtml(actionDetail)}</td>
+        <td>#${escapeHtml(change.registro_id)}</td>
+        <td>${escapeHtml(formatDisplayDate(snapshot.fecha) || "—")}</td>
+        <td>${escapeHtml(getRecordChangeRelationLabel("personal_id", snapshot.personal_id))}</td>
+        <td>
+          ${escapeHtml(getRecordChangeRelationLabel("contrato_id", snapshot.contrato_id))}
+          <br><span class="muted-text">${escapeHtml(
+            getRecordChangeRelationLabel("servicio_id", snapshot.servicio_id)
+          )}</span>
+        </td>
+        <td>${escapeHtml(change.cambiado_por_email || "Usuario no identificado")}</td>
+        <td>
+          <div class="records-change-actions">
+            <button type="button" class="secondary-button compact-button"${canEdit ? ` data-record-change-edit="${escapeHtml(change.registro_id)}"` : " disabled"}>Editar</button>
+            <button type="button" class="danger-button compact-button" data-record-change-revert="${escapeHtml(change.id)}">Revertir</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function loadRecordsChanges() {
+  if (!recordsChangesTableBody) return;
+  recordsChangesTableBody.innerHTML =
+    '<tr><td colspan="8" class="empty-state">Cargando últimos cambios...</td></tr>';
+  try {
+    await loadRecordRelationOptions();
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("registro_cambios")
+      .select("id, registro_id, accion, anterior, nuevo, cambiado_en, cambiado_por_email")
+      .order("cambiado_en", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    recordsChangesRows = data || [];
+    renderRecordsChanges();
+  } catch (error) {
+    recordsChangesRows = [];
+    recordsChangesTableBody.innerHTML = `<tr><td colspan="8" class="empty-state">No se pudo cargar el historial: ${escapeHtml(
+      error.message
+    )}</td></tr>`;
+  }
+}
+
+function openRecordsChangesPanel() {
+  recordsChangesPanel?.classList.remove("hidden");
+  void loadRecordsChanges();
+}
+
+function closeRecordsChangesPanel() {
+  recordsChangesPanel?.classList.add("hidden");
+}
+
+async function editRecordFromChange(recordId) {
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("registros")
+      .select(RECORD_SELECT_COLUMNS)
+      .eq("id", recordId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error("El registro ya no existe o no está disponible para tu perfil.");
+    recordsRows = [data, ...recordsRows.filter((row) => String(row.id) !== String(recordId))];
+    closeRecordsChangesPanel();
+    await openRecordDetail(recordId);
+  } catch (error) {
+    setStatus(`No se pudo abrir el registro: ${error.message}`, "error");
+  }
+}
+
+async function revertRecordChange(changeId) {
+  const change = recordsChangesRows.find((item) => String(item.id) === String(changeId));
+  if (!change) return;
+  const actionText = {
+    insert: "eliminar el registro que se dio de alta",
+    update: "restaurar los valores anteriores",
+    delete: "recuperar el registro eliminado",
+  }[change.accion];
+  if (!confirm(`¿Quieres ${actionText || "revertir este cambio"} del registro ${change.registro_id}?`)) {
+    return;
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.rpc("revertir_registro_cambio", {
+      p_cambio_id: change.id,
+    });
+    if (error) throw error;
+    await loadRecords({ force: true });
+    await loadRecordsChanges();
+    setStatus(`Cambio del registro ${change.registro_id} revertido.`, "success");
+  } catch (error) {
+    setStatus(`No se pudo revertir el cambio: ${error.message}`, "error");
+  }
 }
 
 async function openRecordDetail(recordId) {
@@ -15799,6 +16088,7 @@ async function closeRecordDetail(skipSave = false) {
         setStatus("Registro guardado.", "success");
       } catch (error) {
         setStatus(`No se pudo guardar el registro: ${error.message}`, "error");
+        return;
       }
     }
   }
@@ -15871,6 +16161,7 @@ async function duplicateRecordDetail() {
   }
 
   try {
+    validateRecordRequiredFields(insertData);
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase.from("registros").insert(insertData).select("id").single();
     if (error) throw error;
@@ -16620,6 +16911,16 @@ function collectRecordDetailPayload() {
     }
   });
 
+  if (Object.prototype.hasOwnProperty.call(payload, "contrato_id")) {
+    const selectedService = parseRecordFieldValue(
+      formData.get("servicio_id"),
+      getRecordColumn("servicio_id")
+    );
+    if (!recordServiceMatchesContract(selectedService, payload.contrato_id)) {
+      payload.servicio_id = null;
+    }
+  }
+
   if (
     Object.prototype.hasOwnProperty.call(payload, "hora_inicio") ||
     Object.prototype.hasOwnProperty.call(payload, "hora_fin")
@@ -16710,6 +17011,9 @@ const gestionPivotBody = document.querySelector("#gestion-pivot-body");
 const gestionNominaBlock = document.querySelector("#gestion-nomina-block");
 const gestionNominaHint = document.querySelector("#gestion-nomina-hint");
 const gestionNominaList = document.querySelector("#gestion-nomina-list");
+const gestionNominasEmitidasBlock = document.querySelector("#gestion-nominas-emitidas-block");
+const gestionNominasEmitidasHint = document.querySelector("#gestion-nominas-emitidas-hint");
+const gestionNominasEmitidasList = document.querySelector("#gestion-nominas-emitidas-list");
 const gestionFilterEmpresa = document.querySelector("#gestion-filter-empresa");
 // Vacío = cada convenio manda con su base_calculo. Elegir un modo lo fuerza para
 // todos los puestos del cálculo, para poder comparar sin tocar las tarifas.
@@ -16734,6 +17038,7 @@ const gestionEditPersonalButton = document.querySelector("#gestion-edit-personal
 const gestionPersonalPanel = document.querySelector("#gestion-personal-panel");
 const gestionPersonalOverlay = document.querySelector("#gestion-personal-overlay");
 const gestionPersonalCloseButton = document.querySelector("#gestion-personal-close-button");
+const gestionPersonalDismissButton = document.querySelector("#gestion-personal-dismiss-button");
 const gestionPersonalContent = document.querySelector("#gestion-personal-content");
 const gestionRecordsPanel = document.querySelector("#gestion-records-panel");
 const gestionRecordsBackdrop = document.querySelector("#gestion-records-backdrop");
@@ -16994,6 +17299,26 @@ function renderGestionHistorial(rows) {
     .join("");
 }
 
+// Horas realmente registradas y horas que tocaba trabajar según la jornada
+// contratada de los periodos del intervalo. Llegan por caminos distintos (el
+// pivote de registros y get_gestion_horas_teoricas), así que se guardan aparte
+// y el contador se recompone cuando cambia cualquiera de las dos.
+let gestionHorasReales = 0;
+let gestionHorasTeoricas = null;
+
+function updateGestionTotalHoras() {
+  if (!gestionTotalHoras) {
+    return;
+  }
+  if (gestionHorasTeoricas == null) {
+    gestionTotalHoras.textContent = `Total: ${formatGestionHoras(gestionHorasReales) || "0"} h`;
+    return;
+  }
+  gestionTotalHoras.textContent =
+    `Total: ${formatGestionHoras(gestionHorasReales) || "0"} h` +
+    ` de ${formatGestionHoras(gestionHorasTeoricas) || "0"} h teóricas`;
+}
+
 function renderGestionRegistros(rows) {
   // Filas = puesto × situación; columnas = tipo de hora; celdas = suma de horas.
   const tipoCols = new Map();
@@ -17038,9 +17363,8 @@ function renderGestionRegistros(rows) {
       left.situacion.localeCompare(right.situacion, "es", { sensitivity: "base" })
   );
 
-  if (gestionTotalHoras) {
-    gestionTotalHoras.textContent = `Total: ${formatGestionHoras(grandTotal) || "0"} h`;
-  }
+  gestionHorasReales = grandTotal;
+  updateGestionTotalHoras();
 
   if (gestionPivotHead) {
     gestionPivotHead.innerHTML = `<tr><th>Puesto</th><th>Situación</th>${columns
@@ -17086,9 +17410,12 @@ function renderGestionEmpty(message) {
   renderGestionHistorial([]);
   renderGestionRegistros([]);
   renderGestionNomina([], "");
+  void loadGestionNominasEmitidas("", "", "", null);
   if (gestionSummary) {
     gestionSummary.textContent = message;
   }
+  gestionHorasReales = 0;
+  gestionHorasTeoricas = null;
   if (gestionTotalHoras) {
     gestionTotalHoras.textContent = "Total: —";
   }
@@ -17256,6 +17583,9 @@ function onGestionNominaSelectionChange() {
 
 function renderGestionNomina(rows, personalId, desde, hasta) {
   gestionNominaCache.clear();
+  // Un editor abierto sobre el cálculo anterior ya no corresponde a lo que se
+  // está mirando.
+  cerrarGestionNominaEditor();
   if (!gestionNominaBlock) {
     return;
   }
@@ -17310,6 +17640,17 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
         <span class="gestion-nomina-card-periodo">nómina completa</span>
       </button>
       <div class="gestion-nomina-detail hidden" data-gestion-nomina-detail="total"></div>
+      ${
+        currentUserIsAccessAdmin
+          ? `<div class="gestion-nomina-emitir">
+              <button type="button" class="secondary-button" data-gestion-nomina-emitir="${escapeHtml(personalId)}">Emitir nómina</button>
+              <!-- icon-text: la decoración automática deja "Editar…" en icono
+                   suelto, y aquí tiene que leerse junto a "Emitir nómina". -->
+              <button type="button" class="secondary-button" data-icon="edit" data-icon-mode="icon-text" data-gestion-nomina-editar="${escapeHtml(personalId)}">Editar nómina</button>
+              <span class="muted-text">Congela este cálculo con los periodos marcados y las opciones actuales.</span>
+            </div>`
+          : ""
+      }
     </div>`;
 }
 
@@ -17483,6 +17824,683 @@ async function toggleGestionNomina(historialId) {
   }
 }
 
+// ============================================================================
+// Nóminas emitidas (Fase 6). Ver supabase/tables/nominas.sql.
+//
+// Emitir congela el cálculo: la cabecera guarda totales y los parámetros usados,
+// y `nomina_lineas` el desglose entero tal como salió ese día. A partir de ahí
+// la nómina se LEE de esas tablas, así que corregir después una tarifa de
+// convenio o un complemento ya no la mueve. Todo admin-only, como el resto de
+// importes salariales.
+// ============================================================================
+
+// Desgloses congelados ya leídos (nominaId -> filas), para no releerlos al
+// plegar y desplegar. Se vacía al recargar la lista.
+const gestionNominasEmitidasCache = new Map();
+
+// Mismos parámetros que usa la tarjeta del total, para que lo emitido sea
+// exactamente lo que se está viendo en pantalla.
+function getGestionNominaEmitirPayload(personalId) {
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual } = getGestionFilters();
+  return {
+    p_personal_id: Number(personalId),
+    p_desde: desde || null,
+    p_hasta: hasta || null,
+    p_empresa_id: empresaId ? Number(empresaId) : null,
+    p_base_calculo: baseCalculo || null,
+    p_ajuste_jornada: ajusteJornada || null,
+    p_historial_ids: getGestionNominaSelectedIds().map(Number),
+    p_manual_importe: manual ? manual.importe : null,
+    p_manual_modo: manual ? manual.modo : null,
+    p_manual_pagas_incluidas: manual ? manual.pagasIncluidas : false,
+    p_manual_complementos: manual ? manual.complementos : null,
+    p_manual_transporte: manual ? manual.transporte : false,
+  };
+}
+
+async function emitirGestionNomina(personalId, button) {
+  if (!gestionNominaSelectedIds.size) {
+    window.alert("Marca al menos un periodo para emitir la nómina.");
+    return;
+  }
+  const payload = getGestionNominaEmitirPayload(personalId);
+  if (!payload.p_desde || !payload.p_hasta) {
+    window.alert("Selecciona el intervalo de fechas de la nómina.");
+    return;
+  }
+  const original = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Emitiendo…";
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    let { data, error } = await supabase.rpc("emitir_nomina", payload);
+    // Ya hay una viva para el mismo periodo y los mismos historiales: la función
+    // no pisa nada por su cuenta, hay que pedirlo. La anterior queda anulada con
+    // rastro (sustituye_a), no se borra.
+    if (error && /Ya hay una nómina emitida/.test(error.message || "")) {
+      if (!window.confirm(`${error.message}\n\n¿Emitir de nuevo y anular la anterior?`)) {
+        return;
+      }
+      ({ data, error } = await supabase.rpc("emitir_nomina", { ...payload, p_reemplazar: true }));
+    }
+    if (error) {
+      throw error;
+    }
+    await loadGestionNominasEmitidas(personalId, payload.p_desde, payload.p_hasta, payload.p_empresa_id);
+    gestionNominasEmitidasBlock?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    // El aviso va junto al botón: el #status-message general cuelga del final de
+    // la página y pasa desapercibido.
+    const aviso = button?.parentElement?.querySelector(".muted-text");
+    if (aviso) {
+      aviso.textContent = `Nómina #${data} emitida y congelada.`;
+    }
+    setStatus(`Nómina #${data} emitida.`, "success");
+  } catch (error) {
+    window.alert(`No se pudo emitir la nómina: ${error.message}`);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = original || "Emitir nómina";
+    }
+  }
+}
+
+// ============================================================================
+// Editor de conceptos de la nómina
+//
+// Parte de lo que calculó el motor (o de una nómina ya emitida) y deja tocar
+// cada línea a mano: importes, cantidades, precios, tipos de retención, añadir
+// conceptos que el convenio no contempla o quitar los que no correspondan. Al
+// guardar se emite con esas líneas (p_lineas de emitir_nomina) y la nómina
+// queda marcada como `editada`.
+//
+// Las filas de desglose (detalle_de, los componentes del prorrateo) NO entran
+// en el editor: son una explicación de su línea padre y no habría forma de
+// mantenerlas coherentes si se edita el padre a mano.
+// ============================================================================
+
+const gestionNominaEditorPanel = document.querySelector("#gestion-nomina-editor");
+let gestionNominaEditor = null;
+
+// Qué base usa cada deducción, por el `orden` que emite el motor: comunes y MEI
+// sobre la de contingencias comunes, desempleo y formación sobre la de
+// profesionales, IRPF sobre la suya. Ver nomina_calculo_persona.sql.
+const GESTION_NOMINA_BASE_DE_DEDUCCION = { 700: 600, 701: 600, 702: 601, 703: 601, 704: 602 };
+
+async function abrirGestionNominaEditor(personalId, nominaId = null) {
+  if (!gestionNominaEditorPanel) {
+    return;
+  }
+  gestionNominaEditorPanel.classList.remove("hidden");
+  gestionNominaEditorPanel.innerHTML = '<p class="muted-text">Preparando el editor…</p>';
+  try {
+    let lineas;
+    if (nominaId) {
+      const supabase = await getSupabaseClient();
+      const { data, error } = await supabase
+        .from("nomina_lineas")
+        .select("orden, seccion, concepto, detalle, base, tipo, cantidad, precio, importe, detalle_de")
+        .eq("nomina_id", Number(nominaId))
+        .eq("ambito", "persona")
+        .order("orden");
+      if (error) throw error;
+      lineas = data || [];
+    } else {
+      lineas = await obtenerGestionNominaTotal(personalId);
+    }
+    const filtradas = lineas
+      .filter((row) => !row.detalle_de)
+      .map((row) => ({ ...row, _manual: false }));
+    if (!filtradas.length) {
+      gestionNominaEditorPanel.innerHTML =
+        '<p class="empty-state">No hay ninguna línea que editar.</p>';
+      return;
+    }
+    gestionNominaEditor = { personalId: String(personalId), nominaId, lineas: filtradas };
+    renderGestionNominaEditor();
+    gestionNominaEditorPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (error) {
+    gestionNominaEditorPanel.innerHTML = `<p class="panel-status-message error">No se pudo abrir el editor: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+// El total de la persona con los filtros actuales, de la caché si ya se calculó.
+async function obtenerGestionNominaTotal(personalId) {
+  if (gestionNominaCache.has("total")) {
+    return gestionNominaCache.get("total");
+  }
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual } = getGestionFilters();
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase.rpc("calcular_nomina_persona", {
+    p_personal_id: Number(personalId),
+    p_desde: desde || null,
+    p_hasta: hasta || null,
+    p_empresa_id: empresaId ? Number(empresaId) : null,
+    p_base_calculo: baseCalculo || null,
+    p_ajuste_jornada: ajusteJornada || null,
+    p_historial_ids: getGestionNominaSelectedIds().map(Number),
+    p_manual_importe: manual ? manual.importe : null,
+    p_manual_modo: manual ? manual.modo : null,
+    p_manual_pagas_incluidas: manual ? manual.pagasIncluidas : false,
+    p_manual_complementos: manual ? manual.complementos : null,
+    p_manual_transporte: manual ? manual.transporte : false,
+  });
+  if (error) throw error;
+  gestionNominaCache.set("total", data || []);
+  return data || [];
+}
+
+function cerrarGestionNominaEditor() {
+  gestionNominaEditor = null;
+  if (gestionNominaEditorPanel) {
+    gestionNominaEditorPanel.classList.add("hidden");
+    gestionNominaEditorPanel.innerHTML = "";
+  }
+}
+
+// Rehace los importes derivados: bruto, bases, deducciones y líquido. Respeta
+// los que se hayan tecleado a mano (_manual): si alguien fija una retención,
+// cambiar un devengo no se la debe pisar.
+function recalcularGestionNominaEditor() {
+  if (!gestionNominaEditor) {
+    return;
+  }
+  const lineas = gestionNominaEditor.lineas;
+  const num = (value) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const porOrden = (orden) => lineas.find((row) => Number(row.orden) === orden);
+
+  const bruto = lineas
+    .filter((row) => row.seccion === "devengo")
+    .reduce((sum, row) => sum + num(row.importe), 0);
+  // La prorrata no devengada no suma al bruto pero sí a la base de la S.S.
+  const soloCotiza = num(porOrden(599)?.importe);
+
+  for (const row of lineas) {
+    if (row.seccion !== "base" || row._manual) continue;
+    const orden = Number(row.orden);
+    if (orden === 600 || orden === 601) {
+      row.importe = round2(bruto + soloCotiza);
+    } else if (orden === 602) {
+      row.importe = round2(bruto);
+    }
+  }
+
+  let deducciones = 0;
+  for (const row of lineas) {
+    if (row.seccion !== "deduccion") continue;
+    const baseOrden = GESTION_NOMINA_BASE_DE_DEDUCCION[Number(row.orden)];
+    const base = baseOrden ? num(porOrden(baseOrden)?.importe) : num(row.base);
+    row.base = base;
+    if (!row._manual) {
+      row.importe = round2(base * num(row.tipo));
+    }
+    deducciones += num(row.importe);
+  }
+
+  const totalBruto = porOrden(500);
+  if (totalBruto) totalBruto.importe = round2(bruto);
+  const totalDed = porOrden(800);
+  if (totalDed) totalDed.importe = round2(deducciones);
+  const liquido = porOrden(810);
+  if (liquido) liquido.importe = round2(bruto - deducciones);
+
+  return { bruto: round2(bruto), deducciones: round2(deducciones), liquido: round2(bruto - deducciones) };
+}
+
+function round2(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function renderGestionNominaEditor() {
+  if (!gestionNominaEditorPanel || !gestionNominaEditor) {
+    return;
+  }
+  // El servidor emite las líneas en varios bloques, así que se ordenan por
+  // `orden` antes de pintarlas — igual que hace renderGestionNominaTable. Se
+  // ordena el propio estado para que los índices de los inputs sigan valiendo
+  // y para que un concepto recién añadido salte a su sitio.
+  gestionNominaEditor.lineas.sort((left, right) => Number(left.orden) - Number(right.orden));
+  const totales = recalcularGestionNominaEditor();
+  const { desde, hasta } = getGestionFilters();
+  const lineas = gestionNominaEditor.lineas;
+
+  const campo = (idx, campoNombre, valor, extra = "") =>
+    `<input type="${campoNombre === "concepto" || campoNombre === "detalle" ? "text" : "number"}"
+       ${campoNombre === "concepto" || campoNombre === "detalle" ? "" : 'step="0.0001"'}
+       data-nomina-edit="${idx}" data-nomina-campo="${campoNombre}"
+       value="${escapeHtml(valor ?? "")}" ${extra} />`;
+
+  const filas = lineas
+    .map((row, idx) => {
+      const seccion = String(row.seccion || "");
+      const calculada = seccion === "total";
+      const esDeduccion = seccion === "deduccion";
+      return `<tr class="gestion-nomina-edit-row gestion-nomina-${escapeHtml(seccion)}">
+        <td>${calculada ? escapeHtml(row.concepto || "") : campo(idx, "concepto", row.concepto)}</td>
+        <td>${calculada ? escapeHtml(row.detalle || "") : campo(idx, "detalle", row.detalle)}</td>
+        <td class="num">${calculada || esDeduccion ? "" : campo(idx, "cantidad", row.cantidad)}</td>
+        <td class="num">${calculada || esDeduccion ? "" : campo(idx, "precio", row.precio)}</td>
+        <td class="num">${esDeduccion ? campo(idx, "tipo", row.tipo) : ""}</td>
+        <td class="num">${calculada ? `<strong data-nomina-total="${escapeHtml(row.orden)}">${escapeHtml(formatGestionImporte(row.importe))}</strong>` : campo(idx, "importe", row.importe)}</td>
+        <td class="num">${
+          seccion === "devengo"
+            ? `<button type="button" class="gestion-nomina-edit-quitar" data-nomina-quitar="${idx}" title="Quitar este concepto">✕</button>`
+            : ""
+        }</td>
+      </tr>`;
+    })
+    .join("");
+
+  gestionNominaEditorPanel.innerHTML = `
+    <div class="gestion-nomina-editor-head">
+      <h4>${gestionNominaEditor.nominaId ? `Editar la nómina #${escapeHtml(gestionNominaEditor.nominaId)}` : "Editar nómina"}</h4>
+      <span class="muted-text">${escapeHtml(formatGestionDate(desde))} – ${escapeHtml(formatGestionDate(hasta))}</span>
+    </div>
+    <p class="muted-text gestion-nomina-editor-ayuda">
+      Los devengos se editan libremente. Bases, deducciones y totales se recalculan solos;
+      si tecleas un importe a mano, se respeta y deja de recalcularse. El registro de horas y
+      las condiciones del contrato no se tocan: se congelan tal como fueron.
+    </p>
+    <div class="gestion-nomina-editor-tabla">
+      <table class="records-table gestion-compact-table">
+        <thead><tr>
+          <th>Concepto</th><th>Detalle</th><th class="num">Cantidad</th>
+          <th class="num">Precio</th><th class="num">Tipo</th><th class="num">Importe</th><th></th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>
+    <div class="gestion-nomina-editor-acciones">
+      <button type="button" class="secondary-button" data-nomina-anadir>+ Añadir concepto</button>
+      <label class="filter-field gestion-nomina-editor-notas">
+        Notas
+        <input type="text" id="gestion-nomina-editor-notas" placeholder="Por qué se ajusta a mano" />
+      </label>
+      <span class="gestion-nomina-editor-resumen">
+        Bruto ${escapeHtml(formatGestionImporte(totales.bruto))} ·
+        deducciones ${escapeHtml(formatGestionImporte(totales.deducciones))} ·
+        <strong>líquido ${escapeHtml(formatGestionImporte(totales.liquido))}</strong>
+      </span>
+      <button type="button" class="primary-button" data-nomina-guardar>Emitir nómina editada</button>
+      <button type="button" class="secondary-button" data-nomina-cancelar>Cancelar</button>
+    </div>`;
+}
+
+// Al teclear solo se refrescan los números derivados: repintar la tabla entera
+// haría perder el foco a cada pulsación.
+function actualizarGestionNominaEditorTotales() {
+  const totales = recalcularGestionNominaEditor();
+  if (!totales || !gestionNominaEditorPanel) {
+    return;
+  }
+  for (const row of gestionNominaEditor.lineas) {
+    const idx = gestionNominaEditor.lineas.indexOf(row);
+    if (row.seccion === "total") {
+      const celda = gestionNominaEditorPanel.querySelector(`[data-nomina-total="${row.orden}"]`);
+      if (celda) celda.textContent = formatGestionImporte(row.importe);
+      continue;
+    }
+    if ((row.seccion === "base" || row.seccion === "deduccion") && !row._manual) {
+      const input = gestionNominaEditorPanel.querySelector(
+        `[data-nomina-edit="${idx}"][data-nomina-campo="importe"]`
+      );
+      if (input && document.activeElement !== input) {
+        input.value = row.importe ?? "";
+      }
+    }
+  }
+  const resumen = gestionNominaEditorPanel.querySelector(".gestion-nomina-editor-resumen");
+  if (resumen) {
+    resumen.innerHTML = `Bruto ${escapeHtml(formatGestionImporte(totales.bruto))} ·
+      deducciones ${escapeHtml(formatGestionImporte(totales.deducciones))} ·
+      <strong>líquido ${escapeHtml(formatGestionImporte(totales.liquido))}</strong>`;
+  }
+}
+
+async function guardarGestionNominaEditor(button) {
+  if (!gestionNominaEditor) {
+    return;
+  }
+  recalcularGestionNominaEditor();
+  const payload = getGestionNominaEmitirPayload(gestionNominaEditor.personalId);
+  payload.p_notas =
+    document.querySelector("#gestion-nomina-editor-notas")?.value?.trim() || null;
+  payload.p_lineas = gestionNominaEditor.lineas.map((row) => ({
+    orden: Number(row.orden) || 0,
+    seccion: row.seccion || "devengo",
+    concepto: row.concepto || "",
+    detalle: row.detalle || null,
+    base: row.base ?? null,
+    tipo: row.tipo ?? null,
+    cantidad: row.cantidad ?? null,
+    precio: row.precio ?? null,
+    importe: Number(row.importe) || 0,
+  }));
+  // Editar una nómina ya emitida es reemplazarla: la anterior queda anulada.
+  payload.p_reemplazar = Boolean(gestionNominaEditor.nominaId);
+
+  const original = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Emitiendo…";
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    let { data, error } = await supabase.rpc("emitir_nomina", payload);
+    if (error && /Ya hay una nómina emitida/.test(error.message || "")) {
+      if (!window.confirm(`${error.message}\n\n¿Emitir de nuevo y anular la anterior?`)) {
+        return;
+      }
+      ({ data, error } = await supabase.rpc("emitir_nomina", { ...payload, p_reemplazar: true }));
+    }
+    if (error) throw error;
+    const personalId = gestionNominaEditor.personalId;
+    cerrarGestionNominaEditor();
+    await loadGestionNominasEmitidas(personalId, payload.p_desde, payload.p_hasta, payload.p_empresa_id);
+    setStatus(`Nómina #${data} emitida con los conceptos editados.`, "success");
+  } catch (error) {
+    window.alert(`No se pudo emitir la nómina editada: ${error.message}`);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = original || "Emitir nómina editada";
+    }
+  }
+}
+
+async function anularGestionNomina(nominaId) {
+  const motivo = window.prompt(
+    `Anular la nómina #${nominaId}. Conserva su desglose como histórico.\n\nMotivo (opcional):`,
+    ""
+  );
+  if (motivo === null) {
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.rpc("anular_nomina", {
+      p_id: Number(nominaId),
+      p_motivo: motivo || null,
+    });
+    if (error) {
+      throw error;
+    }
+    const { desde, hasta, personalId, empresaId } = getGestionFilters();
+    await loadGestionNominasEmitidas(personalId, desde, hasta, empresaId ? Number(empresaId) : null);
+    setStatus(`Nómina #${nominaId} anulada.`, "success");
+  } catch (error) {
+    window.alert(`No se pudo anular: ${error.message}`);
+  }
+}
+
+// Las nóminas de la persona que SOLAPAN el rango, no solo las que coinciden
+// exactamente con él: así se ve la de junio aunque el filtro sea del 15 al 20.
+async function loadGestionNominasEmitidas(personalId, desde, hasta, empresaId) {
+  if (!gestionNominasEmitidasBlock) {
+    return;
+  }
+  gestionNominasEmitidasCache.clear();
+  const visible = Boolean(personalId) && currentUserIsAccessAdmin && Boolean(desde) && Boolean(hasta);
+  gestionNominasEmitidasBlock.classList.toggle("hidden", !visible);
+  if (!visible || !gestionNominasEmitidasList) {
+    return;
+  }
+  gestionNominasEmitidasList.innerHTML = '<p class="muted-text">Cargando…</p>';
+  try {
+    const supabase = await getSupabaseClient();
+    let query = supabase
+      .from("nominas")
+      .select("*")
+      .eq("personal_id", Number(personalId))
+      .lte("periodo_desde", hasta)
+      .gte("periodo_hasta", desde);
+    if (empresaId) {
+      // Las emitidas sin empresa (cálculo sin filtro) se ven siempre: no son de
+      // ninguna en concreto y esconderlas las dejaría inalcanzables.
+      query = query.or(`empresa_id.eq.${Number(empresaId)},empresa_id.is.null`);
+    }
+    const { data, error } = await query
+      .order("periodo_desde", { ascending: false })
+      .order("emitida_en", { ascending: false });
+    if (error) {
+      throw error;
+    }
+    renderGestionNominasEmitidas(data || []);
+  } catch (error) {
+    gestionNominasEmitidasList.innerHTML = `<p class="panel-status-message error">No se pudieron cargar las nóminas emitidas: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderGestionNominasEmitidas(rows) {
+  if (!gestionNominasEmitidasList) {
+    return;
+  }
+  const vivas = rows.filter((row) => row.estado === "emitida").length;
+  if (gestionNominasEmitidasHint) {
+    gestionNominasEmitidasHint.textContent = rows.length
+      ? `${vivas} vigente${vivas !== 1 ? "s" : ""} de ${rows.length}`
+      : "ninguna";
+  }
+  if (!rows.length) {
+    gestionNominasEmitidasList.innerHTML =
+      '<p class="empty-state">Todavía no hay ninguna nómina emitida para este periodo.</p>';
+    return;
+  }
+  gestionNominasEmitidasList.innerHTML = rows
+    .map((row) => {
+      const anulada = row.estado === "anulada";
+      const periodo = `${formatGestionDate(row.periodo_desde)} – ${formatGestionDate(row.periodo_hasta)}`;
+      const emitida = row.emitida_en ? new Date(row.emitida_en).toLocaleString("es-ES") : "";
+      const firma = [emitida, row.emitida_por_email].filter(Boolean).join(" · ");
+      const meta = [
+        `Bruto ${formatGestionImporte(row.total_devengado)}`,
+        `Deducciones ${formatGestionImporte(row.total_deducciones)}`,
+        row.manual_importe != null ? "salario manual" : "",
+        row.editada ? "conceptos editados a mano" : "",
+        row.sustituye_a ? `reemplaza a #${row.sustituye_a}` : "",
+        anulada && row.anulada_motivo ? `anulada: ${row.anulada_motivo}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return `<div class="gestion-nomina-card gestion-nomina-emitida${anulada ? " gestion-nomina-emitida-anulada" : ""}" data-gestion-nomina-emitida-card="${escapeHtml(row.id)}">
+        <div class="gestion-nomina-card-head">
+          <button type="button" class="gestion-nomina-toggle" data-gestion-nomina-emitida="${escapeHtml(row.id)}" aria-expanded="false">
+            <span class="gestion-nomina-caret">▾</span>
+            <span class="gestion-nomina-card-title">#${escapeHtml(row.id)} · ${escapeHtml(periodo)}</span>
+            <span class="gestion-nomina-card-periodo">${escapeHtml(formatGestionImporte(row.liquido))} líquido</span>
+          </button>
+          ${
+            anulada
+              ? '<span class="gestion-nomina-badge">anulada</span>'
+              : `<button type="button" class="gestion-nomina-editar-emitida"
+                   data-gestion-nomina-editar-emitida="${escapeHtml(row.id)}"
+                   data-gestion-nomina-personal="${escapeHtml(row.personal_id)}">Editar</button>
+                 <button type="button" class="gestion-nomina-anular" data-gestion-nomina-anular="${escapeHtml(row.id)}">Anular</button>`
+          }
+        </div>
+        <p class="muted-text gestion-nomina-emitida-meta">${escapeHtml(meta)}${firma ? ` — emitida ${escapeHtml(firma)}` : ""}</p>
+        <div class="gestion-nomina-detail hidden" data-gestion-nomina-emitida-detail="${escapeHtml(row.id)}"></div>
+      </div>`;
+    })
+    .join("");
+}
+
+// El desglose sale de nomina_lineas, no del motor: es el que se congeló al
+// emitir. Se pinta con la misma tabla que el cálculo en vivo porque las filas
+// tienen exactamente la misma forma.
+async function toggleGestionNominaEmitida(nominaId) {
+  const key = String(nominaId);
+  const detail = gestionNominasEmitidasList?.querySelector(`[data-gestion-nomina-emitida-detail="${key}"]`);
+  const toggle = gestionNominasEmitidasList?.querySelector(`[data-gestion-nomina-emitida="${key}"]`);
+  const card = gestionNominasEmitidasList?.querySelector(`[data-gestion-nomina-emitida-card="${key}"]`);
+  if (!detail) {
+    return;
+  }
+  if (!detail.classList.contains("hidden")) {
+    detail.classList.add("hidden");
+    card?.classList.remove("expanded");
+    toggle?.setAttribute("aria-expanded", "false");
+    return;
+  }
+  detail.classList.remove("hidden");
+  card?.classList.add("expanded");
+  toggle?.setAttribute("aria-expanded", "true");
+
+  if (gestionNominasEmitidasCache.has(key)) {
+    detail.innerHTML = renderGestionNominaEmitidaDetalle(gestionNominasEmitidasCache.get(key));
+    return;
+  }
+  detail.innerHTML = '<p class="muted-text">Cargando…</p>';
+  try {
+    const supabase = await getSupabaseClient();
+    const id = Number(nominaId);
+    // Las tres piezas del expediente: las líneas (de la persona y por puesto),
+    // la foto del contrato de cada periodo y las horas que se trabajaron.
+    const [lineasRes, historialesRes, horasRes] = await Promise.all([
+      supabase
+        .from("nomina_lineas")
+        .select("ambito, historial_id, orden, seccion, concepto, detalle, base, tipo, cantidad, precio, codigo_nomina, importe, detalle_de")
+        .eq("nomina_id", id)
+        .order("orden"),
+      supabase.from("nomina_historiales").select("*").eq("nomina_id", id).order("tramo_desde"),
+      supabase
+        .from("nomina_horas")
+        .select("*")
+        .eq("nomina_id", id)
+        .order("historial_id")
+        .order("tipo_hora")
+        .order("situacion"),
+    ]);
+    for (const res of [lineasRes, historialesRes, horasRes]) {
+      if (res.error) {
+        throw res.error;
+      }
+    }
+    const paquete = {
+      lineas: lineasRes.data || [],
+      historiales: historialesRes.data || [],
+      horas: horasRes.data || [],
+    };
+    gestionNominasEmitidasCache.set(key, paquete);
+    detail.innerHTML = renderGestionNominaEmitidaDetalle(paquete);
+  } catch (error) {
+    detail.innerHTML = `<p class="panel-status-message error">No se pudo leer el desglose: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+// La nómina congelada arriba y, debajo, el expediente que la explica: un bloque
+// por periodo de historial con las condiciones del contrato, las horas
+// realmente trabajadas y los conceptos que aportó ese puesto.
+function renderGestionNominaEmitidaDetalle(paquete) {
+  const persona = paquete.lineas.filter((row) => row.ambito !== "puesto");
+  let html = renderGestionNominaTable(persona);
+  if (!paquete.historiales.length) {
+    return html;
+  }
+  html += `<h4 class="gestion-nomina-expediente-title">Periodos incluidos (${paquete.historiales.length})</h4>`;
+  html += paquete.historiales
+    .map((hist) => {
+      const horas = paquete.horas.filter((row) => row.historial_id === hist.historial_id);
+      const lineas = paquete.lineas.filter(
+        (row) => row.ambito === "puesto" && row.historial_id === hist.historial_id
+      );
+      return renderGestionNominaExpedientePeriodo(hist, horas, lineas);
+    })
+    .join("");
+  return html;
+}
+
+function renderGestionNominaExpedientePeriodo(hist, horas, lineas) {
+  const num = (value, dec = 2) => {
+    const n = Number(value);
+    return Number.isFinite(n)
+      ? n.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: dec })
+      : "—";
+  };
+  const pct = (value) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? `${(n * 100).toLocaleString("es-ES", { maximumFractionDigits: 3 })} %` : "—";
+  };
+  const dato = (label, value) =>
+    `<div class="gestion-nomina-dato"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value ?? "—"))}</dd></div>`;
+
+  const pluses = [
+    hist.tiene_plus_transporte ? `transporte (${num(hist.tarifa_plus_transporte)} €/día)` : "",
+    hist.tiene_nocturnidad ? `nocturnidad (${num(hist.tarifa_hora_nocturna)} €/h)` : "",
+    hist.tiene_complemento_movilidad ? `movilidad (${pct(hist.tarifa_complemento_movilidad_pct)})` : "",
+    hist.tiene_complemento_dedicacion ? `dedicación (${num(hist.tarifa_complemento_dedicacion)} €)` : "",
+  ].filter(Boolean);
+
+  const datos = [
+    dato("Convenio", hist.convenio),
+    dato("Empresa", hist.empresa),
+    dato("Alta / baja", `${formatGestionDate(hist.fecha_alta)} – ${formatGestionDate(hist.fecha_baja) || "indefinido"}`),
+    dato("Tramo calculado", `${formatGestionDate(hist.tramo_desde)} – ${formatGestionDate(hist.tramo_hasta)}`),
+    dato("Días de nómina", `${hist.dias_nomina ?? "—"} (trabajados: ${hist.dias_trabajados ?? "—"})`),
+    dato("Jornada", `${num(hist.jornada)} h/sem (máx. ${num(hist.jornada_maxima)}) · coef. ${hist.coeficiente_temporalidad_miles ?? "—"} ‰`),
+    dato("Horas teóricas", num(hist.horas_teoricas)),
+    dato("Modalidad de pago", `${hist.modalidad_pago || "—"} → ajuste «${hist.ajuste_jornada || "—"}»`),
+    dato("Base de cálculo", hist.base_calculo),
+    dato("Salario del puesto", `${num(hist.salario_mensual)} €/mes · convenio ${num(hist.salario_convenio_mensual)} €/mes`),
+    dato("Pagas", `${num(hist.pagas_anuales, 0)} al año (${hist.pagas_extra ?? 0} extra)`),
+    dato("Precios/hora", `montaje ${num(hist.precio_hora_montaje, 4)} · complementaria ${num(hist.precio_hora_complementaria, 4)} · jornada completa ${num(hist.precio_hora_jornada_completa, 4)}`),
+    dato("Pluses del convenio", pluses.length ? pluses.join(" · ") : "ninguno"),
+    dato(
+      "Cotización",
+      `comunes ${pct(hist.cotizacion_comunes_pct)} · MEI ${pct(hist.cotizacion_mei_pct)} · desempleo ${pct(hist.cotizacion_desempleo_pct)} · formación ${pct(hist.cotizacion_formacion_pct)}`
+    ),
+  ].join("");
+
+  const filasHoras = horas.length
+    ? horas
+        .map((row) => {
+          const marcas = [
+            row.excluida ? "no computa" : "",
+            row.cuenta_jornada ? "jornada" : "",
+            row.dia_efectivo ? "día efectivo" : "",
+          ].filter(Boolean);
+          return `<tr${row.excluida ? ' class="gestion-nomina-hora-excluida"' : ""}>
+            <td>${escapeHtml(row.tipo_hora || "—")}${row.tipo_hora_codigo_nomina ? ` <span class="muted-text">(${escapeHtml(row.tipo_hora_codigo_nomina)})</span>` : ""}</td>
+            <td>${escapeHtml(row.situacion || "—")}</td>
+            <td class="num">${escapeHtml(num(row.horas))}</td>
+            <td class="num">${escapeHtml(num(row.horas_nocturnas))}</td>
+            <td class="num">${escapeHtml(String(row.dias ?? ""))}</td>
+            <td class="num">${escapeHtml(String(row.registros ?? ""))}</td>
+            <td class="muted-text">${escapeHtml(marcas.join(" · "))}</td>
+          </tr>`;
+        })
+        .join("")
+    : '<tr><td colspan="7" class="muted-text">Sin registros de horas en este periodo.</td></tr>';
+
+  const totalHoras = horas
+    .filter((row) => !row.excluida)
+    .reduce((sum, row) => sum + Number(row.horas || 0), 0);
+
+  return `<div class="gestion-nomina-expediente">
+    <div class="gestion-nomina-expediente-head">
+      <strong>${escapeHtml(hist.puesto || `Puesto ${hist.puesto_id ?? ""}`)}</strong>
+      <span class="muted-text">periodo #${escapeHtml(hist.historial_id)}${hist.predominante ? " · predominante" : ""}</span>
+      <span class="gestion-nomina-expediente-total">${escapeHtml(formatGestionImporte(hist.total_devengado))}</span>
+    </div>
+    <dl class="gestion-nomina-datos">${datos}</dl>
+    <table class="records-table gestion-compact-table gestion-nomina-horas-table">
+      <thead><tr><th>Tipo</th><th>Situación</th><th class="num">Horas</th><th class="num">Nocturnas</th><th class="num">Días</th><th class="num">Regs.</th><th></th></tr></thead>
+      <tbody>${filasHoras}</tbody>
+      <tfoot><tr><th colspan="2">Total computable</th><th class="num">${escapeHtml(num(totalHoras))}</th><th colspan="4"></th></tr></tfoot>
+    </table>
+    ${
+      lineas.length
+        ? `<p class="muted-text gestion-nomina-expediente-sub">Conceptos que aportó este puesto</p>${renderGestionNominaTable(lineas)}`
+        : ""
+    }
+  </div>`;
+}
+
 async function loadGestion() {
   await loadGestionEmpresaOptions();
   const { desde, hasta, personalId, empresaId } = getGestionFilters();
@@ -17514,6 +18532,14 @@ async function loadGestion() {
       p_hasta: hasta,
       p_personal_id: personalId ? Number(personalId) : null,
     });
+    // Las horas que tocaba trabajar según la jornada contratada, para poder
+    // comparar de un vistazo con las realmente registradas.
+    const teoricasPromise = supabase.rpc("get_gestion_horas_teoricas", {
+      p_desde: desde,
+      p_hasta: hasta,
+      p_personal_id: personalId ? Number(personalId) : null,
+      p_empresa_id: empresaId ? Number(empresaId) : null,
+    });
 
     let historialQuery = supabase
       .from(HISTORIAL_DETAIL_VIEW)
@@ -17536,10 +18562,11 @@ async function loadGestion() {
       historialQuery = historialQuery.eq("empresa_id", empresaId);
     }
 
-    const [personalRes, resumenRes, historialRes] = await Promise.all([
+    const [personalRes, resumenRes, historialRes, teoricasRes] = await Promise.all([
       personalPromise,
       resumenPromise,
       historialQuery,
+      teoricasPromise,
     ]);
     if (token !== gestionRequestToken) {
       return;
@@ -17556,9 +18583,13 @@ async function loadGestion() {
 
     const personalCount = renderGestionPersonalOptions(personalRes.data ?? []);
     renderGestionHistorial(historialRes.data ?? []);
+    // Antes del pivote: renderGestionRegistros recompone el contador y ya
+    // encuentra las teóricas puestas.
+    gestionHorasTeoricas = teoricasRes.error ? null : Number(teoricasRes.data ?? 0);
     renderGestionRegistros(resumenRes.data ?? []);
     renderGestionNomina(historialRes.data ?? [], personalId, desde, hasta);
     void renderGestionManualComplementos(personalId, desde, historialRes.data ?? []);
+    void loadGestionNominasEmitidas(personalId, desde, hasta, empresaId ? Number(empresaId) : null);
 
     if (gestionSummary) {
       const scope = personalId ? "1 persona" : `${personalCount} personas`;
@@ -24129,6 +25160,7 @@ function initControlFilters() {
 
 async function init() {
   decorateStaticActionButtons();
+  observeDynamicActionButtons();
 
   if (!hasSupabaseConfig) {
     setStatus(
@@ -24502,6 +25534,11 @@ async function init() {
     void saveContractService(event);
   });
   contractServiceClearButton?.addEventListener("click", resetContractServiceForm);
+  contractServiceDeleteButton?.addEventListener("click", () => {
+    if (contractServiceIdInput?.value) {
+      void deleteContractService(contractServiceIdInput.value);
+    }
+  });
   contractServicesList?.addEventListener("click", (event) => {
     const editServiceId = event.target.closest("[data-contract-service-edit]")?.dataset.contractServiceEdit;
     if (editServiceId) {
@@ -24992,6 +26029,9 @@ async function init() {
   gestionPersonalCloseButton?.addEventListener("click", () => {
     void closeGestionPersonalDetail();
   });
+  gestionPersonalDismissButton?.addEventListener("click", () => {
+    void closeGestionPersonalDetail();
+  });
   gestionPersonalOverlay?.addEventListener("click", () => {
     void closeGestionPersonalDetail();
   });
@@ -25030,6 +26070,16 @@ async function init() {
       toggleGestionNominaGroup(groupToggle);
       return;
     }
+    const emitir = event.target.closest("[data-gestion-nomina-emitir]");
+    if (emitir) {
+      void emitirGestionNomina(emitir.dataset.gestionNominaEmitir, emitir);
+      return;
+    }
+    const editar = event.target.closest("[data-gestion-nomina-editar]");
+    if (editar) {
+      void abrirGestionNominaEditor(editar.dataset.gestionNominaEditar);
+      return;
+    }
     const totalPersonalId = event.target.closest("[data-gestion-nomina-total]")?.dataset.gestionNominaTotal;
     if (totalPersonalId) {
       void toggleGestionNominaTotal(totalPersonalId);
@@ -25038,6 +26088,101 @@ async function init() {
     const historialId = event.target.closest("[data-gestion-nomina-historial]")?.dataset.gestionNominaHistorial;
     if (historialId) {
       void toggleGestionNomina(historialId);
+    }
+  });
+
+  gestionNominasEmitidasList?.addEventListener("click", (event) => {
+    const groupToggle = event.target.closest("[data-nomina-group]");
+    if (groupToggle) {
+      toggleGestionNominaGroup(groupToggle);
+      return;
+    }
+    const anular = event.target.closest("[data-gestion-nomina-anular]")?.dataset.gestionNominaAnular;
+    if (anular) {
+      void anularGestionNomina(anular);
+      return;
+    }
+    const editarEmitida = event.target.closest("[data-gestion-nomina-editar-emitida]");
+    if (editarEmitida) {
+      void abrirGestionNominaEditor(
+        editarEmitida.dataset.gestionNominaPersonal,
+        editarEmitida.dataset.gestionNominaEditarEmitida
+      );
+      return;
+    }
+    const emitidaId = event.target.closest("[data-gestion-nomina-emitida]")?.dataset.gestionNominaEmitida;
+    if (emitidaId) {
+      void toggleGestionNominaEmitida(emitidaId);
+    }
+  });
+
+  // Editor de conceptos: se teclea sobre el estado y solo se refrescan los
+  // números derivados; añadir o quitar filas sí repinta la tabla.
+  gestionNominaEditorPanel?.addEventListener("input", (event) => {
+    const input = event.target.closest("[data-nomina-edit]");
+    if (!input || !gestionNominaEditor) {
+      return;
+    }
+    const linea = gestionNominaEditor.lineas[Number(input.dataset.nominaEdit)];
+    if (!linea) {
+      return;
+    }
+    const campo = input.dataset.nominaCampo;
+    if (campo === "concepto" || campo === "detalle") {
+      linea[campo] = input.value;
+      return;
+    }
+    const valor = input.value === "" ? null : Number(input.value);
+    linea[campo] = valor;
+    if (campo === "importe" && linea.seccion !== "devengo") {
+      // Importe fijado a mano en una base o una deducción: deja de derivarse.
+      linea._manual = true;
+    }
+    if (campo === "cantidad" || campo === "precio") {
+      const cantidad = Number(linea.cantidad);
+      const precio = Number(linea.precio);
+      if (Number.isFinite(cantidad) && Number.isFinite(precio)) {
+        linea.importe = round2(cantidad * precio);
+        const importeInput = gestionNominaEditorPanel.querySelector(
+          `[data-nomina-edit="${input.dataset.nominaEdit}"][data-nomina-campo="importe"]`
+        );
+        if (importeInput) importeInput.value = linea.importe;
+      }
+    }
+    actualizarGestionNominaEditorTotales();
+  });
+
+  gestionNominaEditorPanel?.addEventListener("click", (event) => {
+    if (!gestionNominaEditor) {
+      return;
+    }
+    const quitar = event.target.closest("[data-nomina-quitar]");
+    if (quitar) {
+      gestionNominaEditor.lineas.splice(Number(quitar.dataset.nominaQuitar), 1);
+      renderGestionNominaEditor();
+      return;
+    }
+    if (event.target.closest("[data-nomina-anadir]")) {
+      // Orden 400: después de los complementos (100+) y antes de los totales.
+      gestionNominaEditor.lineas.push({
+        orden: 400 + gestionNominaEditor.lineas.filter((row) => Number(row.orden) >= 400 && Number(row.orden) < 500).length,
+        seccion: "devengo",
+        concepto: "",
+        detalle: null,
+        cantidad: null,
+        precio: null,
+        importe: 0,
+        _manual: true,
+      });
+      renderGestionNominaEditor();
+      return;
+    }
+    if (event.target.closest("[data-nomina-guardar]")) {
+      void guardarGestionNominaEditor(event.target.closest("[data-nomina-guardar]"));
+      return;
+    }
+    if (event.target.closest("[data-nomina-cancelar]")) {
+      cerrarGestionNominaEditor();
     }
   });
 
@@ -25414,6 +26559,21 @@ async function init() {
   recordsRefreshButton?.addEventListener("click", () => {
     void loadRecords({ force: true });
   });
+  recordsChangesButton?.addEventListener("click", openRecordsChangesPanel);
+  recordsChangesCloseButton?.addEventListener("click", closeRecordsChangesPanel);
+  recordsChangesOverlay?.addEventListener("click", closeRecordsChangesPanel);
+  recordsChangesRefreshButton?.addEventListener("click", () => void loadRecordsChanges());
+  recordsChangesTableBody?.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-record-change-edit]");
+    if (editButton) {
+      void editRecordFromChange(editButton.dataset.recordChangeEdit);
+      return;
+    }
+    const revertButton = event.target.closest("[data-record-change-revert]");
+    if (revertButton) {
+      void revertRecordChange(revertButton.dataset.recordChangeRevert);
+    }
+  });
   recordsEditModeInput?.addEventListener("change", () => {
     renderRecordsTable();
   });
@@ -25509,7 +26669,12 @@ async function init() {
   });
   recordDetailForm?.addEventListener("change", (event) => {
     if (event.target?.name === "contrato_id") {
-      reorderRecordDetailRelationSelects(event.target.value);
+      const contractId = event.target.value;
+      const serviceSelect = recordDetailForm.elements.servicio_id;
+      if (serviceSelect?.value && !recordServiceMatchesContract(serviceSelect.value, contractId)) {
+        serviceSelect.value = "";
+      }
+      reorderRecordDetailRelationSelects(contractId);
     }
   });
   recordDetailCloseButton?.addEventListener("click", () => closeRecordDetail());

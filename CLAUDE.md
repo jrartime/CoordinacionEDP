@@ -140,6 +140,23 @@ Las **plantillas de correo** de Auth (recuperación e invitación) están traduc
 - La UI reutiliza los editores existentes: mueve temporalmente `.personal-detail-panel` al drawer de Gestión, registra/abre el historial con el formulario único y carga `registros_detalle` por persona/intervalo para el panel flotante. Al guardar, vuelve a ejecutar `loadGestion()`; no crear formularios paralelos para estas entidades.
 - Los accesos de edición se muestran o ejecutan solo si el perfil tiene concedidas las pestañas `personal`, `historial` o `registros`, respectivamente.
 
+### Supabase Nóminas
+
+- **Motor de cálculo** (`nomina_calculo.sql`, `nomina_calculo_persona.sql`): `calcular_nomina_devengos(historial_id, …)` da los devengos de UN puesto; `calcular_nomina_persona(personal_id, …)` es la nómina real (suma puestos + transporte/complementos/prorrateo una sola vez + bases + deducciones + líquido). Ambas `SECURITY INVOKER`; solo un admin obtiene resultados porque las tablas salariales son admin-only.
+- **Nóminas emitidas** (`supabase/tables/nominas.sql`): una nómina emitida no es solo el recibo, es el **registro laboral** del periodo. Cuatro tablas, todas admin-only:
+  - `nominas` — cabecera: periodo, empresa, historiales incluidos, **los parámetros con los que se calculó** y los totales. `ejercicio`/`mes` son generadas (solo si el periodo cae dentro de un mes natural).
+  - `nomina_lineas` — el desglose. `ambito = 'persona'` son las líneas de la nómina real (las que suman); `ambito = 'puesto'` es el mismo dinero explicado por historial (`historial_id`), **no suma**. Cada línea lleva `cantidad`, `precio` y `codigo_nomina` además del `detalle` en prosa.
+  - `nomina_historiales` — la foto del contrato de cada periodo/puesto: convenio y tarifas vigentes, jornada, coeficiente, horas teóricas, modalidad de pago y **ajuste realmente aplicado**, flags de pluses y tipos de cotización. `predominante` marca del que salen las cotizaciones y el nº de pagas.
+  - `nomina_horas` — horas por historial × tipo de hora × situación, con días, nº de registros y **`registro_ids`** (los ids de origen, para auditar contra el parte). Guarda también las excluidas (CAMB/LG) marcadas con `excluida`.
+  - `emitir_nomina(...)` replica la firma de `calcular_nomina_persona` y añade `p_notas`/`p_reemplazar`. Choca con la nómina viva del mismo periodo salvo que se pida reemplazar; entonces la anterior queda `anulada` y la nueva apunta a ella con `sustituye_a`. `anular_nomina(id, motivo)` no borra: marca.
+  - **Unicidad**: una sola viva por `personal_id + empresa_id + periodo + historial_ids`. El conjunto de historiales entra en la clave a propósito: dos vidas laborales que no se solapan son **dos nóminas del mismo mes**, no una suma. Una nómina **con varios historiales** (dos puestos a la vez) es lo normal y queda registrada periodo a periodo.
+  - Los totales de la cabecera se derivan de las líneas guardadas de **ámbito persona** (las que llevan `detalle_de` no suman); las bases se toman por `orden` (600/601/602) — si cambia la numeración del motor, cambiarla también ahí.
+  - `get_nomina_contexto_historial(...)` reproduce el preámbulo de `calcular_nomina_devengos` (ventana, ajuste según modalidad, modo de base, horas con las exclusiones CAMB/LG) **sin calcular importes**. Es un acoplamiento deliberado: si esas reglas cambian en `nomina_calculo.sql`, cambiarlas aquí.
+  - **Edición de conceptos**: `emitir_nomina` acepta `p_lineas jsonb` — las líneas ajustadas a mano sustituyen a las del motor y la nómina queda marcada `editada`. El expediente (historiales y horas) se congela igual: lo trabajado no se edita, solo lo que se paga por ello. Las filas de desglose (`detalle_de`) no entran en el editor: son la explicación de su línea padre y no se pueden mantener coherentes si el padre cambia.
+  - En Gestión: botones **Emitir nómina** y **Editar nómina** en la tarjeta del total, y bloque **Nóminas emitidas**, donde cada nómina despliega el recibo congelado y, debajo, el expediente por periodo (contrato, horas y conceptos), con **Editar** (reemplaza anulando la anterior) y **Anular**. Solo para admin.
+  - En el editor, bases y deducciones se recalculan solas desde los devengos (`GESTION_NOMINA_BASE_DE_DEDUCCION` mapea qué base usa cada retención por su `orden`); un importe tecleado a mano se marca y deja de recalcularse.
+- **Contador de horas de Gestión**: `get_gestion_horas_teoricas(desde, hasta, personal_id, empresa_id)` suma `horas_teoricas_jornada` del tramo de cada historial que solape el rango, para mostrar «Total: X h de Y h teóricas». `SECURITY INVOKER`, respeta el RLS por contrato.
+
 ## Desarrollo local
 
 ```powershell

@@ -71,6 +71,9 @@ drop function if exists public.calcular_nomina_persona(integer, date, date, inte
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text);
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text);
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[]);
+-- Firma sin cantidad/precio en el returns table (hasta 2026-07-23). Un
+-- `create or replace` no puede cambiar el tipo de retorno: hay que dropear.
+drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean);
 
 create or replace function public.calcular_nomina_persona(
   p_personal_id integer, p_desde date, p_hasta date,
@@ -90,9 +93,14 @@ create or replace function public.calcular_nomina_persona(
   p_manual_complementos bigint[] default null,
   p_manual_transporte boolean default false
 )
+-- cantidad/precio acompanan a cada linea con las UNIDADES y el PRECIO UNITARIO
+-- que la produjeron (dias x tarifa de transporte, horas x precio, importe fijo).
+-- El texto de `detalle` dice lo mismo en prosa, pero solo esto es explotable:
+-- las nominas emitidas lo guardan para poder auditar de que sale cada concepto.
 returns table (
   orden integer, seccion text, concepto text, detalle text,
-  base numeric, tipo numeric, importe numeric, detalle_de text
+  base numeric, tipo numeric, cantidad numeric, precio numeric,
+  importe numeric, detalle_de text
 )
 language plpgsql stable security invoker set search_path = public
 as $$
@@ -263,13 +271,21 @@ begin
 
   if v_manual then
     return query select 10, 'devengo'::text, 'Salario base'::text, v_manual_detalle,
-      null::numeric, null::numeric, v_base_total, null::text;
+      null::numeric, null::numeric,
+      case p_manual_modo when 'diario' then v_manual_dias::numeric
+                         when 'hora' then v_manual_horas else 1 end,
+      p_manual_importe, v_base_total, null::text;
   else
+    -- La cantidad se suma entre puestos (p.ej. las horas complementarias de los
+    -- dos); el precio solo se conserva si TODOS coinciden, porque un precio
+    -- promediado seria mentira.
     return query
     select x.orden, 'devengo'::text, x.concepto, null::text, null::numeric, null::numeric,
-           round(x.importe, 2), null::text
+           x.cantidad, x.precio, round(x.importe, 2), null::text
     from (
-      select min(d.orden) as orden, d.concepto, sum(d.importe) as importe
+      select min(d.orden) as orden, d.concepto, sum(d.importe) as importe,
+             sum(d.cantidad) as cantidad,
+             case when count(distinct d.precio) = 1 then min(d.precio) end as precio
       from public.historiales_laborales h
       cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada) d
       where h.personal_id = p_personal_id
@@ -283,7 +299,8 @@ begin
   if v_transporte <> 0 then
     return query select 30, 'devengo'::text, 'Plus de transporte'::text,
       format('%s€ × %s días trabajados (toda la persona)', v_tarifa_transp, v_dias_trab),
-      null::numeric, null::numeric, v_transporte, null::text;
+      null::numeric, null::numeric, v_dias_trab::numeric, v_tarifa_transp,
+      v_transporte, null::text;
   end if;
 
   return query
@@ -294,7 +311,16 @@ begin
         when 'diario' then format('%s€ × %s días', c.importe, v_dias_trab)
         when 'por_hora' then format('%s€ × horas %s', c.importe, c.medida_horas)
         else format('%s€/mes', c.importe) end end,
-    null::numeric, null::numeric,
+    -- Un porcentaje se explica con base + tipo; un importe fijo, con cantidad
+    -- (dias u horas, 1 si es mensual) + precio unitario.
+    case c.tipo when 'porcentaje' then round(v_base_total, 2) end,
+    case c.tipo when 'porcentaje' then c.porcentaje end,
+    case c.tipo when 'porcentaje' then null::numeric
+      else case c.unidad
+        when 'diario' then v_dias_trab::numeric
+        when 'por_hora' then (case c.medida_horas when 'horas_nocturnas' then v_horas_noct else 0 end)
+        else 1 end end,
+    case c.tipo when 'porcentaje' then null::numeric else c.importe end,
     round(case c.tipo when 'porcentaje' then v_base_total * c.porcentaje
       else case c.unidad
         when 'mensual' then c.importe
@@ -307,18 +333,23 @@ begin
 
   -- Solo se devenga si la persona tiene las pagas prorrateadas.
   if coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
+    -- El prorrateo se explica con base (sobre qué) y tipo (la fracción
+    -- extras/12), no con cantidad x precio.
     return query select 20, 'devengo'::text, 'Prorrateo pagas extra'::text,
       format('%s pagas/año (12 + %s extra) → %s/12', v_pagas, v_extras, v_extras),
-      null::numeric, null::numeric, v_pe_base + v_pe_compl, null::text;
+      null::numeric, round(v_extras / 12.0, 6), null::numeric, null::numeric,
+      v_pe_base + v_pe_compl, null::text;
     return query select 21, 'devengo'::text, 'Salario base'::text,
       case when v_manual and p_manual_pagas_incluidas
         then format('%s€ − %s€ (ya incluida en el importe manual)', v_manual_total, round(v_base_total,2))
         else format('%s€ × %s/12', round(v_base_total,2), v_extras) end,
-      null::numeric, null::numeric, v_pe_base, 'prorrateo_extra'::text;
+      round(v_base_total, 2), round(v_extras / 12.0, 6), null::numeric, null::numeric,
+      v_pe_base, 'prorrateo_extra'::text;
     return query
     select (22 + row_number() over (order by c.orden_calculo, c.nombre))::integer,
       'devengo'::text, c.nombre, format('%s€ × %s/12', c.importe, v_extras),
-      null::numeric, null::numeric, round(c.importe * v_extras / 12.0, 2), 'prorrateo_extra'::text
+      c.importe, round(v_extras / 12.0, 6), null::numeric, null::numeric,
+      round(c.importe * v_extras / 12.0, 2), 'prorrateo_extra'::text
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
     where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
@@ -342,32 +373,33 @@ begin
   v_d_irpf      := round(v_base_irpf * coalesce(v_irpf, 0), 2);
   v_ded_total   := v_d_comunes + v_d_mei + v_d_desempleo + v_d_formacion + v_d_irpf;
 
-  return query select 500, 'total'::text, 'Total devengado (bruto)'::text, null::text, null::numeric, null::numeric, round(v_bruto,2), null::text;
+  return query select 500, 'total'::text, 'Total devengado (bruto)'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_bruto,2), null::text;
   if not coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
     return query select 599, 'base'::text, 'P.P. pagas extra (solo cotiza)'::text,
       format('%s pagas/año → %s/12 · no se devenga, suma a la base de S.S.', v_pagas, v_extras),
-      null::numeric, null::numeric, v_pe_base + v_pe_compl, null::text;
+      null::numeric, round(v_extras / 12.0, 6), null::numeric, null::numeric,
+      v_pe_base + v_pe_compl, null::text;
   end if;
-  return query select 600, 'base'::text, 'Base contingencias comunes'::text, null::text, null::numeric, null::numeric, round(v_base_cc,2), null::text;
-  return query select 601, 'base'::text, 'Base contingencias profesionales'::text, null::text, null::numeric, null::numeric, round(v_base_cp,2), null::text;
-  return query select 602, 'base'::text, 'Base IRPF'::text, null::text, null::numeric, null::numeric, round(v_base_irpf,2), null::text;
+  return query select 600, 'base'::text, 'Base contingencias comunes'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_base_cc,2), null::text;
+  return query select 601, 'base'::text, 'Base contingencias profesionales'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_base_cp,2), null::text;
+  return query select 602, 'base'::text, 'Base IRPF'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_base_irpf,2), null::text;
   return query select 700, 'deduccion'::text, 'Contingencias comunes'::text,
     format('%s%% sobre %s€', round(coalesce(hp.cotizacion_comunes_pct,0)*100,3), round(v_base_cc,2)),
-    round(v_base_cc,2), hp.cotizacion_comunes_pct, v_d_comunes, null::text;
+    round(v_base_cc,2), hp.cotizacion_comunes_pct, null::numeric, null::numeric, v_d_comunes, null::text;
   return query select 701, 'deduccion'::text, 'MEI'::text,
     format('%s%% sobre %s€', round(coalesce(hp.cotizacion_mei_pct,0)*100,3), round(v_base_cc,2)),
-    round(v_base_cc,2), hp.cotizacion_mei_pct, v_d_mei, null::text;
+    round(v_base_cc,2), hp.cotizacion_mei_pct, null::numeric, null::numeric, v_d_mei, null::text;
   return query select 702, 'deduccion'::text, 'Desempleo'::text,
     format('%s%% sobre %s€', round(coalesce(hp.cotizacion_desempleo_pct,0)*100,3), round(v_base_cp,2)),
-    round(v_base_cp,2), hp.cotizacion_desempleo_pct, v_d_desempleo, null::text;
+    round(v_base_cp,2), hp.cotizacion_desempleo_pct, null::numeric, null::numeric, v_d_desempleo, null::text;
   return query select 703, 'deduccion'::text, 'Formación profesional'::text,
     format('%s%% sobre %s€', round(coalesce(hp.cotizacion_formacion_pct,0)*100,3), round(v_base_cp,2)),
-    round(v_base_cp,2), hp.cotizacion_formacion_pct, v_d_formacion, null::text;
+    round(v_base_cp,2), hp.cotizacion_formacion_pct, null::numeric, null::numeric, v_d_formacion, null::text;
   return query select 704, 'deduccion'::text, 'IRPF'::text,
     format('%s%% sobre %s€', round(coalesce(v_irpf,0)*100,3), round(v_base_irpf,2)),
-    round(v_base_irpf,2), v_irpf, v_d_irpf, null::text;
-  return query select 800, 'total'::text, 'Total deducciones'::text, null::text, null::numeric, null::numeric, v_ded_total, null::text;
-  return query select 810, 'total'::text, 'Líquido a percibir'::text, null::text, null::numeric, null::numeric, round(v_bruto - v_ded_total, 2), null::text;
+    round(v_base_irpf,2), v_irpf, null::numeric, null::numeric, v_d_irpf, null::text;
+  return query select 800, 'total'::text, 'Total deducciones'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, v_ded_total, null::text;
+  return query select 810, 'total'::text, 'Líquido a percibir'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_bruto - v_ded_total, 2), null::text;
   return;
 end;
 $$;

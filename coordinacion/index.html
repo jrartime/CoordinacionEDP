@@ -25,8 +25,8 @@
     </style>
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
-    <link rel="stylesheet" href="./concilia-integrated.css?v=20260706-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-1" />
+    <link rel="stylesheet" href="./concilia-integrated.css?v=20260723-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260723-5" />
   </head>
   <body>
     <script>
@@ -624,6 +624,9 @@
                     <h2>Detalle generado desde actividades</h2>
                   </div>
                   <div class="results-actions">
+                    <button id="records-changes-button" type="button" class="secondary-button">
+                      Últimos cambios
+                    </button>
                     <label class="checkbox-item records-edit-toggle" title="Edicion tipo Excel">
                       <input id="records-edit-mode" type="checkbox" />
                       <span>&#9998;</span>
@@ -886,6 +889,46 @@
                 </div>
               </section>
 
+              <section id="records-changes-panel" class="detail-panel hidden">
+                <div id="records-changes-overlay" class="detail-overlay"></div>
+                <aside class="detail-drawer records-changes-drawer" aria-labelledby="records-changes-title">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Historial de registros</p>
+                      <h3 id="records-changes-title">50 últimos cambios</h3>
+                      <p class="muted-text">Altas, ediciones y eliminaciones más recientes.</p>
+                    </div>
+                    <div class="detail-header-actions">
+                      <button id="records-changes-refresh-button" type="button" class="secondary-button">
+                        Actualizar
+                      </button>
+                      <button id="records-changes-close-button" type="button" class="secondary-button">
+                        Cerrar panel
+                      </button>
+                    </div>
+                  </div>
+                  <div class="table-wrapper records-changes-table-wrapper">
+                    <table class="records-changes-table">
+                      <thead>
+                        <tr>
+                          <th>Cuándo</th>
+                          <th>Cambio</th>
+                          <th>Registro</th>
+                          <th>Fecha</th>
+                          <th>Personal</th>
+                          <th>Contrato / servicio</th>
+                          <th>Usuario</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody id="records-changes-table-body">
+                        <tr><td colspan="8" class="empty-state">Abre el panel para cargar el historial.</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </aside>
+              </section>
+
               <section id="record-detail-panel" class="detail-panel hidden">
                 <div id="record-detail-overlay" class="detail-overlay"></div>
                 <aside class="detail-drawer records-detail-drawer">
@@ -904,9 +947,6 @@
                       <button id="record-detail-duplicate-button" type="button" class="secondary-button">
                         Duplicar
                       </button>
-                      <button id="record-detail-delete-button" type="button" class="danger-button">
-                        Eliminar
-                      </button>
                       <button id="record-detail-close-button" type="button" class="secondary-button">
                         Cerrar panel
                       </button>
@@ -916,8 +956,11 @@
                   <form id="record-detail-form" class="detail-form records-detail-form">
                     <div id="record-detail-fields" class="detail-field-row cols-2 full-width"></div>
                     <div class="detail-actions">
+                      <button id="record-detail-delete-button" type="button" class="danger-button panel-destructive-action">
+                        Eliminar
+                      </button>
                       <button id="record-detail-cancel-button" type="button" class="secondary-button">
-                        Cancelar
+                        Descartar cambios
                       </button>
                       <button id="record-detail-save-button" type="submit">
                         Guardar
@@ -936,7 +979,7 @@
                       <h3 id="record-substitution-title">Marcar sustitución</h3>
                     </div>
                     <button id="record-substitution-cancel-button" type="button" class="secondary-button">
-                      Cancelar
+                      Cerrar
                     </button>
                   </div>
 
@@ -996,7 +1039,7 @@
                       type="button"
                       class="secondary-button"
                     >
-                      Cancelar
+                      Cerrar
                     </button>
                   </div>
 
@@ -1326,9 +1369,6 @@
                       <button id="historial-detail-duplicate-button" type="button" class="secondary-button">
                         Duplicar
                       </button>
-                      <button id="historial-detail-delete-button" type="button" class="danger-button">
-                        Eliminar
-                      </button>
                       <button id="historial-detail-close-button" type="button" class="secondary-button">
                         Cerrar panel
                       </button>
@@ -1338,8 +1378,11 @@
                   <form id="historial-detail-form" class="detail-form records-detail-form">
                     <div id="historial-detail-fields" class="detail-field-row cols-2 full-width"></div>
                     <div class="detail-actions">
+                      <button id="historial-detail-delete-button" type="button" class="danger-button panel-destructive-action">
+                        Eliminar
+                      </button>
                       <button id="historial-detail-cancel-button" type="button" class="secondary-button">
-                        Cancelar
+                        Descartar cambios
                       </button>
                       <button id="historial-detail-save-button" type="submit">
                         Guardar
@@ -1715,6 +1758,29 @@
                     Se calcula por periodo de historial, acotado al rango de fechas seleccionado. Despliega un periodo para ver el desglose.
                   </p>
                   <div id="gestion-nomina-list" class="gestion-nomina-list"></div>
+                  <!--
+                    Editor de conceptos. Se rellena desde app.js con las líneas
+                    del cálculo (o las de una nómina ya emitida) y al guardar
+                    emite con ellas: ver p_lineas en emitir_nomina.
+                  -->
+                  <div id="gestion-nomina-editor" class="gestion-nomina-editor hidden"></div>
+                </section>
+
+                <!--
+                  Nóminas ya emitidas de la persona que solapan el rango. Una vez
+                  emitida, la nómina se lee de aquí (tablas nominas/nomina_lineas):
+                  su desglose queda congelado aunque después cambien tarifas,
+                  complementos o reglas del motor. Ver supabase/tables/nominas.sql.
+                -->
+                <section id="gestion-nominas-emitidas-block" class="gestion-block gestion-nomina-block hidden">
+                  <div class="gestion-block-header">
+                    <h3>Nóminas emitidas</h3>
+                    <span id="gestion-nominas-emitidas-hint" class="summary-chip">—</span>
+                  </div>
+                  <p class="muted-text gestion-nomina-note">
+                    Quedan congeladas tal como se calcularon el día de la emisión. Anular no las borra: conservan su desglose como histórico.
+                  </p>
+                  <div id="gestion-nominas-emitidas-list" class="gestion-nomina-list"></div>
                 </section>
 
                 <section id="gestion-personal-panel" class="detail-panel hidden">
@@ -1722,9 +1788,12 @@
                   <aside class="detail-drawer gestion-personal-drawer">
                     <div class="detail-header">
                       <div><p class="eyebrow">Gestión</p><h3>Datos de la persona</h3></div>
-                      <button id="gestion-personal-close-button" type="button" class="secondary-button">Cerrar y guardar</button>
+                      <button id="gestion-personal-dismiss-button" type="button" class="secondary-button">Cerrar</button>
                     </div>
                     <div id="gestion-personal-content"></div>
+                    <div class="detail-actions">
+                      <button id="gestion-personal-close-button" type="button">Guardar y cerrar</button>
+                    </div>
                   </aside>
                 </section>
 
@@ -4006,8 +4075,10 @@
                     id="personal-edit-button"
                     type="button"
                     class="secondary-button hidden"
+                    data-icon="edit"
+                    aria-label="Editar persona"
                   >
-                    Editar
+                    Editar persona
                   </button>
                 </div>
               </div>
@@ -4020,10 +4091,10 @@
                     type="button"
                     class="secondary-button hidden"
                   >
-                    Cancelar
+                    Descartar cambios
                   </button>
                   <button id="personal-save-button" type="submit" class="hidden">
-                    Guardar
+                    Guardar persona
                   </button>
                 </div>
               </form>
@@ -4114,13 +4185,19 @@
                     <textarea id="personal-complemento-notas" rows="2"></textarea>
                   </label>
                   <div class="detail-actions full-width">
-                    <button id="personal-complemento-clear-button" type="button" class="secondary-button">
-                      Nuevo
-                    </button>
                     <button id="personal-complemento-delete-button" type="button" class="danger-button hidden">
-                      Borrar
+                      Eliminar complemento
                     </button>
-                    <button type="submit">Guardar</button>
+                    <button
+                      id="personal-complemento-clear-button"
+                      type="button"
+                      class="secondary-button"
+                      data-icon="new"
+                      data-icon-mode="icon-text"
+                    >
+                      Nuevo complemento
+                    </button>
+                    <button type="submit">Guardar complemento</button>
                   </div>
                 </form>
               </section>
@@ -4154,9 +4231,6 @@
                 <input id="personal-import-select-all" type="checkbox" />
                 <span>Marcar todo lo aplicable</span>
               </label>
-              <button id="personal-import-apply-button" type="button">
-                Aplicar seleccionadas
-              </button>
             </div>
 
             <div class="table-scroll personal-import-table-wrap">
@@ -4176,6 +4250,11 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
+            <div class="detail-actions">
+              <button id="personal-import-apply-button" type="button">
+                Aplicar personas seleccionadas
+              </button>
             </div>
           </aside>
         </section>
@@ -5943,13 +6022,37 @@
                 <h2 id="activity-edit-title">Actividad seleccionada</h2>
                 <p>Modifica los campos y guarda los cambios.</p>
               </div>
-              <button
-                id="cancel-activity-edit-button"
-                class="secondary-button compact-button"
-                type="button"
-              >
-                Cerrar
-              </button>
+              <div class="header-actions">
+                <button
+                  id="generate-activity-records-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Generar registros
+                </button>
+                <button
+                  id="view-activity-records-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Ver registros
+                </button>
+                <button
+                  id="duplicate-activity-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                  aria-label="Duplicar actividad"
+                >
+                  Duplicar
+                </button>
+                <button
+                  id="cancel-activity-edit-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
 
             <form id="activity-edit-form" class="activity-form side-panel-form">
@@ -6086,41 +6189,15 @@
               </label>
 
               <div class="activity-actions">
-                <button type="submit">Guardar cambios</button>
-                <button
-                  id="generate-activity-records-button"
-                  class="secondary-button"
-                  type="button"
-                >
-                  Generar registros
-                </button>
-                <button
-                  id="view-activity-records-button"
-                  class="secondary-button"
-                  type="button"
-                >
-                  Ver registros
-                </button>
-                <button
-                  id="duplicate-activity-button"
-                  class="tooltip-button"
-                  type="button"
-                  aria-label="Duplicar actividad"
-                >
-                  <svg class="button-icon" aria-hidden="true">
-                    <use href="./icons.svg#icon-duplicate"></use>
-                  </svg>
-                </button>
                 <button
                   id="delete-activity-button"
-                  class="danger-button tooltip-button"
+                  class="danger-button panel-destructive-action"
                   type="button"
                   aria-label="Borrar actividad"
                 >
-                  <svg class="button-icon" aria-hidden="true">
-                    <use href="./icons.svg#icon-delete"></use>
-                  </svg>
+                  Eliminar
                 </button>
+                <button type="submit">Guardar cambios</button>
               </div>
             </form>
           </aside>
@@ -6525,8 +6602,8 @@
               </div>
 
               <div class="detail-actions">
-                <button id="contract-detail-delete-button" type="button" class="danger-button">
-                  Eliminar
+                <button id="contract-detail-delete-button" type="button" class="danger-button" aria-label="Eliminar contrato">
+                  Eliminar contrato
                 </button>
                 <button type="submit">Guardar contrato</button>
               </div>
@@ -6549,8 +6626,22 @@
                   <span>Activo</span>
                 </label>
                 <div class="detail-actions">
-                  <button id="contract-service-clear-button" type="button" class="secondary-button">
-                    Limpiar servicio
+                  <button
+                    id="contract-service-delete-button"
+                    type="button"
+                    class="danger-button hidden"
+                    aria-label="Eliminar servicio"
+                  >
+                    Eliminar servicio
+                  </button>
+                  <button
+                    id="contract-service-clear-button"
+                    type="button"
+                    class="secondary-button"
+                    data-icon="new"
+                    data-icon-mode="icon-text"
+                  >
+                    Nuevo servicio
                   </button>
                   <button type="submit">Guardar servicio</button>
                 </div>
@@ -6563,6 +6654,9 @@
               <p class="muted-text">
                 El personal activo aquí aparecerá como opción principal para las actividades de este contrato.
                 Haz doble clic para mover un registro entre ambas listas.
+              </p>
+              <p class="contract-autosave-note">
+                Los cambios de asignación se guardan automáticamente.
               </p>
               <label class="contract-assignment-filter">
                 Filtrar personal
@@ -6578,8 +6672,21 @@
                   <select id="contract-personal-available-select" multiple size="12"></select>
                 </section>
                 <div class="dual-list-actions" aria-label="Cambiar personal del contrato">
-                  <button id="contract-personal-add-button" type="button">&gt;</button>
-                  <button id="contract-personal-remove-button" type="button" class="secondary-button">
+                  <button
+                    id="contract-personal-add-button"
+                    type="button"
+                    data-icon="move-right"
+                    aria-label="Asignar personal al contrato"
+                    title="Asignar personal al contrato"
+                  >&gt;</button>
+                  <button
+                    id="contract-personal-remove-button"
+                    type="button"
+                    class="secondary-button"
+                    data-icon="move-left"
+                    aria-label="Quitar personal del contrato"
+                    title="Quitar personal del contrato"
+                  >
                     &lt;
                   </button>
                 </div>
@@ -6596,6 +6703,9 @@
                 Las instalaciones activas aquí aparecerán como opción principal para las actividades de este contrato.
                 Haz doble clic para mover un registro entre ambas listas.
               </p>
+              <p class="contract-autosave-note">
+                Los cambios de asignación se guardan automáticamente.
+              </p>
               <label class="contract-assignment-filter">
                 Filtrar instalación
                 <input
@@ -6610,8 +6720,21 @@
                   <select id="contract-installation-available-select" multiple size="12"></select>
                 </section>
                 <div class="dual-list-actions" aria-label="Cambiar instalaciones del contrato">
-                  <button id="contract-installation-add-button" type="button">&gt;</button>
-                  <button id="contract-installation-remove-button" type="button" class="secondary-button">
+                  <button
+                    id="contract-installation-add-button"
+                    type="button"
+                    data-icon="move-right"
+                    aria-label="Asignar instalación al contrato"
+                    title="Asignar instalación al contrato"
+                  >&gt;</button>
+                  <button
+                    id="contract-installation-remove-button"
+                    type="button"
+                    class="secondary-button"
+                    data-icon="move-left"
+                    aria-label="Quitar instalación del contrato"
+                    title="Quitar instalación del contrato"
+                  >
                     &lt;
                   </button>
                 </div>
@@ -7610,7 +7733,7 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260722-4" defer></script>
-    <script src="./app.js?v=20260723-2" defer></script>
+    <script src="./concilia-integrated.js?v=20260723-2" defer></script>
+    <script src="./app.js?v=20260723-10" defer></script>
   </body>
 </html>

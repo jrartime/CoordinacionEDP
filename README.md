@@ -89,8 +89,12 @@ Los cambios recientes de Registros dependen de:
 
 - `supabase/tables/registros_filter_facets.sql`: RPC para filtros cruzados de Registros.
 - `supabase/tables/registros_servicio_contrato_validation.sql`: trigger que impide servicios fuera del contrato del registro.
+- `supabase/tables/registros_cambios.sql`: auditoria de cambios de Registros y RPC de reversion segura.
+- `supabase/tables/registros_campos_obligatorios.sql`: exige fecha, personal, puesto y funcion sin romper filas historicas incompletas.
 - `supabase/tables/actividades.sql`: trigger equivalente en Actividades, con comparacion estricta de contrato/servicio.
 - `supabase/tables/gestion_resumen.sql`: RPC de Gestion para agregados exactos de registros y selector de personal por intervalo.
+- `supabase/tables/nominas.sql`: nominas emitidas y congeladas (cabecera, lineas, contexto laboral y horas por puesto), con `emitir_nomina` y `anular_nomina`.
+- `supabase/tables/nomina_calculo.sql` y `nomina_calculo_persona.sql`: motor de calculo (devengos por puesto y nomina real de la persona).
 - `supabase/tables/cronos.sql`: tabla `cronos`, RPC de Apuntes, vista `cronos_detalle` y conciliacion Cronos/Banco.
 - `supabase/tables/cronos_banco.sql`: tabla `cronos_banco`, RPC de Banco y Resultados Banco/Cronos.
 - `supabase/tables/coordinacion_pestanas.sql`: catalogo de pestanas; incluye `gestion` y `contabilidad`.
@@ -100,6 +104,13 @@ Los cambios recientes de Registros dependen de:
 
 Cuando se cambie SQL, ejecuta el archivo correspondiente en el SQL Editor de Supabase
 y deja constancia en `contexto-previo.md`.
+
+## Convención de acciones en paneles
+
+- La cabecera fija contiene contexto, acciones auxiliares y el cierre con icono.
+- El pie fijo contiene acciones destructivas a la izquierda y confirmación/guardado a la derecha.
+- Los botones universales usan icono y tooltip; guardar, aplicar, revertir, archivar y descargar conservan texto.
+- El catálogo compartido vive en `coordinacion/icons.svg`; la decoración semántica está en `coordinacion/app.js`.
 
 ## Gestion y Contabilidad
 

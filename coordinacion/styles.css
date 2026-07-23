@@ -1930,6 +1930,18 @@ button:hover,
   width: 100%;
 }
 
+.contract-autosave-note {
+  margin: -4px 0 0;
+  color: var(--success);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.contract-autosave-note::before {
+  content: "✓";
+  margin-right: 5px;
+}
+
 .contract-service-row {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto auto;
@@ -2072,6 +2084,20 @@ button.icon-text-button:has(.button-icon) {
 .tooltip-button:hover::after,
 .tooltip-button:focus-visible::after {
   opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.detail-header .tooltip-button::after,
+.side-panel-header .tooltip-button::after {
+  top: calc(100% + 8px);
+  bottom: auto;
+  transform: translate(-50%, -4px);
+}
+
+.detail-header .tooltip-button:hover::after,
+.detail-header .tooltip-button:focus-visible::after,
+.side-panel-header .tooltip-button:hover::after,
+.side-panel-header .tooltip-button:focus-visible::after {
   transform: translate(-50%, 0);
 }
 
@@ -2509,6 +2535,52 @@ button.tag-chip.warm-button:hover {
 
 .records-detail-drawer {
   width: min(760px, calc(100vw - 32px));
+}
+
+.records-changes-drawer {
+  width: min(1180px, calc(100vw - 32px));
+}
+
+.records-changes-table-wrapper {
+  margin-top: 16px;
+  max-height: calc(100vh - 150px);
+}
+
+.records-changes-table {
+  min-width: 980px;
+}
+
+.records-changes-table td {
+  vertical-align: middle;
+}
+
+.records-change-actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.records-change-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.records-change-badge-insert {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.records-change-badge-update {
+  color: #1e40af;
+  background: #dbeafe;
+}
+
+.records-change-badge-delete {
+  color: #991b1b;
+  background: #fee2e2;
 }
 
 .record-substitution-drawer {
@@ -3312,6 +3384,36 @@ th {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.detail-drawer > .detail-header {
+  position: sticky;
+  top: -16px;
+  z-index: 12;
+  margin: -16px -16px 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
+}
+
+.detail-drawer > form > .detail-actions,
+.detail-drawer > .detail-form > .detail-actions,
+.detail-drawer > .detail-actions {
+  position: sticky;
+  bottom: -16px;
+  z-index: 11;
+  margin: 8px -16px -16px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
+}
+
+.panel-destructive-action,
+.detail-actions > .danger-button:first-child,
+.activity-actions > .danger-button:first-child {
+  margin-right: auto;
 }
 
 .detail-drawer .detail-header {
@@ -4354,6 +4456,238 @@ th {
 .gestion-nomina-table tr.gestion-nomina-total:last-child td {
   border-top: 2px solid var(--line-strong);
   font-size: 0.85rem;
+}
+
+/* --- Nóminas emitidas (Fase 6) --- */
+.gestion-nomina-emitir {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 10px 10px;
+}
+
+.gestion-nomina-emitir .secondary-button {
+  font-size: 0.78rem;
+  padding: 5px 12px;
+}
+
+.gestion-nomina-emitida-meta {
+  margin: 0;
+  padding: 0 10px 8px 34px;
+  font-size: 0.72rem;
+}
+
+/* Una nómina anulada sigue ahí como histórico, pero no debe competir
+   visualmente con la vigente. */
+.gestion-nomina-emitida-anulada {
+  opacity: 0.6;
+}
+
+.gestion-nomina-emitida-anulada .gestion-nomina-card-title {
+  text-decoration: line-through;
+}
+
+.gestion-nomina-badge {
+  margin-right: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--line, #e5e7eb);
+  color: var(--muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.gestion-nomina-anular {
+  margin-right: 10px;
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--danger, #b3261e);
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.gestion-nomina-anular:hover {
+  background: #fdf2f2;
+  color: var(--danger, #b3261e);
+}
+
+/* --- Editor de conceptos de la nómina --- */
+.gestion-nomina-editor {
+  margin-top: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--panel, #ffffff);
+}
+
+.gestion-nomina-editor-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gestion-nomina-editor-head h4 {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.gestion-nomina-editor-ayuda {
+  margin: 4px 0 10px;
+  font-size: 0.72rem;
+}
+
+/* La tabla tiene 7 columnas y campos de texto: en pantallas estrechas scrollea
+   ella sola en vez de romper el ancho del panel. */
+.gestion-nomina-editor-tabla {
+  overflow-x: auto;
+}
+
+.gestion-nomina-editor-tabla table {
+  width: 100%;
+  min-width: 720px;
+}
+
+.gestion-nomina-editor-tabla input {
+  width: 100%;
+  min-width: 62px;
+  padding: 3px 5px;
+  font-size: 0.72rem;
+}
+
+.gestion-nomina-editor-tabla td:first-child input,
+.gestion-nomina-editor-tabla td:nth-child(2) input {
+  min-width: 130px;
+}
+
+.gestion-nomina-edit-quitar {
+  border: 0;
+  background: transparent;
+  color: var(--danger, #b3261e);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 0.8rem;
+}
+
+.gestion-nomina-edit-quitar:hover {
+  background: transparent;
+  color: #7d2620;
+}
+
+.gestion-nomina-editor-acciones {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.gestion-nomina-editor-notas {
+  flex: 1 1 180px;
+  min-width: 150px;
+}
+
+.gestion-nomina-editor-resumen {
+  margin-left: auto;
+  font-size: 0.78rem;
+}
+
+.gestion-nomina-editar-emitida {
+  margin-right: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.gestion-nomina-editar-emitida:hover {
+  background: #f3f4f6;
+  color: #101828;
+}
+
+/* --- Expediente de una nómina emitida (contrato + horas por puesto) --- */
+.gestion-nomina-expediente-title {
+  margin: 14px 0 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gestion-nomina-expediente {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: var(--panel-alt, #f7f9fc);
+}
+
+.gestion-nomina-expediente-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+}
+
+.gestion-nomina-expediente-total {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.gestion-nomina-expediente-sub {
+  margin: 10px 0 2px;
+  font-size: 0.72rem;
+}
+
+/* Ficha del contrato: pares etiqueta/valor que se reflujan según el ancho. */
+.gestion-nomina-datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 4px 14px;
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+}
+
+.gestion-nomina-dato {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gestion-nomina-dato dt {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.gestion-nomina-dato dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.gestion-nomina-horas-table {
+  width: 100%;
+  font-size: 0.72rem;
+}
+
+.gestion-nomina-horas-table tfoot th {
+  border-top: 1px solid var(--line-strong);
+}
+
+/* Las horas de CAMB y LG se guardan para que el registro esté completo, pero
+   no se pagan: se muestran apagadas para que no se confundan con las demás. */
+.gestion-nomina-hora-excluida td {
+  color: var(--muted);
+  text-decoration: line-through;
 }
 
 /* --- Contabilidad (tabla cronos) --- */
