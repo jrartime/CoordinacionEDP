@@ -25,8 +25,8 @@
     </style>
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
-    <link rel="stylesheet" href="./concilia-integrated.css?v=20260723-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260723-7" />
+    <link rel="stylesheet" href="./concilia-integrated.css?v=20260724-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260724-6" />
   </head>
   <body>
     <script>
@@ -753,9 +753,13 @@
                   </div>
                 </form>
 
-                <details class="programming-panel-zone">
-                  <summary>Asignación masiva</summary>
+                <details id="records-bulk-zone" class="programming-panel-zone">
+                  <summary>Asignación/borrado masivo</summary>
                   <div class="activities-bulk-assignment-panel">
+                    <p class="bulk-action-help">
+                      Pulsa Seleccionar para mostrar los ticks y marca expresamente los registros.
+                      Aplicar y Borrar sólo actuarán sobre los registros seleccionados.
+                    </p>
                     <label>
                       Campo
                       <select id="records-bulk-field">
@@ -799,7 +803,7 @@
                     <button id="records-bulk-select-button" type="button" class="secondary-button">
                       Seleccionar
                     </button>
-                    <button id="records-bulk-delete-button" type="button" class="danger-button hidden">
+                    <button id="records-bulk-delete-button" type="button" class="danger-button" disabled>
                       Borrar seleccionados
                     </button>
                     <span id="records-bulk-match-count" class="control-selected-delete-count">
@@ -1257,9 +1261,13 @@
                   </div>
                 </form>
 
-                <details class="programming-panel-zone">
-                  <summary>Asignación masiva</summary>
+                <details id="historial-bulk-zone" class="programming-panel-zone">
+                  <summary>Asignación/borrado masivo</summary>
                   <div class="activities-bulk-assignment-panel">
+                    <p class="bulk-action-help">
+                      Pulsa Seleccionar para mostrar los ticks y marca expresamente los periodos.
+                      Aplicar y Borrar sólo actuarán sobre los periodos seleccionados.
+                    </p>
                     <label>
                       Campo
                       <select id="historial-bulk-field">
@@ -1298,6 +1306,9 @@
                     </button>
                     <button id="historial-bulk-select-button" type="button" class="secondary-button">
                       Seleccionar
+                    </button>
+                    <button id="historial-bulk-delete-button" type="button" class="danger-button" disabled>
+                      Borrar seleccionados
                     </button>
                     <span id="historial-bulk-match-count" class="control-selected-delete-count">
                       0 coincidencias
@@ -1379,7 +1390,7 @@
                     </div>
                   </div>
 
-                  <form id="historial-detail-form" class="detail-form records-detail-form">
+                  <form id="historial-detail-form" class="detail-form historial-detail-form">
                     <div id="historial-detail-fields" class="detail-field-row cols-2 full-width"></div>
                     <div class="detail-actions">
                       <button id="historial-detail-delete-button" type="button" class="danger-button panel-destructive-action">
@@ -5687,25 +5698,6 @@
                 <input id="activity-hora-fin" name="hora_fin" type="time" required />
               </label>
 
-              <label class="checkbox-field">
-                <input
-                  id="activity-llamamiento-enviado"
-                  name="llamamiento_enviado"
-                  type="checkbox"
-                  value="true"
-                />
-                Llamamiento enviado
-              </label>
-
-              <label>
-                Respuesta llamamiento
-                <select id="activity-respuesta-llamamiento" name="respuesta_llamamiento">
-                  <option value="">Pendiente</option>
-                  <option value="aceptado">Aceptado</option>
-                  <option value="rechazado">Rechazado</option>
-                </select>
-              </label>
-
               <label class="activity-notes-field">
                 Observaciones
                 <textarea
@@ -5880,9 +5872,13 @@
               </div>
             </details>
 
-            <details class="programming-panel-zone activities-bulk-zone">
-              <summary>Asignación masiva</summary>
+            <details id="activities-bulk-zone" class="programming-panel-zone activities-bulk-zone">
+              <summary>Asignación/borrado masivo</summary>
               <div class="activities-bulk-assignment-panel">
+                <p class="bulk-action-help">
+                  Pulsa Seleccionar para mostrar los ticks y marca expresamente las actividades.
+                  Aplicar y Borrar sólo actuarán sobre las actividades seleccionadas.
+                </p>
                 <label>
                   Campo
                   <select id="activities-bulk-field">
@@ -5900,8 +5896,6 @@
                     <option value="modalidad_id">Modalidad</option>
                     <option value="situacion_id">Situación</option>
                     <option value="tipo_hora_id">Tipo de hora</option>
-                    <option value="llamamiento_enviado">Llamamiento enviado</option>
-                    <option value="respuesta_llamamiento">Respuesta llamamiento</option>
                     <option value="observaciones">Observaciones</option>
                   </select>
                 </label>
@@ -5924,8 +5918,14 @@
                 <button id="activities-bulk-select-button" type="button" class="secondary-button">
                   Seleccionar
                 </button>
+                <button id="activities-bulk-delete-button" type="button" class="danger-button" disabled>
+                  Borrar seleccionadas
+                </button>
                 <span id="activities-bulk-match-count" class="control-selected-delete-count">
                   0 coincidencias
+                </span>
+                <span id="activities-bulk-selection-count" class="control-selected-delete-count">
+                  0 seleccionadas
                 </span>
               </div>
             </details>
@@ -5997,17 +5997,11 @@
                         Horario
                       </button>
                     </th>
-                    <th>
-                      <button class="sort-button" type="button" data-activity-sort-field="llamamiento">
-                        Llam.
-                      </button>
-                    </th>
-                    <th></th>
                   </tr>
                 </thead>
                 <tbody id="activities-table-body">
                   <tr>
-                    <td colspan="7" class="empty-state">Cargando actividades...</td>
+                    <td colspan="5" class="empty-state">Cargando actividades...</td>
                   </tr>
                 </tbody>
               </table>
@@ -6161,25 +6155,6 @@
               <label>
                 Hora fin
                 <input id="edit-activity-hora-fin" name="hora_fin" type="time" required />
-              </label>
-
-              <label class="checkbox-field">
-                <input
-                  id="edit-activity-llamamiento-enviado"
-                  name="llamamiento_enviado"
-                  type="checkbox"
-                  value="true"
-                />
-                Llamamiento enviado
-              </label>
-
-              <label>
-                Respuesta llamamiento
-                <select id="edit-activity-respuesta-llamamiento" name="respuesta_llamamiento">
-                  <option value="">Pendiente</option>
-                  <option value="aceptado">Aceptado</option>
-                  <option value="rechazado">Rechazado</option>
-                </select>
               </label>
 
               <label class="activity-notes-field">
@@ -7737,7 +7712,7 @@
     <script src="./config.js" defer></script>
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260723-2" defer></script>
-    <script src="./app.js?v=20260723-12" defer></script>
+    <script src="./concilia-integrated.js?v=20260724-4" defer></script>
+    <script src="./app.js?v=20260724-7" defer></script>
   </body>
 </html>

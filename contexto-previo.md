@@ -157,6 +157,45 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Panel lateral simplificado**: se ocultan `categoria_id`, `hc`, `hf`, `hm`, `horas_diurnas`, `clases`, `horas_2` y `anio`. El cambio es solo de presentacion: no elimina columnas, no altera informes ni calculos y al duplicar se conservan los valores originales.
 - **Publicacion**: fuentes y copia de `publish/coordinacion/` sincronizadas; cache-busting de JavaScript en `app.js?v=20260723-12`.
 
+## 14. Orden y escala comun de formularios en paneles (24/07/2026)
+
+- **Editor de Registro**: se oculta el `id`, ya visible en el titulo. El formulario queda ordenado así: `Personal | Fecha | Actividad`; `Empresa | Contrato | Servicio`; `Sustituto | Sustituye a registro | Sustitucion`; `Instalacion | Puesto`; `Funcion | Modalidad`; `Inicio | Fin | Horas`; `HD | Bolsa de horas | H. nocturnas`; `Facturar | Abonar | Tipo hora | Situacion`; `Nota`; `Observacion`; y, al final, `Control | Factura`. En movil vuelve a una sola columna.
+- **Titular derivado**: `titular_personal_id` se oculta en el formulario por redundante, pero no se marca para eliminar. La vista lo deriva de `sustituye_registro_id` y el frontend lo usa en la gestion, descripcion y resaltado de sustituciones.
+- **Escala visual comun**: la comparacion con las reglas finales de los filtros compactos de Registros fija etiquetas a `0.72rem` y controles a `0.74rem`, con tipografia heredada, altura de 28 px y padding de 3 x 6 px. El criterio se aplica a `detail-drawer`, `side-panel`, `report-panel` y `summary-panel`, sin agrandar checkbox ni radio.
+- **Listas multiples**: los selectores duales de asignacion quedan excluidos de la altura compacta. Conservan 320 px para mostrar simultaneamente el personal o las instalaciones disponibles/asignadas.
+- **Doble clic en Contratos**: asignar o retirar personal/instalaciones ya no recarga toda la gestion de Contratos. Tras confirmar la escritura en Supabase se actualiza el estado local y se repintan solo las listas, evitando saltos de scroll, seleccion y movimientos aparentes de otra fila.
+- **Version de recursos**: `app.js` y `styles.css` pasan a `20260724-4`; `concilia-integrated.css` permanece en `20260724-2`.
+
+## 15. Asignacion y borrado masivo con seleccion obligatoria (24/07/2026)
+
+- **Nombre comun**: los bloques de Registros, Actividades e Historial laboral pasan a llamarse `Asignacion/borrado masivo`.
+- **Seleccion explicita**: Aplicar y Borrar solo se habilitan después de pulsar Seleccionar y marcar filas mediante los ticks. El valor actual puede servir de contexto o filtro, pero nunca vuelve a convertir todas las coincidencias en destino implicito.
+- **Borrado en los tres modulos**: Registros conserva su borrado existente; Historial laboral elimina los periodos marcados de `historiales_laborales`; Actividades elimina de `actividades`. Los tres muestran confirmacion con el numero exacto de filas.
+- **Ayuda visible**: cada panel explica al desplegarse la secuencia Seleccionar, marcar ticks y Aplicar/Borrar. Los botones están en la misma fila que Campo, Valor actual y Nuevo valor.
+- **Columna de ticks temporal**: cerrar cualquiera de los tres desplegables cancela su selección y oculta la columna. Tras aplicar correctamente una asignación también se limpia, de modo que cada operación exige volver a pulsar Seleccionar. La selección propia de Generación de registros en Actividades se conserva porque ese flujo también necesita marcar actividades.
+- **Version de recursos**: `app.js` pasa a `20260724-6`, `concilia-integrated.js` a `20260724-2` y `styles.css` permanece en `20260724-5`.
+
+## 16. Edicion por pulsacion de fila en Actividades y Contratos (24/07/2026)
+
+- **Mismo patrón que Registros**: una pulsación sobre cualquier zona no interactiva de la fila abre el panel de edición de Actividades o Contratos.
+- **Sin botón redundante**: Actividades elimina su última columna de acciones y Contratos convierte el nombre-botón en texto normal.
+- **Estado y accesibilidad**: la fila abierta queda resaltada; todas las filas editables tienen foco y responden a `Enter` o barra espaciadora. Los ticks y demás controles interactivos mantienen su acción propia y no abren el editor.
+- **Version de recursos**: `app.js` pasa a `20260724-7`, `concilia-integrated.js` y `concilia-integrated.css` a `20260724-3`, y `styles.css` a `20260724-6`.
+
+## 17. Llamamientos gestionados exclusivamente desde Historial laboral (24/07/2026)
+
+- **Actividades simplificada**: se retiran `llamamiento_enviado` y `respuesta_llamamiento` de los formularios de alta/edición, del listado, de la ordenación y de la asignación/borrado masivo.
+- **Históricos preservados**: las columnas no se eliminan de la base de datos. Tampoco se incluyen en el payload al guardar una actividad, por lo que una edición no las pone a `false`/`null` ni altera valores antiguos.
+- **Historial laboral sin cambios**: el tipo documental `llamamiento` y sus plantillas permanecen disponibles, porque son el mecanismo vigente de seguimiento.
+- **Listado**: la tabla de Actividades pasa de seis a cinco columnas de datos y reduce su ancho mínimo de 980 a 820 px.
+- **Version de recursos**: `concilia-integrated.js` y `concilia-integrated.css` pasan a `20260724-4`; el resto mantiene su versión.
+
+## 18. Restauracion de la cuadricula del panel de Historial laboral (24/07/2026)
+
+- **Causa**: el formulario de Historial compartía accidentalmente `records-detail-form`. La cuadrícula explícita de 12 columnas creada para ordenar el editor de Registros se aplicaba también aquí y comprimía cada campo en una sola columna.
+- **Corrección**: Historial usa su propia clase `historial-detail-form` y recupera la cuadrícula declarada `cols-2`: dos campos legibles por fila, con Observaciones y Notas a ancho completo.
+- **Sin cambios funcionales**: no se modifican campos, cálculos, guardado ni tamaños compactos comunes; el ajuste es únicamente de disposición.
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.

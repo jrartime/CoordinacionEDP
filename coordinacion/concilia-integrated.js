@@ -208,6 +208,7 @@
   const activitiesHistorialRefreshButton = document.querySelector(
     "#activities-historial-refresh-button"
   );
+  const activitiesBulkZone = document.querySelector("#activities-bulk-zone");
   const activitiesBulkFieldSelect = document.querySelector("#activities-bulk-field");
   const activitiesBulkCurrentValueInput = document.querySelector("#activities-bulk-current-value");
   const activitiesBulkNewValueInput = document.querySelector("#activities-bulk-new-value");
@@ -216,7 +217,9 @@
   const activitiesBulkApplyButton = document.querySelector("#activities-bulk-apply-button");
   const activitiesBulkClearFieldsButton = document.querySelector("#activities-bulk-clear-fields-button");
   const activitiesBulkSelectButton = document.querySelector("#activities-bulk-select-button");
+  const activitiesBulkDeleteButton = document.querySelector("#activities-bulk-delete-button");
   const activitiesBulkMatchCount = document.querySelector("#activities-bulk-match-count");
+  const activitiesBulkSelectionCount = document.querySelector("#activities-bulk-selection-count");
   const activitiesSelectRecordsButton = document.querySelector("#activities-select-records-button");
   const activitiesRecordsSelectHeader = document.querySelector(
     "#activities-records-select-header"
@@ -469,8 +472,6 @@
     modalidad_id: { label: "Modalidad", type: "select", source: "modalidad", nullable: true },
     situacion_id: { label: "Situación", type: "select", source: "situacion" },
     tipo_hora_id: { label: "Tipo de hora", type: "select", source: "tipo_hora" },
-    llamamiento_enviado: { label: "Llamamiento enviado", type: "boolean" },
-    respuesta_llamamiento: { label: "Respuesta llamamiento", type: "select", source: "respuesta", nullable: true },
     observaciones: { label: "Observaciones", type: "text" },
   };
 
@@ -1891,22 +1892,6 @@
       : "-";
   }
 
-  function formatBooleanStatus(value) {
-    return value ? "Si" : "No";
-  }
-
-  function formatCallResponse(value) {
-    if (value === "aceptado") {
-      return "Aceptado";
-    }
-
-    if (value === "rechazado") {
-      return "Rechazado";
-    }
-
-    return "Pendiente";
-  }
-
   function getPersonalName(personalId) {
     const person = assignmentPersonalRows.find((row) => Number(row.id) === Number(personalId));
     return person?.personal || `ID ${personalId}`;
@@ -2639,7 +2624,6 @@
     const horaInicio = String(formData.get("hora_inicio") || "");
     const horaFin = String(formData.get("hora_fin") || "");
     const diasSemana = getSelectedWeekdays(form);
-    const respuestaLlamamiento = String(formData.get("respuesta_llamamiento") || "");
 
     if (!diasSemana.length) {
       setStatus("Selecciona al menos un dia de la semana.", "error");
@@ -2683,8 +2667,6 @@
       fecha_fin: fechaFin,
       hora_inicio: horaInicio,
       hora_fin: horaFin,
-      llamamiento_enviado: formData.get("llamamiento_enviado") === "true",
-      respuesta_llamamiento: respuestaLlamamiento || null,
       observaciones: String(formData.get("observaciones") || "").trim() || null,
     };
   }
@@ -2692,14 +2674,14 @@
   async function loadActivities() {
     activitiesListSummary.textContent = "Cargando actividades...";
     activitiesTableBody.innerHTML =
-      '<tr><td colspan="7" class="empty-state">Cargando actividades...</td></tr>';
+      `<tr><td colspan="${activitiesRecordsSelectionMode ? 6 : 5}" class="empty-state">Cargando actividades...</td></tr>`;
 
     try {
       const supabase = await getSupabaseClient();
       const { data, error } = await supabase
         .from("actividades_detalle")
         .select(
-          "id,personal_id,personal,contrato_id,contrato,servicio_id,servicio,empresa_id,empresa,instalacion_id,instalacion,puesto_id,puesto,funcion_id,funcion,modalidad_id,modalidad,situacion_id,situacion,tipo_hora_id,tipo_hora,dias_semana,fecha_inicio,fecha_fin,hora_inicio,hora_fin,llamamiento_enviado,respuesta_llamamiento,observaciones,personal_asignado_actualmente,personal_asignacion_estado,instalacion_asignada_actualmente,instalacion_asignacion_estado,updated_at"
+          "id,personal_id,personal,contrato_id,contrato,servicio_id,servicio,empresa_id,empresa,instalacion_id,instalacion,puesto_id,puesto,funcion_id,funcion,modalidad_id,modalidad,situacion_id,situacion,tipo_hora_id,tipo_hora,dias_semana,fecha_inicio,fecha_fin,hora_inicio,hora_fin,observaciones,personal_asignado_actualmente,personal_asignacion_estado,instalacion_asignada_actualmente,instalacion_asignacion_estado,updated_at"
         )
         .order("fecha_inicio", { ascending: false })
         .order("hora_inicio", { ascending: true });
@@ -2743,14 +2725,14 @@
     } catch (error) {
       activitiesListSummary.textContent = "No se pudieron cargar las actividades.";
       activitiesTableBody.innerHTML =
-        '<tr><td colspan="7" class="empty-state">Error cargando actividades.</td></tr>';
+        `<tr><td colspan="${activitiesRecordsSelectionMode ? 6 : 5}" class="empty-state">Error cargando actividades.</td></tr>`;
       setStatus(`No se pudieron cargar las actividades: ${error.message}`, "error");
     }
   }
 
   function renderActivitiesTable() {
     activitiesListSummary.textContent = `${filteredActivitiesRows.length} actividades mostradas de ${activitiesRows.length}`;
-    const visibleColumnCount = activitiesRecordsSelectionMode ? 8 : 7;
+    const visibleColumnCount = activitiesRecordsSelectionMode ? 6 : 5;
     activitiesRecordsSelectHeader?.classList.toggle("hidden", !activitiesRecordsSelectionMode);
 
     if (!filteredActivitiesRows.length) {
@@ -2763,7 +2745,13 @@
     activitiesTableBody.innerHTML = filteredActivitiesRows
       .map(
         (activity) => `
-          <tr>
+          <tr
+            data-activity-row="${escapeHtml(activity.id)}"
+            tabindex="0"
+            role="button"
+            aria-label="Editar actividad ${escapeHtml(activity.personal || activity.id)}"
+            class="${String(editActivityId?.value || "") === String(activity.id) ? "activity-row-selected" : ""}"
+          >
             ${
               activitiesRecordsSelectionMode
                 ? `<td class="control-select-cell">
@@ -2797,15 +2785,6 @@
               ${escapeHtml(formatTime(activity.hora_inicio))} - ${escapeHtml(formatTime(activity.hora_fin))}<br />
               <span class="muted-text">${escapeHtml(formatWeekdays(activity.dias_semana))}</span>
             </td>
-            <td>
-              ${escapeHtml(formatBooleanStatus(activity.llamamiento_enviado))}<br />
-              <span class="muted-text">${escapeHtml(formatCallResponse(activity.respuesta_llamamiento))}</span>
-            </td>
-            <td>
-              <button class="compact-button tooltip-button" type="button" aria-label="Editar actividad" data-edit-activity="${escapeHtml(activity.id)}">
-                ${renderIcon("edit")}
-              </button>
-            </td>
           </tr>
         `
       )
@@ -2820,13 +2799,6 @@
 
     if (field === "horario") {
       return [activity.hora_inicio, activity.hora_fin];
-    }
-
-    if (field === "llamamiento") {
-      return [
-        activity.llamamiento_enviado ? "1" : "0",
-        formatCallResponse(activity.respuesta_llamamiento),
-      ];
     }
 
     if (field === "funcion") {
@@ -3355,11 +3327,37 @@
   }
 
   function getActivityBulkTargetRows() {
-    if (!activitiesRecordsSelectionMode) {
-      return getActivityBulkMatchingRows();
-    }
+    if (!activitiesRecordsSelectionMode) return [];
     const selectedIds = new Set(getSelectedActivityRecordGeneratorIds());
     return filteredActivitiesRows.filter((activity) => selectedIds.has(String(activity.id)));
+  }
+
+  async function deleteSelectedActivitiesBulkRows() {
+    const rows = getActivityBulkTargetRows();
+    if (!rows.length) {
+      setStatus("Pulsa Seleccionar y marca al menos una actividad antes de borrar.", "error");
+      return;
+    }
+    const count = rows.length;
+    if (!window.confirm(
+      `¿Borrar definitivamente ${count} actividad${count === 1 ? "" : "es"} seleccionada${count === 1 ? "" : "s"}?`
+    )) {
+      return;
+    }
+    try {
+      const supabase = await getSupabaseClient();
+      const { error } = await supabase
+        .from("actividades")
+        .delete()
+        .in("id", rows.map((row) => Number(row.id)));
+      if (error) throw error;
+      selectedActivityRecordGeneratorIds = new Set();
+      activitiesRecordsSelectionMode = false;
+      await loadActivities();
+      setStatus(`${count} actividad${count === 1 ? "" : "es"} borrada${count === 1 ? "" : "s"}.`, "success");
+    } catch (error) {
+      setStatus(`No se pudieron borrar las actividades seleccionadas: ${error.message}`, "error");
+    }
   }
 
   function syncActivitiesBulkAssignmentUi() {
@@ -3419,10 +3417,16 @@
         ? `${matches.length} coincidencia${matches.length === 1 ? "" : "s"}`
         : "Indica valor actual";
     }
+    const selectedCount = getSelectedActivityRecordGeneratorIds().length;
     if (activitiesBulkApplyButton) {
-      activitiesBulkApplyButton.disabled = activitiesRecordsSelectionMode
-        ? getSelectedActivityRecordGeneratorIds().length === 0
-        : matches.length === 0;
+      activitiesBulkApplyButton.disabled = !activitiesRecordsSelectionMode || selectedCount === 0;
+    }
+    if (activitiesBulkDeleteButton) {
+      activitiesBulkDeleteButton.disabled = !activitiesRecordsSelectionMode || selectedCount === 0;
+    }
+    if (activitiesBulkSelectionCount) {
+      activitiesBulkSelectionCount.textContent =
+        `${selectedCount} seleccionada${selectedCount === 1 ? "" : "s"}`;
     }
   }
 
@@ -3440,12 +3444,7 @@
 
     const matches = getActivityBulkTargetRows();
     if (!matches.length) {
-      setStatus(
-        activitiesRecordsSelectionMode
-          ? "Selecciona al menos una actividad para aplicar la asignacion masiva."
-          : "No hay actividades filtradas con ese valor actual.",
-        "error"
-      );
+      setStatus("Pulsa Seleccionar y marca al menos una actividad antes de aplicar el cambio.", "error");
       return;
     }
 
@@ -3516,6 +3515,7 @@
 
     resetActivitiesBulkCurrentFilter();
     await loadActivities();
+    setActivitiesRecordsSelectionMode(false);
     setStatus(
       field === "contrato_id"
         ? `Asignacion masiva aplicada a ${matches.length} actividad${matches.length === 1 ? "" : "es"}. El servicio se ha dejado sin asignar.`
@@ -4914,13 +4914,12 @@
     activityEditForm.elements.fecha_fin.value = activity.fecha_fin || "";
     activityEditForm.elements.hora_inicio.value = formatTime(activity.hora_inicio);
     activityEditForm.elements.hora_fin.value = formatTime(activity.hora_fin);
-    activityEditForm.elements.llamamiento_enviado.checked = Boolean(activity.llamamiento_enviado);
-    activityEditForm.elements.respuesta_llamamiento.value = activity.respuesta_llamamiento || "";
     activityEditForm.elements.observaciones.value = activity.observaciones || "";
     setSelectedWeekdays(activityEditForm, activity.dias_semana);
     activityEditTitle.textContent = activity.personal || "Actividad seleccionada";
     activityEditPanel.classList.remove("hidden");
     activityEditPanelBackdrop.classList.remove("hidden");
+    renderActivitiesTable();
     markConciliaPristine(activityEditForm);
   }
 
@@ -4943,6 +4942,7 @@
     editActivityId.value = "";
     activityEditPanel.classList.add("hidden");
     activityEditPanelBackdrop.classList.add("hidden");
+    renderActivitiesTable();
     markConciliaPristine(activityEditForm);
     return true;
   }
@@ -4987,10 +4987,6 @@
     activityForm.elements.fecha_fin.value = activityEditForm.elements.fecha_fin.value;
     activityForm.elements.hora_inicio.value = activityEditForm.elements.hora_inicio.value;
     activityForm.elements.hora_fin.value = activityEditForm.elements.hora_fin.value;
-    activityForm.elements.llamamiento_enviado.checked =
-      activityEditForm.elements.llamamiento_enviado.checked;
-    activityForm.elements.respuesta_llamamiento.value =
-      activityEditForm.elements.respuesta_llamamiento.value;
     activityForm.elements.observaciones.value = activityEditForm.elements.observaciones.value;
     setSelectedWeekdays(activityForm, getSelectedWeekdays(activityEditForm));
     activityCreatePanel.classList.remove("hidden");
@@ -7382,9 +7378,17 @@
     activitiesBulkApplyButton?.addEventListener("click", () => {
       void applyActivitiesBulkAssignment();
     });
+    activitiesBulkDeleteButton?.addEventListener("click", () => {
+      void deleteSelectedActivitiesBulkRows();
+    });
     activitiesBulkClearFieldsButton?.addEventListener("click", clearActivitiesBulkFields);
     activitiesBulkSelectButton?.addEventListener("click", () => {
       setActivitiesRecordsSelectionMode(!activitiesRecordsSelectionMode);
+    });
+    activitiesBulkZone?.addEventListener("toggle", () => {
+      if (!activitiesBulkZone.open && activitiesRecordsSelectionMode) {
+        setActivitiesRecordsSelectionMode(false);
+      }
     });
     activitiesSelectRecordsButton?.addEventListener("click", () => {
       setActivitiesRecordsSelectionMode(!activitiesRecordsSelectionMode);
@@ -7501,12 +7505,16 @@
         return;
       }
 
-      const button = event.target.closest("[data-edit-activity]");
-      if (!button) {
-        return;
+      const row = event.target.closest("[data-activity-row]");
+      if (row && !event.target.closest("button, a, input, select, textarea, label")) {
+        openActivityEdit(row.dataset.activityRow);
       }
-
-      openActivityEdit(button.dataset.editActivity);
+    });
+    activitiesTableBody.addEventListener("keydown", (event) => {
+      const row = event.target.closest("[data-activity-row]");
+      if (!row || !["Enter", " "].includes(event.key)) return;
+      event.preventDefault();
+      openActivityEdit(row.dataset.activityRow);
     });
     activityEditForm.addEventListener("submit", (event) => {
       void handleActivityEditSubmit(event);

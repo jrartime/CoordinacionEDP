@@ -1020,20 +1020,25 @@ td {
 }
 
 .side-panel label {
-  gap: 3px;
-  font-size: 0.86rem;
+  gap: 1px;
+  font-family: inherit;
+  font-size: 0.72rem;
 }
 
-.side-panel input,
+.side-panel input:not([type="checkbox"]):not([type="radio"]),
 .side-panel select,
 .side-panel textarea {
-  min-height: 32px;
-  padding: 6px 8px;
-  font-size: 0.9rem;
+  height: 28px;
+  min-height: 28px;
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 0.74rem;
+  line-height: 1.2;
 }
 
 .side-panel textarea {
-  min-height: 68px;
+  height: auto;
+  min-height: 56px;
   line-height: 1.25;
 }
 
@@ -1154,7 +1159,7 @@ td {
 }
 
 .activities-table {
-  min-width: 980px;
+  min-width: 820px;
   table-layout: fixed;
 }
 
@@ -1178,20 +1183,21 @@ td {
   width: 132px;
 }
 
-.activities-table th:nth-child(6),
-.activities-table td:nth-child(6) {
-  width: 104px;
+.activities-table tbody tr[data-activity-row] {
+  cursor: pointer;
 }
 
-.activities-table th:last-child,
-.activities-table td:last-child {
-  width: 78px;
-  text-align: right;
+.activities-table tbody tr[data-activity-row]:hover td {
+  background: #f7faff;
 }
 
-.activities-table .compact-button {
-  white-space: nowrap;
-  overflow-wrap: normal;
+.activities-table tbody tr.activity-row-selected td {
+  background: #eef6ff;
+}
+
+.activities-table tbody tr[data-activity-row]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .muted-text {

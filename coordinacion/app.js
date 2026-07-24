@@ -148,6 +148,8 @@ const RECORD_REQUIRED_FIELDS = new Map([
   ["funcion_id", "Función"],
 ]);
 const RECORD_DETAIL_HIDDEN_FIELDS = new Set([
+  "id",
+  "titular_personal_id",
   "categoria_id",
   "hc",
   "hf",
@@ -11770,18 +11772,15 @@ function renderContractsTable() {
       const services = getServicesForContract(contract.id);
       const activeServices = services.filter((service) => service.activo).length;
       return `
-        <tr>
+        <tr
+          data-contract-row="${escapeHtml(contract.id)}"
+          tabindex="0"
+          role="button"
+          aria-label="Editar contrato ${escapeHtml(contract.contrato || contract.id)}"
+          class="${String(currentEditingContractId) === String(contract.id) ? "contract-row-selected" : ""}"
+        >
           <td>${escapeHtml(contract.id)}</td>
-          <td>
-            <button
-              type="button"
-              class="contract-name-button"
-              data-contract-edit="${escapeHtml(contract.id)}"
-              aria-label="Editar contrato ${escapeHtml(contract.contrato || "Sin nombre")}"
-            >
-              ${escapeHtml(contract.contrato || "Sin nombre")}
-            </button>
-          </td>
+          <td><strong>${escapeHtml(contract.contrato || "Sin nombre")}</strong></td>
           <td>${escapeHtml(contract.cliente || "-")}</td>
           <td>${escapeHtml(contract.expediente || "-")}</td>
           <td>${services.length} servicio${services.length === 1 ? "" : "s"} (${activeServices} activo${activeServices === 1 ? "" : "s"})</td>
@@ -11998,6 +11997,7 @@ function openContractDetailPanel(contractId = "") {
   renderContractAssignmentOptions();
   markFormPristine(contractDetailForm);
   contractDetailPanel?.classList.remove("hidden");
+  renderContractsTable();
   contractDetailNameInput?.focus();
 }
 
@@ -12016,6 +12016,7 @@ async function closeContractDetailPanel(options = {}) {
   }
   currentEditingContractId = "";
   renderContractAssignmentOptions();
+  renderContractsTable();
   return true;
 }
 
@@ -12165,6 +12166,41 @@ function getTodayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function updateCurrentContractAssignmentRows(rows, ids, idKey, isEnabled, contractId, today) {
+  const targetIds = new Set(ids.map(Number));
+  const updatedAt = new Date().toISOString();
+  const nextRows = rows.map((row) => {
+    if (
+      Number(row.contrato_id) !== Number(contractId) ||
+      !targetIds.has(Number(row[idKey]))
+    ) {
+      return row;
+    }
+    targetIds.delete(Number(row[idKey]));
+    return {
+      ...row,
+      activo: isEnabled,
+      fecha_inicio: isEnabled ? today : row.fecha_inicio,
+      fecha_fin: isEnabled ? null : today,
+      removed_at: isEnabled ? null : updatedAt,
+    };
+  });
+
+  if (isEnabled) {
+    for (const id of targetIds) {
+      nextRows.push({
+        contrato_id: Number(contractId),
+        [idKey]: id,
+        activo: true,
+        fecha_inicio: today,
+        fecha_fin: null,
+        removed_at: null,
+      });
+    }
+  }
+  return nextRows;
+}
+
 async function setContractPersonalBatch(personalIds, isEnabled) {
   const ids = personalIds.map(Number).filter(Boolean);
   if (!currentEditingContractId || !ids.length) {
@@ -12211,7 +12247,14 @@ async function setContractPersonalBatch(personalIds, isEnabled) {
     return;
   }
 
-  await loadContractsManagement();
+  currentContractPersonalRows = updateCurrentContractAssignmentRows(
+    currentContractPersonalRows,
+    ids,
+    "personal_id",
+    isEnabled,
+    contractId,
+    today
+  );
   renderContractAssignmentOptions();
   setContractsStatus("Personal del contrato actualizado.", "success");
 }
@@ -12262,7 +12305,14 @@ async function setContractInstallationBatch(installationIds, isEnabled) {
     return;
   }
 
-  await loadContractsManagement();
+  currentContractInstallationRows = updateCurrentContractAssignmentRows(
+    currentContractInstallationRows,
+    ids,
+    "instalacion_id",
+    isEnabled,
+    contractId,
+    today
+  );
   renderContractAssignmentOptions();
   setContractsStatus("Instalaciones del contrato actualizadas.", "success");
 }
@@ -15159,6 +15209,7 @@ const RECORD_BULK_FIELDS = {
   observacion: { label: "Observacion", type: "text" },
 };
 
+const recordsBulkZone = document.querySelector("#records-bulk-zone");
 const recordsBulkFieldSelect = document.querySelector("#records-bulk-field");
 const recordsBulkCurrentValueInput = document.querySelector("#records-bulk-current-value");
 const recordsBulkCurrentSelect = document.querySelector("#records-bulk-current-select");
@@ -15342,10 +15393,7 @@ function getSelectedRecordRowsForBulkAction() {
 }
 
 function getRecordsBulkTargetRows() {
-  if (recordsSelectionMode) {
-    return getSelectedRecordRowsForBulkAction();
-  }
-  return getRecordBulkMatchingRows();
+  return recordsSelectionMode ? getSelectedRecordRowsForBulkAction() : [];
 }
 
 function updateRecordsBulkSelectionUi() {
@@ -15354,7 +15402,12 @@ function updateRecordsBulkSelectionUi() {
   if (recordsBulkSelectButton) {
     recordsBulkSelectButton.textContent = recordsSelectionMode ? "Limpiar selección" : "Seleccionar";
   }
-  recordsBulkDeleteButton?.classList.toggle("hidden", !recordsSelectionMode || !count);
+  if (recordsBulkApplyButton) {
+    recordsBulkApplyButton.disabled = !recordsSelectionMode || !count;
+  }
+  if (recordsBulkDeleteButton) {
+    recordsBulkDeleteButton.disabled = !recordsSelectionMode || !count;
+  }
   if (recordsBulkSelectionCount) {
     recordsBulkSelectionCount.textContent = recordsSelectionMode
       ? `${count} seleccionado${count !== 1 ? "s" : ""} de ${filteredRecordsRows.length}`
@@ -15447,12 +15500,7 @@ async function applyRecordsBulkAssignment() {
 
   const matches = getRecordsBulkTargetRows();
   if (!matches.length) {
-    setStatus(
-      recordsSelectionMode
-        ? "Selecciona al menos un registro para aplicar la asignación masiva."
-        : "No hay registros que coincidan con el valor actual.",
-      "error"
-    );
+    setStatus("Pulsa Seleccionar y marca al menos un registro antes de aplicar el cambio.", "error");
     return;
   }
 
@@ -15595,6 +15643,7 @@ async function applyRecordsBulkAssignment() {
       if (error) throw error;
     }
     await loadRecords();
+    clearRecordsBulkSelection();
     const resumen = `${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}.`;
     setStatus(
       field === "contrato_id"
@@ -15971,22 +16020,28 @@ function renderRecordDetailForm(row) {
     const value = row[column.key];
     const name = escapeHtml(column.key);
     const label = escapeHtml(column.label);
+    const fieldClass = `record-detail-field record-detail-field--${name}`;
 
     if (column.type === "boolean") {
-      return `<label class="checkbox-item"><input name="${name}" type="checkbox" ${
+      return `<label class="checkbox-item ${fieldClass}"><input name="${name}" type="checkbox" ${
         value ? "checked" : ""
       } ${column.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
     }
 
     if (column.type === "textarea") {
-      return `<label class="full-width">${label}<textarea name="${name}" rows="3" ${
+      return `<label class="full-width ${fieldClass}">${label}<textarea name="${name}" rows="3" ${
         column.readonly ? "readonly" : ""
       }>${escapeHtml(value ?? "")}</textarea></label>`;
     }
 
     if (RECORD_RELATION_TABLES[column.key]) {
       const options = getRecordRelationOptionsForContract(column.key, row.contrato_id);
-      return `<label>${label}${renderRecordRelationSelect(name, value, options, column.readonly)}</label>`;
+      return `<label class="${fieldClass}">${label}${renderRecordRelationSelect(
+        name,
+        value,
+        options,
+        column.readonly
+      )}</label>`;
     }
 
     const inputType =
@@ -16007,7 +16062,7 @@ function renderRecordDetailForm(row) {
           ? String(value).slice(0, 16)
           : value ?? "";
 
-    return `<label>${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
+    return `<label class="${fieldClass}">${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
       inputValue
     )}" ${RECORD_REQUIRED_FIELDS.has(column.key) ? "required" : ""} ${
       column.readonly ? "readonly" : ""
@@ -20164,6 +20219,7 @@ const historialDetailCancelButton = document.querySelector("#historial-detail-ca
 const historialDetailDeleteButton = document.querySelector("#historial-detail-delete-button");
 const historialDetailDuplicateButton = document.querySelector("#historial-detail-duplicate-button");
 let historialDetailReportButton = document.querySelector("#historial-detail-report-button");
+const historialBulkZone = document.querySelector("#historial-bulk-zone");
 const historialBulkFieldSelect = document.querySelector("#historial-bulk-field");
 const historialBulkCurrentValueInput = document.querySelector("#historial-bulk-current-value");
 const historialBulkCurrentSelect = document.querySelector("#historial-bulk-current-select");
@@ -20172,6 +20228,7 @@ const historialBulkNewSelect = document.querySelector("#historial-bulk-new-selec
 const historialBulkApplyButton = document.querySelector("#historial-bulk-apply-button");
 const historialBulkClearFieldsButton = document.querySelector("#historial-bulk-clear-fields-button");
 const historialBulkSelectButton = document.querySelector("#historial-bulk-select-button");
+const historialBulkDeleteButton = document.querySelector("#historial-bulk-delete-button");
 const historialBulkMatchCount = document.querySelector("#historial-bulk-match-count");
 const historialBulkSelectionCount = document.querySelector("#historial-bulk-selection-count");
 const historialBulkSelectHeader = document.querySelector("#historial-bulk-select-header");
@@ -23002,7 +23059,34 @@ function getSelectedHistorialBulkRows() {
 }
 
 function getHistorialBulkTargetRows() {
-  return historialBulkSelectionMode ? getSelectedHistorialBulkRows() : getHistorialBulkMatchingRows();
+  return historialBulkSelectionMode ? getSelectedHistorialBulkRows() : [];
+}
+
+async function deleteSelectedHistorialBulkRows() {
+  const rows = getHistorialBulkTargetRows();
+  if (!rows.length) {
+    setStatus("Pulsa Seleccionar y marca al menos un periodo antes de borrar.", "error");
+    return;
+  }
+  const count = rows.length;
+  if (!confirm(`¿Borrar definitivamente ${count} periodo${count === 1 ? "" : "s"} seleccionado${count === 1 ? "" : "s"}?`)) {
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase
+      .from(HISTORIAL_TABLE)
+      .delete()
+      .in("id", rows.map((row) => row.id));
+    if (error) throw error;
+    selectedHistorialBulkIds.clear();
+    historialBulkSelectionMode = false;
+    await loadHistorial();
+    await notifyHistorialChanged();
+    setStatus(`${count} periodo${count === 1 ? "" : "s"} eliminado${count === 1 ? "" : "s"}.`, "success");
+  } catch (error) {
+    setStatus(`No se pudieron borrar los periodos seleccionados: ${error.message}`, "error");
+  }
 }
 
 function syncHistorialBulkSelectionUi() {
@@ -23017,6 +23101,12 @@ function syncHistorialBulkSelectionUi() {
     historialBulkSelectionCount.textContent = historialBulkSelectionMode
       ? `${selectedCount} seleccionados de ${historialRows.length}`
       : `${selectedCount} seleccionados`;
+  }
+  if (historialBulkApplyButton) {
+    historialBulkApplyButton.disabled = !historialBulkSelectionMode || !selectedCount;
+  }
+  if (historialBulkDeleteButton) {
+    historialBulkDeleteButton.disabled = !historialBulkSelectionMode || !selectedCount;
   }
   if (historialBulkSelectAllCheckbox) {
     historialBulkSelectAllCheckbox.checked = Boolean(historialRows.length) && selectedCount === historialRows.length;
@@ -23235,12 +23325,7 @@ async function applyHistorialBulkAssignment() {
 
   const matches = getHistorialBulkTargetRows();
   if (!matches.length) {
-    setStatus(
-      historialBulkSelectionMode
-        ? "Selecciona al menos un periodo para aplicar la asignación masiva."
-        : "No hay periodos que coincidan con el valor actual.",
-      "error"
-    );
+    setStatus("Pulsa Seleccionar y marca al menos un periodo antes de aplicar el cambio.", "error");
     return;
   }
 
@@ -23350,6 +23435,7 @@ async function applyHistorialBulkAssignment() {
       if (error) throw error;
     }
     await loadHistorial();
+    setHistorialBulkSelectionMode(false);
     setStatus(
       `${config.label} actualizado en ${matches.length} periodo${matches.length !== 1 ? "s" : ""}.`,
       "success"
@@ -25623,10 +25709,16 @@ async function init() {
     }
   });
   contractsTableBody?.addEventListener("click", (event) => {
-    const contractId = event.target.closest("[data-contract-edit]")?.dataset.contractEdit;
-    if (contractId) {
-      openContractDetailPanel(contractId);
+    const row = event.target.closest("[data-contract-row]");
+    if (row && !event.target.closest("button, a, input, select, textarea, label")) {
+      openContractDetailPanel(row.dataset.contractRow);
     }
+  });
+  contractsTableBody?.addEventListener("keydown", (event) => {
+    const row = event.target.closest("[data-contract-row]");
+    if (!row || !["Enter", " "].includes(event.key)) return;
+    event.preventDefault();
+    openContractDetailPanel(row.dataset.contractRow);
   });
   closeContractDetailButton?.addEventListener("click", closeContractDetailPanel);
   contractDetailOverlay?.addEventListener("click", closeContractDetailPanel);
@@ -25665,12 +25757,16 @@ async function init() {
     void setContractPersonalBatch(getSelectedOptionValues(contractPersonalSelectedSelect), false);
   });
   contractPersonalAvailableSelect?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     const value = event.target.closest("option")?.value || contractPersonalAvailableSelect.value;
     if (value) {
       void setContractPersonalBatch([value], true);
     }
   });
   contractPersonalSelectedSelect?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     const value = event.target.closest("option")?.value || contractPersonalSelectedSelect.value;
     if (value) {
       void setContractPersonalBatch([value], false);
@@ -25684,6 +25780,8 @@ async function init() {
     void setContractInstallationBatch(getSelectedOptionValues(contractInstallationSelectedSelect), false);
   });
   contractInstallationAvailableSelect?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     const value =
       event.target.closest("option")?.value || contractInstallationAvailableSelect.value;
     if (value) {
@@ -25691,6 +25789,8 @@ async function init() {
     }
   });
   contractInstallationSelectedSelect?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     const value =
       event.target.closest("option")?.value || contractInstallationSelectedSelect.value;
     if (value) {
@@ -26613,10 +26713,16 @@ async function init() {
   historialBulkCurrentValueInput?.addEventListener("input", updateHistorialBulkMatchCount);
   historialBulkCurrentSelect?.addEventListener("change", updateHistorialBulkMatchCount);
   historialBulkApplyButton?.addEventListener("click", () => void applyHistorialBulkAssignment());
+  historialBulkDeleteButton?.addEventListener("click", () => void deleteSelectedHistorialBulkRows());
   historialBulkClearFieldsButton?.addEventListener("click", clearHistorialBulkFields);
   historialBulkSelectButton?.addEventListener("click", () =>
     setHistorialBulkSelectionMode(!historialBulkSelectionMode)
   );
+  historialBulkZone?.addEventListener("toggle", () => {
+    if (!historialBulkZone.open && historialBulkSelectionMode) {
+      setHistorialBulkSelectionMode(false);
+    }
+  });
   historialBulkSelectAllCheckbox?.addEventListener("change", () => {
     const visibleIds = historialRows.map((row) => String(row.id));
     if (historialBulkSelectAllCheckbox.checked) {
@@ -26653,6 +26759,11 @@ async function init() {
   recordsBulkApplyButton?.addEventListener("click", () => void applyRecordsBulkAssignment());
   recordsBulkClearFieldsButton?.addEventListener("click", clearRecordsBulkFields);
   recordsBulkSelectButton?.addEventListener("click", toggleRecordsBulkSelection);
+  recordsBulkZone?.addEventListener("toggle", () => {
+    if (!recordsBulkZone.open && recordsSelectionMode) {
+      clearRecordsBulkSelection();
+    }
+  });
   recordsBulkDeleteButton?.addEventListener("click", () => void deleteSelectedBulkRecords());
   recordsReportPreviewButton?.addEventListener("click", () => void openRecordsReportPreview());
   recordsReportPreviewCloseButton?.addEventListener("click", closeRecordsReportPreview);

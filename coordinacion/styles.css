@@ -1115,10 +1115,11 @@ textarea {
     minmax(125px, 0.85fr)
     auto
     auto
+    auto
     auto;
   gap: 8px;
   align-items: end;
-  min-width: min(860px, calc(100vw - 48px));
+  min-width: min(980px, calc(100vw - 48px));
   margin-top: 8px;
 }
 
@@ -1143,6 +1144,15 @@ textarea {
 
 .activities-bulk-assignment-panel label {
   min-width: 0;
+}
+
+.bulk-action-help {
+  grid-column: 1 / -1;
+  align-self: center;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
 }
 
 .activities-bulk-assignment-panel #records-bulk-select-button,
@@ -1817,6 +1827,23 @@ button:hover,
 .contracts-table th:last-child,
 .contracts-table td:last-child {
   width: 100px;
+}
+
+.contracts-table tbody tr[data-contract-row] {
+  cursor: pointer;
+}
+
+.contracts-table tbody tr[data-contract-row]:hover td {
+  background: #f7faff;
+}
+
+.contracts-table tbody tr.contract-row-selected td {
+  background: #eef6ff;
+}
+
+.contracts-table tbody tr[data-contract-row]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .contract-name-button,
@@ -3484,33 +3511,100 @@ th {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.records-detail-form .detail-field-row {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.records-detail-form .record-detail-field--personal_id { grid-area: 1 / 1 / auto / 5; }
+.records-detail-form .record-detail-field--fecha { grid-area: 1 / 5 / auto / 9; }
+.records-detail-form .record-detail-field--actividad_id { grid-area: 1 / 9 / auto / 13; }
+.records-detail-form .record-detail-field--empresa_id { grid-area: 2 / 1 / auto / 5; }
+.records-detail-form .record-detail-field--contrato_id { grid-area: 2 / 5 / auto / 9; }
+.records-detail-form .record-detail-field--servicio_id { grid-area: 2 / 9 / auto / 13; }
+.records-detail-form .record-detail-field--sustituto_personal_id { grid-area: 3 / 1 / auto / 6; }
+.records-detail-form .record-detail-field--sustituye_registro_id { grid-area: 3 / 6 / auto / 11; }
+.records-detail-form .record-detail-field--sustitucion { grid-area: 3 / 11 / auto / 13; }
+.records-detail-form .record-detail-field--instalacion_id { grid-area: 4 / 1 / auto / 7; }
+.records-detail-form .record-detail-field--puesto_id { grid-area: 4 / 7 / auto / 13; }
+.records-detail-form .record-detail-field--funcion_id { grid-area: 5 / 1 / auto / 7; }
+.records-detail-form .record-detail-field--modalidad_id { grid-area: 5 / 7 / auto / 13; }
+.records-detail-form .record-detail-field--hora_inicio { grid-area: 6 / 1 / auto / 5; }
+.records-detail-form .record-detail-field--hora_fin { grid-area: 6 / 5 / auto / 9; }
+.records-detail-form .record-detail-field--horas { grid-area: 6 / 9 / auto / 13; }
+.records-detail-form .record-detail-field--hd { grid-area: 7 / 1 / auto / 5; }
+.records-detail-form .record-detail-field--bolsa_horas { grid-area: 7 / 5 / auto / 9; }
+.records-detail-form .record-detail-field--horas_nocturnas { grid-area: 7 / 9 / auto / 13; }
+.records-detail-form .record-detail-field--facturar { grid-area: 8 / 1 / auto / 4; }
+.records-detail-form .record-detail-field--abonar { grid-area: 8 / 4 / auto / 7; }
+.records-detail-form .record-detail-field--tipo_hora_id { grid-area: 8 / 7 / auto / 10; }
+.records-detail-form .record-detail-field--situacion_id { grid-area: 8 / 10 / auto / 13; }
+.records-detail-form .record-detail-field--nota { grid-area: 9 / 1 / auto / 13; }
+.records-detail-form .record-detail-field--observacion { grid-area: 10 / 1 / auto / 13; }
+.records-detail-form .record-detail-field--control { grid-area: 11 / 1 / auto / 7; }
+.records-detail-form .record-detail-field--factura { grid-area: 11 / 7 / auto / 13; }
+
 .detail-drawer label,
 .detail-drawer fieldset {
-  gap: 3px;
-  font-size: 0.88rem;
+  gap: 1px;
+  font-family: inherit;
+  font-size: 0.72rem;
 }
 
 .detail-drawer input,
 .detail-drawer select,
 .detail-drawer textarea {
-  min-height: 32px;
-  padding: 6px 8px;
-  font-size: 0.9rem;
+  height: 28px;
+  min-height: 28px;
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 0.74rem;
+  line-height: 1.2;
 }
 
 .detail-drawer textarea {
-  min-height: 68px;
+  height: auto;
+  min-height: 56px;
   line-height: 1.25;
 }
 
 .detail-drawer .checkbox-item {
-  min-height: 32px;
+  min-height: 28px;
 }
 
 .detail-drawer .checkbox-item input[type="checkbox"] {
   width: 14px;
   height: 14px;
   min-height: auto;
+  padding: 0;
+}
+
+/* Las listas de asignacion muestran varias filas a la vez; no deben adoptar
+   la altura compacta de los selects simples del formulario. */
+.detail-drawer .dual-list select[multiple] {
+  height: 320px;
+  min-height: 320px;
+  padding: 6px;
+}
+
+.report-panel label,
+.report-panel fieldset,
+.summary-panel label,
+.summary-panel fieldset {
+  font-family: inherit;
+  font-size: 0.72rem;
+}
+
+.report-panel input:not([type="checkbox"]):not([type="radio"]),
+.report-panel select,
+.report-panel textarea,
+.summary-panel input:not([type="checkbox"]):not([type="radio"]),
+.summary-panel select,
+.summary-panel textarea {
+  min-height: 28px;
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 0.74rem;
+  line-height: 1.2;
 }
 
 .event-report-image-drawer {
@@ -3911,10 +4005,15 @@ th {
   .detail-field-row,
   .detail-field-row.cols-2,
   .detail-field-row.cols-3,
+  .records-detail-form .detail-field-row,
   .personal-management-layout,
   #personal-form-fields,
   .toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .records-detail-form .record-detail-field {
+    grid-area: auto;
   }
 
   .private-tab-panel .filters-grid.personal-list-filters {

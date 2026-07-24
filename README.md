@@ -111,6 +111,7 @@ y deja constancia en `contexto-previo.md`.
 - El pie fijo contiene acciones destructivas a la izquierda y confirmación/guardado a la derecha.
 - Los botones universales usan icono y tooltip; guardar, aplicar, revertir, archivar y descargar conservan texto.
 - El catálogo compartido vive en `coordinacion/icons.svg`; la decoración semántica está en `coordinacion/app.js`.
+- En las tablas principales de Registros, Actividades y Contratos, pulsar la fila abre su panel de edición. Actividades y Contratos no muestran un botón Editar redundante; las filas admiten también Enter/Espacio y resaltan el registro abierto.
 
 ## Gestion y Contabilidad
 
@@ -125,8 +126,13 @@ y deja constancia en `contexto-previo.md`.
 
 ## Informes y asignacion masiva
 
+- Actividades ya no gestiona ni muestra `llamamiento_enviado` ni `respuesta_llamamiento`; ese seguimiento se realiza desde Historial laboral. Las columnas se conservan en la base de datos y la edición de una actividad no sobrescribe sus valores históricos.
+- Los paneles de Registros, Actividades e Historial laboral se denominan `Asignacion/borrado masivo`. Aplicar cambios o borrar exige activar Seleccionar y marcar expresamente las filas con sus ticks; las coincidencias del valor actual nunca actuan por si solas.
+- Los tres paneles muestran instrucciones al desplegarse y mantienen Aplicar/Borrar desactivados hasta que exista una seleccion. El borrado siempre solicita confirmacion.
 - Al seleccionar una persona y un intervalo completo en Registros, la barra de resultados muestra un resumen compacto de Horas, HC, HFest, HMon, PNR, Noct y Total, seguido de las horas teoricas calculadas a partir de los historiales laborales solapados.
-- El panel lateral de Registros prioriza los campos operativos. Categoria, HC, HF, HM, horas diurnas, clases, horas 2 y año permanecen almacenados y disponibles para informes/calculos, pero no se muestran en ese formulario.
+- El panel lateral de Registros prioriza los campos operativos. No repite el ID de la cabecera, organiza los campos principales por filas y deja Control/Factura al final. Categoria, HC, HF, HM, horas diurnas, clases, horas 2 y año permanecen almacenados y disponibles para informes/calculos, pero no se muestran en ese formulario.
+- `titular_personal_id` tampoco se muestra en el formulario, pero no debe eliminarse de las vistas: se deriva del enlace `sustituye_registro_id` y se utiliza para gestionar y describir las sustituciones.
+- Los formularios de paneles laterales, drawers y paneles flotantes comparten la tipografia y las dimensiones compactas de los filtros de Registros.
 - Registros incluye previsualizacion flotante de informe con dos salidas: PDF clasico y PDF compacto. La previsualizacion consulta todos los registros filtrados y muestra advertencia si el volumen supera el limite configurado.
 - Actividades incluye previsualizacion flotante del informe de horarios filtrado, agrupado por personal, con descarga PDF posterior.
 - Historial laboral incluye informes PDF de llamamiento, variacion y subrogacion desde un periodo seleccionado. Las plantillas se configuran desde Historial laboral > Configuracion de informes y los datos documentales de empresa desde Configuracion > Empresas.
