@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260724-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260724-6" />
+    <link rel="stylesheet" href="./styles.css?v=20260725-2" />
   </head>
   <body>
     <script>
@@ -838,6 +838,9 @@
                     <p id="records-period-summary-theoretical" class="records-period-summary-theoretical"></p>
                   </div>
                   <div class="results-actions">
+                    <button id="records-overlap-button" type="button" class="secondary-button">
+                      Ver solapes
+                    </button>
                     <button id="records-report-preview-button" type="button" class="secondary-button">
                       Previsualizar informe
                     </button>
@@ -1796,6 +1799,43 @@
                     Quedan congeladas tal como se calcularon el día de la emisión. Anular no las borra: conservan su desglose como histórico.
                   </p>
                   <div id="gestion-nominas-emitidas-list" class="gestion-nomina-list"></div>
+                </section>
+
+                <!--
+                  Listado de nóminas emitidas de un mes/año, transversal a todas
+                  las personas. No depende del filtro de persona de arriba: tiene
+                  sus propios selectores. Matriz persona × concepto + detalle de
+                  cada nómina, con exportación a Excel y PDF.
+                -->
+                <section id="gestion-nomina-listado-block" class="gestion-block gestion-nomina-block hidden">
+                  <div class="gestion-block-header">
+                    <h3>Listado de nóminas del mes</h3>
+                    <span id="gestion-nomina-listado-hint" class="summary-chip">—</span>
+                  </div>
+                  <form id="gestion-nomina-listado-form" class="gestion-nomina-listado-filtros">
+                    <label class="filter-field">
+                      Mes
+                      <select id="gestion-nomina-listado-mes" name="mes"></select>
+                    </label>
+                    <label class="filter-field">
+                      Año
+                      <input id="gestion-nomina-listado-anio" name="anio" type="number" min="2000" max="2100" step="1" />
+                    </label>
+                    <label class="filter-field">
+                      Empresa
+                      <select id="gestion-nomina-listado-empresa" name="empresa"></select>
+                    </label>
+                    <label class="gestion-nomina-listado-check">
+                      <input id="gestion-nomina-listado-anuladas" type="checkbox" />
+                      Incluir anuladas
+                    </label>
+                    <div class="filter-actions">
+                      <button type="submit" class="secondary-button">Ver listado</button>
+                      <button type="button" id="gestion-nomina-listado-excel" class="secondary-button" data-icon="download" data-icon-mode="icon-text" disabled>Excel</button>
+                      <button type="button" id="gestion-nomina-listado-pdf" class="secondary-button" data-icon="download" data-icon-mode="icon-text" disabled>PDF</button>
+                    </div>
+                  </form>
+                  <div id="gestion-nomina-listado-body"></div>
                 </section>
 
                 <section id="gestion-personal-panel" class="detail-panel hidden">
@@ -7713,6 +7753,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260724-4" defer></script>
-    <script src="./app.js?v=20260724-7" defer></script>
+    <script src="./app.js?v=20260725-2" defer></script>
   </body>
 </html>

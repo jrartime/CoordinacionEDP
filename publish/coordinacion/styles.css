@@ -2695,6 +2695,36 @@ button.tag-chip.warm-button:hover {
   background: rgba(139, 92, 246, 0.09);
 }
 
+/* Solape: la misma persona en dos turnos a la vez. Es un error del parte, no un
+   estado normal como la sustitucion, asi que pesa mas que los fondos de arriba
+   y por eso va despues en la cascada. */
+.record-overlap-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.records-table tr.record-row-solape > td {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.records-table tr.record-row-solape > td:first-child {
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+
+#records-overlap-button.is-active {
+  background: #fee2e2;
+  border-color: #dc2626;
+  color: #991b1b;
+}
+
 /* Lista de turnos del panel de sustitución masiva. Puede traer cientos de
    filas, así que scrollea dentro del cajón en vez de estirarlo. */
 .records-substitution-list-header {
@@ -4776,6 +4806,131 @@ th {
 .gestion-nomina-editar-emitida:hover {
   background: #f3f4f6;
   color: #101828;
+}
+
+.gestion-nomina-pdf {
+  margin-right: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.gestion-nomina-pdf:hover {
+  background: #f3f4f6;
+  color: #101828;
+}
+
+/* --- Listado mensual de nóminas --- */
+.gestion-nomina-listado-filtros {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.gestion-nomina-listado-filtros .filter-field {
+  min-width: 0;
+}
+
+.private-tab-panel .gestion-nomina-listado-filtros select,
+.private-tab-panel .gestion-nomina-listado-filtros input[type="number"] {
+  height: 30px;
+  font-size: 0.76rem;
+}
+
+.gestion-nomina-listado-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.gestion-nomina-listado-check input {
+  width: auto;
+  margin: 0;
+}
+
+/* La matriz puede tener muchas columnas: scrollea dentro de su caja en vez de
+   romper el ancho del panel. La primera columna (persona) queda fija. */
+.gestion-nomina-listado-matriz {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.gestion-nomina-listado-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.gestion-nomina-listado-table th,
+.gestion-nomina-listado-table td {
+  padding: 4px 8px;
+}
+
+.gestion-nomina-listado-sticky {
+  position: sticky;
+  left: 0;
+  background: var(--panel, #ffffff);
+  z-index: 1;
+  font-weight: 600;
+}
+
+.gestion-nomina-listado-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel-alt, #f7f9fc);
+  z-index: 2;
+}
+
+.gestion-nomina-listado-table thead th.gestion-nomina-listado-sticky {
+  z-index: 3;
+}
+
+.gestion-nomina-listado-col-deduccion {
+  color: var(--danger, #b3261e);
+}
+
+.gestion-nomina-listado-col-total,
+.gestion-nomina-listado-col-base {
+  color: var(--muted);
+}
+
+.gestion-nomina-listado-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid var(--line-strong);
+  background: var(--panel-alt, #f7f9fc);
+}
+
+.gestion-nomina-listado-anulada td {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.gestion-nomina-listado-detalle {
+  display: grid;
+  gap: 8px;
+}
+
+.gestion-nomina-listado-detalle-card {
+  padding: 8px 10px;
+}
+
+.gestion-nomina-listado-detalle-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
 }
 
 /* --- Expediente de una nómina emitida (contrato + horas por puesto) --- */

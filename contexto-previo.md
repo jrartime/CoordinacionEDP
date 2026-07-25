@@ -150,6 +150,13 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Contador de horas**: el `Total:` del pivote pasa a `Total: 145,5 h de 140,8 h teóricas`. Las teóricas vienen de `get_gestion_horas_teoricas`, que suma `horas_teoricas_jornada` del tramo de cada periodo que solape el rango.
 - **Despliegue requerido**: ejecutar `supabase/tables/nominas.sql` y `supabase/tables/nomina_calculo_persona.sql` en el SQL Editor de Supabase. Ya están aplicados en el proyecto real; el fichero es la copia de referencia.
 
+## 13. Fase 7: recibo PDF y listado mensual de nóminas (25/07/2026)
+
+- **Recibo individual en PDF**: botón `PDF` en cada nómina emitida (`exportNominaEmitidaPdf`). Reutiliza la config documental de `empresas` (logo, firmante, pies), igual que los informes de Historial laboral. Cabecera de empresa, recuadro de trabajador (DNI, nº S.S. desde `personal_confidencial`, grupo cotización, puesto, convenio del historial predominante), tabla de devengos (concepto/cantidad/precio/importe), tabla de deducciones (base/%/importe), líquido, bases de cotización y firmas.
+- **Listado de nóminas del mes**: bloque nuevo en Gestión, transversal a todas las personas (no depende del filtro de persona; solo admin). Filtros mes/año/empresa/incluir-anuladas. Muestra una **matriz persona × concepto** (columna por concepto ordenada por `orden`, primera columna fija, totales al pie) y el **detalle apilado** de cada recibo. Exporta a **Excel** (Resumen = matriz + Detalle = formato largo) y **PDF** (resumen de totales + detalle por nómina).
+- **Fuente de datos**: `get_nominas_listado(ejercicio, mes, empresa_id, incluir_anuladas)` devuelve las líneas de ámbito persona con la cabecera denormalizada, para armar la matriz en cliente **sin toparse con el tope de 1000 filas de PostgREST** (una nómina truncada sería un error grave). Filtra por las columnas generadas `ejercicio`/`mes`.
+- **Despliegue requerido**: ejecutar `supabase/tables/nominas.sql` (incluye `get_nominas_listado`) y `supabase/tables/nomina_calculo.sql` (contador `get_gestion_horas_teoricas` de la sesión anterior) en el SQL Editor. Ya aplicados en el proyecto real.
+
 ## 13. Resumen de periodo y simplificacion del editor de Registros (23/07/2026)
 
 - **Resumen condicionado por filtros**: cuando Registros tiene una persona y las dos fechas seleccionadas, se muestra entre el contador de filas y la previsualizacion un resumen compacto de `Horas`, `HC`, `HFest`, `HMon`, `PNR`, `Noct` y `Total`.

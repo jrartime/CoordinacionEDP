@@ -923,3 +923,56 @@ drop policy if exists "nomina_horas_admin_can_delete" on public.nomina_horas;
 create policy "nomina_horas_admin_can_delete"
 on public.nomina_horas for delete to authenticated
 using (public.is_coordinacion_admin());
+
+-- ============================================================================
+-- Fase 7: listado mensual de nominas para la vista de Gestion y sus exports
+-- ============================================================================
+
+-- Lineas de ambito PERSONA de todas las nominas de un mes/ano, con la cabecera
+-- denormalizada en cada fila, para que el cliente arme la matriz sin toparse
+-- con el tope de 1000 filas de PostgREST (una nomina truncada seria un error
+-- grave). Filtra por las columnas generadas ejercicio/mes (solo rellenas cuando
+-- el periodo cae entero dentro de un mes natural, el caso normal). Por defecto
+-- solo vigentes; p_incluir_anuladas las anade. SECURITY INVOKER: admin-only.
+create or replace function public.get_nominas_listado(
+  p_ejercicio integer,
+  p_mes integer,
+  p_empresa_id integer default null,
+  p_incluir_anuladas boolean default false
+)
+returns table (
+  nomina_id bigint, personal_id integer, personal text, dni text,
+  empresa_id integer, empresa text, estado text, editada boolean,
+  periodo_desde date, periodo_hasta date,
+  total_devengado numeric, total_deducciones numeric, liquido numeric,
+  orden integer, seccion text, concepto text, detalle text,
+  base numeric, tipo numeric, cantidad numeric, precio numeric,
+  codigo_nomina integer, importe numeric, detalle_de text
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select
+    n.id, n.personal_id, p.personal, p.dni,
+    n.empresa_id, e.empresa, n.estado, n.editada,
+    n.periodo_desde, n.periodo_hasta,
+    n.total_devengado, n.total_deducciones, n.liquido,
+    l.orden, l.seccion, l.concepto, l.detalle,
+    l.base, l.tipo, l.cantidad, l.precio,
+    l.codigo_nomina, l.importe, l.detalle_de
+  from public.nominas n
+  join public.nomina_lineas l
+    on l.nomina_id = n.id and l.ambito = 'persona'
+  left join public.personal p on p.id = n.personal_id
+  left join public.empresas e on e.id = n.empresa_id
+  where n.ejercicio = p_ejercicio
+    and n.mes = p_mes
+    and (p_empresa_id is null or n.empresa_id = p_empresa_id)
+    and (p_incluir_anuladas or n.estado = 'emitida')
+  order by p.personal nulls last, n.id, l.orden;
+$$;
+
+revoke all on function public.get_nominas_listado(integer, integer, integer, boolean) from public;
+grant execute on function public.get_nominas_listado(integer, integer, integer, boolean) to authenticated;

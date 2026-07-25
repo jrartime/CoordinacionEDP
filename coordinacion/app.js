@@ -864,6 +864,7 @@ const recordsFiltersForm = document.querySelector("#records-filters-form");
 const recordsTableHead = document.querySelector("#records-table-head");
 const recordsTableBody = document.querySelector("#records-table-body");
 const recordsSummary = document.querySelector("#records-summary");
+const recordsOverlapButton = document.querySelector("#records-overlap-button");
 const recordsPeriodSummary = document.querySelector("#records-period-summary");
 const recordsPeriodSummaryValues = document.querySelector("#records-period-summary-values");
 const recordsPeriodSummaryTheoretical = document.querySelector("#records-period-summary-theoretical");
@@ -13794,7 +13795,14 @@ function applyRecordsQueryFilters(query, filters) {
 function applyRecordsClientFilters() {
   invalidateRecordsReportPreview();
   const filters = getRecordsFilterValues();
+  // Los solapes se cruzan sobre todo lo cargado, no sobre lo ya filtrado: si la
+  // busqueda deja fuera al turno que choca, la marca de la fila que si se ve
+  // seguiria siendo correcta.
+  refreshRecordsOverlaps();
   filteredRecordsRows = recordsRows.filter((row) => {
+    if (recordsOverlapOnly && !recordsOverlapMap.has(String(row.id))) {
+      return false;
+    }
     if (!filters.search) {
       return true;
     }
@@ -14100,7 +14108,11 @@ function buildRecordsSummaryText(rows) {
     abonado += Number(row.apunte_abonado) || 0;
     facturado += Number(row.apunte_facturado) || 0;
   }
-  const base = `${n} ${n === 1 ? "registro" : "registros"} · ${formatRecordHours(horas)} h`;
+  let base = `${n} ${n === 1 ? "registro" : "registros"} · ${formatRecordHours(horas)} h`;
+  const solapes = rows.filter((row) => recordsOverlapMap.has(String(row.id))).length;
+  if (solapes) {
+    base += ` · ${solapes} con solape`;
+  }
   if (!hasApunte) {
     return base;
   }
@@ -14117,6 +14129,7 @@ function renderRecordsTable() {
   if (recordsSummary) {
     recordsSummary.textContent = buildRecordsSummaryText(filteredRecordsRows);
   }
+  updateRecordsOverlapButton();
   void updateRecordsPeriodSummary();
 
   const listColumns = getRecordsListColumns();
@@ -14181,6 +14194,7 @@ function renderRecordsTable() {
               content = `<span title="${escapeHtml(subInfo.title)}">${content}</span>`;
             }
             content += renderRecordSubstitutionBadge(row);
+            content += renderRecordOverlapBadge(row);
           }
         }
         return `<td data-record-row="${escapeHtml(row.id)}" data-record-field-read="${escapeHtml(
@@ -14205,6 +14219,7 @@ function renderRecordsTable() {
         selectedRecordIds.has(String(row.id)) ? "record-row-bulk-selected" : "",
         isRecordSubstituteRow(row) ? "record-row-sustituto" : "",
         row.sustituto_personal_id ? "record-row-sustituido" : "",
+        recordsOverlapMap.has(String(row.id)) ? "record-row-solape" : "",
       ]
         .filter(Boolean)
         .join(" ");
@@ -16429,6 +16444,122 @@ function renderRecordSubstitutionBadge(row) {
   return ` <span class="record-sub-badge ${info.badgeClass}" title="${escapeHtml(info.title)}">${escapeHtml(info.badgeText)}</span>`;
 }
 
+// --- Solapes de horario ---
+// Una misma persona no puede estar en dos turnos a la vez. Los solapes aparecen
+// sobre todo al importar partes de origenes distintos (cada contrato trae su
+// planilla y nadie cruza el horario), asi que la tabla los marca sola.
+//
+// Solo se cruzan las filas YA CARGADAS (las que pasaron los filtros y el tope de
+// RECORDS_LOAD_LIMIT): si el turno que choca se quedo fuera del filtro, aqui no
+// sale. Por eso el resumen dice sobre que conjunto se ha mirado.
+//
+// Una fila sin horas no la trabaja esa persona (CAMB: lo cubrio otro; LG:
+// licencia), de modo que no ocupa su horario y no cuenta como solape. Es el
+// mismo criterio que withRecordSituacionSideEffects usa para vaciar las horas.
+let recordsOverlapMap = new Map();
+let recordsOverlapOnly = false;
+
+function recordRowOccupiesTime(row) {
+  return Boolean(row?.fecha && row?.hora_inicio && row?.hora_fin) && (Number(row.horas) || 0) > 0;
+}
+
+function recordTimeToMinutes(value) {
+  const [h, m] = String(value).split(":");
+  return Number(h) * 60 + Number(m || 0);
+}
+
+// Un turno que cruza medianoche (22:00-02:00) acaba "antes" de empezar. Se
+// prolonga al dia siguiente, asi que para comparar dentro del mismo dia se
+// estira hasta el final de la jornada en vez de invertir el intervalo.
+function getRecordMinuteRange(row) {
+  const start = recordTimeToMinutes(row.hora_inicio);
+  const end = recordTimeToMinutes(row.hora_fin);
+  return [start, end <= start ? 24 * 60 : end];
+}
+
+function computeRecordsOverlaps(rows) {
+  const map = new Map();
+  const buckets = new Map();
+  for (const row of rows) {
+    if (!recordRowOccupiesTime(row) || row.personal_id == null) continue;
+    const key = `${row.personal_id}||${row.fecha}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(row);
+  }
+
+  for (const bucket of buckets.values()) {
+    if (bucket.length < 2) continue;
+    for (let i = 0; i < bucket.length; i += 1) {
+      const [aStart, aEnd] = getRecordMinuteRange(bucket[i]);
+      for (let j = i + 1; j < bucket.length; j += 1) {
+        const [bStart, bEnd] = getRecordMinuteRange(bucket[j]);
+        if (aStart >= bEnd || bStart >= aEnd) continue;
+        for (const [row, other] of [
+          [bucket[i], bucket[j]],
+          [bucket[j], bucket[i]],
+        ]) {
+          const id = String(row.id);
+          if (!map.has(id)) map.set(id, []);
+          map.get(id).push(other);
+        }
+      }
+    }
+  }
+  return map;
+}
+
+function refreshRecordsOverlaps() {
+  recordsOverlapMap = computeRecordsOverlaps(recordsRows);
+}
+
+function getRecordOverlapInfo(row) {
+  const others = recordsOverlapMap.get(String(row?.id));
+  if (!others?.length) return null;
+  const detalle = others
+    .map((other) => {
+      const donde = other.instalacion_siglas || other.instalacion || other.servicio || "otro turno";
+      return `${formatRecordTimeRange(other)} · ${donde}`;
+    })
+    .join(" · ");
+  return {
+    count: others.length,
+    title: `Se solapa con ${others.length === 1 ? "otro turno" : `${others.length} turnos`} de esta persona el mismo dia: ${detalle}`,
+  };
+}
+
+function formatRecordTimeRange(row) {
+  const cut = (value) => String(value ?? "").slice(0, 5);
+  return `${cut(row.hora_inicio)}-${cut(row.hora_fin)}`;
+}
+
+function renderRecordOverlapBadge(row) {
+  const info = getRecordOverlapInfo(row);
+  if (!info) return "";
+  return ` <span class="record-overlap-badge" title="${escapeHtml(info.title)}">&#9888; Solape</span>`;
+}
+
+function updateRecordsOverlapButton() {
+  if (!recordsOverlapButton) return;
+  const total = recordsRows.filter((row) => recordsOverlapMap.has(String(row.id))).length;
+  recordsOverlapButton.disabled = total === 0 && !recordsOverlapOnly;
+  recordsOverlapButton.classList.toggle("is-active", recordsOverlapOnly);
+  recordsOverlapButton.textContent = recordsOverlapOnly
+    ? "Ver todos los registros"
+    : total
+      ? `Ver solapes (${total})`
+      : "Sin solapes";
+  recordsOverlapButton.title = total
+    ? "Turnos de una misma persona que se pisan el mismo dia, dentro de los registros cargados."
+    : "No hay turnos que se pisen entre los registros cargados.";
+}
+
+function toggleRecordsOverlapOnly() {
+  recordsOverlapOnly = !recordsOverlapOnly;
+  applyRecordsClientFilters();
+  sortRecordsRows();
+  renderRecordsTable();
+}
+
 // Un turno no se puede sustituir dos veces a la vez, pero si en cadena: la fila
 // de un sustituto que tambien falta se sustituye a su vez. Lo unico que bloquea
 // es que ESA fila ya tenga a alguien cubriendola.
@@ -17176,6 +17307,16 @@ const gestionNominaList = document.querySelector("#gestion-nomina-list");
 const gestionNominasEmitidasBlock = document.querySelector("#gestion-nominas-emitidas-block");
 const gestionNominasEmitidasHint = document.querySelector("#gestion-nominas-emitidas-hint");
 const gestionNominasEmitidasList = document.querySelector("#gestion-nominas-emitidas-list");
+const gestionNominaListadoBlock = document.querySelector("#gestion-nomina-listado-block");
+const gestionNominaListadoForm = document.querySelector("#gestion-nomina-listado-form");
+const gestionNominaListadoMes = document.querySelector("#gestion-nomina-listado-mes");
+const gestionNominaListadoAnio = document.querySelector("#gestion-nomina-listado-anio");
+const gestionNominaListadoEmpresa = document.querySelector("#gestion-nomina-listado-empresa");
+const gestionNominaListadoAnuladas = document.querySelector("#gestion-nomina-listado-anuladas");
+const gestionNominaListadoHint = document.querySelector("#gestion-nomina-listado-hint");
+const gestionNominaListadoBody = document.querySelector("#gestion-nomina-listado-body");
+const gestionNominaListadoExcelButton = document.querySelector("#gestion-nomina-listado-excel");
+const gestionNominaListadoPdfButton = document.querySelector("#gestion-nomina-listado-pdf");
 const gestionFilterEmpresa = document.querySelector("#gestion-filter-empresa");
 // Vacío = cada convenio manda con su base_calculo. Elegir un modo lo fuerza para
 // todos los puestos del cálculo, para poder comparar sin tocar las tarifas.
@@ -18476,6 +18617,7 @@ function renderGestionNominasEmitidas(rows) {
             <span class="gestion-nomina-card-title">#${escapeHtml(row.id)} · ${escapeHtml(periodo)}</span>
             <span class="gestion-nomina-card-periodo">${escapeHtml(formatGestionImporte(row.liquido))} líquido</span>
           </button>
+          <button type="button" class="gestion-nomina-pdf" data-gestion-nomina-pdf="${escapeHtml(row.id)}" title="Descargar el recibo en PDF">PDF</button>
           ${
             anulada
               ? '<span class="gestion-nomina-badge">anulada</span>'
@@ -18663,6 +18805,631 @@ function renderGestionNominaExpedientePeriodo(hist, horas, lineas) {
   </div>`;
 }
 
+// ============================================================================
+// Fase 7 — PDF del recibo y listado mensual de nóminas
+// ============================================================================
+
+const GESTION_NOMINA_MESES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+// "1.234,56" sin símbolo, para las celdas de las tablas del PDF (donde el € se
+// pone aparte en la cabecera de columna) y para no depender de la config local.
+function nominaPdfMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "";
+  return n.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function nominaNombreMes(mes) {
+  const i = Number(mes) - 1;
+  return GESTION_NOMINA_MESES[i] || "";
+}
+
+// Dibuja una tabla con salto de página. columns: [{label, width(mm), align, key}].
+// rows: objetos con las claves de columns, o {_seccion:'titulo'|'total', ...}
+// para bandas. Devuelve la Y final. Reutilizada por el recibo y el listado PDF.
+function drawNominaPdfTable(doc, options) {
+  const { x, columns, rows, margin, pageHeight, bottomMargin, headerFill = [235, 238, 242] } = options;
+  let y = options.y;
+  const rowH = options.rowHeight || 6;
+  const totalW = columns.reduce((sum, c) => sum + c.width, 0);
+
+  const drawHeader = () => {
+    doc.setFillColor(headerFill[0], headerFill[1], headerFill[2]);
+    doc.rect(x, y, totalW, rowH, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(40, 40, 40);
+    let cx = x;
+    for (const col of columns) {
+      const align = col.align || "left";
+      const tx = align === "right" ? cx + col.width - 1.5 : align === "center" ? cx + col.width / 2 : cx + 1.5;
+      doc.text(String(col.label), tx, y + rowH - 1.8, { align });
+      cx += col.width;
+    }
+    y += rowH;
+  };
+
+  drawHeader();
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  for (const row of rows) {
+    const isTotal = row._seccion === "total";
+    const lines = columns.map((col) =>
+      doc.splitTextToSize(String(row[col.key] ?? ""), col.width - 3)
+    );
+    const cellRows = Math.max(1, ...lines.map((l) => l.length));
+    const h = Math.max(rowH, cellRows * 4 + 2);
+    if (y + h > pageHeight - bottomMargin) {
+      doc.addPage();
+      y = margin;
+      drawHeader();
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+    }
+    if (isTotal) {
+      doc.setFillColor(246, 248, 250);
+      doc.rect(x, y, totalW, h, "F");
+      doc.setFont("helvetica", "bold");
+    }
+    let cx = x;
+    for (let i = 0; i < columns.length; i++) {
+      const col = columns[i];
+      const align = col.align || "left";
+      const tx = align === "right" ? cx + col.width - 1.5 : align === "center" ? cx + col.width / 2 : cx + 1.5;
+      doc.text(lines[i], tx, y + 4, { align });
+      cx += col.width;
+    }
+    if (isTotal) doc.setFont("helvetica", "normal");
+    y += h;
+  }
+  // Marco exterior.
+  doc.setDrawColor(200, 200, 200);
+  doc.rect(x, options.y, totalW, y - options.y);
+  return y;
+}
+
+// Trae todo lo necesario para el recibo de UNA nómina emitida: cabecera,
+// persona (con datos confidenciales, admin), empresa (logo/pies) e historiales.
+async function fetchNominaReciboData(nominaId) {
+  const supabase = await getSupabaseClient();
+  const { data: nomina, error } = await supabase
+    .from("nominas")
+    .select("*")
+    .eq("id", Number(nominaId))
+    .single();
+  if (error) throw error;
+
+  const [personalRes, confidencialRes, empresaRes, lineasRes, historialesRes] = await Promise.all([
+    supabase.from("personal").select("personal, dni, nombre, apellido, grupo_cotizacion, antiguedad").eq("id", nomina.personal_id).maybeSingle(),
+    supabase.from("personal_confidencial").select("ss, cuenta_corriente").eq("personal_id", nomina.personal_id).maybeSingle(),
+    nomina.empresa_id
+      ? supabase.from("empresas").select("empresa, razon_social, cif, logo_url, logo_data_url, firma_data_url, firmante_nombre, firmante_cargo, ciudad_firma, direccion_pie, telefono_pie, email_pie, web_pie").eq("id", nomina.empresa_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from("nomina_lineas").select("orden, seccion, concepto, detalle, base, tipo, cantidad, precio, importe, detalle_de").eq("nomina_id", Number(nominaId)).eq("ambito", "persona").order("orden"),
+    supabase.from("nomina_historiales").select("puesto, convenio, grupo_cotizacion, fecha_alta, predominante").eq("nomina_id", Number(nominaId)).order("predominante", { ascending: false }),
+  ]);
+  for (const res of [personalRes, confidencialRes, empresaRes, lineasRes, historialesRes]) {
+    if (res.error) throw res.error;
+  }
+  return {
+    nomina,
+    personal: personalRes.data || {},
+    confidencial: confidencialRes.data || {},
+    empresa: empresaRes.data || {},
+    lineas: lineasRes.data || [],
+    historiales: historialesRes.data || [],
+  };
+}
+
+async function exportNominaEmitidaPdf(nominaId, triggerButton) {
+  const original = triggerButton?.textContent;
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = "…";
+  }
+  try {
+    const data = await fetchNominaReciboData(nominaId);
+    const { jsPDF } = await getJsPdfClient();
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 16;
+    const bottomMargin = 16;
+    const contentWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    const { nomina, personal, confidencial, empresa, lineas, historiales } = data;
+    const predominante = historiales.find((h) => h.predominante) || historiales[0] || {};
+
+    // --- Cabecera: logo + datos de empresa a la izquierda, título a la derecha.
+    const logoDataUrl = empresa.logo_data_url || (await loadImageAsDataUrl(empresa.logo_url));
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, "PNG", margin, y, 30, 15, undefined, "FAST");
+      } catch (_e) {
+        /* logo inválido: se ignora */
+      }
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text(String(empresa.razon_social || empresa.empresa || ""), margin + 34, y + 5);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    if (empresa.cif) doc.text(`CIF: ${empresa.cif}`, margin + 34, y + 10);
+    if (empresa.direccion_pie) doc.text(doc.splitTextToSize(String(empresa.direccion_pie), contentWidth - 34), margin + 34, y + 14);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("RECIBO INDIVIDUAL DE SALARIOS", pageWidth - margin, y + 4, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(
+      `${nominaNombreMes(nomina.mes)} ${nomina.ejercicio || ""}`.trim() ||
+        `${formatGestionDate(nomina.periodo_desde)} – ${formatGestionDate(nomina.periodo_hasta)}`,
+      pageWidth - margin,
+      y + 9,
+      { align: "right" }
+    );
+    y += 22;
+
+    // --- Recuadro con los datos del trabajador y del periodo.
+    const nombre = personal.personal || [personal.nombre, personal.apellido].filter(Boolean).join(" ");
+    const filasDatos = [
+      ["Trabajador/a", nombre || "—", "DNI", personal.dni || "—"],
+      ["Nº afiliación S.S.", confidencial.ss || "—", "Grupo cotización", predominante.grupo_cotizacion || personal.grupo_cotizacion || "—"],
+      ["Puesto", predominante.puesto || "—", "Antigüedad", personal.antiguedad ? formatGestionDate(personal.antiguedad) : "—"],
+      ["Convenio", predominante.convenio || "—", "Periodo", `${formatGestionDate(nomina.periodo_desde)} – ${formatGestionDate(nomina.periodo_hasta)}`],
+    ];
+    const boxTop = y;
+    const rowH = 6;
+    doc.setDrawColor(200, 200, 200);
+    doc.setFontSize(8);
+    for (const [l1, v1, l2, v2] of filasDatos) {
+      doc.setFont("helvetica", "bold");
+      doc.text(String(l1), margin + 1.5, y + 4);
+      doc.text(String(l2), margin + contentWidth / 2 + 1.5, y + 4);
+      doc.setFont("helvetica", "normal");
+      doc.text(String(v1), margin + 34, y + 4, { maxWidth: contentWidth / 2 - 36 });
+      doc.text(String(v2), margin + contentWidth / 2 + 34, y + 4, { maxWidth: contentWidth / 2 - 36 });
+      y += rowH;
+    }
+    doc.rect(margin, boxTop, contentWidth, y - boxTop);
+    doc.line(margin + contentWidth / 2, boxTop, margin + contentWidth / 2, y);
+    y += 6;
+
+    // --- Devengos.
+    const devengos = lineas.filter((l) => l.seccion === "devengo" && !l.detalle_de);
+    const money = (v) => (v == null ? "" : nominaPdfMoney(v));
+    y = drawNominaPdfTable(doc, {
+      x: margin, y, margin, pageHeight, bottomMargin,
+      columns: [
+        { label: "DEVENGOS", key: "concepto", width: contentWidth - 84 },
+        { label: "Cantidad", key: "cantidad", width: 26, align: "right" },
+        { label: "Precio", key: "precio", width: 26, align: "right" },
+        { label: "Importe €", key: "importe", width: 32, align: "right" },
+      ],
+      rows: [
+        ...devengos.map((l) => ({
+          concepto: l.concepto,
+          cantidad: l.cantidad != null ? Number(l.cantidad).toLocaleString("es-ES", { maximumFractionDigits: 2 }) : "",
+          precio: l.precio != null ? nominaPdfMoney(l.precio) : "",
+          importe: money(l.importe),
+        })),
+        { _seccion: "total", concepto: "A. TOTAL DEVENGADO", cantidad: "", precio: "", importe: money(nomina.total_devengado) },
+      ],
+    });
+    y += 4;
+
+    // --- Deducciones.
+    const deducciones = lineas.filter((l) => l.seccion === "deduccion" && !l.detalle_de);
+    y = drawNominaPdfTable(doc, {
+      x: margin, y, margin, pageHeight, bottomMargin,
+      columns: [
+        { label: "DEDUCCIONES", key: "concepto", width: contentWidth - 84 },
+        { label: "Base €", key: "base", width: 30, align: "right" },
+        { label: "%", key: "tipo", width: 22, align: "right" },
+        { label: "Importe €", key: "importe", width: 32, align: "right" },
+      ],
+      rows: [
+        ...deducciones.map((l) => ({
+          concepto: l.concepto,
+          base: l.base != null ? nominaPdfMoney(l.base) : "",
+          tipo: l.tipo != null ? `${(Number(l.tipo) * 100).toLocaleString("es-ES", { maximumFractionDigits: 3 })}` : "",
+          importe: money(l.importe),
+        })),
+        { _seccion: "total", concepto: "B. TOTAL A DEDUCIR", base: "", tipo: "", importe: money(nomina.total_deducciones) },
+      ],
+    });
+    y += 6;
+
+    // --- Líquido.
+    doc.setFillColor(232, 240, 232);
+    doc.rect(margin, y, contentWidth, 9, "F");
+    doc.setDrawColor(180, 180, 180);
+    doc.rect(margin, y, contentWidth, 9);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("LÍQUIDO TOTAL A PERCIBIR (A − B)", margin + 2, y + 6);
+    doc.text(`${nominaPdfMoney(nomina.liquido)} €`, pageWidth - margin - 2, y + 6, { align: "right" });
+    y += 13;
+
+    // --- Bases de cotización (informativas).
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(
+      `Base C. Comunes: ${nominaPdfMoney(nomina.base_cc)} €   ·   Base C. Profesionales: ${nominaPdfMoney(nomina.base_cp)} €   ·   Base IRPF: ${nominaPdfMoney(nomina.base_irpf)} €`,
+      margin,
+      y
+    );
+    y += 10;
+
+    // --- Firmas.
+    doc.setFontSize(9);
+    doc.text("Firma y sello de la empresa", margin, y);
+    doc.text("Recibí,", pageWidth - margin - 45, y);
+    const firmaDataUrl = empresa.firma_data_url || null;
+    if (firmaDataUrl) {
+      try {
+        doc.addImage(firmaDataUrl, "PNG", margin, y + 2, 38, 15, undefined, "FAST");
+      } catch (_e) {
+        /* firma inválida */
+      }
+    }
+    y += 20;
+    doc.setFontSize(8);
+    if (empresa.firmante_nombre) doc.text(String(empresa.firmante_nombre), margin, y);
+    doc.text(`En ${empresa.ciudad_firma || "Oviedo"}, a ${formatGestionDate(nomina.emitida_en || getTodayIsoDate())}`, pageWidth - margin - 45, y);
+
+    // --- Pie de empresa.
+    const footerParts = [
+      ...new Set(
+        [empresa.direccion_pie, empresa.cif ? `CIF ${empresa.cif}` : "", empresa.telefono_pie ? `Tel. ${empresa.telefono_pie}` : "", empresa.email_pie, empresa.web_pie]
+          .map((p) => String(p || "").trim())
+          .filter(Boolean)
+      ),
+    ];
+    if (footerParts.length) {
+      doc.setFontSize(7);
+      doc.setTextColor(120, 120, 120);
+      doc.text(doc.splitTextToSize(footerParts.join(" · "), contentWidth), pageWidth / 2, pageHeight - 8, { align: "center" });
+    }
+
+    const filename = [
+      String(nombre || `nomina-${nomina.id}`).replace(/[^\p{L}\p{N} ._-]/gu, "").trim(),
+      `${nomina.ejercicio || ""}-${String(nomina.mes || "").padStart(2, "0")}`,
+    ]
+      .filter(Boolean)
+      .join(" - ");
+    doc.save(`${filename || "nomina"}.pdf`);
+    setStatus(`Recibo de ${nombre || `nómina #${nomina.id}`} generado.`, "success");
+  } catch (error) {
+    setStatus(`No se pudo generar el recibo: ${error?.message ?? "error"}`, "error");
+  } finally {
+    if (triggerButton) {
+      triggerButton.disabled = false;
+      triggerButton.textContent = original || "PDF";
+    }
+  }
+}
+
+// ---- Listado mensual ----
+
+let gestionNominaListadoData = null;
+let gestionNominaListadoInit = false;
+
+function initGestionNominaListado() {
+  if (gestionNominaListadoInit || !gestionNominaListadoMes) {
+    return;
+  }
+  gestionNominaListadoInit = true;
+  gestionNominaListadoMes.innerHTML = GESTION_NOMINA_MESES.map(
+    (nombre, i) => `<option value="${i + 1}">${nombre.charAt(0).toUpperCase() + nombre.slice(1)}</option>`
+  ).join("");
+  const hoy = new Date();
+  gestionNominaListadoMes.value = String(hoy.getMonth() + 1);
+  if (gestionNominaListadoAnio && !gestionNominaListadoAnio.value) {
+    gestionNominaListadoAnio.value = String(hoy.getFullYear());
+  }
+  // Reutiliza el mismo catálogo de empresas que el filtro principal, con la
+  // opción "Todas" para ver el mes entero de un vistazo.
+  if (gestionNominaListadoEmpresa) {
+    const opciones = Array.from(gestionFilterEmpresa?.options || []).map(
+      (o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.textContent)}</option>`
+    );
+    gestionNominaListadoEmpresa.innerHTML = opciones.join("");
+    gestionNominaListadoEmpresa.value = gestionFilterEmpresa?.value || "";
+  }
+}
+
+async function loadGestionNominaListado() {
+  if (!gestionNominaListadoBody) {
+    return;
+  }
+  const ejercicio = Number(gestionNominaListadoAnio?.value);
+  const mes = Number(gestionNominaListadoMes?.value);
+  if (!ejercicio || !mes) {
+    gestionNominaListadoBody.innerHTML = '<p class="muted-text">Indica mes y año.</p>';
+    return;
+  }
+  const empresaId = gestionNominaListadoEmpresa?.value ? Number(gestionNominaListadoEmpresa.value) : null;
+  const incluirAnuladas = Boolean(gestionNominaListadoAnuladas?.checked);
+  gestionNominaListadoBody.innerHTML = '<p class="muted-text">Cargando…</p>';
+  setGestionNominaListadoExportEnabled(false);
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("get_nominas_listado", {
+      p_ejercicio: ejercicio,
+      p_mes: mes,
+      p_empresa_id: empresaId,
+      p_incluir_anuladas: incluirAnuladas,
+    });
+    if (error) throw error;
+    gestionNominaListadoData = buildGestionNominaListado(data || [], { ejercicio, mes });
+    renderGestionNominaListado(gestionNominaListadoData);
+    setGestionNominaListadoExportEnabled(gestionNominaListadoData.nominas.length > 0);
+  } catch (error) {
+    gestionNominaListadoBody.innerHTML = `<p class="panel-status-message error">No se pudo cargar el listado: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+// Agrupa las filas planas del RPC por nómina y arma la matriz de conceptos.
+function buildGestionNominaListado(rows, meta) {
+  const nominasMap = new Map();
+  const columnasMap = new Map(); // concepto -> {concepto, orden, seccion}
+  for (const row of rows) {
+    if (!nominasMap.has(row.nomina_id)) {
+      nominasMap.set(row.nomina_id, {
+        nomina_id: row.nomina_id,
+        personal_id: row.personal_id,
+        personal: row.personal,
+        dni: row.dni,
+        empresa: row.empresa,
+        estado: row.estado,
+        editada: row.editada,
+        periodo_desde: row.periodo_desde,
+        periodo_hasta: row.periodo_hasta,
+        total_devengado: row.total_devengado,
+        total_deducciones: row.total_deducciones,
+        liquido: row.liquido,
+        lineas: [],
+        valores: new Map(),
+      });
+    }
+    const nomina = nominasMap.get(row.nomina_id);
+    nomina.lineas.push(row);
+    // Las columnas de la matriz son las líneas que suman (sin detalle_de).
+    if (!row.detalle_de) {
+      if (!columnasMap.has(row.concepto)) {
+        columnasMap.set(row.concepto, { concepto: row.concepto, orden: row.orden, seccion: row.seccion });
+      } else if (row.orden < columnasMap.get(row.concepto).orden) {
+        columnasMap.get(row.concepto).orden = row.orden;
+      }
+      nomina.valores.set(row.concepto, row.importe);
+    }
+  }
+  const columnas = Array.from(columnasMap.values()).sort((a, b) => a.orden - b.orden);
+  const nominas = Array.from(nominasMap.values());
+  return { ...meta, columnas, nominas };
+}
+
+function setGestionNominaListadoExportEnabled(enabled) {
+  gestionNominaListadoExcelButton?.toggleAttribute("disabled", !enabled);
+  gestionNominaListadoPdfButton?.toggleAttribute("disabled", !enabled);
+}
+
+function renderGestionNominaListado(data) {
+  if (!gestionNominaListadoBody) {
+    return;
+  }
+  if (gestionNominaListadoHint) {
+    const vivas = data.nominas.filter((n) => n.estado === "emitida").length;
+    gestionNominaListadoHint.textContent = data.nominas.length
+      ? `${nominaNombreMes(data.mes)} ${data.ejercicio} · ${data.nominas.length} nómina${data.nominas.length !== 1 ? "s" : ""}${data.nominas.length !== vivas ? ` (${vivas} vigentes)` : ""}`
+      : `${nominaNombreMes(data.mes)} ${data.ejercicio} · ninguna`;
+  }
+  if (!data.nominas.length) {
+    gestionNominaListadoBody.innerHTML = '<p class="empty-state">No hay nóminas emitidas para ese mes.</p>';
+    return;
+  }
+
+  // Totales por columna, para el pie de la matriz.
+  const totales = new Map();
+  for (const col of data.columnas) {
+    let suma = 0;
+    for (const n of data.nominas) {
+      const v = n.valores.get(col.concepto);
+      if (v != null) suma += Number(v);
+    }
+    totales.set(col.concepto, suma);
+  }
+
+  const money = (v) => (v == null ? "" : formatGestionImporte(v));
+  const cabecera =
+    `<th class="gestion-nomina-listado-sticky">Persona</th><th>DNI</th>` +
+    data.columnas
+      .map((c) => `<th class="num gestion-nomina-listado-col-${escapeHtml(c.seccion)}">${escapeHtml(c.concepto)}</th>`)
+      .join("");
+  const cuerpo = data.nominas
+    .map((n) => {
+      const celdas = data.columnas
+        .map((c) => `<td class="num">${escapeHtml(money(n.valores.get(c.concepto)))}</td>`)
+        .join("");
+      return `<tr class="${n.estado === "anulada" ? "gestion-nomina-listado-anulada" : ""}">
+        <td class="gestion-nomina-listado-sticky">${escapeHtml(n.personal || `#${n.nomina_id}`)}${n.estado === "anulada" ? " (anulada)" : ""}</td>
+        <td>${escapeHtml(n.dni || "")}</td>${celdas}
+      </tr>`;
+    })
+    .join("");
+  const pie =
+    `<td class="gestion-nomina-listado-sticky">TOTAL (${data.nominas.length})</td><td></td>` +
+    data.columnas.map((c) => `<td class="num">${escapeHtml(money(totales.get(c.concepto)))}</td>`).join("");
+
+  const matriz = `<div class="gestion-nomina-listado-matriz">
+    <table class="records-table gestion-compact-table gestion-nomina-listado-table">
+      <thead><tr>${cabecera}</tr></thead>
+      <tbody>${cuerpo}</tbody>
+      <tfoot><tr>${pie}</tr></tfoot>
+    </table>
+  </div>`;
+
+  // Detalle apilado: el recibo de cada nómina bajo un encabezado.
+  const detalle = data.nominas
+    .map((n) => {
+      // Todas las líneas, incluidas las de detalle_de: renderGestionNominaTable
+      // las anida bajo su padre.
+      return `<div class="gestion-nomina-card gestion-nomina-listado-detalle-card">
+        <div class="gestion-nomina-listado-detalle-head">
+          <strong>${escapeHtml(n.personal || `#${n.nomina_id}`)}</strong>
+          <span class="muted-text">${escapeHtml(n.dni || "")} · líquido ${escapeHtml(formatGestionImporte(n.liquido))}${n.estado === "anulada" ? " · anulada" : ""}</span>
+        </div>
+        ${renderGestionNominaTable(n.lineas)}
+      </div>`;
+    })
+    .join("");
+
+  gestionNominaListadoBody.innerHTML = `${matriz}
+    <h4 class="gestion-nomina-expediente-title">Detalle por nómina</h4>
+    <div class="gestion-nomina-listado-detalle">${detalle}</div>`;
+}
+
+async function exportGestionNominaListadoExcel() {
+  const data = gestionNominaListadoData;
+  if (!data?.nominas.length) return;
+  try {
+    const xlsxModule = await getXlsxClient();
+    const XLSX = xlsxModule.default || xlsxModule;
+    const num = (v) => (v == null ? null : Number(v));
+
+    // Hoja resumen: matriz persona × concepto.
+    const cabecera = ["Persona", "DNI", "Empresa", "Estado", ...data.columnas.map((c) => c.concepto)];
+    const filas = data.nominas.map((n) => [
+      n.personal || `#${n.nomina_id}`,
+      n.dni || "",
+      n.empresa || "",
+      n.estado,
+      ...data.columnas.map((c) => num(n.valores.get(c.concepto))),
+    ]);
+    const totalRow = [
+      `TOTAL (${data.nominas.length})`, "", "", "",
+      ...data.columnas.map((c) => data.nominas.reduce((s, n) => s + Number(n.valores.get(c.concepto) || 0), 0)),
+    ];
+    const resumen = XLSX.utils.aoa_to_sheet([cabecera, ...filas, totalRow]);
+    resumen["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, ...data.columnas.map(() => ({ wch: 13 }))];
+
+    // Hoja detalle: una fila por línea, formato largo.
+    const detalleRows = [["Persona", "DNI", "Sección", "Código", "Concepto", "Detalle", "Cantidad", "Precio", "Base", "%", "Importe"]];
+    for (const n of data.nominas) {
+      for (const l of n.lineas) {
+        if (l.detalle_de) continue;
+        detalleRows.push([
+          n.personal || `#${n.nomina_id}`, n.dni || "", l.seccion, l.codigo_nomina ?? "",
+          l.concepto, l.detalle || "", num(l.cantidad), num(l.precio), num(l.base),
+          l.tipo != null ? Number(l.tipo) * 100 : null, num(l.importe),
+        ]);
+      }
+    }
+    const detalle = XLSX.utils.aoa_to_sheet(detalleRows);
+    detalle["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 26 }, { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 12 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, resumen, "Resumen");
+    XLSX.utils.book_append_sheet(wb, detalle, "Detalle");
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    triggerDownload(
+      new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      `nominas-${data.ejercicio}-${String(data.mes).padStart(2, "0")}.xlsx`
+    );
+    setStatus("Listado exportado a Excel.", "success");
+  } catch (error) {
+    setStatus(`No se pudo exportar a Excel: ${error.message}`, "error");
+  }
+}
+
+async function exportGestionNominaListadoPdf() {
+  const data = gestionNominaListadoData;
+  if (!data?.nominas.length) return;
+  try {
+    const { jsPDF } = await getJsPdfClient();
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const bottomMargin = 12;
+    const contentWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text(`Nóminas de ${nominaNombreMes(data.mes)} ${data.ejercicio}`, margin, y + 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`${data.nominas.length} nóminas`, pageWidth - margin, y + 4, { align: "right" });
+    y += 12;
+
+    // Resumen: una fila por nómina con los totales.
+    const totalBruto = data.nominas.reduce((s, n) => s + Number(n.total_devengado || 0), 0);
+    const totalDed = data.nominas.reduce((s, n) => s + Number(n.total_deducciones || 0), 0);
+    const totalLiq = data.nominas.reduce((s, n) => s + Number(n.liquido || 0), 0);
+    y = drawNominaPdfTable(doc, {
+      x: margin, y, margin, pageHeight, bottomMargin,
+      columns: [
+        { label: "Persona", key: "persona", width: contentWidth - 150 },
+        { label: "DNI", key: "dni", width: 36 },
+        { label: "Bruto €", key: "bruto", width: 38, align: "right" },
+        { label: "Deducciones €", key: "ded", width: 38, align: "right" },
+        { label: "Líquido €", key: "liq", width: 38, align: "right" },
+      ],
+      rows: [
+        ...data.nominas.map((n) => ({
+          persona: (n.personal || `#${n.nomina_id}`) + (n.estado === "anulada" ? " (anulada)" : ""),
+          dni: n.dni || "",
+          bruto: nominaPdfMoney(n.total_devengado),
+          ded: nominaPdfMoney(n.total_deducciones),
+          liq: nominaPdfMoney(n.liquido),
+        })),
+        { _seccion: "total", persona: `TOTAL (${data.nominas.length})`, dni: "", bruto: nominaPdfMoney(totalBruto), ded: nominaPdfMoney(totalDed), liq: nominaPdfMoney(totalLiq) },
+      ],
+    });
+    y += 8;
+
+    // Detalle: cada nómina con todos sus conceptos.
+    for (const n of data.nominas) {
+      if (y + 20 > pageHeight - bottomMargin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(`${n.personal || `#${n.nomina_id}`}${n.dni ? ` · ${n.dni}` : ""}`, margin, y + 3);
+      y += 6;
+      const conceptos = n.lineas.filter((l) => !l.detalle_de);
+      y = drawNominaPdfTable(doc, {
+        x: margin, y, margin, pageHeight, bottomMargin, rowHeight: 5,
+        columns: [
+          { label: "Concepto", key: "concepto", width: contentWidth - 120 },
+          { label: "Detalle", key: "detalle", width: 60 },
+          { label: "Importe €", key: "importe", width: 32, align: "right" },
+        ],
+        rows: conceptos.map((l) => ({
+          concepto: l.concepto,
+          detalle: l.detalle || "",
+          importe: nominaPdfMoney(l.importe),
+          _seccion: l.seccion === "total" ? "total" : undefined,
+        })),
+      });
+      y += 6;
+    }
+
+    doc.save(`nominas-${data.ejercicio}-${String(data.mes).padStart(2, "0")}.pdf`);
+    setStatus("Listado exportado a PDF.", "success");
+  } catch (error) {
+    setStatus(`No se pudo exportar a PDF: ${error.message}`, "error");
+  }
+}
+
 async function loadGestion() {
   await loadGestionEmpresaOptions();
   const { desde, hasta, personalId, empresaId } = getGestionFilters();
@@ -18752,6 +19519,15 @@ async function loadGestion() {
     renderGestionNomina(historialRes.data ?? [], personalId, desde, hasta);
     void renderGestionManualComplementos(personalId, desde, historialRes.data ?? []);
     void loadGestionNominasEmitidas(personalId, desde, hasta, empresaId ? Number(empresaId) : null);
+
+    // El listado mensual es transversal (no depende de la persona filtrada);
+    // solo se muestra a admin, igual que la RLS de las tablas de nóminas.
+    if (gestionNominaListadoBlock) {
+      gestionNominaListadoBlock.classList.toggle("hidden", !currentUserIsAccessAdmin);
+      if (currentUserIsAccessAdmin) {
+        initGestionNominaListado();
+      }
+    }
 
     if (gestionSummary) {
       const scope = personalId ? "1 persona" : `${personalCount} personas`;
@@ -26304,6 +27080,11 @@ async function init() {
       toggleGestionNominaGroup(groupToggle);
       return;
     }
+    const pdf = event.target.closest("[data-gestion-nomina-pdf]");
+    if (pdf) {
+      void exportNominaEmitidaPdf(pdf.dataset.gestionNominaPdf, pdf);
+      return;
+    }
     const anular = event.target.closest("[data-gestion-nomina-anular]")?.dataset.gestionNominaAnular;
     if (anular) {
       void anularGestionNomina(anular);
@@ -26321,6 +27102,17 @@ async function init() {
     if (emitidaId) {
       void toggleGestionNominaEmitida(emitidaId);
     }
+  });
+
+  gestionNominaListadoForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadGestionNominaListado();
+  });
+  gestionNominaListadoExcelButton?.addEventListener("click", () => {
+    void exportGestionNominaListadoExcel();
+  });
+  gestionNominaListadoPdfButton?.addEventListener("click", () => {
+    void exportGestionNominaListadoPdf();
   });
 
   // Editor de conceptos: se teclea sobre el estado y solo se refrescan los
@@ -26765,6 +27557,7 @@ async function init() {
     }
   });
   recordsBulkDeleteButton?.addEventListener("click", () => void deleteSelectedBulkRecords());
+  recordsOverlapButton?.addEventListener("click", toggleRecordsOverlapOnly);
   recordsReportPreviewButton?.addEventListener("click", () => void openRecordsReportPreview());
   recordsReportPreviewCloseButton?.addEventListener("click", closeRecordsReportPreview);
   recordsReportPreviewBackdrop?.addEventListener("click", closeRecordsReportPreview);
