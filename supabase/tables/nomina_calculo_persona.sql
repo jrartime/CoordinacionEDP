@@ -328,9 +328,9 @@ begin
     if v_manual and p_manual_pagas_incluidas then
       v_pe_base := v_manual_total - v_base_total;
     else
-      v_pe_base := round(v_base_total * v_extras / 12.0, 2);
+      v_pe_base := public.prorrata_pagas_extra(v_base_total, v_extras);
     end if;
-    select coalesce(sum(round(c.importe * v_extras / 12.0, 2)), 0) into v_pe_compl
+    select coalesce(sum(public.prorrata_pagas_extra(c.importe, v_extras)), 0) into v_pe_compl
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
     where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
@@ -417,20 +417,20 @@ begin
 
   if coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
     return query select 20, 'devengo'::text, 'Prorrateo pagas extra'::text,
-      format('%s pagas/año (12 + %s extra) → %s/12', v_pagas, v_extras, v_extras),
-      null::numeric, round(v_extras / 12.0, 6), null::numeric, null::numeric,
+      format('%s pagas/año (12 + %s extra) · %s × 8,333%% de cada concepto', v_pagas, v_extras, v_extras),
+      null::numeric, round(v_extras * 0.08333, 6), null::numeric, null::numeric,
       v_pe_base + v_pe_compl, null::text, v_todas;
     return query select 21, 'devengo'::text, 'Salario base'::text,
       case when v_manual and p_manual_pagas_incluidas
         then format('%s€ − %s€ (ya incluida en el importe manual)', v_manual_total, round(v_base_total,2))
-        else format('%s€ × %s/12', round(v_base_total,2), v_extras) end,
-      round(v_base_total, 2), round(v_extras / 12.0, 6), null::numeric, null::numeric,
+        else format('%s × 8,333%% de %s€', v_extras, round(v_base_total,2)) end,
+      round(v_base_total, 2), round(v_extras * 0.08333, 6), null::numeric, null::numeric,
       v_pe_base, 'prorrateo_extra'::text, v_todas;
     return query
     select (22 + row_number() over (order by c.orden_calculo, c.nombre))::integer,
-      'devengo'::text, c.nombre, format('%s€ × %s/12', c.importe, v_extras),
-      c.importe, round(v_extras / 12.0, 6), null::numeric, null::numeric,
-      round(c.importe * v_extras / 12.0, 2), 'prorrateo_extra'::text, v_todas
+      'devengo'::text, c.nombre, format('%s × 8,333%% de %s€', v_extras, c.importe),
+      c.importe, round(v_extras * 0.08333, 6), null::numeric, null::numeric,
+      public.prorrata_pagas_extra(c.importe, v_extras), 'prorrateo_extra'::text, v_todas
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
     where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
@@ -453,8 +453,8 @@ begin
   return query select 500, 'total'::text, 'Total devengado (bruto)'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_bruto,2), null::text, null::text[];
   if not coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
     return query select 599, 'base'::text, 'P.P. pagas extra (solo cotiza)'::text,
-      format('%s pagas/año → %s/12 · no se devenga, suma a la base de S.S.', v_pagas, v_extras),
-      null::numeric, round(v_extras / 12.0, 6), null::numeric, null::numeric,
+      format('%s pagas/año · %s × 8,333%% · no se devenga, suma a la base de S.S.', v_pagas, v_extras),
+      null::numeric, round(v_extras * 0.08333, 6), null::numeric, null::numeric,
       v_pe_base + v_pe_compl, null::text, null::text[];
   end if;
   return query select 600, 'base'::text, 'Base contingencias comunes'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_base_cc,2), null::text, null::text[];
