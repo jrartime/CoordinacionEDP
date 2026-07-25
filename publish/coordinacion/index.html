@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260724-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260725-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260725-3" />
   </head>
   <body>
     <script>
@@ -1715,6 +1715,28 @@
                         <div id="gestion-manual-complementos" class="gestion-manual-complementos"></div>
                       </fieldset>
                     </div>
+                  </div>
+
+                  <!--
+                    Tercera columna: complementos añadidos a mano solo para esta
+                    nómina, sin tocar la ficha de la persona. Si ya los tiene
+                    asignados, se suman los dos. Ver p_complementos_extra en
+                    supabase/tables/nomina_calculo_persona.sql.
+                  -->
+                  <div class="gestion-extra">
+                    <span class="gestion-extra-label">Añadir complemento</span>
+                    <div class="gestion-extra-form">
+                      <label class="filter-field">
+                        Complemento
+                        <select id="gestion-extra-complemento"></select>
+                      </label>
+                      <label class="filter-field">
+                        Importe
+                        <input id="gestion-extra-importe" type="number" step="0.01" placeholder="0,00" />
+                      </label>
+                      <button type="button" id="gestion-extra-add" class="secondary-button">Añadir</button>
+                    </div>
+                    <ul id="gestion-extra-lista" class="gestion-extra-lista"></ul>
                   </div>
                 </div>
 
@@ -7753,6 +7775,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260724-4" defer></script>
-    <script src="./app.js?v=20260725-3" defer></script>
+    <script src="./app.js?v=20260725-4" defer></script>
   </body>
 </html>

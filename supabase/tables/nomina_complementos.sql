@@ -137,3 +137,26 @@ select setval(
   coalesce((select max(id) from public.nomina_complementos_catalogo), 1),
   true
 );
+
+-- ============================================================================
+-- A QUE COTIZA / TRIBUTA CADA CONCEPTO (2026-07-25)
+-- ============================================================================
+--
+-- Antes las bases se calculaban como "bruto menos excepciones", con filtros por
+-- el NOMBRE del concepto. Ahora cada concepto declara a que bases suma y el
+-- motor las construye sumando linea a linea (ver nomina_calculo_persona.sql).
+--
+-- Por defecto TODAS: un concepto que no diga nada se comporta como siempre.
+-- Un array VACIO significa concepto exento (no cotiza ni tributa) -- que no es
+-- lo mismo que NULL, que se lee como "todas".
+alter table public.nomina_complementos_catalogo
+  add column if not exists cotiza_en text[] not null
+    default array['comunes','mei','desempleo','formacion','irpf']::text[];
+
+alter table public.nomina_complementos_catalogo
+  drop constraint if exists nomina_complementos_cotiza_en_chk,
+  add constraint nomina_complementos_cotiza_en_chk
+    check (cotiza_en <@ array['comunes','mei','desempleo','formacion','irpf']::text[]);
+
+comment on column public.nomina_complementos_catalogo.cotiza_en is
+  'Bases a las que suma este concepto: comunes, mei, desempleo, formacion, irpf. Vacio = no cotiza ni tributa (concepto exento). Por defecto todas.';

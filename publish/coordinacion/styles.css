@@ -4318,7 +4318,7 @@ th {
    las dos filas de la izquierda. */
 .gestion-calc-options {
   display: grid;
-  grid-template-columns: minmax(170px, 210px) minmax(0, 1fr);
+  grid-template-columns: minmax(170px, 210px) minmax(0, 1fr) minmax(200px, 260px);
   gap: 6px 18px;
   align-items: start;
   margin: 4px 0 12px;
@@ -4462,8 +4462,120 @@ th {
   font-size: 0.72rem;
 }
 
-/* Sin sitio para las dos columnas, la nómina manual vuelve debajo y recupera
-   el separador horizontal. */
+/* --- Tercera columna: complementos añadidos a mano a esta nómina --- */
+.gestion-extra {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  border-left: 1px solid var(--line);
+  padding-left: 18px;
+}
+
+.gestion-extra-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.gestion-extra-form {
+  display: grid;
+  grid-template-columns: 1fr 90px;
+  gap: 5px 8px;
+  align-items: end;
+}
+
+.gestion-extra-form .filter-field {
+  min-width: 0;
+  gap: 1px;
+  font-size: 0.72rem;
+}
+
+.private-tab-panel .gestion-extra-form select,
+.private-tab-panel .gestion-extra-form input {
+  width: 100%;
+  height: 28px;
+  padding: 3px 6px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.gestion-extra-form .secondary-button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 4px 12px;
+  font-size: 0.74rem;
+}
+
+.gestion-extra-lista {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.gestion-extra-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.gestion-extra-item span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gestion-extra-item button {
+  border: 0;
+  background: transparent;
+  color: var(--danger, #b3261e);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 0.75rem;
+}
+
+.gestion-extra-item button:hover {
+  background: transparent;
+  color: #7d2620;
+}
+
+/* Sin sitio para las tres columnas, se apilan y recuperan el separador
+   horizontal. */
+@media (max-width: 1200px) {
+  .gestion-calc-options {
+    grid-template-columns: minmax(170px, 210px) minmax(0, 1fr);
+  }
+
+  .gestion-extra {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .gestion-extra-form {
+    grid-template-columns: minmax(0, 260px) 90px auto;
+    align-items: end;
+  }
+
+  .gestion-extra-form .secondary-button {
+    grid-column: auto;
+  }
+}
+
 @media (max-width: 900px) {
   .gestion-calc-options {
     grid-template-columns: 1fr;

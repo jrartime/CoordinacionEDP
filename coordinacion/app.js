@@ -277,8 +277,13 @@ const SETTINGS_CATALOGS = {
     table: "nomina_complementos_catalogo",
     order: "nombre",
     columns:
-      "id,nombre,tipo,unidad,medida_horas,bases_aplicables,orden_calculo,prorratea_en_extra,codigo_nomina,activo,notas",
-    newDefaults: { orden_calculo: 100, prorratea_en_extra: false },
+      "id,nombre,tipo,unidad,medida_horas,bases_aplicables,cotiza_en,orden_calculo,prorratea_en_extra,codigo_nomina,activo,notas",
+    newDefaults: {
+      orden_calculo: 100,
+      prorratea_en_extra: false,
+      // Un concepto nuevo cotiza y tributa por todo mientras no se diga otra cosa.
+      cotiza_en: ["comunes", "mei", "desempleo", "formacion", "irpf"],
+    },
     fields: [
       { key: "nombre", label: "Nombre", type: "text", required: true },
       {
@@ -318,6 +323,22 @@ const SETTINGS_CATALOGS = {
           { value: "salario_base", label: "Salario base" },
           { value: "pluses", label: "Pluses" },
           { value: "complementos", label: "Otros complementos" },
+        ],
+      },
+      {
+        // A qué bases suma este concepto. Desmarcar una lo deja fuera de esa
+        // cotización o del IRPF; sin marcar ninguna, es un concepto exento.
+        key: "cotiza_en",
+        label: "Cotiza / tributa en",
+        type: "checkbox-group",
+        // Sin marcar ninguna = concepto exento, no null (que sería "todas").
+        emptyValue: [],
+        options: [
+          { value: "comunes", label: "Contingencias comunes" },
+          { value: "mei", label: "MEI" },
+          { value: "desempleo", label: "Desempleo" },
+          { value: "formacion", label: "Formación profesional" },
+          { value: "irpf", label: "IRPF" },
         ],
       },
       { key: "orden_calculo", label: "Orden de cálculo", type: "number" },
@@ -12803,7 +12824,11 @@ function getSettingsPayloadFromForm() {
 
     if (field.type === "checkbox-group") {
       const values = isVisible ? formData.getAll(field.key) : [];
-      payload[field.key] = values.length ? values : null;
+      // Por defecto "ninguna marcada" es null (campo sin rellenar). Con
+      // emptyValue el catálogo puede pedir que sea un array vacío, cuando
+      // desmarcarlo todo SIGNIFICA algo — p.ej. un concepto exento, que no
+      // cotiza a nada: null ahí se leería como "todas".
+      payload[field.key] = values.length ? values : field.emptyValue ?? null;
       return;
     }
 
@@ -17334,6 +17359,12 @@ const gestionManualControles = document.querySelector("#gestion-manual-controles
 const gestionManualImporte = document.querySelector("#gestion-manual-importe");
 const gestionManualModo = document.querySelector("#gestion-manual-modo");
 const gestionManualComplementos = document.querySelector("#gestion-manual-complementos");
+// Tercera columna: complementos añadidos a mano SOLO para esta nómina. No tocan
+// la ficha de la persona; si ya los tiene asignados, se suman los dos.
+const gestionExtraComplemento = document.querySelector("#gestion-extra-complemento");
+const gestionExtraImporte = document.querySelector("#gestion-extra-importe");
+const gestionExtraAddButton = document.querySelector("#gestion-extra-add");
+const gestionExtraLista = document.querySelector("#gestion-extra-lista");
 // Plus de transporte: no es un complemento de la persona sino una tarifa del
 // convenio, así que va en la lista con una clave propia en vez de un id.
 const GESTION_MANUAL_TRANSPORTE = "transporte";
@@ -17422,7 +17453,79 @@ function getGestionFilters() {
     // Vacío significa "según modalidad de pago"; se envía null al RPC.
     ajusteJornada: gestionFilterAjusteJornada?.value || "",
     manual: getGestionManualOptions(),
+    complementosExtra: gestionExtraRows.length
+      ? gestionExtraRows.map((row) => ({ complemento_id: row.id, importe: row.importe }))
+      : null,
   };
+}
+
+// Complementos añadidos a mano para el cálculo en curso: {id, nombre, importe}.
+// Viven en memoria hasta que se emite; al emitir se congelan en la nómina.
+let gestionExtraRows = [];
+let gestionExtraCatalogo = [];
+
+async function loadGestionExtraCatalogo() {
+  if (!gestionExtraComplemento || gestionExtraCatalogo.length) {
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("nomina_complementos_catalogo")
+      .select("id, nombre, codigo_nomina, cotiza_en")
+      .eq("activo", true)
+      .order("nombre");
+    if (error) throw error;
+    gestionExtraCatalogo = data || [];
+    gestionExtraComplemento.innerHTML =
+      '<option value="">Selecciona…</option>' +
+      gestionExtraCatalogo
+        .map(
+          (row) =>
+            `<option value="${escapeHtml(row.id)}">${escapeHtml(row.nombre)}${row.codigo_nomina ? ` (${escapeHtml(row.codigo_nomina)})` : ""}</option>`
+        )
+        .join("");
+  } catch (error) {
+    gestionExtraComplemento.innerHTML = '<option value="">No se pudo cargar</option>';
+  }
+}
+
+function renderGestionExtraLista() {
+  if (!gestionExtraLista) {
+    return;
+  }
+  if (!gestionExtraRows.length) {
+    gestionExtraLista.innerHTML = "";
+    return;
+  }
+  gestionExtraLista.innerHTML = gestionExtraRows
+    .map(
+      (row, idx) => `<li class="gestion-extra-item">
+        <span>${escapeHtml(row.nombre)}</span>
+        <strong>${escapeHtml(formatGestionImporte(row.importe))}</strong>
+        <button type="button" data-gestion-extra-quitar="${idx}" title="Quitar">✕</button>
+      </li>`
+    )
+    .join("");
+}
+
+function addGestionExtraComplemento() {
+  const id = Number(gestionExtraComplemento?.value);
+  const importe = Number(gestionExtraImporte?.value);
+  if (!id) {
+    window.alert("Elige un complemento.");
+    return;
+  }
+  if (!Number.isFinite(importe) || importe === 0) {
+    window.alert("Indica el importe que se sumará al bruto.");
+    return;
+  }
+  const catalogo = gestionExtraCatalogo.find((row) => Number(row.id) === id);
+  gestionExtraRows.push({ id, nombre: catalogo?.nombre || `#${id}`, importe: round2(importe) });
+  if (gestionExtraImporte) gestionExtraImporte.value = "";
+  if (gestionExtraComplemento) gestionExtraComplemento.value = "";
+  renderGestionExtraLista();
+  recalcularGestionNominaTotal();
 }
 
 // Devuelve null cuando la nómina manual está apagada o sin importe: así el RPC
@@ -17889,6 +17992,10 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
   // Un editor abierto sobre el cálculo anterior ya no corresponde a lo que se
   // está mirando.
   cerrarGestionNominaEditor();
+  // Los complementos añadidos a mano eran para la nómina anterior: al cambiar
+  // de persona o de periodo dejarían de tener sentido.
+  gestionExtraRows = [];
+  renderGestionExtraLista();
   if (!gestionNominaBlock) {
     return;
   }
@@ -18038,7 +18145,8 @@ async function toggleGestionNominaTotal(personalId) {
     return;
   }
   detail.innerHTML = '<p class="muted-text">Calculando…</p>';
-  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual } = getGestionFilters();
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra } =
+    getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
     // Sin empresa el total funde las de todas, y eso no es ninguna nómina real.
@@ -18057,6 +18165,7 @@ async function toggleGestionNominaTotal(personalId) {
       p_manual_pagas_incluidas: manual ? manual.pagasIncluidas : false,
       p_manual_complementos: manual ? manual.complementos : null,
       p_manual_transporte: manual ? manual.transporte : false,
+      p_complementos_extra: complementosExtra,
     });
     if (error) {
       throw error;
@@ -18144,7 +18253,8 @@ const gestionNominasEmitidasCache = new Map();
 // Mismos parámetros que usa la tarjeta del total, para que lo emitido sea
 // exactamente lo que se está viendo en pantalla.
 function getGestionNominaEmitirPayload(personalId) {
-  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual } = getGestionFilters();
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra } =
+    getGestionFilters();
   return {
     p_personal_id: Number(personalId),
     p_desde: desde || null,
@@ -18158,6 +18268,7 @@ function getGestionNominaEmitirPayload(personalId) {
     p_manual_pagas_incluidas: manual ? manual.pagasIncluidas : false,
     p_manual_complementos: manual ? manual.complementos : null,
     p_manual_transporte: manual ? manual.transporte : false,
+    p_complementos_extra: complementosExtra,
   };
 }
 
@@ -18274,7 +18385,8 @@ async function obtenerGestionNominaTotal(personalId) {
   if (gestionNominaCache.has("total")) {
     return gestionNominaCache.get("total");
   }
-  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual } = getGestionFilters();
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra } =
+    getGestionFilters();
   const supabase = await getSupabaseClient();
   const { data, error } = await supabase.rpc("calcular_nomina_persona", {
     p_personal_id: Number(personalId),
@@ -18289,6 +18401,7 @@ async function obtenerGestionNominaTotal(personalId) {
     p_manual_pagas_incluidas: manual ? manual.pagasIncluidas : false,
     p_manual_complementos: manual ? manual.complementos : null,
     p_manual_transporte: manual ? manual.transporte : false,
+    p_complementos_extra: complementosExtra,
   });
   if (error) throw error;
   gestionNominaCache.set("total", data || []);
@@ -19504,6 +19617,7 @@ async function exportGestionNominaListadoPdf() {
 
 async function loadGestion() {
   await loadGestionEmpresaOptions();
+  void loadGestionExtraCatalogo();
   const { desde, hasta, personalId, empresaId } = getGestionFilters();
   if (!desde || !hasta) {
     renderGestionEmpty("Selecciona un intervalo de fechas (Desde y Hasta).");
@@ -27174,6 +27288,17 @@ async function init() {
     if (emitidaId) {
       void toggleGestionNominaEmitida(emitidaId);
     }
+  });
+
+  gestionExtraAddButton?.addEventListener("click", () => {
+    addGestionExtraComplemento();
+  });
+  gestionExtraLista?.addEventListener("click", (event) => {
+    const quitar = event.target.closest("[data-gestion-extra-quitar]");
+    if (!quitar) return;
+    gestionExtraRows.splice(Number(quitar.dataset.gestionExtraQuitar), 1);
+    renderGestionExtraLista();
+    recalcularGestionNominaTotal();
   });
 
   gestionNominaListadoForm?.addEventListener("submit", (event) => {

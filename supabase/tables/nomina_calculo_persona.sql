@@ -66,6 +66,28 @@
 --   91 x 31 = 2821 -> base 2821 x 12/14 = 2418,00 y prorrata 403,00
 --   + 420,84 del complemento no marcado = 3241,84 de bruto.
 
+-- COMPLEMENTOS ANADIDOS A MANO (p_complementos_extra). Lista
+-- [{"complemento_id": 15, "importe": 95.00}] con los conceptos que se suman
+-- SOLO a esta nomina, sin tocar la ficha de la persona. Si la persona ya tiene
+-- ese complemento asignado, salen las dos lineas y se suman las dos: es lo
+-- pedido, no se sustituyen. Se emiten con orden 300+ (tras los asignados).
+
+-- BASES DE COTIZACION POR CONCEPTO (2026-07-25). Antes las bases se calculaban
+-- como "bruto menos excepciones". Ahora cada concepto declara a que bases suma
+-- en nomina_complementos_catalogo.cotiza_en y aqui se acumulan una a una:
+--   v_b_comunes / v_b_mei / v_b_desempleo / v_b_formacion / v_b_irpf.
+-- Lo que no es complemento del catalogo (salario base, pluses de convenio,
+-- disponibilidad, horas...) cotiza y tributa por TODO, que es el comportamiento
+-- de siempre. El plus de transporte, aunque venga de la tarifa del convenio y
+-- no de una asignacion, lee su cotiza_en del catalogo por codigo_nomina = 398.
+--
+-- Cada linea devuelve su cotiza_en para que la nomina emitida lo congele y
+-- pueda explicar por si sola por que su base es la que es.
+--
+-- Las lineas 600/601/602 siguen siendo las tres bases visibles; si formacion
+-- cotizara sobre una base distinta a desempleo, la 601 lo dice en su detalle y
+-- cada deduccion lleva su base real en la columna `base`.
+
 drop function if exists public.calcular_nomina_persona(integer, date, date);
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer);
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text);
@@ -74,6 +96,8 @@ drop function if exists public.calcular_nomina_persona(integer, date, date, inte
 -- Firma sin cantidad/precio en el returns table (hasta 2026-07-23). Un
 -- `create or replace` no puede cambiar el tipo de retorno: hay que dropear.
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean);
+-- Idem al anadir cotiza_en al returns table y p_complementos_extra (2026-07-25).
+drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb);
 
 create or replace function public.calcular_nomina_persona(
   p_personal_id integer, p_desde date, p_hasta date,
@@ -91,16 +115,18 @@ create or replace function public.calcular_nomina_persona(
   p_manual_modo text default null,
   p_manual_pagas_incluidas boolean default false,
   p_manual_complementos bigint[] default null,
-  p_manual_transporte boolean default false
+  p_manual_transporte boolean default false,
+  -- Complementos anadidos a mano para ESTA nomina, sin tocar la ficha de la
+  -- persona: [{"complemento_id": 15, "importe": 95.00}, ...]. Se suman al bruto
+  -- ademas de los que la persona ya tenga asignados (si coinciden, van los dos).
+  p_complementos_extra jsonb default null
 )
 -- cantidad/precio acompanan a cada linea con las UNIDADES y el PRECIO UNITARIO
--- que la produjeron (dias x tarifa de transporte, horas x precio, importe fijo).
--- El texto de `detalle` dice lo mismo en prosa, pero solo esto es explotable:
--- las nominas emitidas lo guardan para poder auditar de que sale cada concepto.
+-- que la produjeron. cotiza_en dice a que bases suma esa linea.
 returns table (
   orden integer, seccion text, concepto text, detalle text,
   base numeric, tipo numeric, cantidad numeric, precio numeric,
-  importe numeric, detalle_de text
+  importe numeric, detalle_de text, cotiza_en text[]
 )
 language plpgsql stable security invoker set search_path = public
 as $$
@@ -113,15 +139,20 @@ declare
   v_dias_trab integer := 0; v_horas_noct numeric := 0;
   v_base_total numeric := 0; v_dev_puestos numeric := 0;
   v_tarifa_transp numeric := 0; v_transporte numeric := 0;
-  v_compl_total numeric := 0;
+  v_transp_cotiza text[];
+  v_compl_total numeric := 0; v_extra_total numeric := 0;
   v_pe_base numeric := 0; v_pe_compl numeric := 0;
   v_bruto numeric; v_base_cc numeric; v_base_cp numeric; v_base_irpf numeric;
+  v_b_comunes numeric := 0; v_b_mei numeric := 0;
+  v_b_desempleo numeric := 0; v_b_formacion numeric := 0; v_b_irpf numeric := 0;
   v_d_comunes numeric; v_d_mei numeric; v_d_desempleo numeric;
   v_d_formacion numeric; v_d_irpf numeric; v_ded_total numeric;
   v_manual boolean := p_manual_importe is not null;
   v_manual_excl bigint[] := coalesce(p_manual_complementos, '{}'::bigint[]);
   v_manual_dias integer := 0; v_manual_horas numeric := 0;
   v_manual_total numeric := 0; v_manual_detalle text;
+  v_todas text[] := array['comunes','mei','desempleo','formacion','irpf']::text[];
+  r record;
 begin
   select h.*, (least(coalesce(h.fecha_baja, p_hasta), p_hasta) - greatest(h.fecha_alta, p_desde) + 1) as dias_solape
     into hp
@@ -144,30 +175,27 @@ begin
   v_pagas := coalesce(v_conv.pagas_anuales, 12)::integer;
   v_extras := greatest(v_pagas - 12, 0);
 
-  select count(distinct r.fecha) into v_dias_trab
-  from public.registros r
-  join public.situaciones s on s.id = r.situacion_id
-  left join public.tipo_horas th on th.id = r.tipo_hora_id
-  where r.personal_id = p_personal_id and r.fecha >= p_desde and r.fecha <= p_hasta
-    and (p_empresa_id is null or r.empresa_id = p_empresa_id)
+  select count(distinct r2.fecha) into v_dias_trab
+  from public.registros r2
+  join public.situaciones s on s.id = r2.situacion_id
+  left join public.tipo_horas th on th.id = r2.tipo_hora_id
+  where r2.personal_id = p_personal_id and r2.fecha >= p_desde and r2.fecha <= p_hasta
+    and (p_empresa_id is null or r2.empresa_id = p_empresa_id)
     and (p_historial_ids is null or exists (
       select 1 from public.historiales_laborales h2
       where h2.id = any(p_historial_ids) and h2.personal_id = p_personal_id
-        and r.fecha >= h2.fecha_alta and (h2.fecha_baja is null or r.fecha <= h2.fecha_baja)))
+        and r2.fecha >= h2.fecha_alta and (h2.fecha_baja is null or r2.fecha <= h2.fecha_baja)))
     and (s.situacion in ('NORM','SUST') or (s.situacion='FEST' and th.tipo_hora='FTRAB'));
 
-  select coalesce(sum(r.horas_nocturnas),0)::numeric into v_horas_noct
-  from public.registros r
-  where r.personal_id = p_personal_id and r.fecha >= p_desde and r.fecha <= p_hasta
-    and (p_empresa_id is null or r.empresa_id = p_empresa_id)
+  select coalesce(sum(r2.horas_nocturnas),0)::numeric into v_horas_noct
+  from public.registros r2
+  where r2.personal_id = p_personal_id and r2.fecha >= p_desde and r2.fecha <= p_hasta
+    and (p_empresa_id is null or r2.empresa_id = p_empresa_id)
     and (p_historial_ids is null or exists (
       select 1 from public.historiales_laborales h2
       where h2.id = any(p_historial_ids) and h2.personal_id = p_personal_id
-        and r.fecha >= h2.fecha_alta and (h2.fecha_baja is null or r.fecha <= h2.fecha_baja)));
+        and r2.fecha >= h2.fecha_alta and (h2.fecha_baja is null or r2.fecha <= h2.fecha_baja)));
 
-  -- Multiplicadores de la nomina manual. Los dias son los naturales de alta
-  -- dentro del rango (julio entero con un contrato abierto = 31, no los 30 del
-  -- mes comercial que usa el calculo por convenio: aqui manda lo que se teclea).
   if v_manual then
     select coalesce(sum(least(coalesce(h.fecha_baja, p_hasta), p_hasta)
                         - greatest(h.fecha_alta, p_desde) + 1), 0)
@@ -178,16 +206,16 @@ begin
       and (p_historial_ids is null or h.id = any(p_historial_ids))
       and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde);
 
-    select coalesce(sum(r.horas), 0)::numeric into v_manual_horas
-    from public.registros r
-    join public.situaciones s on s.id = r.situacion_id
-    left join public.tipo_horas th on th.id = r.tipo_hora_id
-    where r.personal_id = p_personal_id and r.fecha >= p_desde and r.fecha <= p_hasta
-      and (p_empresa_id is null or r.empresa_id = p_empresa_id)
+    select coalesce(sum(r2.horas), 0)::numeric into v_manual_horas
+    from public.registros r2
+    join public.situaciones s on s.id = r2.situacion_id
+    left join public.tipo_horas th on th.id = r2.tipo_hora_id
+    where r2.personal_id = p_personal_id and r2.fecha >= p_desde and r2.fecha <= p_hasta
+      and (p_empresa_id is null or r2.empresa_id = p_empresa_id)
       and (p_historial_ids is null or exists (
         select 1 from public.historiales_laborales h2
         where h2.id = any(p_historial_ids) and h2.personal_id = p_personal_id
-          and r.fecha >= h2.fecha_alta and (h2.fecha_baja is null or r.fecha <= h2.fecha_baja)))
+          and r2.fecha >= h2.fecha_alta and (h2.fecha_baja is null or r2.fecha <= h2.fecha_baja)))
       and (s.situacion in ('NORM','SUST') or (s.situacion='FEST' and th.tipo_hora='FTRAB'));
 
     v_manual_total := round(p_manual_importe * case p_manual_modo
@@ -214,7 +242,6 @@ begin
     group by d.concepto
   ) x;
 
-  -- El importe manual sustituye por completo a los devengos por puesto.
   if v_manual then
     if p_manual_pagas_incluidas and v_pagas > 12 then
       v_base_total := round(v_manual_total * 12.0 / v_pagas, 2);
@@ -223,6 +250,12 @@ begin
     end if;
     v_dev_puestos := v_base_total;
   end if;
+
+  -- Los devengos del puesto (salario base, pluses de convenio, disponibilidad,
+  -- horas...) cotizan y tributan por todo: es el comportamiento de siempre.
+  v_b_comunes := v_dev_puestos; v_b_mei := v_dev_puestos;
+  v_b_desempleo := v_dev_puestos; v_b_formacion := v_dev_puestos;
+  v_b_irpf := v_dev_puestos;
 
   select coalesce(max(cs.plus_transporte), 0) into v_tarifa_transp
   from public.historiales_laborales h
@@ -233,7 +266,6 @@ begin
     and (p_historial_ids is null or h.id = any(p_historial_ids))
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde);
 
-  -- Marcado como incluido en la nomina manual: ya va dentro del importe.
   if p_manual_transporte then
     v_tarifa_transp := 0;
   end if;
@@ -241,24 +273,58 @@ begin
     v_transporte := round(v_tarifa_transp * v_dias_trab, 2);
   end if;
 
-  select coalesce(sum(round(
-    case c.tipo when 'porcentaje' then v_base_total * c.porcentaje
-      else case c.unidad
-        when 'mensual' then c.importe
-        when 'diario' then c.importe * v_dias_trab
-        when 'por_hora' then c.importe * (case c.medida_horas when 'horas_nocturnas' then v_horas_noct else 0 end)
-        else c.importe end end, 2)), 0)
-    into v_compl_total
-  from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
-  where not (c.id = any(v_manual_excl));
+  -- El transporte es tarifa de convenio, no complemento asignado, pero su
+  -- comportamiento de cotizacion sale igualmente del catalogo (codigo 398).
+  select c.cotiza_en into v_transp_cotiza
+  from public.nomina_complementos_catalogo c where c.codigo_nomina = 398 limit 1;
+  v_transp_cotiza := coalesce(v_transp_cotiza, v_todas);
+  if v_transporte <> 0 then
+    if 'comunes'   = any(v_transp_cotiza) then v_b_comunes   := v_b_comunes   + v_transporte; end if;
+    if 'mei'       = any(v_transp_cotiza) then v_b_mei       := v_b_mei       + v_transporte; end if;
+    if 'desempleo' = any(v_transp_cotiza) then v_b_desempleo := v_b_desempleo + v_transporte; end if;
+    if 'formacion' = any(v_transp_cotiza) then v_b_formacion := v_b_formacion + v_transporte; end if;
+    if 'irpf'      = any(v_transp_cotiza) then v_b_irpf      := v_b_irpf      + v_transporte; end if;
+  end if;
 
-  -- La prorrata de pagas extra se calcula SIEMPRE, tenga o no prorrateo: si la
-  -- persona NO las tiene prorrateadas no se devenga (no la cobra este mes), pero
-  -- igualmente COTIZA (art. 147 LGSS), asi que suma a la base de la Seguridad
-  -- Social aunque no al bruto ni a la base de IRPF.
+  -- Complementos asignados a la persona: cada uno suma a las bases que declare
+  -- su fila del catalogo.
+  for r in
+    select c.*, round(
+      case c.tipo when 'porcentaje' then v_base_total * c.porcentaje
+        else case c.unidad
+          when 'mensual' then c.importe
+          when 'diario' then c.importe * v_dias_trab
+          when 'por_hora' then c.importe * (case c.medida_horas when 'horas_nocturnas' then v_horas_noct else 0 end)
+          else c.importe end end, 2) as imp
+    from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
+    where not (c.id = any(v_manual_excl))
+  loop
+    v_compl_total := v_compl_total + r.imp;
+    if 'comunes'   = any(coalesce(r.cotiza_en, v_todas)) then v_b_comunes   := v_b_comunes   + r.imp; end if;
+    if 'mei'       = any(coalesce(r.cotiza_en, v_todas)) then v_b_mei       := v_b_mei       + r.imp; end if;
+    if 'desempleo' = any(coalesce(r.cotiza_en, v_todas)) then v_b_desempleo := v_b_desempleo + r.imp; end if;
+    if 'formacion' = any(coalesce(r.cotiza_en, v_todas)) then v_b_formacion := v_b_formacion + r.imp; end if;
+    if 'irpf'      = any(coalesce(r.cotiza_en, v_todas)) then v_b_irpf      := v_b_irpf      + r.imp; end if;
+  end loop;
+
+  -- Complementos anadidos a mano para esta nomina.
+  if p_complementos_extra is not null and jsonb_typeof(p_complementos_extra) = 'array' then
+    for r in
+      select c.id, c.nombre, c.codigo_nomina, c.orden_calculo, c.cotiza_en,
+             round(coalesce((e->>'importe')::numeric, 0), 2) as imp
+      from jsonb_array_elements(p_complementos_extra) e
+      join public.nomina_complementos_catalogo c on c.id = (e->>'complemento_id')::bigint
+    loop
+      v_extra_total := v_extra_total + r.imp;
+      if 'comunes'   = any(coalesce(r.cotiza_en, v_todas)) then v_b_comunes   := v_b_comunes   + r.imp; end if;
+      if 'mei'       = any(coalesce(r.cotiza_en, v_todas)) then v_b_mei       := v_b_mei       + r.imp; end if;
+      if 'desempleo' = any(coalesce(r.cotiza_en, v_todas)) then v_b_desempleo := v_b_desempleo + r.imp; end if;
+      if 'formacion' = any(coalesce(r.cotiza_en, v_todas)) then v_b_formacion := v_b_formacion + r.imp; end if;
+      if 'irpf'      = any(coalesce(r.cotiza_en, v_todas)) then v_b_irpf      := v_b_irpf      + r.imp; end if;
+    end loop;
+  end if;
+
   if v_extras > 0 then
-    -- Con el importe manual llevando ya la prorrata dentro, esta es el resto de
-    -- partir el total; si no, se calcula encima del salario base como siempre.
     if v_manual and p_manual_pagas_incluidas then
       v_pe_base := v_manual_total - v_base_total;
     else
@@ -269,19 +335,26 @@ begin
     where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
 
+  -- La prorrata de pagas extra SIEMPRE cotiza (art. 147 LGSS), se devengue o no.
+  -- Al IRPF solo va si se devenga (es el devengado real).
+  v_b_comunes   := v_b_comunes   + v_pe_base + v_pe_compl;
+  v_b_mei       := v_b_mei       + v_pe_base + v_pe_compl;
+  v_b_desempleo := v_b_desempleo + v_pe_base + v_pe_compl;
+  v_b_formacion := v_b_formacion + v_pe_base + v_pe_compl;
+  if coalesce(v_prorrateo, false) then
+    v_b_irpf := v_b_irpf + v_pe_base + v_pe_compl;
+  end if;
+
   if v_manual then
     return query select 10, 'devengo'::text, 'Salario base'::text, v_manual_detalle,
       null::numeric, null::numeric,
       case p_manual_modo when 'diario' then v_manual_dias::numeric
                          when 'hora' then v_manual_horas else 1 end,
-      p_manual_importe, v_base_total, null::text;
+      p_manual_importe, v_base_total, null::text, v_todas;
   else
-    -- La cantidad se suma entre puestos (p.ej. las horas complementarias de los
-    -- dos); el precio solo se conserva si TODOS coinciden, porque un precio
-    -- promediado seria mentira.
     return query
     select x.orden, 'devengo'::text, x.concepto, null::text, null::numeric, null::numeric,
-           x.cantidad, x.precio, round(x.importe, 2), null::text
+           x.cantidad, x.precio, round(x.importe, 2), null::text, v_todas
     from (
       select min(d.orden) as orden, d.concepto, sum(d.importe) as importe,
              sum(d.cantidad) as cantidad,
@@ -300,7 +373,7 @@ begin
     return query select 30, 'devengo'::text, 'Plus de transporte'::text,
       format('%s€ × %s días trabajados (toda la persona)', v_tarifa_transp, v_dias_trab),
       null::numeric, null::numeric, v_dias_trab::numeric, v_tarifa_transp,
-      v_transporte, null::text;
+      v_transporte, null::text, v_transp_cotiza;
   end if;
 
   return query
@@ -311,8 +384,6 @@ begin
         when 'diario' then format('%s€ × %s días', c.importe, v_dias_trab)
         when 'por_hora' then format('%s€ × horas %s', c.importe, c.medida_horas)
         else format('%s€/mes', c.importe) end end,
-    -- Un porcentaje se explica con base + tipo; un importe fijo, con cantidad
-    -- (dias u horas, 1 si es mensual) + precio unitario.
     case c.tipo when 'porcentaje' then round(v_base_total, 2) end,
     case c.tipo when 'porcentaje' then c.porcentaje end,
     case c.tipo when 'porcentaje' then null::numeric
@@ -327,82 +398,91 @@ begin
         when 'diario' then c.importe * v_dias_trab
         when 'por_hora' then c.importe * (case c.medida_horas when 'horas_nocturnas' then v_horas_noct else 0 end)
         else c.importe end end, 2),
-    null::text
+    null::text, coalesce(c.cotiza_en, v_todas)
   from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
   where not (c.id = any(v_manual_excl));
 
-  -- Solo se devenga si la persona tiene las pagas prorrateadas.
+  -- Los anadidos a mano, tras los asignados. Si coinciden en concepto salen las
+  -- dos lineas: es lo pedido (se suman, no se sustituyen).
+  if p_complementos_extra is not null and jsonb_typeof(p_complementos_extra) = 'array' then
+    return query
+    select (300 + row_number() over (order by c.orden_calculo, c.nombre))::integer,
+      'devengo'::text, c.nombre, 'añadido a mano en esta nómina'::text,
+      null::numeric, null::numeric, null::numeric, null::numeric,
+      round(coalesce((e->>'importe')::numeric, 0), 2), null::text,
+      coalesce(c.cotiza_en, v_todas)
+    from jsonb_array_elements(p_complementos_extra) e
+    join public.nomina_complementos_catalogo c on c.id = (e->>'complemento_id')::bigint;
+  end if;
+
   if coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
-    -- El prorrateo se explica con base (sobre qué) y tipo (la fracción
-    -- extras/12), no con cantidad x precio.
     return query select 20, 'devengo'::text, 'Prorrateo pagas extra'::text,
       format('%s pagas/año (12 + %s extra) → %s/12', v_pagas, v_extras, v_extras),
       null::numeric, round(v_extras / 12.0, 6), null::numeric, null::numeric,
-      v_pe_base + v_pe_compl, null::text;
+      v_pe_base + v_pe_compl, null::text, v_todas;
     return query select 21, 'devengo'::text, 'Salario base'::text,
       case when v_manual and p_manual_pagas_incluidas
         then format('%s€ − %s€ (ya incluida en el importe manual)', v_manual_total, round(v_base_total,2))
         else format('%s€ × %s/12', round(v_base_total,2), v_extras) end,
       round(v_base_total, 2), round(v_extras / 12.0, 6), null::numeric, null::numeric,
-      v_pe_base, 'prorrateo_extra'::text;
+      v_pe_base, 'prorrateo_extra'::text, v_todas;
     return query
     select (22 + row_number() over (order by c.orden_calculo, c.nombre))::integer,
       'devengo'::text, c.nombre, format('%s€ × %s/12', c.importe, v_extras),
       c.importe, round(v_extras / 12.0, 6), null::numeric, null::numeric,
-      round(c.importe * v_extras / 12.0, 2), 'prorrateo_extra'::text
+      round(c.importe * v_extras / 12.0, 2), 'prorrateo_extra'::text, v_todas
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
     where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
 
-  -- El bruto solo incluye la prorrata si se devenga (pagas prorrateadas).
-  v_bruto := v_dev_puestos + v_transporte + v_compl_total
+  v_bruto := v_dev_puestos + v_transporte + v_compl_total + v_extra_total
     + (case when coalesce(v_prorrateo, false) then v_pe_base + v_pe_compl else 0 end);
 
-  -- Bases: la de Seguridad Social siempre lleva la prorrata de pagas extra. Si
-  -- se devengo ya va dentro del bruto; si no, se suma aqui. La de IRPF es el
-  -- devengado real, sin la prorrata no cobrada.
-  v_base_cc := v_bruto
-    + (case when coalesce(v_prorrateo, false) then 0 else v_pe_base + v_pe_compl end);
-  v_base_cp := v_base_cc;
-  v_base_irpf := v_bruto;
+  -- Las bases ya vienen sumadas concepto a concepto segun su cotiza_en.
+  v_base_cc := v_b_comunes;
+  v_base_cp := v_b_desempleo;
+  v_base_irpf := v_b_irpf;
 
-  v_d_comunes   := round(v_base_cc  * coalesce(hp.cotizacion_comunes_pct, 0), 2);
-  v_d_mei       := round(v_base_cc  * coalesce(hp.cotizacion_mei_pct, 0), 2);
-  v_d_desempleo := round(v_base_cp  * coalesce(hp.cotizacion_desempleo_pct, 0), 2);
-  v_d_formacion := round(v_base_cp  * coalesce(hp.cotizacion_formacion_pct, 0), 2);
-  v_d_irpf      := round(v_base_irpf * coalesce(v_irpf, 0), 2);
+  v_d_comunes   := round(v_b_comunes   * coalesce(hp.cotizacion_comunes_pct, 0), 2);
+  v_d_mei       := round(v_b_mei       * coalesce(hp.cotizacion_mei_pct, 0), 2);
+  v_d_desempleo := round(v_b_desempleo * coalesce(hp.cotizacion_desempleo_pct, 0), 2);
+  v_d_formacion := round(v_b_formacion * coalesce(hp.cotizacion_formacion_pct, 0), 2);
+  v_d_irpf      := round(v_b_irpf      * coalesce(v_irpf, 0), 2);
   v_ded_total   := v_d_comunes + v_d_mei + v_d_desempleo + v_d_formacion + v_d_irpf;
 
-  return query select 500, 'total'::text, 'Total devengado (bruto)'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_bruto,2), null::text;
+  return query select 500, 'total'::text, 'Total devengado (bruto)'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_bruto,2), null::text, null::text[];
   if not coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
     return query select 599, 'base'::text, 'P.P. pagas extra (solo cotiza)'::text,
       format('%s pagas/año → %s/12 · no se devenga, suma a la base de S.S.', v_pagas, v_extras),
       null::numeric, round(v_extras / 12.0, 6), null::numeric, null::numeric,
-      v_pe_base + v_pe_compl, null::text;
+      v_pe_base + v_pe_compl, null::text, null::text[];
   end if;
-  return query select 600, 'base'::text, 'Base contingencias comunes'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_base_cc,2), null::text;
-  return query select 601, 'base'::text, 'Base contingencias profesionales'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_base_cp,2), null::text;
-  return query select 602, 'base'::text, 'Base IRPF'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_base_irpf,2), null::text;
+  return query select 600, 'base'::text, 'Base contingencias comunes'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_base_cc,2), null::text, null::text[];
+  return query select 601, 'base'::text, 'Base contingencias profesionales'::text,
+    case when v_b_formacion <> v_b_desempleo
+      then format('formación cotiza sobre %s€', round(v_b_formacion,2)) end,
+    null::numeric, null::numeric, null::numeric, null::numeric, round(v_base_cp,2), null::text, null::text[];
+  return query select 602, 'base'::text, 'Base IRPF'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_base_irpf,2), null::text, null::text[];
   return query select 700, 'deduccion'::text, 'Contingencias comunes'::text,
-    format('%s%% sobre %s€', round(coalesce(hp.cotizacion_comunes_pct,0)*100,3), round(v_base_cc,2)),
-    round(v_base_cc,2), hp.cotizacion_comunes_pct, null::numeric, null::numeric, v_d_comunes, null::text;
+    format('%s%% sobre %s€', round(coalesce(hp.cotizacion_comunes_pct,0)*100,3), round(v_b_comunes,2)),
+    round(v_b_comunes,2), hp.cotizacion_comunes_pct, null::numeric, null::numeric, v_d_comunes, null::text, null::text[];
   return query select 701, 'deduccion'::text, 'MEI'::text,
-    format('%s%% sobre %s€', round(coalesce(hp.cotizacion_mei_pct,0)*100,3), round(v_base_cc,2)),
-    round(v_base_cc,2), hp.cotizacion_mei_pct, null::numeric, null::numeric, v_d_mei, null::text;
+    format('%s%% sobre %s€', round(coalesce(hp.cotizacion_mei_pct,0)*100,3), round(v_b_mei,2)),
+    round(v_b_mei,2), hp.cotizacion_mei_pct, null::numeric, null::numeric, v_d_mei, null::text, null::text[];
   return query select 702, 'deduccion'::text, 'Desempleo'::text,
-    format('%s%% sobre %s€', round(coalesce(hp.cotizacion_desempleo_pct,0)*100,3), round(v_base_cp,2)),
-    round(v_base_cp,2), hp.cotizacion_desempleo_pct, null::numeric, null::numeric, v_d_desempleo, null::text;
+    format('%s%% sobre %s€', round(coalesce(hp.cotizacion_desempleo_pct,0)*100,3), round(v_b_desempleo,2)),
+    round(v_b_desempleo,2), hp.cotizacion_desempleo_pct, null::numeric, null::numeric, v_d_desempleo, null::text, null::text[];
   return query select 703, 'deduccion'::text, 'Formación profesional'::text,
-    format('%s%% sobre %s€', round(coalesce(hp.cotizacion_formacion_pct,0)*100,3), round(v_base_cp,2)),
-    round(v_base_cp,2), hp.cotizacion_formacion_pct, null::numeric, null::numeric, v_d_formacion, null::text;
+    format('%s%% sobre %s€', round(coalesce(hp.cotizacion_formacion_pct,0)*100,3), round(v_b_formacion,2)),
+    round(v_b_formacion,2), hp.cotizacion_formacion_pct, null::numeric, null::numeric, v_d_formacion, null::text, null::text[];
   return query select 704, 'deduccion'::text, 'IRPF'::text,
-    format('%s%% sobre %s€', round(coalesce(v_irpf,0)*100,3), round(v_base_irpf,2)),
-    round(v_base_irpf,2), v_irpf, null::numeric, null::numeric, v_d_irpf, null::text;
-  return query select 800, 'total'::text, 'Total deducciones'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, v_ded_total, null::text;
-  return query select 810, 'total'::text, 'Líquido a percibir'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_bruto - v_ded_total, 2), null::text;
+    format('%s%% sobre %s€', round(coalesce(v_irpf,0)*100,3), round(v_b_irpf,2)),
+    round(v_b_irpf,2), v_irpf, null::numeric, null::numeric, v_d_irpf, null::text, null::text[];
+  return query select 800, 'total'::text, 'Total deducciones'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, v_ded_total, null::text, null::text[];
+  return query select 810, 'total'::text, 'Líquido a percibir'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_bruto - v_ded_total, 2), null::text, null::text[];
   return;
 end;
 $$;
 
-revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean) from public;
-grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean) to authenticated;
+revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb) from public;
+grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb) to authenticated;

@@ -156,7 +156,9 @@ returns table (
   prorratea_en_extra boolean,
   orden_calculo integer,
   fecha_desde date,
-  fecha_hasta date
+  fecha_hasta date,
+  -- A que bases suma el concepto (del catalogo). Ver nomina_complementos.sql.
+  cotiza_en text[]
 )
 language sql
 stable
@@ -176,7 +178,8 @@ as $$
     pc.prorratea_en_extra,
     c.orden_calculo,
     pc.fecha_desde,
-    pc.fecha_hasta
+    pc.fecha_hasta,
+    c.cotiza_en
   from public.personal_complementos pc
   join public.nomina_complementos_catalogo c on c.id = pc.complemento_id
   where pc.personal_id = p_personal_id

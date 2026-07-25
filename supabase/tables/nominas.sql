@@ -66,6 +66,10 @@ create table if not exists public.nominas (
   manual_pagas_incluidas boolean not null default false,
   manual_complementos bigint[],
   manual_transporte boolean not null default false,
+  -- Complementos anadidos a mano a esta nomina desde el panel de Gestion:
+  -- [{"complemento_id":15,"importe":95.00}]. Se guardan para poder reproducir
+  -- el calculo tal cual se emitio.
+  complementos_extra jsonb,
 
   -- Totales congelados (se derivan de nomina_lineas al emitir).
   total_devengado numeric(12, 2) not null default 0,
@@ -148,6 +152,10 @@ create table if not exists public.nomina_lineas (
   -- Igual que en el motor: si viene relleno, esta linea DESGLOSA a la anterior
   -- sin detalle_de y por tanto NO suma (si sumara, se contaria dos veces).
   detalle_de text,
+  -- A que bases sumo esta linea al emitir (comunes/mei/desempleo/formacion/irpf).
+  -- Congelado desde nomina_complementos_catalogo.cotiza_en: asi la nomina
+  -- explica por si sola por que su base es la que es. Nulo = todas.
+  cotiza_en text[],
   constraint nomina_lineas_ambito_chk check (ambito in ('persona', 'puesto')),
   constraint nomina_lineas_historial_chk
     check (ambito = 'persona' or historial_id is not null)
@@ -526,6 +534,8 @@ grant execute on function public.get_nomina_contexto_historial(bigint, date, dat
 -- Se dropea la firma anterior (sin p_lineas): conviviendo las dos, PostgREST
 -- daria "42725 function is not unique" (ya paso con calcular_nomina_persona).
 drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean);
+-- Idem al anadir p_complementos_extra (2026-07-25).
+drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb);
 
 create or replace function public.emitir_nomina(
   p_personal_id integer,
@@ -547,7 +557,10 @@ create or replace function public.emitir_nomina(
   -- cantidad, precio, importe}. El expediente (nomina_historiales y
   -- nomina_horas) se congela igual: lo trabajado no se edita, solo lo que se
   -- paga por ello.
-  p_lineas jsonb default null
+  p_lineas jsonb default null,
+  -- Complementos anadidos a mano en el panel de Gestion; se pasan al motor
+  -- y se guardan en la cabecera para poder reproducir el calculo.
+  p_complementos_extra jsonb default null
 )
 returns bigint
 language plpgsql
@@ -603,13 +616,13 @@ begin
     personal_id, empresa_id, periodo_desde, periodo_hasta, historial_ids,
     base_calculo, ajuste_jornada,
     manual_importe, manual_modo, manual_pagas_incluidas,
-    manual_complementos, manual_transporte,
+    manual_complementos, manual_transporte, complementos_extra,
     notas, sustituye_a, editada, emitida_por_email
   ) values (
     p_personal_id, p_empresa_id, p_desde, p_hasta, v_ids,
     p_base_calculo, p_ajuste_jornada,
     p_manual_importe, p_manual_modo, coalesce(p_manual_pagas_incluidas, false),
-    p_manual_complementos, coalesce(p_manual_transporte, false),
+    p_manual_complementos, coalesce(p_manual_transporte, false), p_complementos_extra,
     -- El nullif exterior evita reventar cuando el claim no viene (cadena vacia
     -- no es jsonb valido).
     p_notas, v_previa, v_editada,
@@ -622,7 +635,7 @@ begin
   if v_editada then
     insert into public.nomina_lineas (
       nomina_id, ambito, orden, seccion, concepto, detalle,
-      base, tipo, cantidad, precio, codigo_nomina, importe, detalle_de)
+      base, tipo, cantidad, precio, codigo_nomina, importe, detalle_de, cotiza_en)
     select v_id, 'persona',
            coalesce((l->>'orden')::integer, 0),
            coalesce(nullif(l->>'seccion', ''), 'devengo'),
@@ -632,20 +645,22 @@ begin
            (l->>'cantidad')::numeric, (l->>'precio')::numeric,
            public.get_codigo_nomina_concepto(l->>'concepto'),
            round(coalesce((l->>'importe')::numeric, 0), 2),
-           nullif(l->>'detalle_de', '')
+           nullif(l->>'detalle_de', ''),
+           case when l ? 'cotiza_en' and jsonb_typeof(l->'cotiza_en') = 'array'
+                then array(select jsonb_array_elements_text(l->'cotiza_en')) end
     from jsonb_array_elements(p_lineas) l;
   else
     insert into public.nomina_lineas (
       nomina_id, ambito, orden, seccion, concepto, detalle,
-      base, tipo, cantidad, precio, codigo_nomina, importe, detalle_de)
+      base, tipo, cantidad, precio, codigo_nomina, importe, detalle_de, cotiza_en)
     select v_id, 'persona', c.orden, c.seccion, c.concepto, c.detalle,
            c.base, c.tipo, c.cantidad, c.precio,
-           public.get_codigo_nomina_concepto(c.concepto), c.importe, c.detalle_de
+           public.get_codigo_nomina_concepto(c.concepto), c.importe, c.detalle_de, c.cotiza_en
     from public.calcular_nomina_persona(
       p_personal_id, p_desde, p_hasta, p_empresa_id, p_base_calculo, p_ajuste_jornada,
       nullif(v_ids, '{}'::bigint[]), p_manual_importe, p_manual_modo,
       coalesce(p_manual_pagas_incluidas, false), p_manual_complementos,
-      coalesce(p_manual_transporte, false)
+      coalesce(p_manual_transporte, false), p_complementos_extra
     ) c;
   end if;
 
@@ -790,8 +805,8 @@ begin
 end;
 $$;
 
-revoke all on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb) from public;
-grant execute on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb) to authenticated;
+revoke all on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb) from public;
+grant execute on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb) to authenticated;
 
 -- ============================================================================
 -- Anular: no se borra, se marca. Las lineas se conservan como historico.

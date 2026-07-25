@@ -204,6 +204,15 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Corrección**: Historial usa su propia clase `historial-detail-form` y recupera la cuadrícula declarada `cols-2`: dos campos legibles por fila, con Observaciones y Notas a ancho completo.
 - **Sin cambios funcionales**: no se modifican campos, cálculos, guardado ni tamaños compactos comunes; el ajuste es únicamente de disposición.
 
+## 14. Cotización por concepto y complementos a mano (25/07/2026)
+
+- **A qué cotiza cada concepto**: columna `cotiza_en` en `nomina_complementos_catalogo` (`comunes`, `mei`, `desempleo`, `formacion`, `irpf`). Todas marcadas por defecto; **array vacío = concepto exento**. Se edita en Configuración → Complementos y pluses.
+- **Cambio de fondo en el motor**: las bases ya no se calculan como «bruto menos excepciones» con filtros por el nombre del concepto, sino **sumando concepto a concepto** según su `cotiza_en`. Lo que no es complemento del catálogo (salario base, pluses de convenio, disponibilidad, horas) cotiza por todo, igual que antes, así que **ninguna nómina cambia de importe**; el plus de transporte lee su fila por `codigo_nomina = 398`. Cada línea congela su `cotiza_en` en `nomina_lineas`.
+- **Complementos añadidos a mano**: tercera columna del panel de opciones de nómina — desplegable de complemento + importe, que se suma al bruto de esa nómina sin tocar la ficha de la persona. Si ya lo tiene asignado, se suman los dos. Van en `p_complementos_extra` y se guardan en `nominas.complementos_extra` para poder reproducir el cálculo.
+- **Hallazgo sobre el concepto 199 (parte proporcional de vacaciones)**: en la nómina real de julio de 2026 el finiquito imprime una línea `COTIZACION FORMACION 1,65`, que **no es formación sino desempleo (1,55) + formación (0,10) fusionados**. El 199 sí cotiza a desempleo: con esa lectura el total a deducir da 64,60 € y el líquido 690,29 €, que son los de la nómina; excluyendo el desempleo darían 63,02 € y 691,87 €. Queda configurado con las cinco casillas marcadas.
+- **Sin resolver de esa nómina**: la base de cotización del tramo del 199 es 101,70 € mientras devenga 95,00 € (6,70 € que cotizan sin devengarse, como la prorrata de pagas extra). No se ha podido deducir la regla con una sola nómina.
+- **Despliegue requerido**: ejecutar `supabase/tables/nomina_complementos.sql`, `personal_complementos.sql`, `nomina_calculo_persona.sql` y `nominas.sql`. Ya aplicados en el proyecto real.
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.
