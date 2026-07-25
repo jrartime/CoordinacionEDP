@@ -19176,6 +19176,11 @@ async function loadGestionNominaListado() {
 }
 
 // Agrupa las filas planas del RPC por nómina y arma la matriz de conceptos.
+//
+// El RPC trae los dos ámbitos: 'persona' es la nómina que suma (matriz, detalle
+// y totales) y 'puesto' el mismo dinero explicado contrato a contrato, que se
+// guarda aparte en `porPuesto` para la hoja "Por puesto" del Excel. Mezclarlos
+// duplicaría cada importe.
 function buildGestionNominaListado(rows, meta) {
   const nominasMap = new Map();
   const columnasMap = new Map(); // concepto -> {concepto, orden, seccion}
@@ -19195,10 +19200,15 @@ function buildGestionNominaListado(rows, meta) {
         total_deducciones: row.total_deducciones,
         liquido: row.liquido,
         lineas: [],
+        porPuesto: [],
         valores: new Map(),
       });
     }
     const nomina = nominasMap.get(row.nomina_id);
+    if (row.ambito === "puesto") {
+      nomina.porPuesto.push(row);
+      continue;
+    }
     nomina.lineas.push(row);
     // Las columnas de la matriz son las líneas que suman (sin detalle_de).
     if (!row.detalle_de) {
@@ -19319,24 +19329,52 @@ async function exportGestionNominaListadoExcel() {
     const resumen = XLSX.utils.aoa_to_sheet([cabecera, ...filas, totalRow]);
     resumen["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, ...data.columnas.map(() => ({ wch: 13 }))];
 
-    // Hoja detalle: una fila por línea, formato largo.
-    const detalleRows = [["Persona", "DNI", "Sección", "Código", "Concepto", "Detalle", "Cantidad", "Precio", "Base", "%", "Importe"]];
+    // Hoja detalle: una fila por línea, formato largo. Incluye las SUBFILAS de
+    // desglose (las del prorrateo), marcadas con "Subfila de" y con el importe
+    // en su propia columna: así se puede auditar cómo se reparte el prorrateo
+    // sin que se sumen dos veces al filtrar por "Importe".
+    const detalleRows = [[
+      "Persona", "DNI", "Sección", "Código", "Concepto", "Detalle",
+      "Cantidad", "Precio", "Base", "%", "Importe", "Importe subfila", "Subfila de",
+    ]];
     for (const n of data.nominas) {
       for (const l of n.lineas) {
-        if (l.detalle_de) continue;
+        const esSubfila = Boolean(l.detalle_de);
         detalleRows.push([
           n.personal || `#${n.nomina_id}`, n.dni || "", l.seccion, l.codigo_nomina ?? "",
-          l.concepto, l.detalle || "", num(l.cantidad), num(l.precio), num(l.base),
-          l.tipo != null ? Number(l.tipo) * 100 : null, num(l.importe),
+          esSubfila ? `    ↳ ${l.concepto}` : l.concepto,
+          l.detalle || "", num(l.cantidad), num(l.precio), num(l.base),
+          l.tipo != null ? Number(l.tipo) * 100 : null,
+          esSubfila ? null : num(l.importe),
+          esSubfila ? num(l.importe) : null,
+          esSubfila ? l.detalle_de : "",
         ]);
       }
     }
     const detalle = XLSX.utils.aoa_to_sheet(detalleRows);
-    detalle["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 26 }, { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 12 }];
+    detalle["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 28 }, { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 16 }];
+
+    // Hoja por puesto: qué aportó cada contrato. Solo tiene filas cuando alguien
+    // trabaja en dos puestos a la vez; en la nómina de la persona esos importes
+    // van sumados en un único concepto.
+    const puestoRows = [["Persona", "DNI", "Puesto", "Periodo (historial)", "Código", "Concepto", "Detalle", "Cantidad", "Precio", "Importe"]];
+    for (const n of data.nominas) {
+      for (const l of n.porPuesto) {
+        if (l.detalle_de) continue;
+        puestoRows.push([
+          n.personal || `#${n.nomina_id}`, n.dni || "",
+          l.puesto || "", l.historial_id ?? "", l.codigo_nomina ?? "",
+          l.concepto, l.detalle || "", num(l.cantidad), num(l.precio), num(l.importe),
+        ]);
+      }
+    }
+    const porPuesto = XLSX.utils.aoa_to_sheet(puestoRows);
+    porPuesto["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 24 }, { wch: 16 }, { wch: 8 }, { wch: 26 }, { wch: 34 }, { wch: 10 }, { wch: 10 }, { wch: 12 }];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, resumen, "Resumen");
     XLSX.utils.book_append_sheet(wb, detalle, "Detalle");
+    XLSX.utils.book_append_sheet(wb, porPuesto, "Por puesto");
     const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     triggerDownload(
       new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
@@ -19405,7 +19443,8 @@ async function exportGestionNominaListadoPdf() {
       doc.setFontSize(9);
       doc.text(`${n.personal || `#${n.nomina_id}`}${n.dni ? ` · ${n.dni}` : ""}`, margin, y + 3);
       y += 6;
-      const conceptos = n.lineas.filter((l) => !l.detalle_de);
+      // Se incluyen también las subfilas de desglose (las del prorrateo),
+      // indentadas: explican su línea padre, que es la que suma.
       y = drawNominaPdfTable(doc, {
         x: margin, y, margin, pageHeight, bottomMargin, rowHeight: 5,
         columns: [
@@ -19413,14 +19452,47 @@ async function exportGestionNominaListadoPdf() {
           { label: "Detalle", key: "detalle", width: 60 },
           { label: "Importe €", key: "importe", width: 32, align: "right" },
         ],
-        rows: conceptos.map((l) => ({
-          concepto: l.concepto,
+        rows: n.lineas.map((l) => ({
+          concepto: l.detalle_de ? `      ${l.concepto}` : l.concepto,
           detalle: l.detalle || "",
           importe: nominaPdfMoney(l.importe),
-          _seccion: l.seccion === "total" ? "total" : undefined,
+          _seccion: !l.detalle_de && l.seccion === "total" ? "total" : undefined,
         })),
       });
       y += 6;
+
+      // Desglose por contrato, solo si la nómina junta dos puestos: en la
+      // nómina de la persona esos importes van sumados en un solo concepto.
+      const puestos = [...new Set(n.porPuesto.map((l) => l.historial_id))];
+      if (puestos.length > 1) {
+        if (y + 16 > pageHeight - bottomMargin) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text("Desglose por puesto", margin, y + 3);
+        y += 5;
+        y = drawNominaPdfTable(doc, {
+          x: margin, y, margin, pageHeight, bottomMargin, rowHeight: 5,
+          headerFill: [242, 244, 247],
+          columns: [
+            { label: "Puesto", key: "puesto", width: 60 },
+            { label: "Concepto", key: "concepto", width: contentWidth - 152 },
+            { label: "Detalle", key: "detalle", width: 60 },
+            { label: "Importe €", key: "importe", width: 32, align: "right" },
+          ],
+          rows: n.porPuesto
+            .filter((l) => !l.detalle_de)
+            .map((l) => ({
+              puesto: l.puesto || "",
+              concepto: l.concepto,
+              detalle: l.detalle || "",
+              importe: nominaPdfMoney(l.importe),
+            })),
+        });
+        y += 6;
+      }
     }
 
     doc.save(`nominas-${data.ejercicio}-${String(data.mes).padStart(2, "0")}.pdf`);
