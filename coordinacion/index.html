@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260724-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260725-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260726-1" />
   </head>
   <body>
     <script>
@@ -1750,6 +1750,7 @@
                       <table id="gestion-historial-table" class="records-table gestion-compact-table">
                         <thead>
                           <tr>
+                            <th class="records-row-actions" aria-label="Editar"></th>
                             <th>Personal</th>
                             <th>Alta</th>
                             <th>Baja</th>
@@ -1759,7 +1760,7 @@
                         </thead>
                         <tbody id="gestion-historial-table-body">
                           <tr>
-                            <td colspan="5" class="empty-state">Sin datos.</td>
+                            <td colspan="6" class="empty-state">Sin datos.</td>
                           </tr>
                         </tbody>
                       </table>
@@ -3304,10 +3305,45 @@
                   </label>
                 </form>
 
+                <!--
+                  Generación de registros de montaje desde los eventos marcados,
+                  con el mismo patrón que la zona equivalente de Actividades.
+                  Solo admin. Cada persona asignada a un paso del cronograma da
+                  un registro con tipo de hora MONT y situación NORM.
+                -->
+                <details id="events-records-zone" class="programming-panel-zone activities-records-zone hidden">
+                  <summary>Generación de registros</summary>
+                  <form id="events-records-generation-form" class="activities-records-generation-panel">
+                    <button id="events-select-records-button" type="button" class="secondary-button">
+                      Seleccionar eventos
+                    </button>
+                    <label>
+                      Puesto
+                      <select id="events-records-puesto" name="puesto_id" required></select>
+                    </label>
+                    <button id="events-generate-records-button" type="submit">
+                      Generar registros
+                    </button>
+                    <span id="events-records-selection-count" class="control-selected-delete-count">
+                      Activa la selección para marcar eventos
+                    </span>
+                    <span id="events-records-generation-summary" class="control-selected-delete-count activities-records-generation-summary">
+                      Las horas salen del cronograma; el tipo de hora es Montaje y la situación Normal.
+                    </span>
+                  </form>
+                </details>
+
                 <div class="table-wrapper">
                   <table>
                     <thead>
                       <tr>
+                        <th id="events-records-select-header" class="control-select-cell hidden">
+                          <input
+                            id="events-records-select-all-checkbox"
+                            type="checkbox"
+                            aria-label="Seleccionar todos los eventos filtrados"
+                          />
+                        </th>
                         <th>Acciones</th>
                         <th>
                           <button type="button" class="sort-button" data-event-sort-field="nombre">
@@ -7775,6 +7811,6 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260724-4" defer></script>
-    <script src="./app.js?v=20260725-4" defer></script>
+    <script src="./app.js?v=20260726-1" defer></script>
   </body>
 </html>

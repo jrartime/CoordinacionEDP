@@ -38,7 +38,7 @@ exports/               # CSVs exportados de Supabase para importación/referenci
 
 - **Programación** — `programacion_conserjes`: carga CSV/Word, asignación masiva, archivado, exportación PDF/CSV/imágenes.
 - **Control personal** — Partes de horas: carga, filtros, resumen por persona, borrado selectivo.
-- **Eventos deportivos** — CRUD con cronograma de pasos y asignación de personal de montaje.
+- **Eventos deportivos** — CRUD con cronograma de pasos y asignación de personal de montaje. Zona **Generación de registros** (solo admin, mismo patrón que la de Actividades): se marcan eventos y cada persona asignada a un paso genera un registro con **tipo de hora MONT y situación NORM**; las horas salen del cronograma (las propias de la persona si difieren de las del paso), el contrato e instalación del evento, la función es Oficial de 1ª y el puesto lo elige quien genera. La empresa se toma del historial laboral vigente de esa fecha — sin ella el registro no entraría en la nómina —, y las asignaciones sin historial se omiten avisando. Idempotente por `registros.evento_asignacion_id`.
 - **Candidaturas** — Tabla `candidates`: filtros, paginación, etiquetas, exportación.
 - **Personal** — Fichas de `tbl_personal`.
 - **Contratos** — `tbl_contratos`.

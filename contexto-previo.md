@@ -214,6 +214,16 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Prorrata de pagas extra, fórmula exacta del programa de nóminas** (aportada por el usuario): `P.P. extras = nº_extras × REDONDEAR(concepto × 8,333%; 2)`. El tipo es **8,333 % exacto, no 1/12**, y **se redondea una paga antes de multiplicar**. Nueva función `prorrata_pagas_extra(importe, extras)`. Contrastado con la nómina de Ainhoa: 565,63 × 2 extras da 94,26 en la nómina; la fórmula anterior daba 94,27 y con 1/12 exacto saldría 94,28. **Los cálculos en vivo se mueven algún céntimo** (Jaime, junio: bruto 2.418,91 → 2.418,90); las nóminas ya emitidas no cambian, están congeladas.
 - **Despliegue requerido**: ejecutar `supabase/tables/nomina_complementos.sql`, `personal_complementos.sql`, `nomina_calculo_persona.sql` y `nominas.sql`. Ya aplicados en el proyecto real.
 
+## 15. Registros de montaje desde Eventos (26/07/2026)
+
+- **Zona «Generación de registros» en Eventos**, solo admin, con el mismo patrón que la de Actividades: botón de selección, ticks por evento, «seleccionar todos» y resumen. Cada persona asignada a un paso del cronograma genera **un registro**.
+- **Reglas fijas**: tipo de hora **MONT** (3) y situación **NORM** (1), como pidió el usuario. Función **Oficial de 1ª** (20), que es la que llevan ~805 de los ~813 registros de montaje ya existentes en 2026.
+- **Puesto**: lo elige quien genera, en un desplegable del panel (decisión del usuario). Determina la tarifa de montaje en la nómina.
+- **Horas**: del paso del cronograma, salvo que esa persona tenga horario propio en el paso, que manda (hay 18 casos así de 275 asignaciones). Un turno que cruza medianoche cuenta hasta el día siguiente, no en negativo.
+- **Empresa**: del historial laboral vigente de la persona ese día. Sin ella el registro no entraría en su nómina (el motor cruza por empresa), así que esas asignaciones **se omiten y se avisa de quiénes son** en vez de crear filas que fallarían en silencio.
+- **Idempotencia y trazabilidad**: columna nueva `registros.evento_asignacion_id` → `eventos_cronograma_personal`, con `on delete set null` (borrar la planificación no borra las horas trabajadas). Regenerar no duplica.
+- **Despliegue requerido**: ejecutar `supabase/tables/registros_evento_asignacion.sql`. Ya aplicado en el proyecto real.
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.

@@ -1041,6 +1041,15 @@ const copyEventReportImageButton = document.querySelector("#copy-event-report-im
 const downloadEventReportImageButton = document.querySelector("#download-event-report-image-button");
 const eventReportImagePreview = document.querySelector("#event-report-image-preview");
 const eventsTableBody = document.querySelector("#events-table-body");
+// Generación de registros de montaje desde los eventos marcados (solo admin).
+const eventsRecordsZone = document.querySelector("#events-records-zone");
+const eventsRecordsForm = document.querySelector("#events-records-generation-form");
+const eventsSelectRecordsButton = document.querySelector("#events-select-records-button");
+const eventsRecordsPuesto = document.querySelector("#events-records-puesto");
+const eventsRecordsSelectionCount = document.querySelector("#events-records-selection-count");
+const eventsRecordsGenerationSummary = document.querySelector("#events-records-generation-summary");
+const eventsRecordsSelectHeader = document.querySelector("#events-records-select-header");
+const eventsRecordsSelectAllCheckbox = document.querySelector("#events-records-select-all-checkbox");
 const eventSchedulePanel = document.querySelector("#event-schedule-panel");
 const eventSchedulePanelBackdrop = document.querySelector("#event-schedule-panel-backdrop");
 const closeEventSchedulePanelButton = document.querySelector("#close-event-schedule-panel-button");
@@ -1557,6 +1566,10 @@ let currentEventSchedulePersonnelRows = [];
 let currentEventScheduleSelectedPersonnelIds = new Set();
 let currentSelectedEventId = "";
 let expandedEventIds = new Set();
+// Selección de eventos para generar sus registros de montaje. Igual que en
+// Actividades: la selección es explícita, no se generan registros por error.
+let eventsRecordsSelectionMode = false;
+let selectedEventRecordIds = new Set();
 let eventSortCriteria = [{ field: "fecha_inicio", direction: "desc" }];
 let currentEventReportImageCanvas = null;
 let currentEventReportImageFileName = "";
@@ -17643,15 +17656,16 @@ function renderGestionPersonalOptions(rows) {
       map.set(key, row.personal || `ID ${row.personal_id}`);
     }
   }
+  const selected = gestionFilterPersonalHidden?.value || "";
+  const selectedLabel = personalPickers.get("gestion-filter")?.inputEl?.value?.trim() || "";
+  if (selected && !map.has(String(selected))) {
+    map.set(String(selected), selectedLabel || `ID ${selected}`);
+  }
   const options = Array.from(map, ([value, label]) => ({ value, label })).sort((left, right) =>
     left.label.localeCompare(right.label, "es", { sensitivity: "base" })
   );
   setPersonalPickerOptions("gestion-filter", options);
 
-  const selected = gestionFilterPersonalHidden?.value || "";
-  if (selected && !map.has(String(selected))) {
-    clearPersonalPicker("gestion-filter");
-  }
   gestionEditPersonalButton?.classList.toggle(
     "hidden",
     !gestionFilterPersonalHidden?.value || !currentAllowedPrivateTabs.has("personal")
@@ -17669,7 +17683,7 @@ function renderGestionHistorial(rows) {
   }
   if (!rows.length) {
     gestionHistorialTableBody.innerHTML =
-      '<tr><td colspan="5" class="empty-state">Sin historiales en el intervalo.</td></tr>';
+      '<tr><td colspan="6" class="empty-state">Sin historiales en el intervalo.</td></tr>';
     return;
   }
 
@@ -17691,10 +17705,14 @@ function renderGestionHistorial(rows) {
         coef = String(Math.round((jornada / maxima) * 1000));
       }
       const personalLabel = row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : "");
-      const personalCell = currentAllowedPrivateTabs.has("historial")
-        ? `<button type="button" class="row-name-button" data-gestion-edit-historial="${escapeHtml(row.id)}" title="Abrir historial laboral">${escapeHtml(personalLabel)}</button>`
+      const editCell = currentAllowedPrivateTabs.has("historial")
+        ? `<button type="button" class="compact-button" data-icon="edit" data-gestion-edit-historial="${escapeHtml(row.id)}" title="Editar historial laboral">Editar historial laboral</button>`
+        : "";
+      const personalCell = row.personal_id != null
+        ? `<button type="button" class="row-name-button" data-gestion-filter-personal="${escapeHtml(row.personal_id)}" data-gestion-personal-label="${escapeHtml(personalLabel)}" title="Filtrar Gestión por esta persona">${escapeHtml(personalLabel)}</button>`
         : escapeHtml(personalLabel);
       return `<tr>
+        <td class="records-row-actions">${editCell}</td>
         <td>${personalCell}</td>
         <td>${escapeHtml(formatGestionDate(row.fecha_alta))}</td>
         <td>${escapeHtml(formatGestionDate(row.fecha_baja) || "—")}</td>
@@ -17703,6 +17721,13 @@ function renderGestionHistorial(rows) {
       </tr>`;
     })
     .join("");
+}
+
+function filterGestionByPersonal(personalId, personalLabel) {
+  if (!personalId) return;
+  setPersonalPickerSelection("gestion-filter", personalId, personalLabel);
+  personalPickers.get("gestion-filter")?.suggestionsEl.classList.add("hidden");
+  void loadGestion();
 }
 
 // Horas realmente registradas y horas que tocaba trabajar según la jornada
@@ -18062,6 +18087,11 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
           : ""
       }
     </div>`;
+
+  // El resumen total es la vista principal al seleccionar una persona: se
+  // muestra y calcula de salida. Su cabecera mantiene el comportamiento de
+  // alternancia para poder plegarlo y volver a desplegarlo.
+  void toggleGestionNominaTotal(personalId);
 }
 
 function renderGestionNominaTable(rows) {
@@ -25551,9 +25581,14 @@ function renderEventsTable() {
   const visibleEvents = getSortedEvents(getFilteredEvents());
   syncEventSortButtons();
 
+  // La columna de ticks solo existe en modo selección: el colspan de las filas
+  // de pasos y del vacío tiene que seguirla.
+  const columnas = eventsRecordsSelectionMode ? 6 : 5;
+
   if (!visibleEvents.length) {
-    eventsTableBody.innerHTML = '<tr><td colspan="5" class="empty-state">No hay eventos cargados.</td></tr>';
+    eventsTableBody.innerHTML = `<tr><td colspan="${columnas}" class="empty-state">No hay eventos cargados.</td></tr>`;
     renderEventPersonnelReportOptions();
+    syncEventsRecordsUi();
     return;
   }
 
@@ -25609,6 +25644,15 @@ function renderEventsTable() {
 
       return `
         <tr class="${isArchived ? "event-row-archived" : ""}">
+          ${
+            eventsRecordsSelectionMode
+              ? `<td class="control-select-cell">
+                   <input type="checkbox" data-event-record-pick="${event.id}"
+                     ${selectedEventRecordIds.has(String(event.id)) ? "checked" : ""}
+                     aria-label="Incluir este evento al generar registros" />
+                 </td>`
+              : ""
+          }
           <td>
             <div class="action-buttons">
               <button
@@ -25645,7 +25689,7 @@ function renderEventsTable() {
           <td>${escapeHtml(formatDisplayDate(event.fecha_fin))}</td>
         </tr>
         <tr class="event-steps-row ${isExpanded ? "" : "hidden"}">
-          <td colspan="5">
+          <td colspan="${columnas}">
             <div class="event-steps-list">
               ${stepsHtml}
             </div>
@@ -25655,6 +25699,7 @@ function renderEventsTable() {
     })
     .join("");
   renderEventPersonnelReportOptions();
+  syncEventsRecordsUi();
 }
 
 function resetEventForm() {
@@ -25963,6 +26008,259 @@ async function loadEvents() {
   }
   await loadAllEventSchedules();
   renderEventsTable();
+}
+
+// ============================================================================
+// Generación de registros de montaje desde Eventos
+//
+// Cada persona asignada a un paso del cronograma da UN registro: la fecha y las
+// horas salen del cronograma (las propias de esa persona si las tiene, si no
+// las del paso), el contrato y la instalación del evento, y el tipo de hora es
+// siempre MONT con situación NORM. El puesto lo elige quien genera.
+//
+// La empresa se toma del historial laboral vigente de la persona ese día: sin
+// ella el registro no entraría en su nómina (el motor cruza por empresa), así
+// que las asignaciones sin historial se dejan fuera y se avisa de quiénes son.
+//
+// Idempotente por `registros.evento_asignacion_id`: regenerar no duplica.
+// ============================================================================
+
+const EVENT_RECORD_TIPO_HORA_MONT = 3;
+const EVENT_RECORD_SITUACION_NORM = 1;
+const EVENT_RECORD_FUNCION_OFICIAL_1A = 20;
+
+function getSelectedEventRecordIds() {
+  return getSortedEvents(getFilteredEvents())
+    .map((event) => String(event.id))
+    .filter((id) => selectedEventRecordIds.has(id));
+}
+
+function syncEventsRecordsUi() {
+  // La zona entera es admin-only: genera datos de nómina.
+  eventsRecordsZone?.classList.toggle("hidden", !currentUserIsAccessAdmin);
+  if (!currentUserIsAccessAdmin) {
+    return;
+  }
+  const visibles = getSortedEvents(getFilteredEvents()).length;
+  const marcados = getSelectedEventRecordIds().length;
+  if (eventsSelectRecordsButton) {
+    eventsSelectRecordsButton.textContent = eventsRecordsSelectionMode
+      ? "Cancelar selección"
+      : "Seleccionar eventos";
+  }
+  if (eventsRecordsSelectionCount) {
+    eventsRecordsSelectionCount.textContent = eventsRecordsSelectionMode
+      ? `${marcados} seleccionados de ${visibles}`
+      : "Activa la selección para marcar eventos";
+  }
+  eventsRecordsSelectHeader?.classList.toggle("hidden", !eventsRecordsSelectionMode);
+  if (eventsRecordsSelectAllCheckbox) {
+    eventsRecordsSelectAllCheckbox.checked = visibles > 0 && marcados === visibles;
+  }
+}
+
+// Reutiliza el catálogo de relacionales que ya mantiene la pestaña Registros,
+// para no cargar los puestos por segunda vez ni divergir de sus etiquetas.
+async function renderEventRecordPuestoOptions() {
+  if (!eventsRecordsPuesto || eventsRecordsPuesto.options.length > 1) {
+    return;
+  }
+  if (!recordRelationOptionsCache.puesto_id?.length) {
+    await loadRecordRelationOptions();
+  }
+  const opciones = recordRelationOptionsCache.puesto_id || [];
+  if (!opciones.length) {
+    return;
+  }
+  eventsRecordsPuesto.innerHTML =
+    '<option value="">Selecciona puesto…</option>' +
+    opciones
+      .map(
+        (row) => `<option value="${escapeHtml(row.value)}">${escapeHtml(row.label || row.value)}</option>`
+      )
+      .join("");
+}
+
+// Las asignaciones de los eventos marcados, ya resueltas a "fila de registro".
+function buildEventRecordCandidates(eventIds) {
+  const ids = new Set(eventIds.map(String));
+  const candidatos = [];
+  for (const paso of currentEventScheduleRows) {
+    if (!ids.has(String(paso.evento_id))) continue;
+    const evento = currentEvents.find((row) => Number(row.id) === Number(paso.evento_id));
+    if (!evento) continue;
+    const asignaciones = currentEventSchedulePersonnelRows.filter(
+      (row) => Number(row.cronograma_id) === Number(paso.id)
+    );
+    for (const asignacion of asignaciones) {
+      // Si la persona tiene horario propio en el paso manda el suyo: puede
+      // haber entrado más tarde o salido antes que el resto del montaje.
+      const inicio = formatHourValue(asignacion.hora_inicio || paso.hora_inicio).slice(0, 8);
+      const fin = formatHourValue(asignacion.hora_fin || paso.hora_fin).slice(0, 8);
+      candidatos.push({
+        asignacionId: asignacion.id,
+        eventoId: evento.id,
+        eventoNombre: evento.nombre,
+        personalId: asignacion.personal_id,
+        fecha: paso.fecha,
+        horaInicio: inicio,
+        horaFin: fin,
+        horas: getEventRecordHours(inicio, fin),
+        contratoId: evento.contrato_id ?? null,
+        instalacionId: evento.instalacion_id ?? null,
+        observacion: asignacion.observaciones || paso.actividad || null,
+      });
+    }
+  }
+  return candidatos;
+}
+
+// Horas entre dos horarios; un turno que cruza medianoche cuenta hasta el final
+// del día siguiente, no en negativo (mismo criterio que los solapes).
+function getEventRecordHours(inicio, fin) {
+  const toMin = (value) => {
+    const [h, m] = String(value || "").split(":");
+    const hh = Number(h);
+    const mm = Number(m);
+    return Number.isFinite(hh) && Number.isFinite(mm) ? hh * 60 + mm : null;
+  };
+  const ini = toMin(inicio);
+  let end = toMin(fin);
+  if (ini == null || end == null) return null;
+  if (end < ini) end += 24 * 60;
+  return Math.round(((end - ini) / 60) * 100) / 100;
+}
+
+async function generateEventRecords(button) {
+  const eventIds = getSelectedEventRecordIds();
+  const puestoId = Number(eventsRecordsPuesto?.value);
+  if (!eventIds.length) {
+    setStatus("Marca al menos un evento para generar sus registros.", "error");
+    return;
+  }
+  if (!puestoId) {
+    setStatus("Elige el puesto con el que se crearán los registros.", "error");
+    return;
+  }
+
+  const candidatos = buildEventRecordCandidates(eventIds);
+  if (!candidatos.length) {
+    setStatus("Los eventos marcados no tienen personal asignado en su cronograma.", "error");
+    return;
+  }
+
+  const original = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Generando…";
+  }
+  try {
+    const supabase = await getSupabaseClient();
+
+    // Ya generados: no se duplican ni se pisan (pueden haberse editado a mano).
+    const { data: existentes, error: existentesError } = await supabase
+      .from("registros")
+      .select("evento_asignacion_id")
+      .in("evento_asignacion_id", candidatos.map((row) => row.asignacionId));
+    if (existentesError) throw existentesError;
+    const yaHechos = new Set((existentes || []).map((row) => String(row.evento_asignacion_id)));
+
+    const pendientes = candidatos.filter((row) => !yaHechos.has(String(row.asignacionId)));
+    if (!pendientes.length) {
+      setStatus("Esos eventos ya tienen todos sus registros generados.", "success");
+      return;
+    }
+
+    // La empresa sale del historial laboral vigente de cada persona ese día.
+    const personalIds = [...new Set(pendientes.map((row) => row.personalId))];
+    const fechas = pendientes.map((row) => row.fecha).sort();
+    const { data: historiales, error: historialesError } = await supabase
+      .from("historiales_laborales")
+      .select("personal_id, empresa_id, fecha_alta, fecha_baja")
+      .in("personal_id", personalIds)
+      .lte("fecha_alta", fechas[fechas.length - 1])
+      .or(`fecha_baja.is.null,fecha_baja.gte.${fechas[0]}`);
+    if (historialesError) throw historialesError;
+
+    const empresaDe = (personalId, fecha) =>
+      (historiales || []).find(
+        (h) =>
+          Number(h.personal_id) === Number(personalId) &&
+          h.fecha_alta <= fecha &&
+          (!h.fecha_baja || h.fecha_baja >= fecha)
+      )?.empresa_id ?? null;
+
+    const conEmpresa = [];
+    const sinHistorial = new Set();
+    for (const row of pendientes) {
+      const empresaId = empresaDe(row.personalId, row.fecha);
+      if (empresaId == null) {
+        sinHistorial.add(getEventPersonnelName(row.personalId));
+        continue;
+      }
+      conEmpresa.push({ ...row, empresaId });
+    }
+
+    if (!conEmpresa.length) {
+      setStatus(
+        `Ninguna de las personas asignadas tiene historial laboral en esas fechas: ${[...sinHistorial].join(", ")}. Sin empresa, sus horas no entrarían en la nómina.`,
+        "error"
+      );
+      return;
+    }
+
+    const aviso = sinHistorial.size
+      ? `\n\nSe quedan fuera ${sinHistorial.size} persona(s) sin historial laboral en esas fechas: ${[...sinHistorial].join(", ")}.`
+      : "";
+    if (
+      !window.confirm(
+        `Se van a crear ${conEmpresa.length} registro${conEmpresa.length === 1 ? "" : "s"} de montaje (tipo de hora MONT, situación NORM).${aviso}\n\n¿Continuar?`
+      )
+    ) {
+      setStatus("Generación de registros cancelada.", "success");
+      return;
+    }
+
+    const filas = conEmpresa.map((row) => ({
+      evento_asignacion_id: row.asignacionId,
+      fecha: row.fecha,
+      personal_id: row.personalId,
+      contrato_id: row.contratoId,
+      empresa_id: row.empresaId,
+      instalacion_id: row.instalacionId,
+      puesto_id: puestoId,
+      funcion_id: EVENT_RECORD_FUNCION_OFICIAL_1A,
+      situacion_id: EVENT_RECORD_SITUACION_NORM,
+      tipo_hora_id: EVENT_RECORD_TIPO_HORA_MONT,
+      hora_inicio: row.horaInicio,
+      hora_fin: row.horaFin,
+      horas: row.horas,
+      activo: true,
+      facturar: true,
+      abonar: true,
+      descanso: false,
+      sustitucion: false,
+      festivo: false,
+      anio: Number(String(row.fecha).slice(0, 4)),
+      observacion: row.observacion,
+    }));
+
+    const { error: insertError } = await supabase.from("registros").insert(filas);
+    if (insertError) throw insertError;
+
+    window.CoordinacionRegistros?.refresh?.();
+    if (eventsRecordsGenerationSummary) {
+      eventsRecordsGenerationSummary.textContent = `${filas.length} registro${filas.length === 1 ? "" : "s"} generado${filas.length === 1 ? "" : "s"}.${aviso ? " Algunas asignaciones quedaron fuera." : ""}`;
+    }
+    setStatus(`Registros de montaje generados: ${filas.length}.`, "success");
+  } catch (error) {
+    setStatus(`No se pudieron generar los registros: ${error.message}`, "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = original || "Generar registros";
+    }
+  }
 }
 
 async function loadAllEventSchedules() {
@@ -26912,6 +27210,28 @@ async function init() {
 
     resetSingleEventFilter(resetButton.dataset.resetEventFilter);
   });
+  eventsSelectRecordsButton?.addEventListener("click", () => {
+    eventsRecordsSelectionMode = !eventsRecordsSelectionMode;
+    if (!eventsRecordsSelectionMode) {
+      selectedEventRecordIds.clear();
+    }
+    void renderEventRecordPuestoOptions();
+    renderEventsTable();
+  });
+  eventsRecordsSelectAllCheckbox?.addEventListener("change", (event) => {
+    const visibles = getSortedEvents(getFilteredEvents()).map((row) => String(row.id));
+    if (event.target.checked) {
+      visibles.forEach((id) => selectedEventRecordIds.add(id));
+    } else {
+      visibles.forEach((id) => selectedEventRecordIds.delete(id));
+    }
+    renderEventsTable();
+  });
+  eventsRecordsForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void generateEventRecords(event.submitter || document.querySelector("#events-generate-records-button"));
+  });
+
   eventsTableBody?.addEventListener("input", (event) => {
     const assignmentTimeInput = event.target.closest("[data-event-assignment-time]");
     if (!assignmentTimeInput) {
@@ -26921,6 +27241,18 @@ async function init() {
     queueEventAssignmentSave(assignmentTimeInput.dataset.eventAssignmentTime);
   });
   eventsTableBody?.addEventListener("change", (event) => {
+    const pick = event.target.closest("[data-event-record-pick]");
+    if (pick) {
+      const id = String(pick.dataset.eventRecordPick);
+      if (pick.checked) {
+        selectedEventRecordIds.add(id);
+      } else {
+        selectedEventRecordIds.delete(id);
+      }
+      syncEventsRecordsUi();
+      return;
+    }
+
     const assignmentTimeInput = event.target.closest("[data-event-assignment-time]");
     if (!assignmentTimeInput) {
       return;
@@ -27205,8 +27537,18 @@ async function init() {
     void closeGestionPersonalDetail();
   });
   gestionHistorialTableBody?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-gestion-edit-historial]");
-    if (button) void openGestionHistorialDetail(button.dataset.gestionEditHistorial);
+    const editButton = event.target.closest("[data-gestion-edit-historial]");
+    if (editButton) {
+      void openGestionHistorialDetail(editButton.dataset.gestionEditHistorial);
+      return;
+    }
+    const personalButton = event.target.closest("[data-gestion-filter-personal]");
+    if (personalButton) {
+      filterGestionByPersonal(
+        personalButton.dataset.gestionFilterPersonal,
+        personalButton.dataset.gestionPersonalLabel
+      );
+    }
   });
   document.querySelector("#gestion-pivot-table")?.addEventListener("click", () => {
     void openGestionRecordsPanel();
