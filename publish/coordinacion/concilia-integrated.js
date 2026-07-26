@@ -4432,14 +4432,26 @@
       return [];
     }
 
-    const dates = [];
-    const firstDate = rangeStart && rangeStart > start ? rangeStart : start;
-    const lastDate = rangeEnd && rangeEnd < end ? rangeEnd : end;
+    // El rango efectivo es siempre el solape entre el intervalo solicitado en
+    // el panel y la vigencia de esta actividad. Cuando no se indica intervalo
+    // (generacion individual), se conserva toda la vigencia de la actividad.
+    const hasPanelRange = Boolean(rangeStart && rangeEnd);
+    if (hasPanelRange && rangeEnd < rangeStart) {
+      return [];
+    }
+
+    const firstDate = hasPanelRange
+      ? new Date(Math.max(start.getTime(), rangeStart.getTime()))
+      : start;
+    const lastDate = hasPanelRange
+      ? new Date(Math.min(end.getTime(), rangeEnd.getTime()))
+      : end;
 
     if (lastDate < firstDate) {
       return [];
     }
 
+    const dates = [];
     const current = new Date(firstDate.getTime());
     while (current <= lastDate) {
       if (weekdays.has(getSpanishWeekday(current))) {
