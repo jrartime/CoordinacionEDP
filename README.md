@@ -94,6 +94,7 @@ Los cambios recientes de Registros dependen de:
 - `supabase/tables/actividades.sql`: trigger equivalente en Actividades, con comparacion estricta de contrato/servicio.
 - `supabase/tables/gestion_resumen.sql`: RPC de Gestion para agregados exactos de registros y selector de personal por intervalo.
 - `supabase/tables/registros_evento_asignacion.sql`: vinculo de los registros generados desde Eventos con su asignacion de cronograma.
+- `supabase/tables/registros_horas_nocturnas.sql`: calculo automatico de horas nocturnas en cualquier alta o edicion de registros.
 - `supabase/tables/nominas.sql`: nominas emitidas y congeladas (cabecera, lineas, contexto laboral y horas por puesto), con `emitir_nomina` y `anular_nomina`.
 - `supabase/tables/nomina_calculo.sql` y `nomina_calculo_persona.sql`: motor de calculo (devengos por puesto y nomina real de la persona).
 - `supabase/tables/cronos.sql`: tabla `cronos`, RPC de Apuntes, vista `cronos_detalle` y conciliacion Cronos/Banco.

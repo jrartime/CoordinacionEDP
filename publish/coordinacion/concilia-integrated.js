@@ -4695,12 +4695,6 @@
           getSpanishWeekday(parseDateValue(date))
         );
         const hours = sinHoras ? null : getActivityGeneratedHours(schedule);
-        const nightHours = sinHoras
-          ? null
-          : getActivityNightHours(
-              schedule,
-              activityContractNocturnidad.get(Number(activity.contrato_id))
-            );
         return {
         actividad_id: activity.id,
         servicio_id: activity.servicio_id || null,
@@ -4717,7 +4711,12 @@
         hora_inicio: formatTime(schedule.hora_inicio),
         hora_fin: formatTime(schedule.hora_fin),
         horas: hours,
-        horas_nocturnas: nightHours,
+        // Nulo = lo resuelve el trigger set_registro_horas_nocturnas en base,
+        // cruzando el horario con la franja nocturna del contrato. Antes se
+        // calculaba aqui, y si el catalogo de contratos del navegador no estaba
+        // cargado se enviaba un 0: asi se quedaron sin plus 54 registros de
+        // julio de 2026. La base tiene el dato siempre.
+        horas_nocturnas: null,
         activo: true,
         facturar: !sinHoras,
         abonar: !sinHoras,

@@ -233,6 +233,17 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Alcance del cambio en producción**: 119 tramos de 106 personas a lo largo de 2026 (114 en meses de 31 días, 5 en febrero). Las nóminas ya emitidas no se mueven: están congeladas.
 - Ejemplo verificado: Adrián Domínguez, julio 2026 → salario base 392,02 (14/30 al coef. 0,688) + 407,00 (16/30 al coef. 0,625) = **799,02**. Antes salían 824,46 por contar 17 días en el segundo tramo.
 
+## 17. Horas nocturnas automáticas en Registros (27/07/2026)
+
+- **Problema detectado**: en julio de 2026, 54 registros de 6 personas (33,5 h) tenían turno dentro de la franja nocturna del contrato pero `horas_nocturnas` a 0. Cada vía que crea registros calculaba el plus en el navegador con un mapa de contratos cargado en cliente; si ese mapa no estaba disponible se enviaba un 0 explícito. Se veía incluso dentro de la misma persona y actividad (Ezequiel: 15 registros con plus y 7 sin él).
+- **Solución**: el cálculo pasa a la base. `calcular_horas_nocturnas_registro(...)` cruza el horario con la franja del contrato, y el trigger `trg_registro_horas_nocturnas` lo aplica en **cualquier** vía: generación desde Actividades, generación desde Eventos, alta a mano, edición tipo Excel, asignación masiva, sustituciones y cambio de situación. Fuente: `supabase/tables/registros_horas_nocturnas.sql`.
+- **Convenio del campo**: `null` = «calcúlalo tú» (lo que envía ahora el frontend); un valor distinto del anterior = lo teclea quien edita y se respeta; un valor igual pero con el horario, contrato, situación o tipo de hora cambiados = se recalcula. **La importación histórica trae el valor del parte y no se pisa.**
+- **Solo se paga la noche que se trabaja**: situación NORM o SUST, o FEST con hora FTRAB, y tipo de hora productivo. En vacaciones, IT, permisos, bolsa o cambio de actividad el 0 es correcto — de las ~102 h que parecían faltar en julio, 68 eran de gente que no trabajaba.
+- **Frontend**: se quitó el cálculo en cliente de los tres sitios que lo hacían (`buildRecordsForActivity`, `withRecordSituacionSideEffects` y la asignación masiva, que además ya no necesita agrupar por nocturnas). Delegan enviando `null`.
+- **Recalculado**: los 54 registros de julio, con copia previa en `registros_nocturnas_backup_20260727`.
+- **Pendiente sin aplicar**: abril (14 registros, 9,5 h) y mayo (3, 3 h) también tienen turnos nocturnos sin plus, pero vienen del parte importado, donde el 0 puede ser el dato bueno. No tocar sin confirmar.
+- **Ojo**: el plus de la **nómina** se paga por `historiales_laborales.tiene_nocturnidad`, no por el flag del contrato. Rellenar las horas del registro no basta si la persona no lo tiene marcado (Alba Queipo lo tiene nulo, Enrique Gutiérrez en `false`).
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.

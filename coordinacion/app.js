@@ -15647,20 +15647,16 @@ async function applyRecordsBulkAssignment() {
         if (error) throw error;
       }
       // Las horas recalculadas dependen del horario de cada fila, así que se
-      // agrupan las que coinciden para no lanzar un update por registro.
+      // agrupan las que coinciden para no lanzar un update por registro. Las
+      // nocturnas van a null y las resuelve el trigger fila a fila, que además
+      // conoce la franja de cada contrato: así el agrupado solo mira las horas.
       const gruposHoras = new Map();
       for (const row of situacionFilasARestaurar) {
         const horas = calculateRecordHours(row.hora_inicio, row.hora_fin);
-        const nocturnas = reglasSituacion.horasNocturnas(
-          row.contrato_id,
-          row.hora_inicio,
-          row.hora_fin
-        );
-        const key = `${horas}|${nocturnas}`;
-        if (!gruposHoras.has(key)) {
-          gruposHoras.set(key, { horas, nocturnas, ids: [] });
+        if (!gruposHoras.has(horas)) {
+          gruposHoras.set(horas, { horas, ids: [] });
         }
-        gruposHoras.get(key).ids.push(row.id);
+        gruposHoras.get(horas).ids.push(row.id);
       }
       for (const grupo of gruposHoras.values()) {
         const { error } = await supabase
@@ -15668,7 +15664,7 @@ async function applyRecordsBulkAssignment() {
           .update({
             ...updatePayload,
             horas: grupo.horas,
-            horas_nocturnas: grupo.nocturnas,
+            horas_nocturnas: null,
             facturar: true,
             abonar: true,
           })
@@ -15829,7 +15825,9 @@ async function withRecordSituacionSideEffects(row, patch) {
   return {
     ...patch,
     horas: calculateRecordHours(start, end),
-    horas_nocturnas: reglas.horasNocturnas(pick("contrato_id"), start, end),
+    // Nulo = lo recalcula el trigger en base con la franja del contrato. Aquí
+    // dependía de un catálogo cargado en el navegador, que podía no estarlo.
+    horas_nocturnas: null,
     facturar: true,
     abonar: true,
   };
