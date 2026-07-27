@@ -150,6 +150,7 @@ Las **plantillas de correo** de Auth (recuperación e invitación) están traduc
 
 ### Supabase Nóminas
 
+- **Días de nómina**: `dias_nomina(desde, hasta, mes_completo)` cuenta **base 30** cuando la persona tiene el mes cubierto desde el día 1 (los tramos que lo parten por una variación siguen sumando 30) y **días reales** cuando entra con el mes ya empezado. Lo decide `tiene_alta_continua_desde_inicio_mes`, que exige que no haya huecos desde el día 1. Casos de referencia en julio de 2026: Adrián Domínguez 14+16=30 (alta todo el mes) y Sergio García Méndez 2+17=19 (alta el día 13).
 - **Motor de cálculo** (`nomina_calculo.sql`, `nomina_calculo_persona.sql`): `calcular_nomina_devengos(historial_id, …)` da los devengos de UN puesto; `calcular_nomina_persona(personal_id, …)` es la nómina real (suma puestos + transporte/complementos/prorrateo una sola vez + bases + deducciones + líquido). Ambas `SECURITY INVOKER`; solo un admin obtiene resultados porque las tablas salariales son admin-only.
 - **Nóminas emitidas** (`supabase/tables/nominas.sql`): una nómina emitida no es solo el recibo, es el **registro laboral** del periodo. Cuatro tablas, todas admin-only:
   - `nominas` — cabecera: periodo, empresa, historiales incluidos, **los parámetros con los que se calculó** y los totales. `ejercicio`/`mes` son generadas (solo si el periodo cae dentro de un mes natural).

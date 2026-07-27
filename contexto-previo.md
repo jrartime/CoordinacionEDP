@@ -244,6 +244,17 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Pendiente sin aplicar**: abril (14 registros, 9,5 h) y mayo (3, 3 h) también tienen turnos nocturnos sin plus, pero vienen del parte importado, donde el 0 puede ser el dato bueno. No tocar sin confirmar.
 - **Ojo**: el plus de la **nómina** se paga por `historiales_laborales.tiene_nocturnidad`, no por el flag del contrato. Rellenar las horas del registro no basta si la persona no lo tiene marcado (Alba Queipo lo tiene nulo, Enrique Gutiérrez en `false`).
 
+## 18. Alta a mitad de mes: días reales (27/07/2026)
+
+- **Matiz sobre la regla del punto 16**: la base 30 solo aplica cuando la persona tiene el mes **cubierto desde el día 1**. Si **entra con el mes ya empezado se cuentan sus días reales**, y una variación reparte ese total.
+- Casos reales de julio de 2026 (31 días naturales):
+  - **Adrián Domínguez**, de alta todo el mes con variación el 15 → 14 + **16** = 30 (base 30).
+  - **Sergio García Méndez**, alta el 13 con variación el 15 → 2 + **17** = 19 (días reales). Antes el segundo tramo daba 16 y se perdía un día.
+- **Implementación**: `dias_nomina(desde, hasta, p_mes_completo)` — el tercer parámetro dice si viene cubierta desde el día 1, y lo resuelve `tiene_alta_continua_desde_inicio_mes(personal_id, fecha, empresa_id)`, que comprueba que **no haya ningún hueco** entre el día 1 y el inicio del tramo. Se acota por empresa: dos altas en empresas distintas son dos nóminas y no se encadenan.
+- El criterio del hueco es lo que separa los dos casos: el tramo del 15 de Adrián viene precedido sin interrupción por el del 1–14; el de Sergio arranca de un alta del 13, con el 3–12 sin cobertura (aunque tenga otro periodo del 1 al 2).
+- **Se eliminó la firma `dias_nomina(date, date)`**: conservaba la lógica anterior y, conviviendo con la nueva de tres argumentos, cualquier llamada de dos habría ido a ella.
+- **Alcance**: 214 tramos de 158 personas a lo largo de 2026 recuperan 87 días en total. Los meses completos no cambian: verificado que Jaime, Ainhoa, la persona 1250 y el propio Adrián siguen idénticos.
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.

@@ -23,14 +23,18 @@
 -- CONVENCIONES:
 --   * Salario diario = salario_mensual / 30.
 --   * base = salario_mensual_puesto x (coeficiente/1000) x (dias_nomina / 30).
---   * DIAS DE NOMINA (dias_nomina): BASE 30 REAL. Un mes cuenta 30 dias aunque
---     tenga 28, 29 o 31, y si se parte en varios tramos por una variacion a
---     mitad de mes, los tramos SIGUEN SUMANDO 30 (14 + 16 en julio, no 14 + 17).
---     Un tramo que llega al ultimo dia del mes cuenta ese dia como el 30.
---     Confirmado contra la nomina real de Javier Cortavitarte de mayo de 2026
---     (31 dias naturales, pagados como "30,00 x 40,700 = 1.221,00") y contra el
---     reparto de Adrian Dominguez en julio de 2026 (14 + 16). Antes se usaba
---     (fecha_hasta - fecha_desde + 1) y los meses de 31 dias cobraban 31/30.
+--   * DIAS DE NOMINA (dias_nomina): BASE 30 cuando la persona tiene el mes
+--     cubierto desde el dia 1, y DIAS REALES cuando entra con el mes empezado.
+--       - Mes cubierto: cuenta 30 aunque tenga 28, 29 o 31, y si se parte por una
+--         variacion los tramos SIGUEN SUMANDO 30 (Adrian Dominguez, julio 2026:
+--         14 + 16, no 14 + 17).
+--       - Alta a mitad de mes: se cuentan sus dias reales de trabajo, y la
+--         variacion reparte ese total (Sergio Garcia Mendez, alta el 13 de julio:
+--         19 dias = 2 + 17).
+--     Lo decide tiene_alta_continua_desde_inicio_mes, que mira si viene de alta
+--     sin interrupcion desde el dia 1. Confirmado tambien contra la nomina real
+--     de Javier Cortavitarte de mayo de 2026 (31 dias naturales pagados como
+--     "30,00 x 40,700 = 1.221,00").
 --   * Ventana = interseccion del periodo del historial con [desde, hasta]. Los
 --     contratos indefinidos (fecha_baja null) exigen pasar el rango.
 --   * DIAS EFECTIVAMENTE TRABAJADOS: dias distintos con registros de situacion
@@ -105,41 +109,88 @@
 
 drop function if exists public.calcular_nomina(bigint, date, date);
 drop function if exists public.calcular_nomina_devengos(bigint, date, date);
+-- La firma de 2 argumentos conservaba la logica anterior (siempre base 30) y,
+-- conviviendo con la nueva de 3, cualquier llamada de 2 argumentos habria ido a
+-- ella en vez de a la que respeta el alta a mitad de mes.
+drop function if exists public.dias_nomina(date, date);
 
--- Dias a efectos de nomina, en BASE 30 REAL: un mes cuenta 30 dias aunque tenga
--- 28, 29 o 31, y cuando se parte en varios tramos (una variacion a mitad de mes)
--- los tramos siguen sumando 30, no los dias naturales.
+-- Esta la persona de alta SIN INTERRUPCION desde el dia 1 del mes hasta la
+-- vispera de p_fecha? De eso depende si su mes se cuenta en base 30 o por dias
+-- naturales. Con p_fecha el dia 1 devuelve true. Se acota por empresa cuando se
+-- indica: dos altas en empresas distintas son dos nominas y no se encadenan.
+create or replace function public.tiene_alta_continua_desde_inicio_mes(
+  p_personal_id integer,
+  p_fecha date,
+  p_empresa_id integer default null
+)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select not exists (
+    select 1
+    from generate_series(date_trunc('month', p_fecha)::date, p_fecha - 1, interval '1 day') d
+    where not exists (
+      select 1 from public.historiales_laborales h
+      where h.personal_id = p_personal_id
+        and (p_empresa_id is null or h.empresa_id = p_empresa_id)
+        and d::date >= h.fecha_alta
+        and (h.fecha_baja is null or d::date <= h.fecha_baja)
+    )
+  );
+$$;
+
+revoke all on function public.tiene_alta_continua_desde_inicio_mes(integer, date, integer) from public;
+grant execute on function public.tiene_alta_continua_desde_inicio_mes(integer, date, integer) to authenticated;
+
+-- Dias a efectos de nomina.
 --
--- La regla, por cada mes que toque el periodo:
---   * dia inicial = dia del mes en que arranca el tramo, topado a 30 (el 31 se
---     comporta como el 30, no como un dia que no existe).
---   * dia final = 30 si el tramo llega al ULTIMO dia del mes -- sea 28, 29, 30
---     o 31 --, y si no, el dia natural en que acaba.
---   * dias = dia final - dia inicial + 1.
+-- Un mes cuenta 30 dias cuando la persona lo tiene cubierto desde el dia 1, y los
+-- tramos que lo parten por una variacion siguen sumando 30. Pero si entra con el
+-- mes ya empezado se cuentan sus DIAS REALES, y la variacion reparte ese total.
 --
--- Caso real que lo motiva (Adrian Dominguez Fernandez, julio 2026): variacion el
--- dia 15, historial 5887 del 1 al 14 y 5906 desde el 15. Antes salian 14 + 17 =
--- 31 dias; ahora 14 + 16 = 30, como lo cuenta el programa de nominas. En febrero
--- el error era el contrario: del 15 al 28 daba 14, y con el primer tramo sumaba
--- 28 en vez de 30.
+-- Casos reales que fijan la regla (julio de 2026, 31 dias naturales):
+--   * Adrian Dominguez, de alta todo el mes con variacion el dia 15:
+--       1-14 -> 14 dias   15-31 -> 16 dias   TOTAL 30
+--   * Sergio Garcia Mendez, alta el dia 13 con variacion el dia 15:
+--       13-14 -> 2 dias   15-31 -> 17 dias   TOTAL 19 (dias reales)
 --
--- Un mes natural completo sigue dando 30 (dia 1 -> dia 30), asi que los calculos
--- de un mes entero no cambian. Confirmado tambien contra la nomina real de mayo
--- de 2026, que paga "30,00 x 40,700" en un mes de 31 dias.
-create or replace function public.dias_nomina(p_desde date, p_hasta date)
+-- p_mes_completo dice si la persona viene cubierta desde el dia 1 del mes. Lo
+-- resuelve quien llama con tiene_alta_continua_desde_inicio_mes; por defecto
+-- true, que es el comportamiento de un mes normal.
+create or replace function public.dias_nomina(
+  p_desde date,
+  p_hasta date,
+  p_mes_completo boolean default true
+)
 returns integer
 language sql
 immutable
 set search_path = public
 as $$
-  select coalesce(sum(greatest(t.dia_fin - t.dia_ini + 1, 0))::integer, 0)
+  select coalesce(sum(
+    case
+      -- El tramo llega al ultimo dia del mes.
+      when t.tramo_fin = t.fin_mes then
+        case
+          -- Mes cubierto desde el dia 1: base 30, el ultimo dia vale como el 30.
+          when t.tramo_ini = t.ini_mes or p_mes_completo
+            then 30 - least(extract(day from t.tramo_ini)::integer, 30) + 1
+          -- Entro con el mes empezado: dias reales hasta fin de mes.
+          else extract(day from t.fin_mes)::integer
+               - extract(day from t.tramo_ini)::integer + 1
+        end
+      -- No llega a fin de mes: dias naturales del tramo.
+      else extract(day from t.tramo_fin)::integer
+           - extract(day from t.tramo_ini)::integer + 1
+    end
+  )::integer, 0)
   from (
-    select
-      least(extract(day from greatest(p_desde, m.ini))::integer, 30) as dia_ini,
-      case
-        when least(p_hasta, m.fin) = m.fin then 30
-        else extract(day from least(p_hasta, m.fin))::integer
-      end as dia_fin
+    select greatest(p_desde, m.ini) as tramo_ini,
+           least(p_hasta, m.fin) as tramo_fin,
+           m.ini as ini_mes, m.fin as fin_mes
     from (
       select d::date as ini,
              (d + interval '1 month' - interval '1 day')::date as fin
@@ -153,8 +204,8 @@ as $$
   ) t;
 $$;
 
-revoke all on function public.dias_nomina(date, date) from public;
-grant execute on function public.dias_nomina(date, date) to authenticated;
+revoke all on function public.dias_nomina(date, date, boolean) from public;
+grant execute on function public.dias_nomina(date, date, boolean) to authenticated;
 
 -- Horas que "tocaba" trabajar en el periodo segun la jornada semanal del
 -- contrato. Por cada mes natural que toque el periodo:
@@ -295,7 +346,8 @@ begin
   if v_hasta < v_desde then return; end if;
 
   v_fecha_ref := v_desde;
-  v_dias := public.dias_nomina(v_desde, v_hasta);
+  v_dias := public.dias_nomina(v_desde, v_hasta,
+    public.tiene_alta_continua_desde_inicio_mes(h.personal_id, v_desde, h.empresa_id));
   v_coef := coalesce(h.coeficiente_temporalidad_miles, 1000) / 1000.0;
 
   -- Ajuste de jornada: si p_ajuste_jornada trae valor se fuerza; si viene vacio
