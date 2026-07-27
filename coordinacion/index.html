@@ -25,8 +25,8 @@
     </style>
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
-    <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-2" />
-    <link rel="stylesheet" href="./styles.css?v=20260727-4" />
+    <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
+    <link rel="stylesheet" href="./styles.css?v=20260727-7" />
   </head>
   <body>
     <script>
@@ -5695,7 +5695,7 @@
               </button>
             </div>
 
-            <form id="activity-form" class="activity-form side-panel-form">
+            <form id="activity-form" class="activity-form side-panel-form" novalidate>
               <label>
                 Personal
                 <select id="activity-personal" name="personal_id" required>
@@ -5766,6 +5766,11 @@
                 </select>
               </label>
 
+              <label class="checkbox-field">
+                <input name="activo" type="checkbox" checked />
+                Actividad activa
+              </label>
+
               <fieldset class="weekday-fieldset">
                 <legend>Dias y horario personalizado (opcional)</legend>
                 <div class="weekday-schedule-heading"><span>Dia</span><span>Inicio</span><span>Fin</span></div>
@@ -5819,27 +5824,17 @@
           </aside>
 
           <div class="activities-list-section">
-            <form id="activities-filters-form" class="filters-grid activities-filters-grid">
-              <label class="filter-field">
+            <form id="activities-filters-form" class="filters-grid records-filters-grid records-filters-compact activities-filters-grid">
+              <label class="filter-field records-contrato-field">
                 Contratos
-                <div class="filter-control-row">
-                  <select
-                    id="filter-activity-contrato"
-                    name="contrato_id"
-                    multiple
-                    size="4"
-                    aria-label="Filtrar por contratos"
-                  ></select>
-                  <button
-                    type="button"
-                    class="filter-reset-button"
-                    data-reset-filter="contrato_id"
-                    aria-label="Restablecer contrato"
-                    title="Restablecer"
-                  >
-                    x
-                  </button>
-                </div>
+                <select
+                  id="filter-activity-contrato"
+                  name="contrato_id"
+                  multiple
+                  size="4"
+                  aria-label="Filtrar por contratos"
+                  data-multi-check-selected-label="contratos seleccionados"
+                ></select>
               </label>
 
               <label class="filter-field">
@@ -5854,9 +5849,7 @@
                     data-reset-filter="servicio_id"
                     aria-label="Restablecer servicio"
                     title="Restablecer"
-                  >
-                    x
-                  </button>
+                  >&times;</button>
                 </div>
               </label>
 
@@ -5872,9 +5865,7 @@
                     data-reset-filter="puesto_id"
                     aria-label="Restablecer puesto"
                     title="Restablecer"
-                  >
-                    x
-                  </button>
+                  >&times;</button>
                 </div>
               </label>
 
@@ -5921,11 +5912,61 @@
                     data-reset-filter="instalacion_id"
                     aria-label="Restablecer instalacion"
                     title="Restablecer"
-                  >
-                    x
-                  </button>
+                  >&times;</button>
                 </div>
               </label>
+
+              <label class="filter-field">
+                Activo
+                <div class="filter-control-row">
+                  <select id="filter-activity-activo" name="activo">
+                    <option value="">Todos</option>
+                    <option value="true">Sí</option>
+                    <option value="false">No</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="filter-reset-button"
+                    data-reset-filter="activo"
+                    aria-label="Restablecer activo"
+                    title="Restablecer"
+                  >&times;</button>
+                </div>
+              </label>
+
+              <label class="filter-field">
+                Fecha desde
+                <div class="filter-control-row">
+                  <input id="filter-activity-date-from" name="date_from" type="date" />
+                  <button
+                    type="button"
+                    class="filter-reset-button"
+                    data-reset-filter="date_from"
+                    aria-label="Restablecer fecha desde"
+                    title="Restablecer"
+                  >&times;</button>
+                </div>
+              </label>
+
+              <label class="filter-field">
+                Fecha hasta
+                <div class="filter-control-row">
+                  <input id="filter-activity-date-to" name="date_to" type="date" />
+                  <button
+                    type="button"
+                    class="filter-reset-button"
+                    data-reset-filter="date_to"
+                    aria-label="Restablecer fecha hasta"
+                    title="Restablecer"
+                  >&times;</button>
+                </div>
+              </label>
+
+              <div class="filter-actions">
+                <button id="clear-activities-filters-button" type="button" class="secondary-button">
+                  Limpiar
+                </button>
+              </div>
 
             </form>
 
@@ -5997,6 +6038,7 @@
                     <option value="modalidad_id">Modalidad</option>
                     <option value="situacion_id">Situación</option>
                     <option value="tipo_hora_id">Tipo de hora</option>
+                    <option value="activo">Activo</option>
                     <option value="observaciones">Observaciones</option>
                   </select>
                 </label>
@@ -6068,17 +6110,17 @@
                         aria-label="Seleccionar todas las actividades filtradas"
                       />
                     </th>
-                    <th>
+                    <th class="activity-personal-column">
                       <button class="sort-button" type="button" data-activity-sort-field="personal">
                         Personal
                       </button>
                     </th>
-                    <th>
+                    <th class="activity-installation-column">
                       <button class="sort-button" type="button" data-activity-sort-field="instalacion">
                         Instalacion
                       </button>
                     </th>
-                    <th>
+                    <th class="activity-position-column">
                       <div class="stacked-sort-buttons">
                         <button class="sort-button" type="button" data-activity-sort-field="puesto">
                           Puesto
@@ -6088,12 +6130,12 @@
                         </button>
                       </div>
                     </th>
-                    <th>
+                    <th class="activity-dates-column">
                       <button class="sort-button" type="button" data-activity-sort-field="fechas">
                         Fechas
                       </button>
                     </th>
-                    <th>
+                    <th class="activity-schedule-column">
                       <button class="sort-button" type="button" data-activity-sort-field="horario">
                         Horario
                       </button>
@@ -6154,7 +6196,7 @@
               </div>
             </div>
 
-            <form id="activity-edit-form" class="activity-form side-panel-form">
+            <form id="activity-edit-form" class="activity-form side-panel-form" novalidate>
               <input id="edit-activity-id" name="id" type="hidden" />
 
               <label>
@@ -6225,6 +6267,11 @@
                 <select id="edit-activity-tipo-hora" name="tipo_hora_id" required>
                   <option value="">Seleccionar tipo de hora</option>
                 </select>
+              </label>
+
+              <label class="checkbox-field">
+                <input name="activo" type="checkbox" />
+                Actividad activa
               </label>
 
               <fieldset class="weekday-fieldset">
@@ -7815,7 +7862,7 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260727-3" defer></script>
+    <script src="./concilia-integrated.js?v=20260727-7" defer></script>
     <script src="./app.js?v=20260727-6" defer></script>
   </body>
 </html>

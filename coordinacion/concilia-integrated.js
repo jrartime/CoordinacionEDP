@@ -199,6 +199,9 @@
   const filterActivityPersonalClear = document.querySelector("[data-activity-personal-clear]");
   const filterActivityPersonalToggle = document.querySelector("[data-activity-personal-toggle]");
   const filterActivityInstalacion = document.querySelector("#filter-activity-instalacion");
+  const filterActivityActivo = document.querySelector("#filter-activity-activo");
+  const filterActivityDateFrom = document.querySelector("#filter-activity-date-from");
+  const filterActivityDateTo = document.querySelector("#filter-activity-date-to");
   const clearActivitiesFiltersButton = document.querySelector("#clear-activities-filters-button");
   const activitiesHistorialZone = document.querySelector("#activities-historial-zone");
   const activitiesHistorialPerson = document.querySelector("#activities-historial-person");
@@ -472,6 +475,7 @@
     modalidad_id: { label: "Modalidad", type: "select", source: "modalidad", nullable: true },
     situacion_id: { label: "Situación", type: "select", source: "situacion" },
     tipo_hora_id: { label: "Tipo de hora", type: "select", source: "tipo_hora" },
+    activo: { label: "Activo", type: "boolean" },
     observaciones: { label: "Observaciones", type: "text" },
   };
 
@@ -1620,6 +1624,9 @@
       puesto: String(filterActivityPuesto.value || ""),
       personal: filterActivityPersonal.value.trim(),
       instalacion: String(filterActivityInstalacion.value || ""),
+      activo: String(filterActivityActivo?.value || ""),
+      dateFrom: String(filterActivityDateFrom?.value || ""),
+      dateTo: String(filterActivityDateTo?.value || ""),
     };
   }
 
@@ -1727,8 +1734,31 @@
       excludedFilter === "instalacion" ||
       !filters.instalacion ||
       matchesNullable(activity.instalacion_id, filters.instalacion);
+    const matchesActivo =
+      excludedFilter === "activo" ||
+      !filters.activo ||
+      Boolean(activity.activo) === (filters.activo === "true");
+    // El intervalo filtra por solape: incluye cualquier actividad vigente al
+    // menos un día dentro de las fechas indicadas.
+    const matchesDateFrom =
+      excludedFilter === "dateFrom" ||
+      !filters.dateFrom ||
+      String(activity.fecha_fin || "") >= filters.dateFrom;
+    const matchesDateTo =
+      excludedFilter === "dateTo" ||
+      !filters.dateTo ||
+      String(activity.fecha_inicio || "") <= filters.dateTo;
 
-    return matchesContrato && matchesServicio && matchesPuesto && matchesPersonal && matchesInstalacion;
+    return (
+      matchesContrato &&
+      matchesServicio &&
+      matchesPuesto &&
+      matchesPersonal &&
+      matchesInstalacion &&
+      matchesActivo &&
+      matchesDateFrom &&
+      matchesDateTo
+    );
   }
 
   function getActivityRowsForFilterOptions(excludedFilter) {
@@ -2578,6 +2608,27 @@
     );
   }
 
+  function clearActivityValidationError(form) {
+    form?.querySelector(".activity-form-validation")?.remove();
+  }
+
+  function showActivityValidationError(form, message, control = null) {
+    clearActivityValidationError(form);
+    const validation = document.createElement("p");
+    validation.className = "activity-form-validation";
+    validation.setAttribute("role", "alert");
+    validation.textContent = `No se puede guardar: ${message}`;
+    const actions = form?.querySelector(".activity-actions");
+    if (actions) {
+      form.insertBefore(validation, actions);
+    } else {
+      form?.appendChild(validation);
+    }
+    setStatus(message, "error");
+    control?.focus?.();
+    control?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }
+
   function setSelectedWeekdays(form, days) {
     const selected = new Set((days ?? []).map((day) => String(day)));
     form.querySelectorAll('input[name="dias_semana"]').forEach((input) => {
@@ -2593,11 +2644,19 @@
       const end = form.querySelector(`[data-weekday-end="${day}"]`)?.value || "";
       if (!selected.has(day)) continue;
       if (Boolean(start) !== Boolean(end)) {
-        setStatus("Completa la hora de inicio y fin del horario personalizado.", "error");
+        showActivityValidationError(
+          form,
+          "completa la hora de inicio y fin del horario personalizado.",
+          start ? form.querySelector(`[data-weekday-end="${day}"]`) : form.querySelector(`[data-weekday-start="${day}"]`)
+        );
         return null;
       }
       if (start && start === end) {
-        setStatus("El inicio y el fin del horario personalizado no pueden ser iguales.", "error");
+        showActivityValidationError(
+          form,
+          "el inicio y el fin del horario personalizado no pueden ser iguales.",
+          form.querySelector(`[data-weekday-end="${day}"]`)
+        );
         return null;
       }
       if (start && end) {
@@ -2677,6 +2736,7 @@
   }
 
   function getActivityPayload(form) {
+    clearActivityValidationError(form);
     const formData = new FormData(form);
     const fechaInicio = String(formData.get("fecha_inicio") || "");
     const fechaFin = String(formData.get("fecha_fin") || "");
@@ -2684,13 +2744,37 @@
     const horaFin = String(formData.get("hora_fin") || "");
     const diasSemana = getSelectedWeekdays(form);
 
+    const requiredFields = [
+      ["personal_id", "selecciona una persona."],
+      ["empresa_id", "selecciona una empresa."],
+      ["contrato_id", "selecciona un contrato."],
+      ["servicio_id", "selecciona un servicio."],
+      ["instalacion_id", "selecciona una instalación."],
+      ["puesto_id", "selecciona un puesto."],
+      ["situacion_id", "selecciona una situación."],
+      ["tipo_hora_id", "selecciona un tipo de hora."],
+      ["fecha_inicio", "indica la fecha de inicio."],
+      ["fecha_fin", "indica la fecha de fin."],
+      ["hora_inicio", "indica la hora de inicio general."],
+      ["hora_fin", "indica la hora de fin general."],
+    ];
+    const missingField = requiredFields.find(([name]) => !String(formData.get(name) || "").trim());
+    if (missingField) {
+      showActivityValidationError(form, missingField[1], form.elements[missingField[0]]);
+      return null;
+    }
+
     if (!diasSemana.length) {
-      setStatus("Selecciona al menos un dia de la semana.", "error");
+      showActivityValidationError(
+        form,
+        "selecciona al menos un día de la semana.",
+        form.querySelector('input[name="dias_semana"]')
+      );
       return null;
     }
 
     if (!formData.get("servicio_id")) {
-      setStatus("Selecciona un servicio para la actividad.", "error");
+      showActivityValidationError(form, "selecciona un servicio para la actividad.", form.elements.servicio_id);
       return null;
     }
 
@@ -2714,12 +2798,20 @@
       !selectedService ||
       String(selectedService.contrato_id) !== String(formData.get("contrato_id"))
     ) {
-      setStatus("El servicio seleccionado no pertenece al contrato de la actividad.", "error");
+      showActivityValidationError(
+        form,
+        "el servicio seleccionado no pertenece al contrato de la actividad.",
+        form.elements.servicio_id
+      );
       return null;
     }
 
     if (!isEndAfterStart(fechaInicio, fechaFin, horaInicio, horaFin)) {
-      setStatus("La fecha y hora de fin deben ser posteriores al inicio.", "error");
+      showActivityValidationError(
+        form,
+        "la fecha y hora de fin deben ser posteriores al inicio.",
+        form.elements.fecha_fin
+      );
       return null;
     }
 
@@ -2734,6 +2826,7 @@
       modalidad_id: formData.get("modalidad_id") ? Number(formData.get("modalidad_id")) : null,
       situacion_id: Number(formData.get("situacion_id")),
       tipo_hora_id: Number(formData.get("tipo_hora_id")),
+      activo: Boolean(form.elements.activo?.checked),
       dias_semana: diasSemana,
       horarios_personalizados: horariosPersonalizados,
       fecha_inicio: fechaInicio,
@@ -2754,7 +2847,7 @@
       const { data, error } = await supabase
         .from("actividades_detalle")
         .select(
-          "id,personal_id,personal,contrato_id,contrato,servicio_id,servicio,empresa_id,empresa,instalacion_id,instalacion,puesto_id,puesto,funcion_id,funcion,modalidad_id,modalidad,situacion_id,situacion,tipo_hora_id,tipo_hora,dias_semana,horarios_personalizados,fecha_inicio,fecha_fin,hora_inicio,hora_fin,observaciones,personal_asignado_actualmente,personal_asignacion_estado,instalacion_asignada_actualmente,instalacion_asignacion_estado,updated_at"
+          "id,personal_id,personal,contrato_id,contrato,servicio_id,servicio,empresa_id,empresa,instalacion_id,instalacion,puesto_id,puesto,funcion_id,funcion,modalidad_id,modalidad,situacion_id,situacion,tipo_hora_id,tipo_hora,activo,dias_semana,horarios_personalizados,fecha_inicio,fecha_fin,hora_inicio,hora_fin,observaciones,personal_asignado_actualmente,personal_asignacion_estado,instalacion_asignada_actualmente,instalacion_asignacion_estado,updated_at"
         )
         .order("fecha_inicio", { ascending: false })
         .order("hora_inicio", { ascending: true });
@@ -2837,24 +2930,24 @@
                   </td>`
                 : ""
             }
-            <td>${escapeHtml(activity.personal)}${renderActivityAssignmentState(
+            <td class="activity-personal-column">${escapeHtml(activity.personal)}${renderActivityAssignmentState(
               activity.personal_asignado_actualmente,
               activity.personal_asignacion_estado
             )}</td>
-            <td>${escapeHtml(activity.instalacion)}${renderActivityAssignmentState(
+            <td class="activity-installation-column">${escapeHtml(activity.instalacion)}${renderActivityAssignmentState(
               activity.instalacion_asignada_actualmente,
               activity.instalacion_asignacion_estado
             )}</td>
-            <td>
+            <td class="activity-position-column">
               ${escapeHtml(activity.puesto)}
               <br />
               <span class="muted-text">${escapeHtml(activity.funcion || "")}</span>
             </td>
-            <td>
+            <td class="activity-dates-column">
               ${escapeHtml(formatDate(activity.fecha_inicio))}<br />
               <span class="muted-text">${escapeHtml(formatDate(activity.fecha_fin))}</span>
             </td>
-            <td>
+            <td class="activity-schedule-column">
               ${escapeHtml(formatActivityScheduleSummary(activity))}<br />
               <span class="muted-text">${escapeHtml(formatWeekdays(activity.dias_semana))}</span>
             </td>
@@ -5059,6 +5152,7 @@
     activityEditForm.elements.hora_inicio.value = formatTime(activity.hora_inicio);
     activityEditForm.elements.hora_fin.value = formatTime(activity.hora_fin);
     activityEditForm.elements.observaciones.value = activity.observaciones || "";
+    activityEditForm.elements.activo.checked = activity.activo !== false;
     setSelectedWeekdays(activityEditForm, activity.dias_semana);
     setActivityCustomSchedules(activityEditForm, activity.horarios_personalizados);
     activityEditTitle.textContent = activity.personal || "Actividad seleccionada";
@@ -5084,6 +5178,7 @@
       return false;
     }
     activityEditForm.reset();
+    clearActivityValidationError(activityEditForm);
     editActivityId.value = "";
     activityEditPanel.classList.add("hidden");
     activityEditPanelBackdrop.classList.add("hidden");
@@ -5107,6 +5202,7 @@
     }
     activityCreatePanel.classList.add("hidden");
     activityPanelBackdrop.classList.add("hidden");
+    clearActivityValidationError(activityForm);
     markConciliaPristine(activityForm);
     return true;
   }
@@ -5133,6 +5229,7 @@
     activityForm.elements.hora_inicio.value = activityEditForm.elements.hora_inicio.value;
     activityForm.elements.hora_fin.value = activityEditForm.elements.hora_fin.value;
     activityForm.elements.observaciones.value = activityEditForm.elements.observaciones.value;
+    activityForm.elements.activo.checked = activityEditForm.elements.activo.checked;
     setSelectedWeekdays(activityForm, getSelectedWeekdays(activityEditForm));
     setActivityCustomSchedules(
       activityForm,
@@ -7446,6 +7543,7 @@
     activityForm.addEventListener("submit", (event) => {
       void handleActivitySubmit(event);
     });
+    activityForm.addEventListener("input", () => clearActivityValidationError(activityForm));
     activityContrato?.addEventListener("change", () => {
       renderActivityServiceOptions(activityServicio, activityContrato.value, "");
       renderActivityContractScopedOptions(activityForm);
@@ -7456,6 +7554,7 @@
     });
     clearActivityFormButton.addEventListener("click", () => {
       activityForm.reset();
+      clearActivityValidationError(activityForm);
       renderActivityServiceOptions(activityServicio, "");
       renderActivityContractScopedOptions(activityForm);
       applyActivityFormDefaults();
@@ -7671,6 +7770,9 @@
     activityEditForm.addEventListener("submit", (event) => {
       void handleActivityEditSubmit(event);
     });
+    activityEditForm.addEventListener("input", () =>
+      clearActivityValidationError(activityEditForm)
+    );
     cancelActivityEditButton.addEventListener("click", closeActivityEdit);
     activityEditPanelBackdrop.addEventListener("click", closeActivityEdit);
     generateActivityRecordsButton?.addEventListener("click", () => {

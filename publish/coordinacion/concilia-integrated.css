@@ -1070,10 +1070,30 @@ td {
   line-height: 1.25;
 }
 
+#activity-form .checkbox-field input[type="checkbox"],
+#activity-edit-form .checkbox-field input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  min-height: 15px;
+  padding: 0;
+}
+
 .weekday-fieldset,
 .activity-notes-field,
+.activity-form-validation,
 .activity-actions {
   grid-column: 1 / -1;
+}
+
+.activity-form-validation {
+  margin: 2px 0;
+  padding: 8px 10px;
+  border: 1px solid #e2a4a4;
+  border-radius: 8px;
+  color: #842626;
+  background: #fff0f0;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .checkbox-field {
@@ -1198,18 +1218,20 @@ td {
   overflow-wrap: anywhere;
 }
 
-.activities-table th:first-child,
-.activities-table td:first-child {
-  width: 18%;
+.activities-table .activity-personal-column {
+  width: 15%;
 }
 
-.activities-table th:nth-child(4),
-.activities-table td:nth-child(4) {
-  width: 132px;
+.activities-table .activity-installation-column {
+  width: 16%;
 }
 
-.activities-table th:nth-child(5),
-.activities-table td:nth-child(5) {
+.activities-table .activity-position-column {
+  width: 25%;
+}
+
+.activities-table .activity-dates-column,
+.activities-table .activity-schedule-column {
   width: 132px;
 }
 

@@ -10,6 +10,7 @@ create table if not exists public.actividades (
   modalidad_id integer references public.modalidades (id),
   situacion_id integer not null references public.situaciones (id),
   tipo_hora_id integer not null references public.tipo_horas (id),
+  activo boolean not null default true,
   dias_semana integer[] not null default '{}',
   horarios_personalizados jsonb not null default '{}'::jsonb,
   fecha_inicio date not null,
@@ -43,6 +44,9 @@ create table if not exists public.actividades (
 
 alter table public.actividades
 add column if not exists servicio_id bigint references public.servicios (id);
+
+alter table public.actividades
+add column if not exists activo boolean not null default true;
 
 alter table public.actividades
 add column if not exists funcion_id integer;
@@ -238,6 +242,7 @@ select
   s.situacion,
   a.tipo_hora_id,
   th.tipo_hora,
+  a.activo,
   a.dias_semana,
   a.horarios_personalizados,
   a.fecha_inicio,

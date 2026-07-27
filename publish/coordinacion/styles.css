@@ -2208,6 +2208,55 @@ button.tag-chip.warm-button:hover {
   grid-template-columns: 155px 155px 250px 150px 120px 110px minmax(120px, 1fr) auto;
 }
 
+/* Actividades reutiliza las mismas métricas tipográficas y de control que
+   Registros, adaptando la rejilla a sus filtros. */
+#module-panel-actividades #activities-filters-form.records-filters-compact {
+  grid-template-columns:
+    185px 125px 110px minmax(150px, 1fr) 125px 80px
+    115px 115px auto;
+  gap: 3px 6px;
+}
+
+#module-panel-actividades .records-filters-compact label,
+#module-panel-actividades .records-filters-compact .filter-field {
+  gap: 1px;
+  font-size: 0.72rem;
+}
+
+#module-panel-actividades .records-filters-compact .filter-field input,
+#module-panel-actividades .records-filters-compact .filter-field select,
+#module-panel-actividades .records-filters-compact .filter-field textarea {
+  height: 28px;
+  padding: 3px 6px;
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
+#module-panel-actividades .records-filters-compact .filter-actions {
+  align-self: end;
+}
+
+#module-panel-actividades .records-filters-compact .filter-actions button {
+  height: 28px;
+  padding: 3px 10px;
+  font-size: 0.72rem;
+}
+
+#module-panel-actividades .records-filters-compact .multi-check-option input {
+  height: auto;
+  padding: 0;
+  line-height: normal;
+}
+
+#activities-filters-form .filter-control-row > input[type="date"] {
+  padding-right: 38px;
+}
+
+#activities-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button {
+  right: 20px;
+  width: 16px;
+}
+
 /* Historial laboral: fechas algo más anchas (alta desde/alta hasta y baja
    hasta/baja desde apiladas), estados estrechos como "Enviado" y personal ancho. */
 .private-tab-panel #historial-filters-form.records-filters-compact {
