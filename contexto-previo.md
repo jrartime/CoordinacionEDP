@@ -255,6 +255,14 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Se eliminó la firma `dias_nomina(date, date)`**: conservaba la lógica anterior y, conviviendo con la nueva de tres argumentos, cualquier llamada de dos habría ido a ella.
 - **Alcance**: 214 tramos de 158 personas a lo largo de 2026 recuperan 87 días en total. Los meses completos no cambian: verificado que Jaime, Ainhoa, la persona 1250 y el propio Adrián siguen idénticos.
 
+## 19. Seguimiento visual de nóminas en Gestión (27/07/2026)
+
+- La tabla **Historiales laborales solapados** incorpora el estado de nómina de cada periodo mediante el enlace persistente `nomina_historiales.historial_id`; no intenta deducirlo por nombre, puesto o importes.
+- La cobertura se calcula sobre el tramo efectivo del historial dentro del filtro de Gestión y fusiona los intervalos de todas sus nóminas vigentes: **Realizada** si no quedan huecos, **Parcial** si solo cubren una parte y **Pendiente** si no hay ninguna. Las nóminas anuladas quedan fuera.
+- Presentación: realizadas en amarillo fosforito, parciales en amarillo suave y pendientes en rojo suave. El contador resume los tres estados y el tooltip indica ids, periodos y fecha de emisión.
+- La consulta es solo para administradores, igual que las RLS de nóminas. Si no hay acceso o falla el cruce, la tabla conserva su funcionamiento habitual y no muestra estados engañosos.
+- El panel de cálculo también avisa de **horas en puestos sin historial coincidente**: HCOMP/MONT con alta se pagan a la tarifa del puesto; horas normales o registros sin ningún alta quedan señalados para revisión.
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.

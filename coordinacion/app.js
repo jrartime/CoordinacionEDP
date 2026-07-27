@@ -17401,6 +17401,8 @@ const GESTION_EMPRESA_POR_DEFECTO = "EDP";
 let gestionEmpresasLoaded = false;
 let gestionHistorialRows = [];
 let gestionDetailRecordRows = [];
+let gestionNominasPorHistorial = new Map();
+let gestionCoberturaNominasDisponible = false;
 
 async function loadGestionEmpresaOptions() {
   if (gestionEmpresasLoaded || !gestionFilterEmpresa) {
@@ -17671,17 +17673,74 @@ function renderGestionPersonalOptions(rows) {
   return map.size;
 }
 
-function renderGestionHistorial(rows) {
+function addGestionIsoDay(value) {
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function getGestionHistorialNominaStatus(row, desde, hasta) {
+  if (!gestionCoberturaNominasDisponible) return null;
+  const nominas = gestionNominasPorHistorial.get(String(row.id)) || [];
+  if (!nominas.length) {
+    return { key: "pendiente", label: "Pendiente", title: "Sin nómina emitida para este periodo" };
+  }
+
+  const inicio = String(row.fecha_alta || desde) > desde ? String(row.fecha_alta) : desde;
+  const finHistorial = row.fecha_baja || hasta;
+  const fin = String(finHistorial) < hasta ? String(finHistorial) : hasta;
+  const intervalos = nominas
+    .map((nomina) => ({
+      inicio: String(nomina.periodo_desde) > inicio ? String(nomina.periodo_desde) : inicio,
+      fin: String(nomina.periodo_hasta) < fin ? String(nomina.periodo_hasta) : fin,
+    }))
+    .filter((intervalo) => intervalo.inicio <= intervalo.fin)
+    .sort((left, right) => left.inicio.localeCompare(right.inicio));
+
+  let cursor = inicio;
+  let completa = false;
+  for (const intervalo of intervalos) {
+    if (intervalo.inicio > cursor) break;
+    if (intervalo.fin >= fin) {
+      completa = true;
+      break;
+    }
+    if (intervalo.fin >= cursor) cursor = addGestionIsoDay(intervalo.fin);
+  }
+
+  const detalle = nominas
+    .map(
+      (nomina) =>
+        `#${nomina.id} (${formatGestionDate(nomina.periodo_desde)}–${formatGestionDate(
+          nomina.periodo_hasta
+        )}${nomina.emitida_en ? `, emitida ${formatGestionDate(nomina.emitida_en)}` : ""})`
+    )
+    .join(", ");
+  return completa
+    ? { key: "realizada", label: "Realizada", title: `Nómina emitida: ${detalle}` }
+    : { key: "parcial", label: "Parcial", title: `Cobertura incompleta: ${detalle}` };
+}
+
+function renderGestionHistorial(rows, desde = "", hasta = "") {
   gestionHistorialRows = rows;
   if (gestionHistorialCount) {
-    gestionHistorialCount.textContent = `${rows.length} ${rows.length === 1 ? "periodo" : "periodos"}`;
+    if (gestionCoberturaNominasDisponible && desde && hasta) {
+      const estados = rows.map((row) => getGestionHistorialNominaStatus(row, desde, hasta));
+      const realizadas = estados.filter((estado) => estado?.key === "realizada").length;
+      const parciales = estados.filter((estado) => estado?.key === "parcial").length;
+      const pendientes = estados.filter((estado) => estado?.key === "pendiente").length;
+      gestionHistorialCount.textContent =
+        `${realizadas} realizadas · ${parciales} parciales · ${pendientes} pendientes`;
+    } else {
+      gestionHistorialCount.textContent = `${rows.length} ${rows.length === 1 ? "periodo" : "periodos"}`;
+    }
   }
   if (!gestionHistorialTableBody) {
     return;
   }
   if (!rows.length) {
     gestionHistorialTableBody.innerHTML =
-      '<tr><td colspan="6" class="empty-state">Sin historiales en el intervalo.</td></tr>';
+      '<tr><td colspan="7" class="empty-state">Sin historiales en el intervalo.</td></tr>';
     return;
   }
 
@@ -17709,13 +17768,20 @@ function renderGestionHistorial(rows) {
       const personalCell = row.personal_id != null
         ? `<button type="button" class="row-name-button" data-gestion-filter-personal="${escapeHtml(row.personal_id)}" data-gestion-personal-label="${escapeHtml(personalLabel)}" title="Filtrar Gestión por esta persona">${escapeHtml(personalLabel)}</button>`
         : escapeHtml(personalLabel);
-      return `<tr>
+      const estadoNomina = getGestionHistorialNominaStatus(row, desde, hasta);
+      const estadoCell = estadoNomina
+        ? `<span class="gestion-nomina-estado gestion-nomina-estado-${estadoNomina.key}" title="${escapeHtml(
+            estadoNomina.title
+          )}">${escapeHtml(estadoNomina.label)}</span>`
+        : "—";
+      return `<tr class="${estadoNomina ? `gestion-historial-nomina-${estadoNomina.key}` : ""}">
         <td class="records-row-actions">${editCell}</td>
         <td>${personalCell}</td>
         <td>${escapeHtml(formatGestionDate(row.fecha_alta))}</td>
         <td>${escapeHtml(formatGestionDate(row.fecha_baja) || "—")}</td>
         <td class="num">${escapeHtml(jornadaLabel)}</td>
         <td class="num">${escapeHtml(coef)}</td>
+        <td>${estadoCell}</td>
       </tr>`;
     })
     .join("");
@@ -17835,6 +17901,8 @@ function renderGestionRegistros(rows) {
 }
 
 function renderGestionEmpty(message) {
+  gestionNominasPorHistorial = new Map();
+  gestionCoberturaNominasDisponible = false;
   renderGestionPersonalOptions([]);
   renderGestionHistorial([]);
   renderGestionRegistros([]);
@@ -17966,6 +18034,65 @@ function renderGestionNominaSeparateNote(rows) {
     </div>`;
 }
 
+// Horas trabajadas en un puesto que la persona no tiene en su historial. Las
+// complementarias y de montaje ya las recoge el motor a la tarifa de ese puesto;
+// las normales NO se pagan solas (su jornada ya se cobra por el historial), así
+// que se avisa para poder corregir el puesto del registro o crear el historial.
+async function renderGestionNominaHuerfanas(personalId, desde, hasta) {
+  const hueco = gestionNominaList?.querySelector("[data-gestion-nomina-huerfanas]");
+  if (!hueco || !personalId || !desde || !hasta) {
+    return;
+  }
+  try {
+    const { empresaId } = getGestionFilters();
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("get_horas_sin_historial", {
+      p_personal_id: Number(personalId),
+      p_desde: desde,
+      p_hasta: hasta,
+      p_empresa_id: empresaId ? Number(empresaId) : null,
+      p_historial_ids: null,
+    });
+    if (error) throw error;
+    const filas = data || [];
+    if (!filas.length) {
+      return;
+    }
+    // El motor solo paga solas las complementarias y el montaje, y siempre que
+    // la persona tenga algún historial ese día.
+    const cobradas = filas.filter((row) => [2, 3].includes(Number(row.tipo_hora_id)) && !row.sin_ningun_historial);
+    const fuera = filas.filter((row) => !cobradas.includes(row));
+    const lista = (rows) =>
+      rows
+        .map(
+          (row) =>
+            `<li>${escapeHtml(formatGestionHoras(row.horas))} h de <strong>${escapeHtml(row.tipo_hora || "?")}</strong> como ${escapeHtml(row.puesto)}${row.sin_ningun_historial ? " <em>(sin ningún periodo de alta ese día)</em>" : ""}</li>`
+        )
+        .join("");
+
+    let html = "";
+    if (cobradas.length) {
+      html += `<div class="gestion-nomina-warning gestion-nomina-warning-info" role="status">
+        <p><strong>Horas en puestos que no están en su historial.</strong> Se pagan a la tarifa
+        del puesto donde se hicieron, porque son horas de otro servicio:</p>
+        <ul class="gestion-nomina-huerfanas-lista">${lista(cobradas)}</ul>
+      </div>`;
+    }
+    if (fuera.length) {
+      html += `<div class="gestion-nomina-warning" role="alert">
+        <p><strong>Horas que no entran en la nómina.</strong> Son horas normales en un puesto
+        que esta persona no tiene contratado, o de días sin ningún alta. No se pagan solas: su
+        jornada ya se cobra por el historial, y sumarlas sería pagarla dos veces.</p>
+        <ul class="gestion-nomina-huerfanas-lista">${lista(fuera)}</ul>
+        <p>Revisa si el puesto del registro es el correcto o si falta un periodo en el historial.</p>
+      </div>`;
+    }
+    hueco.innerHTML = html;
+  } catch (error) {
+    hueco.innerHTML = `<p class="muted-text">No se pudo comprobar si hay horas sin historial: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
 function getGestionNominaSelectedIds() {
   return Array.from(gestionNominaSelectedIds);
 }
@@ -18042,6 +18169,10 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
 
   gestionNominaList.innerHTML = renderGestionNominaOverlapWarning(applicable);
   gestionNominaList.innerHTML += renderGestionNominaSeparateNote(applicable);
+  // Aviso de horas en puestos que no están en el historial. Se pide aparte
+  // porque necesita consultar los registros; se inserta cuando llega.
+  gestionNominaList.innerHTML += '<div data-gestion-nomina-huerfanas></div>';
+  void renderGestionNominaHuerfanas(personalId, desde, hasta);
   gestionNominaList.innerHTML += applicable
     .map((row) => {
       const puesto = row.puesto || (row.puesto_id != null ? `Puesto ${row.puesto_id}` : "Sin puesto");
@@ -19744,6 +19875,47 @@ async function exportGestionNominaListadoPdf() {
   }
 }
 
+async function fetchGestionNominasPorHistorial(supabase, desde, hasta) {
+  if (!currentUserIsAccessAdmin) {
+    return { disponible: false, porHistorial: new Map() };
+  }
+  try {
+    const { data: nominas, error: nominasError } = await supabase
+      .from("nominas")
+      .select("id, periodo_desde, periodo_hasta, emitida_en")
+      .eq("estado", "emitida")
+      .lte("periodo_desde", hasta)
+      .gte("periodo_hasta", desde)
+      .limit(5000);
+    if (nominasError) throw nominasError;
+    const nominaRows = nominas || [];
+    if (!nominaRows.length) {
+      return { disponible: true, porHistorial: new Map() };
+    }
+
+    const nominaById = new Map(nominaRows.map((row) => [String(row.id), row]));
+    const { data: relaciones, error: relacionesError } = await supabase
+      .from("nomina_historiales")
+      .select("nomina_id, historial_id")
+      .in("nomina_id", nominaRows.map((row) => row.id))
+      .limit(10000);
+    if (relacionesError) throw relacionesError;
+
+    const porHistorial = new Map();
+    for (const relacion of relaciones || []) {
+      const nomina = nominaById.get(String(relacion.nomina_id));
+      if (!nomina) continue;
+      const key = String(relacion.historial_id);
+      if (!porHistorial.has(key)) porHistorial.set(key, []);
+      porHistorial.get(key).push(nomina);
+    }
+    return { disponible: true, porHistorial };
+  } catch (error) {
+    console.error("No se pudo cruzar el historial con las nóminas emitidas", error);
+    return { disponible: false, porHistorial: new Map() };
+  }
+}
+
 async function loadGestion() {
   await loadGestionEmpresaOptions();
   void loadGestionExtraCatalogo();
@@ -19784,6 +19956,11 @@ async function loadGestion() {
       p_personal_id: personalId ? Number(personalId) : null,
       p_empresa_id: empresaId ? Number(empresaId) : null,
     });
+    const nominasPorHistorialPromise = fetchGestionNominasPorHistorial(
+      supabase,
+      desde,
+      hasta
+    );
 
     let historialQuery = supabase
       .from(HISTORIAL_DETAIL_VIEW)
@@ -19806,11 +19983,12 @@ async function loadGestion() {
       historialQuery = historialQuery.eq("empresa_id", empresaId);
     }
 
-    const [personalRes, resumenRes, historialRes, teoricasRes] = await Promise.all([
+    const [personalRes, resumenRes, historialRes, teoricasRes, nominasPorHistorialRes] = await Promise.all([
       personalPromise,
       resumenPromise,
       historialQuery,
       teoricasPromise,
+      nominasPorHistorialPromise,
     ]);
     if (token !== gestionRequestToken) {
       return;
@@ -19826,7 +20004,9 @@ async function loadGestion() {
     }
 
     const personalCount = renderGestionPersonalOptions(personalRes.data ?? []);
-    renderGestionHistorial(historialRes.data ?? []);
+    gestionNominasPorHistorial = nominasPorHistorialRes.porHistorial;
+    gestionCoberturaNominasDisponible = nominasPorHistorialRes.disponible;
+    renderGestionHistorial(historialRes.data ?? [], desde, hasta);
     // Antes del pivote: renderGestionRegistros recompone el contador y ya
     // encuentra las teóricas puestas.
     gestionHorasTeoricas = teoricasRes.error ? null : Number(teoricasRes.data ?? 0);
