@@ -19310,7 +19310,28 @@ async function loadGestionNominaListado() {
       p_incluir_anuladas: incluirAnuladas,
     });
     if (error) throw error;
-    gestionNominaListadoData = buildGestionNominaListado(data || [], { ejercicio, mes });
+    const listadoRows = data || [];
+    const nominaIds = Array.from(new Set(listadoRows.map((row) => Number(row.nomina_id)).filter(Boolean)));
+    const [cabecerasRes, horasRes] = nominaIds.length
+      ? await Promise.all([
+          supabase.from("nominas").select("id, emitida_en").in("id", nominaIds),
+          supabase
+            .from("nomina_horas")
+            .select("nomina_id, tipo_hora, horas")
+            .in("nomina_id", nominaIds),
+        ])
+      : [{ data: [], error: null }, { data: [], error: null }];
+    if (cabecerasRes.error) throw cabecerasRes.error;
+    if (horasRes.error) throw horasRes.error;
+    const emisiones = new Map(
+      (cabecerasRes.data || []).map((row) => [String(row.id), row.emitida_en])
+    );
+    gestionNominaListadoData = buildGestionNominaListado(
+      listadoRows,
+      { ejercicio, mes },
+      horasRes.data || [],
+      emisiones
+    );
     renderGestionNominaListado(gestionNominaListadoData);
     setGestionNominaListadoExportEnabled(gestionNominaListadoData.nominas.length > 0);
   } catch (error) {
@@ -19324,12 +19345,13 @@ async function loadGestionNominaListado() {
 // y totales) y 'puesto' el mismo dinero explicado contrato a contrato, que se
 // guarda aparte en `porPuesto` para la hoja "Por puesto" del Excel. Mezclarlos
 // duplicaría cada importe.
-function buildGestionNominaListado(rows, meta) {
+function buildGestionNominaListado(rows, meta, horasRows = [], emisiones = new Map()) {
   const nominasMap = new Map();
   const columnasMap = new Map(); // concepto -> {concepto, orden, seccion}
   for (const row of rows) {
-    if (!nominasMap.has(row.nomina_id)) {
-      nominasMap.set(row.nomina_id, {
+    const nominaKey = String(row.nomina_id);
+    if (!nominasMap.has(nominaKey)) {
+      nominasMap.set(nominaKey, {
         nomina_id: row.nomina_id,
         personal_id: row.personal_id,
         personal: row.personal,
@@ -19337,6 +19359,7 @@ function buildGestionNominaListado(rows, meta) {
         empresa: row.empresa,
         estado: row.estado,
         editada: row.editada,
+        emitida_en: emisiones.get(String(row.nomina_id)) || null,
         periodo_desde: row.periodo_desde,
         periodo_hasta: row.periodo_hasta,
         total_devengado: row.total_devengado,
@@ -19345,14 +19368,22 @@ function buildGestionNominaListado(rows, meta) {
         lineas: [],
         porPuesto: [],
         valores: new Map(),
+        horasTipo: new Map(),
+        desplazamientos: 0,
       });
     }
-    const nomina = nominasMap.get(row.nomina_id);
+    const nomina = nominasMap.get(String(row.nomina_id));
     if (row.ambito === "puesto") {
       nomina.porPuesto.push(row);
       continue;
     }
     nomina.lineas.push(row);
+    const esDesplazamiento =
+      Number(row.codigo_nomina) === 398 ||
+      normalizeSearchText(row.concepto) === "plus de transporte";
+    if (!row.detalle_de && esDesplazamiento) {
+      nomina.desplazamientos += Number(row.cantidad || 0);
+    }
     // Las columnas de la matriz son las líneas que suman (sin detalle_de).
     if (!row.detalle_de) {
       if (!columnasMap.has(row.concepto)) {
@@ -19363,14 +19394,38 @@ function buildGestionNominaListado(rows, meta) {
       nomina.valores.set(row.concepto, row.importe);
     }
   }
+  const tiposHoraSet = new Set();
+  for (const row of horasRows) {
+    const nomina = nominasMap.get(String(row.nomina_id));
+    if (!nomina) continue;
+    const tipoHora = String(row.tipo_hora || "Sin tipo").trim().toUpperCase();
+    tiposHoraSet.add(tipoHora);
+    nomina.horasTipo.set(
+      tipoHora,
+      Number(nomina.horasTipo.get(tipoHora) || 0) + Number(row.horas || 0)
+    );
+  }
   const columnas = Array.from(columnasMap.values()).sort((a, b) => a.orden - b.orden);
   const nominas = Array.from(nominasMap.values());
-  return { ...meta, columnas, nominas };
+  const tiposHora = Array.from(tiposHoraSet).sort((left, right) => {
+    if (left === "REG") return -1;
+    if (right === "REG") return 1;
+    return left.localeCompare(right, "es", { sensitivity: "base" });
+  });
+  return { ...meta, columnas, tiposHora, nominas };
 }
 
 function setGestionNominaListadoExportEnabled(enabled) {
   gestionNominaListadoExcelButton?.toggleAttribute("disabled", !enabled);
   gestionNominaListadoPdfButton?.toggleAttribute("disabled", !enabled);
+}
+
+function formatGestionNominaEmissionDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? String(value).slice(0, 10)
+    : date.toLocaleDateString("es-ES");
 }
 
 function renderGestionNominaListado(data) {
@@ -19401,7 +19456,9 @@ function renderGestionNominaListado(data) {
 
   const money = (v) => (v == null ? "" : formatGestionImporte(v));
   const cabecera =
-    `<th class="gestion-nomina-listado-sticky">Persona</th><th>DNI</th>` +
+    `<th>Fecha emisión</th><th class="gestion-nomina-listado-sticky">Persona</th><th>DNI</th>` +
+    data.tiposHora.map((tipoHora) => `<th class="num">Horas ${escapeHtml(tipoHora)}</th>`).join("") +
+    `<th class="num">Desplazamientos</th>` +
     data.columnas
       .map((c) => `<th class="num gestion-nomina-listado-col-${escapeHtml(c.seccion)}">${escapeHtml(c.concepto)}</th>`)
       .join("");
@@ -19410,14 +19467,28 @@ function renderGestionNominaListado(data) {
       const celdas = data.columnas
         .map((c) => `<td class="num">${escapeHtml(money(n.valores.get(c.concepto)))}</td>`)
         .join("");
+      const horas = data.tiposHora
+        .map((tipoHora) => `<td class="num">${escapeHtml(formatRecordHours(n.horasTipo.get(tipoHora) || 0))}</td>`)
+        .join("");
       return `<tr class="${n.estado === "anulada" ? "gestion-nomina-listado-anulada" : ""}">
+        <td>${escapeHtml(formatGestionNominaEmissionDate(n.emitida_en))}</td>
         <td class="gestion-nomina-listado-sticky">${escapeHtml(n.personal || `#${n.nomina_id}`)}${n.estado === "anulada" ? " (anulada)" : ""}</td>
-        <td>${escapeHtml(n.dni || "")}</td>${celdas}
+        <td>${escapeHtml(n.dni || "")}</td>${horas}<td class="num">${escapeHtml(formatRecordHours(n.desplazamientos))}</td>${celdas}
       </tr>`;
     })
     .join("");
   const pie =
-    `<td class="gestion-nomina-listado-sticky">TOTAL (${data.nominas.length})</td><td></td>` +
+    `<td></td><td class="gestion-nomina-listado-sticky">TOTAL (${data.nominas.length})</td><td></td>` +
+    data.tiposHora.map((tipoHora) =>
+      `<td class="num">${escapeHtml(formatRecordHours(data.nominas.reduce(
+        (sum, nomina) => sum + Number(nomina.horasTipo.get(tipoHora) || 0),
+        0
+      )))}</td>`
+    ).join("") +
+    `<td class="num">${escapeHtml(formatRecordHours(data.nominas.reduce(
+      (sum, nomina) => sum + Number(nomina.desplazamientos || 0),
+      0
+    )))}</td>` +
     data.columnas.map((c) => `<td class="num">${escapeHtml(money(totales.get(c.concepto)))}</td>`).join("");
 
   const matriz = `<div class="gestion-nomina-listado-matriz">
@@ -19457,33 +19528,62 @@ async function exportGestionNominaListadoExcel() {
     const num = (v) => (v == null ? null : Number(v));
 
     // Hoja resumen: matriz persona × concepto.
-    const cabecera = ["Persona", "DNI", "Empresa", "Estado", ...data.columnas.map((c) => c.concepto)];
+    const cabecera = [
+      "Fecha emisión",
+      "Persona",
+      "DNI",
+      "Empresa",
+      "Estado",
+      ...data.tiposHora.map((tipoHora) => `Horas ${tipoHora}`),
+      "Desplazamientos",
+      ...data.columnas.map((c) => c.concepto),
+    ];
     const filas = data.nominas.map((n) => [
+      formatGestionNominaEmissionDate(n.emitida_en),
       n.personal || `#${n.nomina_id}`,
       n.dni || "",
       n.empresa || "",
       n.estado,
+      ...data.tiposHora.map((tipoHora) => num(n.horasTipo.get(tipoHora) || 0)),
+      num(n.desplazamientos),
       ...data.columnas.map((c) => num(n.valores.get(c.concepto))),
     ]);
     const totalRow = [
-      `TOTAL (${data.nominas.length})`, "", "", "",
+      "", `TOTAL (${data.nominas.length})`, "", "", "",
+      ...data.tiposHora.map((tipoHora) =>
+        data.nominas.reduce(
+          (sum, nomina) => sum + Number(nomina.horasTipo.get(tipoHora) || 0),
+          0
+        )
+      ),
+      data.nominas.reduce((sum, nomina) => sum + Number(nomina.desplazamientos || 0), 0),
       ...data.columnas.map((c) => data.nominas.reduce((s, n) => s + Number(n.valores.get(c.concepto) || 0), 0)),
     ];
     const resumen = XLSX.utils.aoa_to_sheet([cabecera, ...filas, totalRow]);
-    resumen["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, ...data.columnas.map(() => ({ wch: 13 }))];
+    resumen["!cols"] = [
+      { wch: 14 },
+      { wch: 28 },
+      { wch: 12 },
+      { wch: 16 },
+      { wch: 10 },
+      ...data.tiposHora.map(() => ({ wch: 12 })),
+      { wch: 16 },
+      ...data.columnas.map(() => ({ wch: 13 })),
+    ];
 
     // Hoja detalle: una fila por línea, formato largo. Incluye las SUBFILAS de
     // desglose (las del prorrateo), marcadas con "Subfila de" y con el importe
     // en su propia columna: así se puede auditar cómo se reparte el prorrateo
     // sin que se sumen dos veces al filtrar por "Importe".
     const detalleRows = [[
-      "Persona", "DNI", "Sección", "Código", "Concepto", "Detalle",
+      "Fecha emisión", "Persona", "DNI", "Sección", "Código", "Concepto", "Detalle",
       "Cantidad", "Precio", "Base", "%", "Importe", "Importe subfila", "Subfila de",
     ]];
     for (const n of data.nominas) {
       for (const l of n.lineas) {
         const esSubfila = Boolean(l.detalle_de);
         detalleRows.push([
+          formatGestionNominaEmissionDate(n.emitida_en),
           n.personal || `#${n.nomina_id}`, n.dni || "", l.seccion, l.codigo_nomina ?? "",
           esSubfila ? `    ↳ ${l.concepto}` : l.concepto,
           l.detalle || "", num(l.cantidad), num(l.precio), num(l.base),
@@ -19495,16 +19595,17 @@ async function exportGestionNominaListadoExcel() {
       }
     }
     const detalle = XLSX.utils.aoa_to_sheet(detalleRows);
-    detalle["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 28 }, { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 16 }];
+    detalle["!cols"] = [{ wch: 14 }, { wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 28 }, { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 16 }];
 
     // Hoja por puesto: qué aportó cada contrato. Solo tiene filas cuando alguien
     // trabaja en dos puestos a la vez; en la nómina de la persona esos importes
     // van sumados en un único concepto.
-    const puestoRows = [["Persona", "DNI", "Puesto", "Periodo (historial)", "Código", "Concepto", "Detalle", "Cantidad", "Precio", "Importe"]];
+    const puestoRows = [["Fecha emisión", "Persona", "DNI", "Puesto", "Periodo (historial)", "Código", "Concepto", "Detalle", "Cantidad", "Precio", "Importe"]];
     for (const n of data.nominas) {
       for (const l of n.porPuesto) {
         if (l.detalle_de) continue;
         puestoRows.push([
+          formatGestionNominaEmissionDate(n.emitida_en),
           n.personal || `#${n.nomina_id}`, n.dni || "",
           l.puesto || "", l.historial_id ?? "", l.codigo_nomina ?? "",
           l.concepto, l.detalle || "", num(l.cantidad), num(l.precio), num(l.importe),
@@ -19512,7 +19613,7 @@ async function exportGestionNominaListadoExcel() {
       }
     }
     const porPuesto = XLSX.utils.aoa_to_sheet(puestoRows);
-    porPuesto["!cols"] = [{ wch: 28 }, { wch: 12 }, { wch: 24 }, { wch: 16 }, { wch: 8 }, { wch: 26 }, { wch: 34 }, { wch: 10 }, { wch: 10 }, { wch: 12 }];
+    porPuesto["!cols"] = [{ wch: 14 }, { wch: 28 }, { wch: 12 }, { wch: 24 }, { wch: 16 }, { wch: 8 }, { wch: 26 }, { wch: 34 }, { wch: 10 }, { wch: 10 }, { wch: 12 }];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, resumen, "Resumen");
@@ -21260,8 +21361,20 @@ const HISTORIAL_DETAIL_SELECT =
   "dias_periodo, coeficiente_temporalidad_miles, puesto_id, puesto, puesto_texto, " +
   "tipo_contratacion_id, tipo_contratacion, motivo_baja_id, motivo_baja, grupo_cotizacion, " +
   "movimiento, salario_jornada_completa, importe_horas_complementarias, complemento, horarios, " +
+  "cotizacion_comunes_pct, cotizacion_mei_pct, cotizacion_formacion_pct, cotizacion_desempleo_pct, " +
   "observaciones, notas, tiene_complemento, tiene_complemento_movilidad, tiene_complemento_dedicacion, " +
   "tiene_plus_transporte, tiene_nocturnidad, tiene_antiguedad, lenguaje_inclusivo";
+
+// Tipos estándar de aportación de la persona trabajadora. Se almacenan como
+// fracción (0.047 = 4,70 %) porque el cálculo de nómina multiplica directamente
+// la base por estos valores. Las duplicaciones conservan los tipos de origen
+// para no alterar posibles regímenes especiales.
+const HISTORIAL_NEW_DEFAULTS = {
+  cotizacion_comunes_pct: 0.047,
+  cotizacion_mei_pct: 0.0015,
+  cotizacion_formacion_pct: 0.001,
+  cotizacion_desempleo_pct: 0.0155,
+};
 
 // Tablas de catálogo para los selectores de relación del formulario y la asignación masiva.
 const HISTORIAL_RELATION_TABLES = {
@@ -21295,6 +21408,10 @@ const HISTORIAL_FORM_FIELDS = [
   { key: "salario_jornada_completa", label: "Salario jornada completa", type: "decimal" },
   { key: "importe_horas_complementarias", label: "Importe horas complementarias", type: "decimal" },
   { key: "complemento", label: "Complemento", type: "decimal" },
+  { key: "cotizacion_comunes_pct", label: "Cotización comunes (%)", type: "decimal", step: "0.000001" },
+  { key: "cotizacion_mei_pct", label: "Cotización MEI (%)", type: "decimal", step: "0.000001" },
+  { key: "cotizacion_formacion_pct", label: "Cotización formación (%)", type: "decimal", step: "0.000001" },
+  { key: "cotizacion_desempleo_pct", label: "Cotización desempleo (%)", type: "decimal", step: "0.000001" },
   { key: "horarios", label: "Horarios", type: "text" },
   { key: "activo", label: "Activo", type: "boolean" },
   { key: "enviado", label: "Enviado", type: "boolean" },
@@ -23473,7 +23590,7 @@ function renderHistorialDetailForm(row) {
 
     const inputType =
       field.type === "date" ? "date" : HISTORIAL_NUMERIC_TYPES.has(field.type) ? "number" : "text";
-    const step = field.type === "decimal" ? ' step="0.0001"' : "";
+    const step = field.type === "decimal" ? ` step="${field.step || "0.0001"}"` : "";
     return `<label>${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
       value ?? ""
     )}" ${field.readonly ? "readonly" : ""} /></label>`;
@@ -23667,7 +23784,9 @@ async function openHistorialNew(seedRow = null, { copy = Boolean(seedRow) } = {}
   }
   await loadHistorialRelationOptions();
   historialDetailMode = "new";
-  historialDetailSnapshot = seedRow ? { ...seedRow, id: null } : {};
+  historialDetailSnapshot = copy
+    ? { ...(seedRow || {}), id: null }
+    : { ...HISTORIAL_NEW_DEFAULTS, ...(seedRow || {}), id: null };
   if (historialDetailTitle) {
     historialDetailTitle.textContent = copy ? "Nuevo periodo (copia)" : "Nuevo periodo";
   }

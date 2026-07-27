@@ -1092,7 +1092,7 @@ td {
 
 .weekday-fieldset {
   display: grid;
-  grid-template-columns: repeat(7, max-content);
+  grid-template-columns: 1fr;
   gap: 3px 8px;
   overflow-x: auto;
   margin: 0;
@@ -1118,10 +1118,40 @@ td {
   white-space: nowrap;
 }
 
-.weekday-fieldset input {
+.weekday-schedule-heading,
+.weekday-schedule-row {
+  display: grid !important;
+  grid-template-columns: minmax(110px, 1fr) minmax(92px, 0.7fr) minmax(92px, 0.7fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.weekday-schedule-heading {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.weekday-schedule-row > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.weekday-fieldset small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.weekday-fieldset input[type="checkbox"] {
   width: 13px;
   height: 13px;
   accent-color: var(--accent);
+}
+
+.weekday-fieldset input[type="time"] {
+  width: 100%;
+  min-width: 92px;
 }
 
 .activity-actions {

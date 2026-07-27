@@ -1585,6 +1585,23 @@
     renderActivityInstallationSelect(installationSelect, contratoId, selectedInstallationId || installationSelect?.value);
   }
 
+  function preserveActivityEditSelectValue(select, value, label) {
+    if (!select) return;
+    if (value == null || value === "") {
+      select.value = "";
+      return;
+    }
+    const desired = String(value);
+    if (!Array.from(select.options).some((option) => option.value === desired)) {
+      const option = document.createElement("option");
+      option.value = desired;
+      option.textContent = label || `ID ${desired}`;
+      select.appendChild(option);
+    }
+    select.disabled = false;
+    select.value = desired;
+  }
+
   function isMissingTableError(error, tableName) {
     const details = [error?.message, error?.details, error?.hint, error?.code]
       .map((value) => String(value ?? "").toLowerCase())
@@ -2568,6 +2585,48 @@
     });
   }
 
+  function getActivityCustomSchedules(form, selectedDays) {
+    const selected = new Set(selectedDays.map(Number));
+    const schedules = {};
+    for (let day = 1; day <= 7; day += 1) {
+      const start = form.querySelector(`[data-weekday-start="${day}"]`)?.value || "";
+      const end = form.querySelector(`[data-weekday-end="${day}"]`)?.value || "";
+      if (!selected.has(day)) continue;
+      if (Boolean(start) !== Boolean(end)) {
+        setStatus("Completa la hora de inicio y fin del horario personalizado.", "error");
+        return null;
+      }
+      if (start && start === end) {
+        setStatus("El inicio y el fin del horario personalizado no pueden ser iguales.", "error");
+        return null;
+      }
+      if (start && end) {
+        schedules[day] = { hora_inicio: start, hora_fin: end };
+      }
+    }
+    return schedules;
+  }
+
+  function setActivityCustomSchedules(form, schedules = {}) {
+    for (let day = 1; day <= 7; day += 1) {
+      const schedule = schedules?.[day] || schedules?.[String(day)] || {};
+      const start = form.querySelector(`[data-weekday-start="${day}"]`);
+      const end = form.querySelector(`[data-weekday-end="${day}"]`);
+      if (start) start.value = formatTime(schedule.hora_inicio);
+      if (end) end.value = formatTime(schedule.hora_fin);
+    }
+  }
+
+  function getActivityScheduleForWeekday(activity, weekday) {
+    const custom =
+      activity.horarios_personalizados?.[weekday] ||
+      activity.horarios_personalizados?.[String(weekday)];
+    return {
+      hora_inicio: custom?.hora_inicio || activity.hora_inicio,
+      hora_fin: custom?.hora_fin || activity.hora_fin,
+    };
+  }
+
   function setSelectByOptionText(select, matcher) {
     const option = Array.from(select.options).find((item) => matcher(normalizeText(item.textContent)));
     if (option) {
@@ -2635,8 +2694,21 @@
       return null;
     }
 
+    const horariosPersonalizados = getActivityCustomSchedules(form, diasSemana);
+    if (horariosPersonalizados === null) {
+      return null;
+    }
+
+    const editedActivity = activitiesRows.find(
+      (activity) => String(activity.id) === String(editActivityId?.value || "")
+    );
     const selectedService = activityServiceRows.find(
       (service) => String(service.id) === String(formData.get("servicio_id"))
+    ) || (
+      editedActivity &&
+      String(editedActivity.servicio_id) === String(formData.get("servicio_id"))
+        ? { id: editedActivity.servicio_id, contrato_id: editedActivity.contrato_id }
+        : null
     );
     if (
       !selectedService ||
@@ -2663,6 +2735,7 @@
       situacion_id: Number(formData.get("situacion_id")),
       tipo_hora_id: Number(formData.get("tipo_hora_id")),
       dias_semana: diasSemana,
+      horarios_personalizados: horariosPersonalizados,
       fecha_inicio: fechaInicio,
       fecha_fin: fechaFin,
       hora_inicio: horaInicio,
@@ -2681,7 +2754,7 @@
       const { data, error } = await supabase
         .from("actividades_detalle")
         .select(
-          "id,personal_id,personal,contrato_id,contrato,servicio_id,servicio,empresa_id,empresa,instalacion_id,instalacion,puesto_id,puesto,funcion_id,funcion,modalidad_id,modalidad,situacion_id,situacion,tipo_hora_id,tipo_hora,dias_semana,fecha_inicio,fecha_fin,hora_inicio,hora_fin,observaciones,personal_asignado_actualmente,personal_asignacion_estado,instalacion_asignada_actualmente,instalacion_asignacion_estado,updated_at"
+          "id,personal_id,personal,contrato_id,contrato,servicio_id,servicio,empresa_id,empresa,instalacion_id,instalacion,puesto_id,puesto,funcion_id,funcion,modalidad_id,modalidad,situacion_id,situacion,tipo_hora_id,tipo_hora,dias_semana,horarios_personalizados,fecha_inicio,fecha_fin,hora_inicio,hora_fin,observaciones,personal_asignado_actualmente,personal_asignacion_estado,instalacion_asignada_actualmente,instalacion_asignacion_estado,updated_at"
         )
         .order("fecha_inicio", { ascending: false })
         .order("hora_inicio", { ascending: true });
@@ -2782,7 +2855,7 @@
               <span class="muted-text">${escapeHtml(formatDate(activity.fecha_fin))}</span>
             </td>
             <td>
-              ${escapeHtml(formatTime(activity.hora_inicio))} - ${escapeHtml(formatTime(activity.hora_fin))}<br />
+              ${escapeHtml(formatActivityScheduleSummary(activity))}<br />
               <span class="muted-text">${escapeHtml(formatWeekdays(activity.dias_semana))}</span>
             </td>
           </tr>
@@ -4026,11 +4099,38 @@
     return days.length ? days.map((day) => labels[Number(day)] || day).join("") : "-";
   }
 
+  function getActivityScheduleEntries(activity) {
+    const labels = { 1: "L", 2: "M", 3: "X", 4: "J", 5: "V", 6: "S", 7: "D" };
+    return (Array.isArray(activity.dias_semana) ? activity.dias_semana : [])
+      .map(Number)
+      .filter((day) => day >= 1 && day <= 7)
+      .map((day) => {
+        const schedule = getActivityScheduleForWeekday(activity, day);
+        return {
+          day,
+          label: labels[day],
+          ...schedule,
+          hours: getActivityGeneratedHours(schedule),
+        };
+      });
+  }
+
+  function formatActivityScheduleSummary(activity) {
+    const entries = getActivityScheduleEntries(activity);
+    const defaultRange = `${formatTime(activity.hora_inicio)} - ${formatTime(activity.hora_fin)}`;
+    if (!entries.some((entry) => activity.horarios_personalizados?.[String(entry.day)])) {
+      return defaultRange;
+    }
+    const byRange = new Map();
+    entries.forEach((entry) => {
+      const range = `${formatTime(entry.hora_inicio)}-${formatTime(entry.hora_fin)}`;
+      byRange.set(range, `${byRange.get(range) || ""}${entry.label}`);
+    });
+    return Array.from(byRange, ([range, days]) => `${days} ${range}`).join(" · ");
+  }
+
   function getActivityScheduleWeeklyHours(activity) {
-    const days = Array.isArray(activity.dias_semana)
-      ? new Set(activity.dias_semana.map(Number).filter(Number.isFinite)).size
-      : 0;
-    return getActivityGeneratedHours(activity) * days;
+    return getActivityScheduleEntries(activity).reduce((total, entry) => total + entry.hours, 0);
   }
 
   function formatActivityContractServiceLabel(activity) {
@@ -4040,17 +4140,18 @@
   }
 
   function getActivityScheduleReportRow(activity) {
-    const dailyHours = getActivityGeneratedHours(activity);
+    const entries = getActivityScheduleEntries(activity);
+    const dailyHours = Array.from(new Set(entries.map((entry) => formatHours(entry.hours)))).join(" / ");
     const weeklyHours = getActivityScheduleWeeklyHours(activity);
     return {
       contrato: formatActivityContractServiceLabel(activity),
       inicio: formatDate(activity.fecha_inicio),
       fin: formatDate(activity.fecha_fin),
       dias: getActivityScheduleWeekdays(activity),
-      horario: `${formatTime(activity.hora_inicio)}-${formatTime(activity.hora_fin)}`,
+      horario: formatActivityScheduleSummary(activity),
       puesto: activity.puesto || "-",
       instalacion: activity.instalacion || "-",
-      horas: formatHours(dailyHours),
+      horas: dailyHours || formatHours(getActivityGeneratedHours(activity)),
       horasSemana: formatHours(weeklyHours),
       weeklyHours,
     };
@@ -4587,15 +4688,20 @@
   function buildRecordsForActivity(activity, existingKeys, options = {}) {
     const dates = getActivityGeneratedDates(activity, options);
     const sinHoras = activitySituacionesSinHoras.has(Number(activity.situacion_id));
-    const hours = sinHoras ? null : getActivityGeneratedHours(activity);
-    const nightHours = sinHoras
-      ? null
-      : getActivityNightHours(
-          activity,
-          activityContractNocturnidad.get(Number(activity.contrato_id))
-        );
     return dates
-      .map((date) => ({
+      .map((date) => {
+        const schedule = getActivityScheduleForWeekday(
+          activity,
+          getSpanishWeekday(parseDateValue(date))
+        );
+        const hours = sinHoras ? null : getActivityGeneratedHours(schedule);
+        const nightHours = sinHoras
+          ? null
+          : getActivityNightHours(
+              schedule,
+              activityContractNocturnidad.get(Number(activity.contrato_id))
+            );
+        return {
         actividad_id: activity.id,
         servicio_id: activity.servicio_id || null,
         fecha: date,
@@ -4608,8 +4714,8 @@
         modalidad_id: activity.modalidad_id || null,
         situacion_id: activity.situacion_id,
         tipo_hora_id: activity.tipo_hora_id,
-        hora_inicio: formatTime(activity.hora_inicio),
-        hora_fin: formatTime(activity.hora_fin),
+        hora_inicio: formatTime(schedule.hora_inicio),
+        hora_fin: formatTime(schedule.hora_fin),
         horas: hours,
         horas_nocturnas: nightHours,
         activo: true,
@@ -4620,7 +4726,8 @@
         festivo: false,
         anio: Number(date.slice(0, 4)),
         observacion: activity.observaciones || null,
-      }))
+        };
+      })
       .filter((row) => !existingKeys.has(getActivityRecordKey(row)));
   }
 
@@ -4907,27 +5014,54 @@
     }
 
     editActivityId.value = activity.id;
+    preserveActivityEditSelectValue(
+      editActivityContrato,
+      activity.contrato_id,
+      activity.contrato
+    );
     editActivityContrato.value = String(activity.contrato_id);
     renderActivityServiceOptions(editActivityServicio, activity.contrato_id, activity.servicio_id);
+    preserveActivityEditSelectValue(
+      editActivityServicio,
+      activity.servicio_id,
+      activity.servicio
+    );
     renderActivityContractScopedOptions(
       activityEditForm,
       activity.personal_id,
       activity.instalacion_id
     );
-    editActivityPersonal.value = String(activity.personal_id);
-    editActivityEmpresa.value = String(activity.empresa_id);
-    editActivityInstalacion.value = String(activity.instalacion_id);
-    editActivityPuesto.value = String(activity.puesto_id);
-    editActivityFuncion.value = activity.funcion_id ? String(activity.funcion_id) : "";
-    editActivityModalidad.value = activity.modalidad_id ? String(activity.modalidad_id) : "";
-    editActivitySituacion.value = String(activity.situacion_id);
-    editActivityTipoHora.value = String(activity.tipo_hora_id);
+    preserveActivityEditSelectValue(editActivityPersonal, activity.personal_id, activity.personal);
+    preserveActivityEditSelectValue(editActivityEmpresa, activity.empresa_id, activity.empresa);
+    preserveActivityEditSelectValue(
+      editActivityInstalacion,
+      activity.instalacion_id,
+      activity.instalacion
+    );
+    preserveActivityEditSelectValue(editActivityPuesto, activity.puesto_id, activity.puesto);
+    preserveActivityEditSelectValue(editActivityFuncion, activity.funcion_id, activity.funcion);
+    preserveActivityEditSelectValue(
+      editActivityModalidad,
+      activity.modalidad_id,
+      activity.modalidad
+    );
+    preserveActivityEditSelectValue(
+      editActivitySituacion,
+      activity.situacion_id,
+      activity.situacion
+    );
+    preserveActivityEditSelectValue(
+      editActivityTipoHora,
+      activity.tipo_hora_id,
+      activity.tipo_hora
+    );
     activityEditForm.elements.fecha_inicio.value = activity.fecha_inicio || "";
     activityEditForm.elements.fecha_fin.value = activity.fecha_fin || "";
     activityEditForm.elements.hora_inicio.value = formatTime(activity.hora_inicio);
     activityEditForm.elements.hora_fin.value = formatTime(activity.hora_fin);
     activityEditForm.elements.observaciones.value = activity.observaciones || "";
     setSelectedWeekdays(activityEditForm, activity.dias_semana);
+    setActivityCustomSchedules(activityEditForm, activity.horarios_personalizados);
     activityEditTitle.textContent = activity.personal || "Actividad seleccionada";
     activityEditPanel.classList.remove("hidden");
     activityEditPanelBackdrop.classList.remove("hidden");
@@ -5001,6 +5135,10 @@
     activityForm.elements.hora_fin.value = activityEditForm.elements.hora_fin.value;
     activityForm.elements.observaciones.value = activityEditForm.elements.observaciones.value;
     setSelectedWeekdays(activityForm, getSelectedWeekdays(activityEditForm));
+    setActivityCustomSchedules(
+      activityForm,
+      getActivityCustomSchedules(activityEditForm, getSelectedWeekdays(activityEditForm)) || {}
+    );
     activityCreatePanel.classList.remove("hidden");
     activityPanelBackdrop.classList.remove("hidden");
     activityPersonal.focus();
@@ -5050,7 +5188,7 @@
     const payload = getActivityPayload(activityEditForm);
 
     if (!activityId || !payload) {
-      return;
+      return false;
     }
 
     try {
@@ -5064,11 +5202,14 @@
         throw error;
       }
 
-      closeActivityEdit({ force: true });
+      markConciliaPristine(activityEditForm);
+      await closeActivityEdit({ force: true });
       await loadActivities();
       setStatus("Actividad actualizada.", "success");
+      return true;
     } catch (error) {
       setStatus(`No se pudo actualizar la actividad: ${error.message}`, "error");
+      return false;
     } finally {
       const submitButton = activityEditForm.querySelector('button[type="submit"]');
       submitButton.disabled = false;

@@ -11,6 +11,7 @@ create table if not exists public.actividades (
   situacion_id integer not null references public.situaciones (id),
   tipo_hora_id integer not null references public.tipo_horas (id),
   dias_semana integer[] not null default '{}',
+  horarios_personalizados jsonb not null default '{}'::jsonb,
   fecha_inicio date not null,
   fecha_fin date not null,
   hora_inicio time without time zone not null,
@@ -31,6 +32,8 @@ create table if not exists public.actividades (
     check (
       dias_semana <@ array[1, 2, 3, 4, 5, 6, 7]
     ),
+  constraint actividades_horarios_personalizados_validos
+    check (jsonb_typeof(horarios_personalizados) = 'object'),
   constraint actividades_respuesta_llamamiento_valida
     check (
       respuesta_llamamiento is null
@@ -123,6 +126,16 @@ drop table if exists public.actividades_instalaciones;
 
 alter table public.actividades
 add column if not exists dias_semana integer[] not null default '{}';
+
+alter table public.actividades
+add column if not exists horarios_personalizados jsonb not null default '{}'::jsonb;
+
+alter table public.actividades
+drop constraint if exists actividades_horarios_personalizados_validos;
+
+alter table public.actividades
+add constraint actividades_horarios_personalizados_validos
+check (jsonb_typeof(horarios_personalizados) = 'object');
 
 alter table public.actividades
 drop constraint if exists actividades_dias_semana_validos;
@@ -226,6 +239,7 @@ select
   a.tipo_hora_id,
   th.tipo_hora,
   a.dias_semana,
+  a.horarios_personalizados,
   a.fecha_inicio,
   a.fecha_fin,
   a.hora_inicio,
