@@ -224,6 +224,15 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Idempotencia y trazabilidad**: columna nueva `registros.evento_asignacion_id` → `eventos_cronograma_personal`, con `on delete set null` (borrar la planificación no borra las horas trabajadas). Regenerar no duplica.
 - **Despliegue requerido**: ejecutar `supabase/tables/registros_evento_asignacion.sql`. Ya aplicado en el proyecto real.
 
+## 16. Días de nómina en base 30 real (26/07/2026)
+
+- **Regla aportada por el usuario**: cuando un mes se parte en varios tramos por una variación a mitad de mes, los tramos deben **sumar 30**, no los días naturales. Caso de Adrián Domínguez en julio de 2026: variación el día 15 → **14 días** (1–14) + **16 días** (15–31), no 14 + 17.
+- **Implementación** en `dias_nomina` (`nomina_calculo.sql`): por cada mes del periodo, el día inicial es el día natural topado a 30, y el día final es **30 si el tramo llega al último día del mes** (sea 28, 29, 30 o 31) o el día natural si no. Días = final − inicial + 1.
+- **Corrige dos errores de signo contrario**: en meses de 31 días el segundo tramo cobraba **un día de más**; en febrero, **dos de menos** (del 15 al 28 daba 14, y el mes sumaba 28 en vez de 30).
+- **Un mes natural completo sigue dando 30**, así que los cálculos de mes entero **no cambian**: verificado que Jaime (junio), Ainhoa (julio) y la persona 1250 (junio) dan exactamente lo de antes.
+- **Alcance del cambio en producción**: 119 tramos de 106 personas a lo largo de 2026 (114 en meses de 31 días, 5 en febrero). Las nóminas ya emitidas no se mueven: están congeladas.
+- Ejemplo verificado: Adrián Domínguez, julio 2026 → salario base 392,02 (14/30 al coef. 0,688) + 407,00 (16/30 al coef. 0,625) = **799,02**. Antes salían 824,46 por contar 17 días en el segundo tramo.
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.

@@ -23,12 +23,14 @@
 -- CONVENCIONES:
 --   * Salario diario = salario_mensual / 30.
 --   * base = salario_mensual_puesto x (coeficiente/1000) x (dias_nomina / 30).
---   * DIAS DE NOMINA (dias_nomina): un mes natural COMPLETO cuenta 30 dias
---     aunque tenga 28 o 31; los tramos parciales cuentan sus dias reales.
+--   * DIAS DE NOMINA (dias_nomina): BASE 30 REAL. Un mes cuenta 30 dias aunque
+--     tenga 28, 29 o 31, y si se parte en varios tramos por una variacion a
+--     mitad de mes, los tramos SIGUEN SUMANDO 30 (14 + 16 en julio, no 14 + 17).
+--     Un tramo que llega al ultimo dia del mes cuenta ese dia como el 30.
 --     Confirmado contra la nomina real de Javier Cortavitarte de mayo de 2026
---     (31 dias naturales, pagados como "30,00 x 40,700 = 1.221,00"). Antes se
---     usaba (fecha_hasta - fecha_desde + 1) y los meses de 31 dias cobraban
---     31/30 de la mensualidad.
+--     (31 dias naturales, pagados como "30,00 x 40,700 = 1.221,00") y contra el
+--     reparto de Adrian Dominguez en julio de 2026 (14 + 16). Antes se usaba
+--     (fecha_hasta - fecha_desde + 1) y los meses de 31 dias cobraban 31/30.
 --   * Ventana = interseccion del periodo del historial con [desde, hasta]. Los
 --     contratos indefinidos (fecha_baja null) exigen pasar el rango.
 --   * DIAS EFECTIVAMENTE TRABAJADOS: dias distintos con registros de situacion
@@ -104,32 +106,51 @@
 drop function if exists public.calcular_nomina(bigint, date, date);
 drop function if exists public.calcular_nomina_devengos(bigint, date, date);
 
--- Dias a efectos de nomina: un mes natural COMPLETO cuenta 30 dias aunque tenga
--- 28 o 31; los tramos parciales cuentan sus dias reales. Ver la nota de
--- cabecera: sale de la nomina real de mayo de 2026.
+-- Dias a efectos de nomina, en BASE 30 REAL: un mes cuenta 30 dias aunque tenga
+-- 28, 29 o 31, y cuando se parte en varios tramos (una variacion a mitad de mes)
+-- los tramos siguen sumando 30, no los dias naturales.
+--
+-- La regla, por cada mes que toque el periodo:
+--   * dia inicial = dia del mes en que arranca el tramo, topado a 30 (el 31 se
+--     comporta como el 30, no como un dia que no existe).
+--   * dia final = 30 si el tramo llega al ULTIMO dia del mes -- sea 28, 29, 30
+--     o 31 --, y si no, el dia natural en que acaba.
+--   * dias = dia final - dia inicial + 1.
+--
+-- Caso real que lo motiva (Adrian Dominguez Fernandez, julio 2026): variacion el
+-- dia 15, historial 5887 del 1 al 14 y 5906 desde el 15. Antes salian 14 + 17 =
+-- 31 dias; ahora 14 + 16 = 30, como lo cuenta el programa de nominas. En febrero
+-- el error era el contrario: del 15 al 28 daba 14, y con el primer tramo sumaba
+-- 28 en vez de 30.
+--
+-- Un mes natural completo sigue dando 30 (dia 1 -> dia 30), asi que los calculos
+-- de un mes entero no cambian. Confirmado tambien contra la nomina real de mayo
+-- de 2026, que paga "30,00 x 40,700" en un mes de 31 dias.
 create or replace function public.dias_nomina(p_desde date, p_hasta date)
 returns integer
 language sql
 immutable
 set search_path = public
 as $$
-  select coalesce(sum(
-    case
-      -- El tramo cubre el mes natural entero: 30 por convencion.
-      when greatest(p_desde, m.ini) = m.ini and least(p_hasta, m.fin) = m.fin then 30
-      else (least(p_hasta, m.fin) - greatest(p_desde, m.ini) + 1)
-    end
-  )::integer, 0)
+  select coalesce(sum(greatest(t.dia_fin - t.dia_ini + 1, 0))::integer, 0)
   from (
-    select d::date as ini,
-           (d + interval '1 month' - interval '1 day')::date as fin
-    from generate_series(
-      date_trunc('month', p_desde::timestamp),
-      date_trunc('month', p_hasta::timestamp),
-      interval '1 month'
-    ) d
-  ) m
-  where p_desde <= m.fin and p_hasta >= m.ini;
+    select
+      least(extract(day from greatest(p_desde, m.ini))::integer, 30) as dia_ini,
+      case
+        when least(p_hasta, m.fin) = m.fin then 30
+        else extract(day from least(p_hasta, m.fin))::integer
+      end as dia_fin
+    from (
+      select d::date as ini,
+             (d + interval '1 month' - interval '1 day')::date as fin
+      from generate_series(
+        date_trunc('month', p_desde::timestamp),
+        date_trunc('month', p_hasta::timestamp),
+        interval '1 month'
+      ) d
+    ) m
+    where p_desde <= m.fin and p_hasta >= m.ini
+  ) t;
 $$;
 
 revoke all on function public.dias_nomina(date, date) from public;
