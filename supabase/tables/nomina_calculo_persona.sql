@@ -72,6 +72,16 @@
 -- ese complemento asignado, salen las dos lineas y se suman las dos: es lo
 -- pedido, no se sustituyen. Se emiten con orden 300+ (tras los asignados).
 
+-- HORAS EN UN PUESTO SIN HISTORIAL (2026-07-27). Si alguien cubre un servicio
+-- distinto del suyo, calcular_nomina_devengos descarta esas horas al filtrar por
+-- r.puesto_id = h.puesto_id y se perdian en silencio (caso real: Miguel Antonio
+-- Rodriguez, 5 horas complementarias como socorrista con contrato de monitor).
+-- Ahora las HCOMP y MONT se recogen aqui con get_horas_sin_historial, a la
+-- tarifa del puesto DONDE se hicieron, en lineas de orden 200+. Las REG NO se
+-- pagan solas: son jornada y su salario base ya se cobra por el historial, asi
+-- que sumarlas seria pagarla dos veces; la pestana Gestion las avisa para que se
+-- corrija el puesto del registro o se cree el periodo que falta.
+
 -- BASES DE COTIZACION POR CONCEPTO (2026-07-25). Antes las bases se calculaban
 -- como "bruto menos excepciones". Ahora cada concepto declara a que bases suma
 -- en nomina_complementos_catalogo.cotiza_en y aqui se acumulan una a una:
@@ -141,6 +151,7 @@ declare
   v_tarifa_transp numeric := 0; v_transporte numeric := 0;
   v_transp_cotiza text[];
   v_compl_total numeric := 0; v_extra_total numeric := 0;
+  v_huerf_total numeric := 0;
   v_pe_base numeric := 0; v_pe_compl numeric := 0;
   v_bruto numeric; v_base_cc numeric; v_base_cp numeric; v_base_irpf numeric;
   v_b_comunes numeric := 0; v_b_mei numeric := 0;
@@ -324,6 +335,24 @@ begin
     end loop;
   end if;
 
+  -- Horas HCOMP/MONT hechas en un puesto que la persona no tiene en su
+  -- historial (cubrio otro servicio). calcular_nomina_devengos las descarta al
+  -- filtrar por puesto, asi que se recogen aqui a la tarifa del puesto DONDE se
+  -- hicieron. Las REG no: son jornada y su salario base ya se cobra por el
+  -- historial, asi que sumarlas seria pagar dos veces (solo se avisa en Gestion).
+  select coalesce(sum(round(hs.horas * coalesce(
+           public.get_puesto_precio_hora(hs.puesto_id, hs.tipo_hora_id, p_desde), 0), 2)), 0)
+    into v_huerf_total
+  from public.get_horas_sin_historial(
+         p_personal_id, p_desde, p_hasta, p_empresa_id, p_historial_ids) hs
+  where hs.tipo_hora_id in (2, 3) and not hs.sin_ningun_historial;
+
+  v_b_comunes   := v_b_comunes   + v_huerf_total;
+  v_b_mei       := v_b_mei       + v_huerf_total;
+  v_b_desempleo := v_b_desempleo + v_huerf_total;
+  v_b_formacion := v_b_formacion + v_huerf_total;
+  v_b_irpf      := v_b_irpf      + v_huerf_total;
+
   if v_extras > 0 then
     if v_manual and p_manual_pagas_incluidas then
       v_pe_base := v_manual_total - v_base_total;
@@ -415,6 +444,24 @@ begin
     join public.nomina_complementos_catalogo c on c.id = (e->>'complemento_id')::bigint;
   end if;
 
+  return query
+  select (200 + row_number() over (order by hs.tipo_hora, hs.puesto))::integer,
+    'devengo'::text,
+    case hs.tipo_hora_id when 2 then 'Horas complementarias de otro puesto'
+                         else 'Montaje de otro puesto' end,
+    format('%s h como %s × %s€/h (sin contrato de ese puesto)',
+           round(hs.horas, 2), hs.puesto,
+           round(coalesce(public.get_puesto_precio_hora(hs.puesto_id, hs.tipo_hora_id, p_desde), 0), 4)),
+    null::numeric, null::numeric,
+    round(hs.horas, 2),
+    round(coalesce(public.get_puesto_precio_hora(hs.puesto_id, hs.tipo_hora_id, p_desde), 0), 4),
+    round(hs.horas * coalesce(
+      public.get_puesto_precio_hora(hs.puesto_id, hs.tipo_hora_id, p_desde), 0), 2),
+    null::text, v_todas
+  from public.get_horas_sin_historial(
+         p_personal_id, p_desde, p_hasta, p_empresa_id, p_historial_ids) hs
+  where hs.tipo_hora_id in (2, 3) and not hs.sin_ningun_historial;
+
   if coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
     return query select 20, 'devengo'::text, 'Prorrateo pagas extra'::text,
       format('%s pagas/año (12 + %s extra) · %s × 8,333%% de cada concepto', v_pagas, v_extras, v_extras),
@@ -435,7 +482,7 @@ begin
     where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
 
-  v_bruto := v_dev_puestos + v_transporte + v_compl_total + v_extra_total
+  v_bruto := v_dev_puestos + v_transporte + v_compl_total + v_extra_total + v_huerf_total
     + (case when coalesce(v_prorrateo, false) then v_pe_base + v_pe_compl else 0 end);
 
   -- Las bases ya vienen sumadas concepto a concepto segun su cotiza_en.

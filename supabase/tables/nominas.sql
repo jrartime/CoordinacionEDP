@@ -367,6 +367,12 @@ as $$
     case lower(trim(coalesce(p_concepto, '')))
       when 'plus de disponibilidad' then 93
       when 'horas complementarias' then 67
+      -- Las horas hechas en un puesto sin contrato son el mismo concepto de
+      -- nomina (67 y 60); van en linea aparte solo para que se vea de donde
+      -- vienen y para no colisionar en la matriz del listado, que indexa por
+      -- concepto. Ver registros_horas_sin_historial.sql.
+      when 'horas complementarias de otro puesto' then 67
+      when 'montaje de otro puesto' then 60
       when 'plus festivo trabajado' then 12
       when 'descuento por absentismo' then 790
       when 'prorrateo pagas extra' then 30

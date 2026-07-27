@@ -263,6 +263,18 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - La consulta es solo para administradores, igual que las RLS de nóminas. Si no hay acceso o falla el cruce, la tabla conserva su funcionamiento habitual y no muestra estados engañosos.
 - El panel de cálculo también avisa de **horas en puestos sin historial coincidente**: HCOMP/MONT con alta se pagan a la tarifa del puesto; horas normales o registros sin ningún alta quedan señalados para revisión.
 
+## 19. Horas en un puesto sin historial (27/07/2026)
+
+- **Problema**: `calcular_nomina_devengos` filtra los registros por `r.puesto_id = h.puesto_id`, así que las horas hechas en un puesto que la persona no tiene contratado no las recogía ningún historial y se perdían sin avisar. Caso real: **Miguel Antonio Rodríguez**, 5 horas complementarias como socorrista teniendo contrato de monitor, no figuraban en su nómina de julio.
+- **Función nueva** `get_horas_sin_historial(personal_id, desde, hasta, empresa_id, historial_ids)` (`supabase/tables/registros_horas_sin_historial.sql`), que las localiza y marca además los días en que la persona **no tiene ningún alta**.
+- **Decisión del usuario sobre qué se paga**:
+  - **HCOMP y MONT**: se pagan, a la **tarifa del puesto donde se hicieron**, en líneas propias de orden 200+ («Horas complementarias de otro puesto» / «Montaje de otro puesto», códigos 67 y 60). Miguel cobra ya sus 5 h × 9,76 € = **48,80 €**.
+  - **REG**: **no** se pagan solas. Son jornada y su salario base ya se cobra por el historial; sumarlas sería pagarla dos veces.
+- **Aviso en Gestión**: dos bloques distintos — uno informativo con las horas que sí se han recogido, y otro de alerta con las que quedan fuera (REG y días sin ningún alta), para corregir el puesto del registro o crear el periodo que falta.
+- **Alcance en julio de 2026**: 97,5 h HCOMP y 195 h MONT que ahora se pagan; 419,5 h REG y **1.271 h de 10 personas sin ningún historial** que solo se avisan. Muchos casos REG tienen pinta de puesto mal elegido: «Conc. Centro Coord» frente a «Conc. Coordiación», «Coordinación Contrato» frente a «Coordinación Servicio».
+- Verificado que las nóminas ya validadas (Jaime, Ainhoa, Adrián, persona 1250) no cambian.
+- **Despliegue requerido**: `registros_horas_sin_historial.sql`, `nomina_calculo_persona.sql` y `nominas.sql`. Ya aplicados.
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.
