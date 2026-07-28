@@ -14440,6 +14440,18 @@ function renderRecordsTable() {
           } else {
             content = escapeHtml(formatRecordDisplayValue(row, column));
           }
+          if (column.key === "fecha") {
+            const weekday = getControlWeekdayInfo(row.fecha);
+            content += `
+              <br>
+              <span
+                class="weekday-marker records-date-weekday"
+                style="color: ${escapeHtml(weekday.color)};"
+                title="${escapeHtml(weekday.label)}"
+                aria-label="${escapeHtml(weekday.label)}"
+              >${escapeHtml(weekday.letter)}</span>
+            `;
+          }
           if (column.stackWith) {
             const stackKeys = Array.isArray(column.stackWith) ? column.stackWith : [column.stackWith];
             for (const sk of stackKeys) {
@@ -14518,6 +14530,13 @@ function formatComparisonDuration(minutes) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return `${hours}:${String(rest).padStart(2, "0")} h`;
+}
+
+function formatComparisonDate(date) {
+  const [year, month, day] = String(date || "").split("-").map(Number);
+  const localDate = new Date(year, month - 1, day);
+  const weekday = new Intl.DateTimeFormat("es-ES", { weekday: "long" }).format(localDate);
+  return `${formatDisplayDate(date)} · ${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}`;
 }
 
 function comparisonIntervalKey(row) {
@@ -14671,7 +14690,7 @@ async function openRecordsCompareControl() {
             return `
               <section class="records-compare-day records-compare-${day.status}">
                 <header>
-                  <h3>${escapeHtml(formatDisplayDate(day.date))}</h3>
+                  <h3>${escapeHtml(formatComparisonDate(day.date))}</h3>
                   <span class="records-compare-status">${statusLabel}</span>
                 </header>
                 <div class="records-compare-columns">
@@ -15807,6 +15826,16 @@ function calculateRecordHours(start, end) {
   return Math.round((calculateWorkedMinutes(start, end) / 60) * 100) / 100;
 }
 
+// Recalcular las horas desde el horario solo tiene sentido si esa persona trabaja
+// el turno. En CAMB y LG el horario se guarda para saber de que turno se trata,
+// pero las horas van vacias, asi que cualquier recalculo debe pasar por aqui y no
+// por calculateRecordHours a secas. Misma regla que withRecordSituacionSideEffects.
+function calculateRecordHoursForSituacion(situacionId, start, end) {
+  return window.CoordinacionActividades?.situacionSinHoras(situacionId)
+    ? null
+    : calculateRecordHours(start, end);
+}
+
 function getRecordBulkControlValue(kind = "current") {
   const config = getRecordsBulkFieldConfig();
   if (config.type === "select") {
@@ -16023,16 +16052,20 @@ async function applyRecordsBulkAssignment() {
 
   // Ver withRecordSituacionSideEffects: entrar en CAMB/LG vacía las horas y quita
   // los ticks; salir de ellas los recalcula y los vuelve a marcar.
+  // Las reglas se cargan siempre, no solo al cambiar la situación: el recálculo de
+  // horas por horario también necesita saber qué filas están en CAMB o LG.
   const changesSituacion = field === "situacion_id";
-  const reglasSituacion = changesSituacion ? window.CoordinacionActividades : null;
+  const reglasSituacion = window.CoordinacionActividades;
   let situacionDestinoSinHoras = false;
   let situacionFilasARestaurar = [];
   if (reglasSituacion) {
     await reglasSituacion.loadRecordRules();
-    situacionDestinoSinHoras = reglasSituacion.situacionSinHoras(newValue);
-    situacionFilasARestaurar = situacionDestinoSinHoras
-      ? []
-      : matches.filter((row) => reglasSituacion.situacionSinHoras(row.situacion_id));
+    if (changesSituacion) {
+      situacionDestinoSinHoras = reglasSituacion.situacionSinHoras(newValue);
+      situacionFilasARestaurar = situacionDestinoSinHoras
+        ? []
+        : matches.filter((row) => reglasSituacion.situacionSinHoras(row.situacion_id));
+    }
   }
 
   const warning =
@@ -16053,9 +16086,15 @@ async function applyRecordsBulkAssignment() {
   if (!confirm(confirmText)) return;
 
   const changesSchedule = field === "hora_inicio" || field === "hora_fin";
+  const enCambOLg = changesSchedule && reglasSituacion
+    ? matches.filter((row) => reglasSituacion.situacionSinHoras(row.situacion_id)).length
+    : 0;
   const recalculateHours = changesSchedule && confirm(
     "Al cambiar la hora de inicio o de fin se puede recalcular automaticamente el campo Horas.\n\n" +
-    "Pulsa Aceptar para recalcularlo o Cancelar para conservar las horas actuales."
+    "Pulsa Aceptar para recalcularlo o Cancelar para conservar las horas actuales." +
+    (enCambOLg
+      ? `\n\nAviso: ${enCambOLg} registro${enCambOLg !== 1 ? "s están" : " está"} en CAMB o LG y seguirá${enCambOLg !== 1 ? "n" : ""} sin horas.`
+      : "")
   );
 
   try {
@@ -16109,11 +16148,13 @@ async function applyRecordsBulkAssignment() {
         if (error) throw error;
       }
     } else if (recalculateHours) {
+      // Las filas en CAMB o LG se quedan sin horas por mucho que cambie el
+      // horario: quien no hace el turno no devenga por moverlo.
       const rowsByHours = new Map();
       for (const row of matches) {
         const start = field === "hora_inicio" ? newValue : row.hora_inicio;
         const end = field === "hora_fin" ? newValue : row.hora_fin;
-        const hours = calculateRecordHours(start, end);
+        const hours = calculateRecordHoursForSituacion(row.situacion_id, start, end);
         if (!rowsByHours.has(hours)) rowsByHours.set(hours, []);
         rowsByHours.get(hours).push(row.id);
       }
@@ -16502,6 +16543,9 @@ function renderRecordDetailForm(row) {
   }
 
   recordDetailTitle.textContent = `Registro ${row.id}`;
+  // Punto de partida para syncRecordDetailSituacionEffects: el "antes" con el que
+  // comparar cada cambio de situacion dentro del panel.
+  recordDetailLastSituacionId = row.situacion_id ?? null;
   recordDetailFields.innerHTML = RECORD_COLUMNS.filter(
     (column) => !RECORD_DETAIL_HIDDEN_FIELDS.has(column.key)
   ).map((column) => {
@@ -16716,6 +16760,9 @@ async function openRecordDetail(recordId) {
   }
 
   await loadRecordRelationOptions();
+  // Las reglas de situacion (que CAMB y LG van sin horas) se piden ya para que
+  // calculateRecordHoursForSituacion pueda responder sin esperar.
+  void window.CoordinacionActividades?.loadRecordRules();
   selectedRecordId = String(recordId);
   recordDetailSnapshot = { ...row };
   renderRecordDetailForm(row);
@@ -16759,13 +16806,59 @@ function cancelRecordDetailEdit() {
   }
 }
 
+// Se mira la situacion elegida ahora mismo en el desplegable, no la guardada: si
+// es CAMB o LG el horario no genera horas y el campo se queda vacio.
 function syncRecordDetailHoursFromSchedule() {
   if (!recordDetailForm) return;
   const start = recordDetailForm.elements.hora_inicio?.value || "";
   const end = recordDetailForm.elements.hora_fin?.value || "";
+  const situacionId = recordDetailForm.elements.situacion_id?.value;
   const hoursInput = recordDetailForm.elements.horas;
   if (hoursInput) {
-    hoursInput.value = calculateRecordHours(start, end);
+    hoursInput.value = calculateRecordHoursForSituacion(situacionId, start, end) ?? "";
+  }
+}
+
+// Espejo en el panel de la regla que ya aplicaba al guardar
+// (withRecordSituacionSideEffects): entrar en CAMB o LG vacia horas y quita los
+// ticks, salir de ellas recalcula las horas desde el horario y los repone. Antes
+// solo se veia despues de guardar, asi que el panel mostraba unas horas que no
+// eran las que se iban a grabar.
+let recordDetailLastSituacionId = null;
+
+async function syncRecordDetailSituacionEffects() {
+  const select = recordDetailForm?.elements.situacion_id;
+  if (!select) return;
+  const previous = recordDetailLastSituacionId;
+  const next = select.value === "" ? null : select.value;
+  recordDetailLastSituacionId = next;
+
+  const reglas = window.CoordinacionActividades;
+  if (!reglas) return;
+  await reglas.loadRecordRules();
+
+  if (reglas.situacionSinHoras(previous) === reglas.situacionSinHoras(next)) return;
+
+  const setValue = (name, value) => {
+    const field = recordDetailForm.elements[name];
+    if (field) field.value = value;
+  };
+  const setChecked = (name, value) => {
+    const field = recordDetailForm.elements[name];
+    if (field) field.checked = value;
+  };
+
+  // Las nocturnas se vacian en los dos sentidos: nulo significa "recalculalo tu",
+  // y las recalcula el trigger con la franja del contrato al guardar.
+  setValue("horas_nocturnas", "");
+  if (reglas.situacionSinHoras(next)) {
+    setValue("horas", "");
+    setChecked("facturar", false);
+    setChecked("abonar", false);
+  } else {
+    syncRecordDetailHoursFromSchedule();
+    setChecked("facturar", true);
+    setChecked("abonar", true);
   }
 }
 
@@ -17824,7 +17917,13 @@ function collectRecordDetailPayload() {
     const end = Object.prototype.hasOwnProperty.call(payload, "hora_fin")
       ? payload.hora_fin
       : recordDetailSnapshot.hora_fin;
-    payload.horas = calculateRecordHours(start, end);
+    // Con la situacion ya en CAMB o LG el registro no lleva horas: tocar el
+    // horario no puede devolverselas. withRecordSituacionSideEffects no lo tapa
+    // porque solo actua cuando la situacion cambia en este mismo guardado.
+    const situacionId = Object.prototype.hasOwnProperty.call(payload, "situacion_id")
+      ? payload.situacion_id
+      : recordDetailSnapshot.situacion_id;
+    payload.horas = calculateRecordHoursForSituacion(situacionId, start, end);
   }
 
   return payload;
@@ -17837,6 +17936,9 @@ async function handleRecordDetailSubmit(event) {
     return;
   }
 
+  // collectRecordDetailPayload consulta las reglas de situación en caliente: se
+  // esperan aquí para que no dependa de si ya habían terminado de cargarse.
+  await window.CoordinacionActividades?.loadRecordRules();
   const payload = collectRecordDetailPayload();
   if (!payload || !Object.keys(payload).length) {
     closeRecordDetail();
@@ -29299,6 +29401,10 @@ async function init() {
     }
   });
   recordDetailForm?.addEventListener("change", (event) => {
+    if (event.target?.name === "situacion_id") {
+      void syncRecordDetailSituacionEffects();
+      return;
+    }
     if (event.target?.name === "contrato_id") {
       const contractId = event.target.value;
       const serviceSelect = recordDetailForm.elements.servicio_id;

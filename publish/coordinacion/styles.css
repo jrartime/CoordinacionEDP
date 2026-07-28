@@ -3070,10 +3070,20 @@ th {
 
 #control-records-table .weekday-marker,
 .programming-table .weekday-marker,
-.control-totals-table-wrapper .weekday-marker {
+.control-totals-table-wrapper .weekday-marker,
+.records-table .records-date-weekday {
   display: inline-block;
   min-width: 18px;
   font-family: inherit;
+}
+
+.records-table .records-date-weekday {
+  margin-top: 3px;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 0 1px #001f54;
 }
 
 .sort-button {
