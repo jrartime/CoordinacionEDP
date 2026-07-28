@@ -838,6 +838,15 @@
                     <p id="records-period-summary-theoretical" class="records-period-summary-theoretical"></p>
                   </div>
                   <div class="results-actions">
+                    <button
+                      id="records-compare-control-button"
+                      type="button"
+                      class="secondary-button"
+                      disabled
+                      title="Selecciona una persona y un intervalo completo"
+                    >
+                      Cotejar control personal
+                    </button>
                     <button id="records-overlap-button" type="button" class="secondary-button">
                       Ver solapes
                     </button>
@@ -846,6 +855,33 @@
                     </button>
                   </div>
                 </div>
+
+                <div id="records-compare-control-backdrop" class="panel-backdrop hidden"></div>
+                <aside
+                  id="records-compare-control-panel"
+                  class="report-panel records-compare-control-panel hidden"
+                  aria-labelledby="records-compare-control-title"
+                >
+                  <div class="side-panel-header">
+                    <div class="section-heading">
+                      <p class="eyebrow">Cotejo diario</p>
+                      <h2 id="records-compare-control-title">Registros / Control personal</h2>
+                      <p id="records-compare-control-summary">Selecciona una persona y un intervalo.</p>
+                    </div>
+                    <div class="header-actions">
+                      <button
+                        id="records-compare-control-close-button"
+                        type="button"
+                        class="secondary-button compact-button"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                  <div id="records-compare-control-content" class="records-compare-control-content">
+                    <p class="empty-state">Abre el cotejo para comparar ambas fuentes.</p>
+                  </div>
+                </aside>
 
                 <div id="records-report-preview-backdrop" class="panel-backdrop hidden"></div>
                 <aside
@@ -7904,6 +7940,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260727-7" defer></script>
-    <script src="./app.js?v=20260728-9" defer></script>
+    <script src="./app.js?v=20260728-11" defer></script>
   </body>
 </html>

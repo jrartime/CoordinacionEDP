@@ -889,6 +889,12 @@ const recordsOverlapButton = document.querySelector("#records-overlap-button");
 const recordsPeriodSummary = document.querySelector("#records-period-summary");
 const recordsPeriodSummaryValues = document.querySelector("#records-period-summary-values");
 const recordsPeriodSummaryTheoretical = document.querySelector("#records-period-summary-theoretical");
+const recordsCompareControlButton = document.querySelector("#records-compare-control-button");
+const recordsCompareControlBackdrop = document.querySelector("#records-compare-control-backdrop");
+const recordsCompareControlPanel = document.querySelector("#records-compare-control-panel");
+const recordsCompareControlSummary = document.querySelector("#records-compare-control-summary");
+const recordsCompareControlContent = document.querySelector("#records-compare-control-content");
+const recordsCompareControlCloseButton = document.querySelector("#records-compare-control-close-button");
 const recordsEditModeInput = document.querySelector("#records-edit-mode");
 const recordsRefreshButton = document.querySelector("#records-refresh-button");
 const recordsClearFiltersButton = document.querySelector("#records-clear-filters-button");
@@ -13990,6 +13996,21 @@ function getRecordsFilterValues() {
   };
 }
 
+function syncRecordsCompareControlButton() {
+  if (!recordsCompareControlButton) return;
+  const filters = getRecordsFilterValues();
+  const ready = Boolean(
+    filters.fechaDesde &&
+    filters.fechaHasta &&
+    filters.fechaDesde <= filters.fechaHasta &&
+    filters.personalId
+  );
+  recordsCompareControlButton.disabled = !ready;
+  recordsCompareControlButton.title = ready
+    ? "Comparar Registros y Control personal por días"
+    : "Selecciona una persona y un intervalo completo";
+}
+
 function applyRecordsQueryFilters(query, filters) {
   let nextQuery = query;
 
@@ -14365,6 +14386,7 @@ function buildRecordsSummaryText(rows) {
 
 function renderRecordsTable() {
   renderRecordsTableHead();
+  syncRecordsCompareControlButton();
 
   if (!recordsTableBody) {
     return;
@@ -14471,6 +14493,209 @@ function renderRecordsTable() {
     })
     .join("");
   scheduleFitPanels();
+}
+
+function closeRecordsCompareControl() {
+  recordsCompareControlPanel?.classList.add("hidden");
+  recordsCompareControlBackdrop?.classList.add("hidden");
+}
+
+function recordIntervalMinutes(start, end) {
+  if (!start || !end) return null;
+  const toMinutes = (value) => {
+    const [hours, minutes] = String(value).slice(0, 5).split(":").map(Number);
+    return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : null;
+  };
+  const from = toMinutes(start);
+  let to = toMinutes(end);
+  if (from == null || to == null) return null;
+  if (to < from) to += 24 * 60;
+  return to - from;
+}
+
+function formatComparisonDuration(minutes) {
+  if (!Number.isFinite(minutes)) return "—";
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `${hours}:${String(rest).padStart(2, "0")} h`;
+}
+
+function comparisonIntervalKey(row) {
+  return `${String(row.hora_inicio || "").slice(0, 5)}-${String(row.hora_fin || "").slice(0, 5)}`;
+}
+
+function renderComparisonRows(rows, source) {
+  if (!rows.length) return '<p class="records-compare-empty">Sin datos</p>';
+  return `
+    <div class="records-compare-list">
+      ${rows.map((row) => {
+        const minutes = recordIntervalMinutes(row.hora_inicio, row.hora_fin);
+        const detail = source === "records"
+          ? [row.instalacion, row.puesto, row.tipo_hora, row.situacion].filter(Boolean).join(" · ")
+          : [row.centro, row.puesto, row.tipo_jornada].filter(Boolean).join(" · ");
+        return `
+          <div class="records-compare-row">
+            <strong>${escapeHtml(String(row.hora_inicio || "").slice(0, 5) || "—")}–${escapeHtml(
+              String(row.hora_fin || "").slice(0, 5) || "—"
+            )}</strong>
+            <span>${escapeHtml(formatComparisonDuration(minutes))}</span>
+            ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function buildRecordsControlComparison(records, controls, dateFrom, dateTo) {
+  const recordsByDate = new Map();
+  const controlsByDate = new Map();
+  records.forEach((row) => {
+    const list = recordsByDate.get(row.fecha) || [];
+    list.push(row);
+    recordsByDate.set(row.fecha, list);
+  });
+  controls.forEach((row) => {
+    const list = controlsByDate.get(row.fecha) || [];
+    list.push(row);
+    controlsByDate.set(row.fecha, list);
+  });
+
+  const dates = [];
+  const cursor = new Date(`${dateFrom}T12:00:00`);
+  const last = new Date(`${dateTo}T12:00:00`);
+  while (cursor <= last) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates.map((date) => {
+    const dayRecords = recordsByDate.get(date) || [];
+    const dayControls = controlsByDate.get(date) || [];
+    const recordMinutes = dayRecords.reduce(
+      (sum, row) => sum + (recordIntervalMinutes(row.hora_inicio, row.hora_fin) || 0),
+      0
+    );
+    const controlMinutes = dayControls.reduce(
+      (sum, row) => sum + (recordIntervalMinutes(row.hora_inicio, row.hora_fin) || 0),
+      0
+    );
+    const recordIntervals = dayRecords.map(comparisonIntervalKey).sort().join("|");
+    const controlIntervals = dayControls.map(comparisonIntervalKey).sort().join("|");
+    const exact = recordIntervals === controlIntervals && dayRecords.length === dayControls.length;
+    const sameTotal = recordMinutes === controlMinutes;
+    const empty = !dayRecords.length && !dayControls.length;
+    return {
+      date,
+      dayRecords,
+      dayControls,
+      recordMinutes,
+      controlMinutes,
+      status: empty ? "empty" : exact ? "match" : sameTotal ? "warning" : "mismatch",
+    };
+  });
+}
+
+async function openRecordsCompareControl() {
+  const filters = getRecordsFilterValues();
+  syncRecordsCompareControlButton();
+  if (recordsCompareControlButton?.disabled) return;
+
+  recordsCompareControlPanel?.classList.remove("hidden");
+  recordsCompareControlBackdrop?.classList.remove("hidden");
+  if (recordsCompareControlSummary) recordsCompareControlSummary.textContent = "Cargando ambas fuentes…";
+  if (recordsCompareControlContent) {
+    recordsCompareControlContent.innerHTML = '<p class="empty-state">Cotejando jornadas…</p>';
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const { data: person, error: personError } = await supabase
+      .from("personal")
+      .select("id,personal,dni")
+      .eq("id", Number(filters.personalId))
+      .maybeSingle();
+    if (personError) throw personError;
+    if (!person?.dni) throw new Error("La persona seleccionada no tiene DNI informado.");
+
+    const [recordsResult, controlResult] = await Promise.all([
+      supabase
+        .from("registros_detalle")
+        .select("id,fecha,hora_inicio,hora_fin,instalacion,puesto,tipo_hora,situacion")
+        .eq("personal_id", Number(filters.personalId))
+        .gte("fecha", filters.fechaDesde)
+        .lte("fecha", filters.fechaHasta)
+        .order("fecha")
+        .order("hora_inicio"),
+      supabase
+        .from("registros_horarios")
+        .select("id,fecha,hora_inicio,hora_fin,centro,puesto,tipo_jornada,observacion")
+        .eq("dni", person.dni)
+        .eq("eliminado", false)
+        .gte("fecha", filters.fechaDesde)
+        .lte("fecha", filters.fechaHasta)
+        .order("fecha")
+        .order("hora_inicio"),
+    ]);
+    if (recordsResult.error) throw recordsResult.error;
+    if (controlResult.error) throw controlResult.error;
+
+    const workedRecords = (recordsResult.data || []).filter((row) => {
+      const key = normalizeRecordText(row.situacion);
+      return key !== "camb" && key !== "lg";
+    });
+    const days = buildRecordsControlComparison(
+      workedRecords,
+      controlResult.data || [],
+      filters.fechaDesde,
+      filters.fechaHasta
+    );
+    const relevantDays = days.filter((day) => day.status !== "empty");
+    const matches = relevantDays.filter((day) => day.status === "match").length;
+    const warnings = relevantDays.filter((day) => day.status === "warning").length;
+    const mismatches = relevantDays.filter((day) => day.status === "mismatch").length;
+    if (recordsCompareControlSummary) {
+      recordsCompareControlSummary.textContent =
+        `${person.personal || "Personal"} · ${formatDisplayDate(filters.fechaDesde)}–${
+          formatDisplayDate(filters.fechaHasta)
+        } · ${matches} encajan · ${warnings + mismatches} para revisar`;
+    }
+    if (recordsCompareControlContent) {
+      recordsCompareControlContent.innerHTML = relevantDays.length
+        ? relevantDays.map((day) => {
+            const statusLabel = day.status === "match"
+              ? "Encaja"
+              : day.status === "warning"
+                ? "Mismas horas, horario distinto"
+                : "No encaja";
+            return `
+              <section class="records-compare-day records-compare-${day.status}">
+                <header>
+                  <h3>${escapeHtml(formatDisplayDate(day.date))}</h3>
+                  <span class="records-compare-status">${statusLabel}</span>
+                </header>
+                <div class="records-compare-columns">
+                  <div>
+                    <h4>Registros <span>${formatComparisonDuration(day.recordMinutes)}</span></h4>
+                    ${renderComparisonRows(day.dayRecords, "records")}
+                  </div>
+                  <div>
+                    <h4>Control personal <span>${formatComparisonDuration(day.controlMinutes)}</span></h4>
+                    ${renderComparisonRows(day.dayControls, "control")}
+                  </div>
+                </div>
+              </section>
+            `;
+          }).join("")
+        : '<p class="empty-state">No hay datos en ninguna de las dos fuentes para este intervalo.</p>';
+    }
+  } catch (error) {
+    if (recordsCompareControlSummary) recordsCompareControlSummary.textContent = "No se pudo completar el cotejo.";
+    if (recordsCompareControlContent) {
+      recordsCompareControlContent.innerHTML = `<p class="empty-state">${escapeHtml(error.message)}</p>`;
+    }
+    setStatus(`No se pudo cotejar con Control personal: ${error.message}`, "error");
+  }
 }
 
 // --- Ajuste de altura: cada pestaña activa cabe en la pantalla ---
@@ -16600,13 +16825,18 @@ async function duplicateRecordDetail() {
 
 // --- Sustituciones ---
 // Motivos de ausencia del titular y como se marcan en su fila.
-// Regla de nomina acordada: VAC/IT/AP/PR/LG se pagan y facturan (sin tocar horas);
+// Regla de nomina acordada: VAC/IT/AP/PR se pagan y facturan (sin tocar horas);
 // PNR (permiso no retribuido) se marca como tipo de hora PNR y pone hd en negativo.
+// CAMB y LG son situaciones SIN HORAS (ver withRecordSituacionSideEffects): el
+// titular no hace ese turno, asi que su fila se queda sin horas y sin ticks.
+// CAMB es el caso de quien esta haciendo tareas en otro sitio —en el mismo
+// horario o en otro— y por eso alguien cubre este turno.
 const RECORD_SUBSTITUTION_REASONS = [
   { value: "VAC", label: "Vacaciones (VAC)", situacionCode: "VAC" },
   { value: "IT", label: "Baja IT (IT)", situacionCode: "IT" },
   { value: "AP", label: "Asuntos propios (AP)", situacionCode: "AP" },
   { value: "PR", label: "Permiso retribuido (PR)", situacionCode: "PR" },
+  { value: "CAMB", label: "Cambio de actividad (CAMB)", situacionCode: "CAMB" },
   { value: "LG", label: "Licencia (LG)", situacionCode: "LG" },
   { value: "PNR", label: "Permiso no retribuido (PNR)", tipoHoraCode: "PNR", hdNegative: true },
 ];
@@ -16618,6 +16848,17 @@ function findRecordRelationIdByLabel(field, label) {
     (option) => String(option.label).trim().toLocaleUpperCase("es") === target
   );
   return found ? found.value : null;
+}
+
+// La fila puede venir de la vista (trae la etiqueta `tipo_hora`) o de la tabla
+// base (solo el id), asi que se comprueban las dos formas.
+function recordTipoHoraEs(row, code) {
+  const target = String(code).trim().toUpperCase();
+  const id = findRecordRelationIdByLabel("tipo_hora_id", target);
+  if (id != null && row?.tipo_hora_id != null) {
+    return String(row.tipo_hora_id) === String(id);
+  }
+  return String(row?.tipo_hora ?? "").trim().toUpperCase() === target;
 }
 
 // Devuelve { titularId, subIds } si el registro forma parte de una sustitucion.
@@ -16655,8 +16896,70 @@ function resolveRecordSubstitutionGroup(row) {
   return subIds.length ? { titularId: row.id, subIds } : null;
 }
 
+// El mismo recorrido, pero contra la BASE. Titular y sustituto son personas
+// distintas, asi que casi nunca caen dentro del mismo filtro: resolver el grupo
+// solo con las filas cargadas dejaba el boton visible y sin efecto, o revertia
+// al titular sin recuperar sus horas porque su fila no estaba en memoria.
+async function fetchRecordSubstitutionDescendants(supabase, rootId) {
+  const ids = [];
+  const seen = new Set([String(rootId)]);
+  let pending = [rootId];
+  while (pending.length) {
+    const { data, error } = await supabase
+      .from("registros")
+      .select("id")
+      .in("sustituye_registro_id", pending);
+    if (error) throw error;
+    pending = [];
+    for (const item of data ?? []) {
+      const id = String(item.id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      ids.push(item.id);
+      pending.push(item.id);
+    }
+  }
+  return ids;
+}
+
+async function resolveRecordSubstitutionGroupFromDb(supabase, row) {
+  if (!row?.id) return null;
+  const titularId = row.sustituye_registro_id ?? row.id;
+  const subIds = await fetchRecordSubstitutionDescendants(supabase, titularId);
+  if (row.sustituye_registro_id && !subIds.some((id) => String(id) === String(row.id))) {
+    subIds.push(row.id);
+  }
+  return subIds.length ? { titularId, subIds } : null;
+}
+
+async function fetchRecordRowById(supabase, recordId) {
+  const { data, error } = await supabase
+    .from("registros_detalle")
+    .select(RECORD_SELECT_COLUMNS)
+    .eq("id", recordId)
+    .maybeSingle();
+  if (!error && data) return data;
+  const { data: base } = await supabase
+    .from("registros")
+    .select(RECORD_COLUMNS.filter((column) => !column.derived).map((column) => column.key).join(","))
+    .eq("id", recordId)
+    .maybeSingle();
+  return base ?? null;
+}
+
+// El flag `sustitucion` a secas NO sirve para deshacer: hay ~10.500 registros
+// importados de partes que lo llevan puesto sin `sustituye_registro_id`, es decir,
+// sin la fila del titular con la que emparejarlos. Marcan la fila como sustitucion
+// (por eso el badge lo sigue mirando), pero no hay nada que revertir.
 function isRecordSubstituteRow(row) {
   return Boolean(row?.sustitucion) || row?.sustituye_registro_id != null;
+}
+
+// Enlace real de sustitucion, el unico que se puede deshacer: o esta fila
+// sustituye a otra, o alguien la sustituye a ella (`sustituto_personal_id` lo
+// deriva la vista de las filas que apuntan aqui, asi que no depende del filtro).
+function hasRecordSubstitutionLink(row) {
+  return row?.sustituye_registro_id != null || row?.sustituto_personal_id != null;
 }
 
 function getRecordSubstitutionInfo(row) {
@@ -16852,8 +17155,8 @@ function fillRecordSubstitutionTipoHoraSelect(select, preferredId) {
 }
 
 // Marca de ausencia sobre la fila del titular. Pasa por
-// withRecordSituacionSideEffects para que LG siga la misma regla que en el resto
-// de la pestaña: sin horas y sin facturar ni abonar, de modo que el turno se
+// withRecordSituacionSideEffects para que CAMB y LG sigan la misma regla que en el
+// resto de la pestaña: sin horas y sin facturar ni abonar, de modo que el turno se
 // facture una sola vez, por la fila del sustituto.
 async function buildRecordSubstitutionTitularPatch(titular, reason) {
   const patch = {};
@@ -16990,9 +17293,25 @@ async function confirmRecordSubstitution() {
 }
 
 async function removeRecordSubstitution() {
-  const group = resolveRecordSubstitutionGroup(recordDetailSnapshot);
+  const snapshot = recordDetailSnapshot;
+  if (!snapshot?.id) return;
+
+  let supabase;
+  let group;
+  try {
+    supabase = await getSupabaseClient();
+    group = await resolveRecordSubstitutionGroupFromDb(supabase, snapshot);
+  } catch (error) {
+    setStatus(`No se pudo comprobar la sustitución: ${error.message}`, "error");
+    return;
+  }
   if (!group) {
-    setStatus("Este registro no forma parte de una sustitución.", "error");
+    setStatus(
+      isRecordSubstituteRow(snapshot)
+        ? "Este registro está marcado como sustitución, pero no está enlazado con el turno del titular: no hay nada que deshacer."
+        : "Este registro no forma parte de una sustitución.",
+      "error"
+    );
     return;
   }
   const nSubs = group.subIds.length;
@@ -17008,25 +17327,36 @@ async function removeRecordSubstitution() {
 
   // A quien se revierte puede ser a su vez el sustituto de otro (cadena): en ese
   // caso vuelve a SUST, no a NORM, porque sigue cubriendo el turno de un tercero.
-  const titularRow = recordsRows.find((r) => String(r.id) === String(group.titularId));
-  const revertSituacionCode = titularRow?.sustituye_registro_id ? "SUST" : "NORM";
+  // La fila del titular se pide a la base si no esta cargada: sin ella no se sabia
+  // ni si la cadena seguia ni con que horario recalcular las horas.
+  let titularRow;
+  try {
+    titularRow =
+      recordsRows.find((r) => String(r.id) === String(group.titularId)) ||
+      (await fetchRecordRowById(supabase, group.titularId));
+  } catch (error) {
+    setStatus(`No se pudo leer el registro del titular: ${error.message}`, "error");
+    return;
+  }
+  if (!titularRow) {
+    setStatus("No se encontró el registro del titular al que revertir.", "error");
+    return;
+  }
+  const revertSituacionCode = titularRow.sustituye_registro_id ? "SUST" : "NORM";
   const revertSituacionId = findRecordRelationIdByLabel("situacion_id", revertSituacionCode);
   const titularRevert = { hd: 0 };
   if (revertSituacionId != null) titularRevert.situacion_id = revertSituacionId;
   // Solo PNR toca el tipo de hora al marcar la ausencia, asi que solo PNR se
   // deshace: un montaje sustituido tiene que volver a ser montaje.
-  if (String(titularRow?.tipo_hora ?? "").trim().toUpperCase() === "PNR") {
+  if (recordTipoHoraEs(titularRow, "PNR")) {
     const regTipoHoraId = findRecordRelationIdByLabel("tipo_hora_id", "REG");
     if (regTipoHoraId != null) titularRevert.tipo_hora_id = regTipoHoraId;
   }
-  // Si la ausencia era LG, la fila se quedo sin horas y sin ticks: al deshacer,
-  // salir de LG los recupera.
-  const titularRevertFinal = titularRow
-    ? await withRecordSituacionSideEffects(titularRow, titularRevert)
-    : titularRevert;
+  // Si la ausencia era CAMB o LG, la fila se quedo sin horas y sin ticks: al
+  // deshacer, salir de esas situaciones los recupera.
+  const titularRevertFinal = await withRecordSituacionSideEffects(titularRow, titularRevert);
 
   try {
-    const supabase = await getSupabaseClient();
     if (group.subIds.length) {
       const { error: deleteError } = await supabase
         .from("registros")
@@ -17054,10 +17384,13 @@ async function removeRecordSubstitution() {
 
 function updateRecordSubstitutionButtons() {
   const row = recordDetailSnapshot;
+  // Solo se ofrece deshacer lo que tiene enlace real. Antes bastaba el flag
+  // `sustitucion`, que llevan miles de filas importadas sin titular al que
+  // revertir: el boton salia siempre y al pulsarlo solo daba error.
+  // resolveRecordSubstitutionGroup queda como respaldo por si la vista no esta
+  // disponible y las filas llegan sin `sustituto_personal_id`.
   const formaParte =
-    Boolean(resolveRecordSubstitutionGroup(row)) ||
-    isRecordSubstituteRow(row) ||
-    Boolean(row?.sustituto_personal_id);
+    hasRecordSubstitutionLink(row) || Boolean(resolveRecordSubstitutionGroup(row));
 
   // Los dos botones pueden convivir: la fila de un sustituto se puede deshacer
   // y, si aun no la cubre nadie, sustituir a su vez.
@@ -28842,6 +29175,9 @@ async function init() {
   });
   recordsBulkDeleteButton?.addEventListener("click", () => void deleteSelectedBulkRecords());
   recordsOverlapButton?.addEventListener("click", toggleRecordsOverlapOnly);
+  recordsCompareControlButton?.addEventListener("click", () => void openRecordsCompareControl());
+  recordsCompareControlCloseButton?.addEventListener("click", closeRecordsCompareControl);
+  recordsCompareControlBackdrop?.addEventListener("click", closeRecordsCompareControl);
   recordsReportPreviewButton?.addEventListener("click", () => void openRecordsReportPreview());
   recordsReportPreviewCloseButton?.addEventListener("click", closeRecordsReportPreview);
   recordsReportPreviewBackdrop?.addEventListener("click", closeRecordsReportPreview);
