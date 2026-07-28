@@ -954,7 +954,13 @@ const closeControlImportButton = document.querySelector("#close-control-import-b
 const controlImportCancelButton = document.querySelector("#control-import-cancel-button");
 const controlImportForm = document.querySelector("#control-import-form");
 const controlImportCsvInput = document.querySelector("#control-import-csv-input");
-const controlDeleteRangeButton = document.querySelector("#control-delete-range-button");
+const controlBulkField = document.querySelector("#control-bulk-field");
+const controlBulkCurrentValue = document.querySelector("#control-bulk-current-value");
+const controlBulkCurrentSelect = document.querySelector("#control-bulk-current-select");
+const controlBulkNewValue = document.querySelector("#control-bulk-new-value");
+const controlBulkNewSelect = document.querySelector("#control-bulk-new-select");
+const controlBulkApplyButton = document.querySelector("#control-bulk-apply-button");
+const controlBulkMatchCount = document.querySelector("#control-bulk-match-count");
 const controlEnableSelectiveDeleteButton = document.querySelector(
   "#control-enable-selective-delete-button"
 );
@@ -1499,6 +1505,9 @@ let controlCurrentPage = 1;
 let controlPageSize = Number(controlPageSizeSelect?.value || 25);
 let controlSummaryRows = [];
 let controlSelectiveDeleteMode = false;
+let controlBulkSourceRows = [];
+let controlBulkSourceKey = "";
+let controlBulkSourceRequestToken = 0;
 let selectedControlDeleteIds = new Set();
 let currentControlSort = {
   field: "fecha",
@@ -9280,6 +9289,124 @@ function syncControlDeleteSelectionUi() {
       selectedVisibleCount > 0 && selectedVisibleCount < visibleIds.length;
     controlSelectPageCheckbox.disabled = !controlSelectiveDeleteMode || !visibleIds.length;
   }
+  syncControlBulkAssignmentUi();
+}
+
+function syncControlBulkAssignmentUi() {
+  if (!controlBulkField || !controlBulkCurrentValue || !controlBulkCurrentSelect) return;
+  const field = controlBulkField.value;
+  const usesSelect = ["personal", "centro", "puesto", "tipo_jornada"].includes(field);
+  [controlBulkCurrentValue, controlBulkNewValue].forEach((input) =>
+    input?.classList.toggle("hidden", usesSelect)
+  );
+  [controlBulkCurrentSelect, controlBulkNewSelect].forEach((select) =>
+    select?.classList.toggle("hidden", !usesSelect)
+  );
+
+  if (usesSelect) {
+    let currentOptions;
+    let newOptions;
+    if (field === "personal") {
+      currentOptions = Array.from(
+        new Set(
+          controlBulkSourceRows.map(
+            (row) => row.personal_resolved || getResolvedControlPersonal(row)
+          )
+        )
+      ).filter(Boolean).map((value) => ({ value, label: value }));
+      newOptions = currentControlPersonnelRows
+        .filter((row) => row.dni)
+        .map((row) => ({ value: row.dni, label: row.personal }));
+    } else {
+      currentOptions = Array.from(
+        new Set(controlBulkSourceRows.map((row) => String(row[field] ?? "").trim()))
+      ).filter(Boolean).sort((left, right) =>
+        left.localeCompare(right, "es", { sensitivity: "base" })
+      ).map((value) => ({ value, label: value }));
+      newOptions = getUniqueControlValues(field).map((value) => ({ value, label: value }));
+    }
+    [
+      [controlBulkCurrentSelect, currentOptions],
+      [controlBulkNewSelect, newOptions],
+    ].forEach(([select, options]) => {
+      const previous = select.dataset.field === field ? select.value : "";
+      select.innerHTML =
+        '<option value="">Selecciona…</option>' +
+        options.map(
+          (option) =>
+            `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
+        ).join("");
+      select.dataset.field = field;
+      if (options.some((option) => option.value === previous)) select.value = previous;
+    });
+  } else {
+    const inputType = ["fecha"].includes(field)
+      ? "date"
+      : ["hora_inicio", "hora_fin"].includes(field) ? "time" : "text";
+    [controlBulkCurrentValue, controlBulkNewValue].forEach((input) => {
+      input.type = inputType;
+      input.placeholder = "";
+    });
+    controlBulkNewValue.placeholder =
+      field === "observacion" || field === "hora_fin" ? "Vacío para borrar el valor" : "";
+  }
+  updateControlBulkMatchCount();
+}
+
+function getControlBulkControlValue(kind) {
+  const usesSelect = !controlBulkCurrentSelect?.classList.contains("hidden");
+  const control = kind === "current"
+    ? (usesSelect ? controlBulkCurrentSelect : controlBulkCurrentValue)
+    : (usesSelect ? controlBulkNewSelect : controlBulkNewValue);
+  return String(control?.value ?? "").trim();
+}
+
+function getControlBulkMatchingRows() {
+  const field = controlBulkField?.value || "";
+  let currentValue = getControlBulkControlValue("current");
+  if (!field || !currentValue) return [];
+  if (field === "hora_inicio" || field === "hora_fin") {
+    currentValue = normalizeImportedTime(currentValue) || "";
+  }
+  return controlBulkSourceRows.filter((row) => {
+    const rowValue = field === "personal"
+      ? String(row.personal_resolved || getResolvedControlPersonal(row) || "").trim()
+      : field === "hora_inicio" || field === "hora_fin"
+        ? normalizeImportedTime(row[field]) || ""
+        : String(row[field] ?? "").trim();
+    return rowValue === currentValue;
+  });
+}
+
+function updateControlBulkMatchCount() {
+  const count = getControlBulkMatchingRows().length;
+  if (controlBulkMatchCount) {
+    controlBulkMatchCount.textContent = `${count} coincidencia${count === 1 ? "" : "s"}`;
+  }
+  if (controlBulkApplyButton) controlBulkApplyButton.disabled = count === 0;
+}
+
+async function refreshControlBulkSource() {
+  const key = JSON.stringify(buildControlFilters());
+  if (key === controlBulkSourceKey && controlBulkSourceRows.length) {
+    syncControlBulkAssignmentUi();
+    return;
+  }
+  const token = ++controlBulkSourceRequestToken;
+  if (controlBulkMatchCount) controlBulkMatchCount.textContent = "Calculando…";
+  try {
+    const rows = await fetchAllFilteredControlRecordsForBulk();
+    if (token !== controlBulkSourceRequestToken) return;
+    controlBulkSourceKey = key;
+    controlBulkSourceRows = rows;
+    syncControlBulkAssignmentUi();
+  } catch (error) {
+    if (token !== controlBulkSourceRequestToken) return;
+    controlBulkSourceRows = [];
+    controlBulkSourceKey = "";
+    updateControlBulkMatchCount();
+    setStatus(`No se pudieron preparar las coincidencias: ${error.message}`, "error");
+  }
 }
 
 function setControlSelectiveDeleteMode(isEnabled) {
@@ -9289,6 +9416,85 @@ function setControlSelectiveDeleteMode(isEnabled) {
   }
 
   renderControlRecords(currentControlRecords);
+}
+
+async function applyControlBulkAssignment() {
+  if (!currentSession) {
+    setStatus("Necesitas iniciar sesión para modificar registros.", "error");
+    return;
+  }
+  await refreshControlBulkSource();
+  const ids = getControlBulkMatchingRows()
+    .map((row) => Number(row.id))
+    .filter((id) => Number.isFinite(id));
+  if (!ids.length) {
+    setStatus("No hay registros con el valor actual indicado.", "error");
+    return;
+  }
+
+  const field = controlBulkField?.value || "";
+  const rawValue = getControlBulkControlValue("new");
+  let payload;
+  if (field === "personal") {
+    const person = currentControlPersonnelRows.find((row) => row.dni === rawValue);
+    if (!person) {
+      setStatus("Selecciona una persona.", "error");
+      return;
+    }
+    payload = { personal: person.personal, dni: person.dni };
+  } else if (field === "fecha") {
+    const fecha = normalizeImportedDate(rawValue);
+    if (!fecha) {
+      setStatus("Indica una fecha válida.", "error");
+      return;
+    }
+    payload = { fecha };
+  } else if (field === "hora_inicio" || field === "hora_fin") {
+    const hora = normalizeImportedTime(rawValue);
+    if (!hora && field === "hora_inicio") {
+      setStatus("Indica una hora de inicio válida.", "error");
+      return;
+    }
+    payload = { [field]: hora || null };
+  } else if (field === "tipo_jornada" || field === "observacion") {
+    payload = { [field]: rawValue || null };
+  } else {
+    if (!rawValue) {
+      setStatus("Selecciona el nuevo valor.", "error");
+      return;
+    }
+    payload = { [field]: rawValue };
+  }
+
+  const confirmed = window.confirm(
+    `Vas a modificar el campo seleccionado en ${ids.length} registro${
+      ids.length === 1 ? "" : "s"
+    }.`
+  );
+  if (!confirmed) return;
+
+  const supabase = await getSupabaseClient();
+  for (let offset = 0; offset < ids.length; offset += 500) {
+    const { error } = await supabase
+      .from("registros_horarios")
+      .update(payload)
+      .in("id", ids.slice(offset, offset + 500));
+    if (error) {
+      setStatus(`No se pudieron actualizar todos los registros: ${error.message}`, "error");
+      return;
+    }
+  }
+
+  controlBulkSourceRows = [];
+  controlBulkSourceKey = "";
+  await fetchControlFilterOptions();
+  await fetchControlRecords();
+  setStatus(
+    `${ids.length} registro${ids.length === 1 ? "" : "s"} actualizado${
+      ids.length === 1 ? "" : "s"
+    } correctamente.`,
+    "success"
+  );
 }
 
 function toggleCurrentControlPageSelection(isSelected) {
@@ -14278,6 +14484,12 @@ function fitPrivatePanelScrollAreas() {
   );
   wrappers.forEach((wrapper) => {
     if (!wrapper.offsetParent) return; // no visible
+    // Los dos listados compactos de Gestión tienen un límite propio de diez
+    // filas. No se les debe imponer la altura disponible de la ventana.
+    if (wrapper.classList.contains("gestion-table-wrapper")) {
+      wrapper.style.removeProperty("max-height");
+      return;
+    }
     const top = wrapper.getBoundingClientRect().top;
     const available = window.innerHeight - top - 24; // 24px de respiro inferior
     wrapper.style.maxHeight = `${Math.max(220, available)}px`;
@@ -17333,6 +17545,7 @@ const gestionRefreshButton = document.querySelector("#gestion-refresh-button");
 const gestionClearFiltersButton = document.querySelector("#gestion-clear-filters-button");
 const gestionSummary = document.querySelector("#gestion-summary");
 const gestionHistorialCount = document.querySelector("#gestion-historial-count");
+const gestionHistorialTable = document.querySelector("#gestion-historial-table");
 const gestionHistorialTableBody = document.querySelector("#gestion-historial-table-body");
 const gestionTotalHoras = document.querySelector("#gestion-total-horas");
 const gestionPivotHead = document.querySelector("#gestion-pivot-head");
@@ -17348,6 +17561,9 @@ const gestionNominaListadoForm = document.querySelector("#gestion-nomina-listado
 const gestionNominaListadoMes = document.querySelector("#gestion-nomina-listado-mes");
 const gestionNominaListadoAnio = document.querySelector("#gestion-nomina-listado-anio");
 const gestionNominaListadoEmpresa = document.querySelector("#gestion-nomina-listado-empresa");
+const gestionNominaListadoEmisionDesde = document.querySelector("#gestion-nomina-listado-emision-desde");
+const gestionNominaListadoEmisionHasta = document.querySelector("#gestion-nomina-listado-emision-hasta");
+const gestionNominaListadoPersonal = document.querySelector("#gestion-nomina-listado-personal");
 const gestionNominaListadoAnuladas = document.querySelector("#gestion-nomina-listado-anuladas");
 const gestionNominaListadoHint = document.querySelector("#gestion-nomina-listado-hint");
 const gestionNominaListadoBody = document.querySelector("#gestion-nomina-listado-body");
@@ -17379,6 +17595,10 @@ const gestionExtraLista = document.querySelector("#gestion-extra-lista");
 // Plus de transporte: no es un complemento de la persona sino una tarifa del
 // convenio, así que va en la lista con una clave propia en vez de un id.
 const GESTION_MANUAL_TRANSPORTE = "transporte";
+// Los conceptos que genera el motor por el puesto se identifican por su nombre,
+// no por un id: se les pone este prefijo para distinguirlos de los complementos
+// asignados a la persona, cuya clave es el id de la asignación.
+const GESTION_MANUAL_CONCEPTO_PREFIJO = "concepto:";
 const gestionEditPersonalButton = document.querySelector("#gestion-edit-personal-button");
 const gestionPersonalPanel = document.querySelector("#gestion-personal-panel");
 const gestionPersonalOverlay = document.querySelector("#gestion-personal-overlay");
@@ -17403,6 +17623,8 @@ let gestionHistorialRows = [];
 let gestionDetailRecordRows = [];
 let gestionNominasPorHistorial = new Map();
 let gestionCoberturaNominasDisponible = false;
+let gestionHistorialSort = { field: "fecha_alta", direction: "desc" };
+let gestionHistorialSortCriteria = [gestionHistorialSort];
 
 async function loadGestionEmpresaOptions() {
   if (gestionEmpresasLoaded || !gestionFilterEmpresa) {
@@ -17560,9 +17782,14 @@ function getGestionManualOptions() {
     pagasIncluidas:
       document.querySelector('input[name="gestion-manual-pagas"]:checked')?.value === "si",
     complementos: marcados
-      .filter((key) => key !== GESTION_MANUAL_TRANSPORTE)
+      .filter((key) => key !== GESTION_MANUAL_TRANSPORTE && !key.startsWith(GESTION_MANUAL_CONCEPTO_PREFIJO))
       .map(Number),
     transporte: marcados.includes(GESTION_MANUAL_TRANSPORTE),
+    // Conceptos del puesto marcados = ya van dentro del importe, no se pagan
+    // aparte. Sin marcar (lo normal) se suman al importe manual.
+    conceptosDentro: marcados
+      .filter((key) => key.startsWith(GESTION_MANUAL_CONCEPTO_PREFIJO))
+      .map((key) => key.slice(GESTION_MANUAL_CONCEPTO_PREFIJO.length)),
   };
 }
 
@@ -17603,6 +17830,34 @@ async function renderGestionManualComplementos(personalId, desde, historialRows)
   }));
   if ((historialRows || []).some((row) => row.tiene_plus_transporte)) {
     items.push({ key: GESTION_MANUAL_TRANSPORTE, label: "Plus de transporte", detalle: "por día trabajado" });
+  }
+
+  // Conceptos que el motor genera por el puesto (montaje, complementarias,
+  // disponibilidad, nocturnidad…). Antes la nómina manual se los llevaba por
+  // delante sin que aparecieran aquí; ahora se pagan aparte salvo que se
+  // marquen como ya incluidos en el importe.
+  try {
+    const { hasta, empresaId, baseCalculo, ajusteJornada } = getGestionFilters();
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.rpc("get_conceptos_puesto_nomina", {
+      p_personal_id: Number(personalId),
+      p_desde: desde || null,
+      p_hasta: hasta || null,
+      p_empresa_id: empresaId ? Number(empresaId) : null,
+      p_historial_ids: null,
+      p_base_calculo: baseCalculo || null,
+      p_ajuste_jornada: ajusteJornada || null,
+    });
+    if (error) throw error;
+    for (const row of data || []) {
+      items.push({
+        key: `${GESTION_MANUAL_CONCEPTO_PREFIJO}${row.concepto}`,
+        label: row.concepto,
+        detalle: formatGestionImporte(row.importe),
+      });
+    }
+  } catch (_error) {
+    // Si fallan, la lista sigue mostrando los complementos de la persona.
   }
 
   if (!items.length) {
@@ -17721,6 +17976,59 @@ function getGestionHistorialNominaStatus(row, desde, hasta) {
     : { key: "parcial", label: "Parcial", title: `Cobertura incompleta: ${detalle}` };
 }
 
+function getGestionHistorialSortValue(row, field, desde, hasta) {
+  if (field === "coeficiente") {
+    if (row.coeficiente_temporalidad_miles != null) {
+      return Number(row.coeficiente_temporalidad_miles);
+    }
+    const jornada = Number(row.jornada);
+    const maxima = Number(row.jornada_maxima);
+    return Number.isFinite(jornada) && Number.isFinite(maxima) && maxima > 0
+      ? Math.round((jornada / maxima) * 1000)
+      : NaN;
+  }
+  if (field === "nomina") {
+    return getGestionHistorialNominaStatus(row, desde, hasta)?.label || "";
+  }
+  return getSortableHistorialValue(row, field);
+}
+
+function sortGestionHistorialRows(rows, desde, hasta) {
+  return [...rows].sort((left, right) => {
+    for (const criterion of gestionHistorialSortCriteria) {
+      const leftValue = getGestionHistorialSortValue(left, criterion.field, desde, hasta);
+      const rightValue = getGestionHistorialSortValue(right, criterion.field, desde, hasta);
+      let result;
+      if (typeof leftValue === "number" || typeof rightValue === "number") {
+        const leftEmpty = !Number.isFinite(Number(leftValue));
+        const rightEmpty = !Number.isFinite(Number(rightValue));
+        if (leftEmpty || rightEmpty) {
+          result = leftEmpty === rightEmpty ? 0 : leftEmpty ? -1 : 1;
+        } else {
+          result = Number(leftValue) - Number(rightValue);
+        }
+      } else {
+        result = String(leftValue).localeCompare(String(rightValue), "es", {
+          numeric: true,
+          sensitivity: "base",
+        });
+      }
+      if (result !== 0) {
+        return result * (criterion.direction === "asc" ? 1 : -1);
+      }
+    }
+    return String(right.id ?? "").localeCompare(String(left.id ?? ""), "es", { numeric: true });
+  });
+}
+
+function syncGestionHistorialSortButtons() {
+  syncSortButtonsBySelector(
+    "[data-gestion-historial-sort-field]",
+    "gestionHistorialSortField",
+    gestionHistorialSort
+  );
+}
+
 function renderGestionHistorial(rows, desde = "", hasta = "") {
   gestionHistorialRows = rows;
   if (gestionHistorialCount) {
@@ -17738,13 +18046,14 @@ function renderGestionHistorial(rows, desde = "", hasta = "") {
   if (!gestionHistorialTableBody) {
     return;
   }
+  syncGestionHistorialSortButtons();
   if (!rows.length) {
     gestionHistorialTableBody.innerHTML =
       '<tr><td colspan="7" class="empty-state">Sin historiales en el intervalo.</td></tr>';
     return;
   }
 
-  gestionHistorialTableBody.innerHTML = rows
+  gestionHistorialTableBody.innerHTML = sortGestionHistorialRows(rows, desde, hasta)
     .map((row) => {
       const jornada = row.jornada != null ? Number(row.jornada) : NaN;
       const maxima = row.jornada_maxima != null ? Number(row.jornada_maxima) : NaN;
@@ -18325,6 +18634,7 @@ async function toggleGestionNominaTotal(personalId) {
       p_manual_complementos: manual ? manual.complementos : null,
       p_manual_transporte: manual ? manual.transporte : false,
       p_complementos_extra: complementosExtra,
+      p_manual_conceptos_dentro: manual ? manual.conceptosDentro : null,
     });
     if (error) {
       throw error;
@@ -18428,6 +18738,7 @@ function getGestionNominaEmitirPayload(personalId) {
     p_manual_complementos: manual ? manual.complementos : null,
     p_manual_transporte: manual ? manual.transporte : false,
     p_complementos_extra: complementosExtra,
+    p_manual_conceptos_dentro: manual ? manual.conceptosDentro : null,
   };
 }
 
@@ -18561,6 +18872,7 @@ async function obtenerGestionNominaTotal(personalId) {
     p_manual_complementos: manual ? manual.complementos : null,
     p_manual_transporte: manual ? manual.transporte : false,
     p_complementos_extra: complementosExtra,
+    p_manual_conceptos_dentro: manual ? manual.conceptosDentro : null,
   });
   if (error) throw error;
   gestionNominaCache.set("total", data || []);
@@ -19391,6 +19703,10 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
 
 let gestionNominaListadoData = null;
 let gestionNominaListadoInit = false;
+let gestionNominaListadoSource = null;
+let gestionNominaListadoRequestToken = 0;
+let gestionNominaListadoReloadTimer = null;
+const GESTION_NOMINA_LISTADO_PAGE_SIZE = 1000;
 
 function initGestionNominaListado() {
   if (gestionNominaListadoInit || !gestionNominaListadoMes) {
@@ -19414,10 +19730,35 @@ function initGestionNominaListado() {
     gestionNominaListadoEmpresa.innerHTML = opciones.join("");
     gestionNominaListadoEmpresa.value = gestionFilterEmpresa?.value || "";
   }
+  syncMultiCheckDropdown(gestionNominaListadoPersonal, "Todo el personal");
+}
+
+async function fetchGestionNominaListadoRows(supabase, params) {
+  const rows = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .rpc("get_nominas_listado", params)
+      .range(offset, offset + GESTION_NOMINA_LISTADO_PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = data || [];
+    rows.push(...page);
+    if (page.length < GESTION_NOMINA_LISTADO_PAGE_SIZE) {
+      return rows;
+    }
+    offset += GESTION_NOMINA_LISTADO_PAGE_SIZE;
+  }
+}
+
+function scheduleGestionNominaListadoLoad() {
+  clearTimeout(gestionNominaListadoReloadTimer);
+  gestionNominaListadoReloadTimer = setTimeout(() => {
+    void loadGestionNominaListado();
+  }, 150);
 }
 
 async function loadGestionNominaListado() {
-  if (!gestionNominaListadoBody) {
+  if (!gestionNominaListadoBody || !gestionNominaListadoBlock?.open) {
     return;
   }
   const ejercicio = Number(gestionNominaListadoAnio?.value);
@@ -19428,38 +19769,91 @@ async function loadGestionNominaListado() {
   }
   const empresaId = gestionNominaListadoEmpresa?.value ? Number(gestionNominaListadoEmpresa.value) : null;
   const incluirAnuladas = Boolean(gestionNominaListadoAnuladas?.checked);
+  const sourceKey = JSON.stringify({ ejercicio, mes, empresaId, incluirAnuladas });
+  const requestToken = ++gestionNominaListadoRequestToken;
   gestionNominaListadoBody.innerHTML = '<p class="muted-text">Cargando…</p>';
   setGestionNominaListadoExportEnabled(false);
   try {
     const supabase = await getSupabaseClient();
-    const { data, error } = await supabase.rpc("get_nominas_listado", {
-      p_ejercicio: ejercicio,
-      p_mes: mes,
-      p_empresa_id: empresaId,
-      p_incluir_anuladas: incluirAnuladas,
-    });
-    if (error) throw error;
-    const listadoRows = data || [];
-    const nominaIds = Array.from(new Set(listadoRows.map((row) => Number(row.nomina_id)).filter(Boolean)));
-    const [cabecerasRes, horasRes] = nominaIds.length
-      ? await Promise.all([
-          supabase.from("nominas").select("id, emitida_en").in("id", nominaIds),
-          supabase
-            .from("nomina_horas")
-            .select("nomina_id, tipo_hora, horas")
-            .in("nomina_id", nominaIds),
-        ])
-      : [{ data: [], error: null }, { data: [], error: null }];
-    if (cabecerasRes.error) throw cabecerasRes.error;
-    if (horasRes.error) throw horasRes.error;
-    const emisiones = new Map(
-      (cabecerasRes.data || []).map((row) => [String(row.id), row.emitida_en])
+    if (!gestionNominaListadoSource || gestionNominaListadoSource.key !== sourceKey) {
+      const listadoRows = await fetchGestionNominaListadoRows(supabase, {
+        p_ejercicio: ejercicio,
+        p_mes: mes,
+        p_empresa_id: empresaId,
+        p_incluir_anuladas: incluirAnuladas,
+      });
+      const nominaIds = Array.from(
+        new Set(listadoRows.map((row) => Number(row.nomina_id)).filter(Boolean))
+      );
+      const [cabecerasRes, horasRes] = nominaIds.length
+        ? await Promise.all([
+            supabase.from("nominas").select("id, emitida_en").in("id", nominaIds),
+            supabase
+              .from("nomina_horas")
+              .select("nomina_id, tipo_hora, horas")
+              .in("nomina_id", nominaIds),
+          ])
+        : [{ data: [], error: null }, { data: [], error: null }];
+      if (cabecerasRes.error) throw cabecerasRes.error;
+      if (horasRes.error) throw horasRes.error;
+      gestionNominaListadoSource = {
+        key: sourceKey,
+        rows: listadoRows,
+        horas: horasRes.data || [],
+        emisiones: new Map(
+          (cabecerasRes.data || []).map((row) => [String(row.id), row.emitida_en])
+        ),
+      };
+    }
+    if (requestToken !== gestionNominaListadoRequestToken) return;
+
+    const desdeMs = gestionNominaListadoEmisionDesde?.value
+      ? new Date(gestionNominaListadoEmisionDesde.value).getTime()
+      : null;
+    const hastaMs = gestionNominaListadoEmisionHasta?.value
+      ? new Date(gestionNominaListadoEmisionHasta.value).getTime()
+      : null;
+    const source = gestionNominaListadoSource;
+    const idsPorEmision = new Set();
+    for (const [id, emitidaEn] of source.emisiones) {
+      const emisionMs = new Date(emitidaEn).getTime();
+      if (desdeMs != null && emisionMs < desdeMs) continue;
+      if (hastaMs != null && emisionMs > hastaMs) continue;
+      idsPorEmision.add(id);
+    }
+
+    const personas = new Map();
+    for (const row of source.rows) {
+      if (!idsPorEmision.has(String(row.nomina_id)) || row.personal_id == null) continue;
+      personas.set(String(row.personal_id), row.personal || `ID ${row.personal_id}`);
+    }
+    const seleccionAnterior = new Set(getSelectValues(gestionNominaListadoPersonal));
+    gestionNominaListadoPersonal.innerHTML = Array.from(personas, ([id, nombre]) => ({ id, nombre }))
+      .sort((left, right) =>
+        left.nombre.localeCompare(right.nombre, "es", { sensitivity: "base" })
+      )
+      .map(
+        ({ id, nombre }) =>
+          `<option value="${escapeHtml(id)}" ${seleccionAnterior.has(id) ? "selected" : ""}>${escapeHtml(nombre)}</option>`
+      )
+      .join("");
+    syncMultiCheckDropdown(gestionNominaListadoPersonal, "Todo el personal");
+
+    const personalIds = new Set(getSelectValues(gestionNominaListadoPersonal));
+    const listadoRows = source.rows.filter(
+      (row) =>
+        idsPorEmision.has(String(row.nomina_id)) &&
+        (!personalIds.size || personalIds.has(String(row.personal_id)))
+    );
+    const nominaIdsFiltradas = new Set(listadoRows.map((row) => String(row.nomina_id)));
+    const horasFiltradas = source.horas.filter((row) =>
+      nominaIdsFiltradas.has(String(row.nomina_id))
     );
     gestionNominaListadoData = buildGestionNominaListado(
       listadoRows,
       { ejercicio, mes },
-      horasRes.data || [],
-      emisiones
+      horasFiltradas,
+      source.emisiones
     );
     renderGestionNominaListado(gestionNominaListadoData);
     setGestionNominaListadoExportEnabled(gestionNominaListadoData.nominas.length > 0);
@@ -19644,8 +20038,13 @@ function renderGestionNominaListado(data) {
     .join("");
 
   gestionNominaListadoBody.innerHTML = `${matriz}
-    <h4 class="gestion-nomina-expediente-title">Detalle por nómina</h4>
-    <div class="gestion-nomina-listado-detalle">${detalle}</div>`;
+    <details class="gestion-nomina-listado-detalles">
+      <summary class="gestion-nomina-expediente-title">
+        Detalle por nómina
+        <span class="summary-chip">${data.nominas.length}</span>
+      </summary>
+      <div class="gestion-nomina-listado-detalle">${detalle}</div>
+    </details>`;
 }
 
 async function exportGestionNominaListadoExcel() {
@@ -27847,6 +28246,27 @@ async function init() {
       );
     }
   });
+  gestionHistorialTable?.addEventListener("click", (event) => {
+    const sortField = event.target.closest("[data-gestion-historial-sort-field]")?.dataset
+      .gestionHistorialSortField;
+    if (!sortField) return;
+    if (gestionHistorialSort.field === sortField) {
+      gestionHistorialSort.direction =
+        gestionHistorialSort.direction === "asc" ? "desc" : "asc";
+      gestionHistorialSortCriteria[0] = gestionHistorialSort;
+    } else {
+      const previousCriteria = gestionHistorialSortCriteria.filter(
+        (criterion) => criterion.field !== sortField
+      );
+      gestionHistorialSort = {
+        field: sortField,
+        direction: sortField === "fecha_alta" || sortField === "fecha_baja" ? "desc" : "asc",
+      };
+      gestionHistorialSortCriteria = [gestionHistorialSort, ...previousCriteria];
+    }
+    const filters = getGestionFilters();
+    renderGestionHistorial(gestionHistorialRows, filters.desde, filters.hasta);
+  });
   document.querySelector("#gestion-pivot-table")?.addEventListener("click", () => {
     void openGestionRecordsPanel();
   });
@@ -27940,9 +28360,18 @@ async function init() {
     recalcularGestionNominaTotal();
   });
 
+  gestionNominaListadoBlock?.addEventListener("toggle", () => {
+    if (gestionNominaListadoBlock.open) {
+      initGestionNominaListado();
+      gestionNominaListadoSource = null;
+      scheduleGestionNominaListadoLoad();
+    }
+  });
   gestionNominaListadoForm?.addEventListener("submit", (event) => {
     event.preventDefault();
-    void loadGestionNominaListado();
+  });
+  gestionNominaListadoForm?.addEventListener("change", () => {
+    scheduleGestionNominaListadoLoad();
   });
   gestionNominaListadoExcelButton?.addEventListener("click", () => {
     void exportGestionNominaListadoExcel();
@@ -28625,8 +29054,16 @@ async function init() {
     clearControlImportPreview();
     setStatus("Importacion cancelada.", "default");
   });
-  controlDeleteRangeButton?.addEventListener("click", () => {
-    void deleteFilteredControlRecords();
+  document.querySelector("#control-bulk-zone")?.addEventListener("toggle", (event) => {
+    if (event.currentTarget.open) {
+      void refreshControlBulkSource();
+    }
+  });
+  controlBulkField?.addEventListener("change", syncControlBulkAssignmentUi);
+  controlBulkCurrentValue?.addEventListener("input", updateControlBulkMatchCount);
+  controlBulkCurrentSelect?.addEventListener("change", updateControlBulkMatchCount);
+  controlBulkApplyButton?.addEventListener("click", () => {
+    void applyControlBulkAssignment();
   });
   controlEnableSelectiveDeleteButton?.addEventListener("click", () => {
     setControlSelectiveDeleteMode(true);
@@ -29154,4 +29591,3 @@ async function init() {
 
 bindPanelNavigation();
 void init();
-

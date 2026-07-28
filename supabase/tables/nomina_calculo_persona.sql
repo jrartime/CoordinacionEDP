@@ -72,6 +72,15 @@
 -- ese complemento asignado, salen las dos lineas y se suman las dos: es lo
 -- pedido, no se sustituyen. Se emiten con orden 300+ (tras los asignados).
 
+-- NOMINA MANUAL Y CONCEPTOS DEL PUESTO (2026-07-28). El importe manual sustituye
+-- al SALARIO BASE, pero antes se llevaba por delante tambien el resto de lo que
+-- genera el puesto (montaje, complementarias, disponibilidad, nocturnidad,
+-- festivo, absentismo) sin que apareciera en ninguna parte: Denilson Santiago
+-- perdia 439,84 EUR de montaje al fijarle un importe. Ahora esos conceptos SE
+-- PAGAN APARTE por defecto y la lista "Complementos y pluses" del panel de
+-- Gestion los muestra uno a uno (get_conceptos_puesto_nomina); marcarlos
+-- significa "ya van dentro del importe" y entonces no se suman.
+
 -- HORAS EN UN PUESTO SIN HISTORIAL (2026-07-27). Si alguien cubre un servicio
 -- distinto del suyo, calcular_nomina_devengos descarta esas horas al filtrar por
 -- r.puesto_id = h.puesto_id y se perdian en silencio (caso real: Miguel Antonio
@@ -108,6 +117,8 @@ drop function if exists public.calcular_nomina_persona(integer, date, date, inte
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean);
 -- Idem al anadir cotiza_en al returns table y p_complementos_extra (2026-07-25).
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb);
+-- Idem al anadir p_manual_conceptos_dentro (2026-07-28).
+drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[]);
 
 create or replace function public.calcular_nomina_persona(
   p_personal_id integer, p_desde date, p_hasta date,
@@ -129,7 +140,10 @@ create or replace function public.calcular_nomina_persona(
   -- Complementos anadidos a mano para ESTA nomina, sin tocar la ficha de la
   -- persona: [{"complemento_id": 15, "importe": 95.00}, ...]. Se suman al bruto
   -- ademas de los que la persona ya tenga asignados (si coinciden, van los dos).
-  p_complementos_extra jsonb default null
+  p_complementos_extra jsonb default null,
+  -- Conceptos del puesto que se dan por INCLUIDOS en el importe manual y
+  -- por tanto no se pagan aparte. Vacio = todos se pagan aparte.
+  p_manual_conceptos_dentro text[] default null
 )
 -- cantidad/precio acompanan a cada linea con las UNIDADES y el PRECIO UNITARIO
 -- que la produjeron. cotiza_en dice a que bases suma esa linea.
@@ -152,6 +166,7 @@ declare
   v_transp_cotiza text[];
   v_compl_total numeric := 0; v_extra_total numeric := 0;
   v_huerf_total numeric := 0;
+  v_manual_fuera numeric := 0;
   v_pe_base numeric := 0; v_pe_compl numeric := 0;
   v_bruto numeric; v_base_cc numeric; v_base_cp numeric; v_base_irpf numeric;
   v_b_comunes numeric := 0; v_b_mei numeric := 0;
@@ -259,7 +274,16 @@ begin
     else
       v_base_total := v_manual_total;
     end if;
-    v_dev_puestos := v_base_total;
+    -- Los conceptos del puesto (montaje, complementarias, disponibilidad,
+    -- nocturnidad...) ya NO se pierden al fijar un importe manual: se pagan
+    -- aparte, salvo los que se marquen como incluidos en ese importe.
+    select coalesce(sum(cp.importe), 0) into v_manual_fuera
+    from public.get_conceptos_puesto_nomina(
+           p_personal_id, p_desde, p_hasta, p_empresa_id, p_historial_ids,
+           p_base_calculo, p_ajuste_jornada) cp
+    where not (cp.concepto = any(coalesce(p_manual_conceptos_dentro, '{}'::text[])));
+
+    v_dev_puestos := v_base_total + v_manual_fuera;
   end if;
 
   -- Los devengos del puesto (salario base, pluses de convenio, disponibilidad,
@@ -380,6 +404,15 @@ begin
       case p_manual_modo when 'diario' then v_manual_dias::numeric
                          when 'hora' then v_manual_horas else 1 end,
       p_manual_importe, v_base_total, null::text, v_todas;
+    return query
+    select cp.orden, 'devengo'::text, cp.concepto,
+      'no incluido en el importe manual'::text,
+      null::numeric, null::numeric, null::numeric, null::numeric,
+      cp.importe, null::text, v_todas
+    from public.get_conceptos_puesto_nomina(
+           p_personal_id, p_desde, p_hasta, p_empresa_id, p_historial_ids,
+           p_base_calculo, p_ajuste_jornada) cp
+    where not (cp.concepto = any(coalesce(p_manual_conceptos_dentro, '{}'::text[])));
   else
     return query
     select x.orden, 'devengo'::text, x.concepto, null::text, null::numeric, null::numeric,
@@ -531,5 +564,5 @@ begin
 end;
 $$;
 
-revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb) from public;
-grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb) to authenticated;
+revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[]) from public;
+grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[]) to authenticated;

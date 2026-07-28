@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260727-7" />
+    <link rel="stylesheet" href="./styles.css?v=20260728-7" />
   </head>
   <body>
     <script>
@@ -1746,17 +1746,17 @@
                       <h3>Historiales laborales solapados</h3>
                       <span id="gestion-historial-count" class="summary-chip">—</span>
                     </div>
-                    <div class="table-wrapper records-table-wrapper gestion-table-wrapper">
+                    <div class="table-wrapper records-table-wrapper gestion-table-wrapper gestion-historial-table-wrapper">
                       <table id="gestion-historial-table" class="records-table gestion-compact-table">
                         <thead>
                           <tr>
                             <th class="records-row-actions" aria-label="Editar"></th>
-                            <th>Personal</th>
-                            <th>Alta</th>
-                            <th>Baja</th>
-                            <th>Jornada / Máx.</th>
-                            <th title="Coeficiente de temporalidad (‰)">Coef. ‰</th>
-                            <th>Nómina</th>
+                            <th><button type="button" class="sort-button" data-gestion-historial-sort-field="personal">Personal</button></th>
+                            <th><button type="button" class="sort-button" data-gestion-historial-sort-field="fecha_alta">Alta</button></th>
+                            <th><button type="button" class="sort-button" data-gestion-historial-sort-field="fecha_baja">Baja</button></th>
+                            <th><button type="button" class="sort-button" data-gestion-historial-sort-field="jornada">Jornada / Máx.</button></th>
+                            <th title="Coeficiente de temporalidad (‰)"><button type="button" class="sort-button" data-gestion-historial-sort-field="coeficiente">Coef. ‰</button></th>
+                            <th><button type="button" class="sort-button" data-gestion-historial-sort-field="nomina">Nómina</button></th>
                           </tr>
                         </thead>
                         <tbody id="gestion-historial-table-body">
@@ -1831,11 +1831,11 @@
                   sus propios selectores. Matriz persona × concepto + detalle de
                   cada nómina, con exportación a Excel y PDF.
                 -->
-                <section id="gestion-nomina-listado-block" class="gestion-block gestion-nomina-block hidden">
-                  <div class="gestion-block-header">
+                <details id="gestion-nomina-listado-block" class="gestion-block gestion-nomina-block hidden">
+                  <summary class="gestion-block-header gestion-collapsible-header">
                     <h3>Listado de nóminas del mes</h3>
                     <span id="gestion-nomina-listado-hint" class="summary-chip">—</span>
-                  </div>
+                  </summary>
                   <form id="gestion-nomina-listado-form" class="gestion-nomina-listado-filtros">
                     <label class="filter-field">
                       Mes
@@ -1849,18 +1849,34 @@
                       Empresa
                       <select id="gestion-nomina-listado-empresa" name="empresa"></select>
                     </label>
+                    <label class="filter-field">
+                      Emisión desde
+                      <input id="gestion-nomina-listado-emision-desde" name="emision_desde" type="datetime-local" />
+                    </label>
+                    <label class="filter-field">
+                      Emisión hasta
+                      <input id="gestion-nomina-listado-emision-hasta" name="emision_hasta" type="datetime-local" />
+                    </label>
+                    <label class="filter-field">
+                      Personal
+                      <select
+                        id="gestion-nomina-listado-personal"
+                        name="personal"
+                        multiple
+                        data-multi-check-selected-label="personas seleccionadas"
+                      ></select>
+                    </label>
                     <label class="gestion-nomina-listado-check">
                       <input id="gestion-nomina-listado-anuladas" type="checkbox" />
                       Incluir anuladas
                     </label>
                     <div class="filter-actions">
-                      <button type="submit" class="secondary-button">Ver listado</button>
                       <button type="button" id="gestion-nomina-listado-excel" class="secondary-button" data-icon="download" data-icon-mode="icon-text" disabled>Excel</button>
                       <button type="button" id="gestion-nomina-listado-pdf" class="secondary-button" data-icon="download" data-icon-mode="icon-text" disabled>PDF</button>
                     </div>
                   </form>
                   <div id="gestion-nomina-listado-body"></div>
-                </section>
+                </details>
 
                 <section id="gestion-personal-panel" class="detail-panel hidden">
                   <div id="gestion-personal-overlay" class="detail-overlay"></div>
@@ -2893,43 +2909,6 @@
                     </div>
                   </div>
 
-                  <details class="control-danger-zone">
-                    <summary>Opciones de borrado</summary>
-                    <div class="control-danger-actions">
-                      <button
-                        id="control-enable-selective-delete-button"
-                        type="button"
-                        class="secondary-button"
-                      >
-                        Seleccionar registros
-                      </button>
-                      <button
-                        id="control-delete-selected-button"
-                        type="button"
-                        class="danger-button"
-                        disabled
-                      >
-                        Borrar seleccionados
-                      </button>
-                      <button
-                        id="control-cancel-selective-delete-button"
-                        type="button"
-                        class="secondary-button hidden"
-                      >
-                        Cancelar selección
-                      </button>
-                      <span id="control-selected-delete-count" class="control-selected-delete-count">
-                        0 seleccionados
-                      </span>
-                    </div>
-                    <button
-                      id="control-delete-range-button"
-                      type="button"
-                      class="danger-button"
-                    >
-                      Borrar registros filtrados
-                    </button>
-                  </details>
                 </div>
 
                 <form
@@ -3036,6 +3015,68 @@
                     </div>
                   </label>
                 </form>
+
+                <details id="control-bulk-zone" class="programming-panel-zone">
+                  <summary>Asignación/borrado masivo</summary>
+                  <div class="activities-bulk-assignment-panel">
+                    <p class="bulk-action-help">
+                      Aplicar modifica todos los registros filtrados que tengan el valor actual.
+                      Para borrar, pulsa Seleccionar y marca expresamente los registros.
+                    </p>
+                    <label>
+                      Campo
+                      <select id="control-bulk-field">
+                        <option value="personal">Personal</option>
+                        <option value="centro">Centro</option>
+                        <option value="puesto">Puesto</option>
+                        <option value="fecha">Fecha</option>
+                        <option value="hora_inicio">Hora inicio</option>
+                        <option value="hora_fin">Hora fin</option>
+                        <option value="tipo_jornada">Tipo jornada</option>
+                        <option value="observacion">Observación</option>
+                      </select>
+                    </label>
+                    <label>
+                      Valor actual
+                      <input id="control-bulk-current-value" type="text" />
+                      <select id="control-bulk-current-select" class="hidden"></select>
+                    </label>
+                    <label>
+                      Nuevo valor
+                      <input id="control-bulk-new-value" type="text" />
+                      <select id="control-bulk-new-select" class="hidden"></select>
+                    </label>
+                    <button id="control-bulk-apply-button" type="button">Aplicar</button>
+                    <button
+                      id="control-enable-selective-delete-button"
+                      type="button"
+                      class="secondary-button"
+                    >
+                      Seleccionar
+                    </button>
+                    <button
+                      id="control-delete-selected-button"
+                      type="button"
+                      class="danger-button"
+                      disabled
+                    >
+                      Borrar seleccionados
+                    </button>
+                    <button
+                      id="control-cancel-selective-delete-button"
+                      type="button"
+                      class="secondary-button hidden"
+                    >
+                      Cancelar selección
+                    </button>
+                    <span id="control-selected-delete-count" class="control-selected-delete-count hidden">
+                      0 seleccionados
+                    </span>
+                    <span id="control-bulk-match-count" class="control-selected-delete-count">
+                      0 coincidencias
+                    </span>
+                  </div>
+                </details>
 
                 <div class="table-wrapper">
                   <table id="control-records-table">
@@ -7860,9 +7901,9 @@
     </div>
 
     <script src="./config.js" defer></script>
-    <script src="./shared/supabase-client.js" defer></script>
-    <script src="./shared/auth.js" defer></script>
+    <script src="../shared/supabase-client.js" defer></script>
+    <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260727-7" defer></script>
-    <script src="./app.js?v=20260727-6" defer></script>
+    <script src="./app.js?v=20260728-8" defer></script>
   </body>
 </html>

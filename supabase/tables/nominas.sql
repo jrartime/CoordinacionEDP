@@ -70,6 +70,9 @@ create table if not exists public.nominas (
   -- [{"complemento_id":15,"importe":95.00}]. Se guardan para poder reproducir
   -- el calculo tal cual se emitio.
   complementos_extra jsonb,
+  -- Conceptos del puesto que se dieron por incluidos en el importe manual y
+  -- por tanto no se pagaron aparte.
+  manual_conceptos_dentro text[],
 
   -- Totales congelados (se derivan de nomina_lineas al emitir).
   total_devengado numeric(12, 2) not null default 0,
@@ -542,6 +545,8 @@ grant execute on function public.get_nomina_contexto_historial(bigint, date, dat
 drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean);
 -- Idem al anadir p_complementos_extra (2026-07-25).
 drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb);
+-- Idem al anadir p_manual_conceptos_dentro (2026-07-28).
+drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb);
 
 create or replace function public.emitir_nomina(
   p_personal_id integer,
@@ -566,7 +571,8 @@ create or replace function public.emitir_nomina(
   p_lineas jsonb default null,
   -- Complementos anadidos a mano en el panel de Gestion; se pasan al motor
   -- y se guardan en la cabecera para poder reproducir el calculo.
-  p_complementos_extra jsonb default null
+  p_complementos_extra jsonb default null,
+  p_manual_conceptos_dentro text[] default null
 )
 returns bigint
 language plpgsql
@@ -622,13 +628,13 @@ begin
     personal_id, empresa_id, periodo_desde, periodo_hasta, historial_ids,
     base_calculo, ajuste_jornada,
     manual_importe, manual_modo, manual_pagas_incluidas,
-    manual_complementos, manual_transporte, complementos_extra,
+    manual_complementos, manual_transporte, complementos_extra, manual_conceptos_dentro,
     notas, sustituye_a, editada, emitida_por_email
   ) values (
     p_personal_id, p_empresa_id, p_desde, p_hasta, v_ids,
     p_base_calculo, p_ajuste_jornada,
     p_manual_importe, p_manual_modo, coalesce(p_manual_pagas_incluidas, false),
-    p_manual_complementos, coalesce(p_manual_transporte, false), p_complementos_extra,
+    p_manual_complementos, coalesce(p_manual_transporte, false), p_complementos_extra, p_manual_conceptos_dentro,
     -- El nullif exterior evita reventar cuando el claim no viene (cadena vacia
     -- no es jsonb valido).
     p_notas, v_previa, v_editada,
@@ -666,7 +672,7 @@ begin
       p_personal_id, p_desde, p_hasta, p_empresa_id, p_base_calculo, p_ajuste_jornada,
       nullif(v_ids, '{}'::bigint[]), p_manual_importe, p_manual_modo,
       coalesce(p_manual_pagas_incluidas, false), p_manual_complementos,
-      coalesce(p_manual_transporte, false), p_complementos_extra
+      coalesce(p_manual_transporte, false), p_complementos_extra, p_manual_conceptos_dentro
     ) c;
   end if;
 
@@ -811,8 +817,8 @@ begin
 end;
 $$;
 
-revoke all on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb) from public;
-grant execute on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb) to authenticated;
+revoke all on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[]) from public;
+grant execute on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[]) to authenticated;
 
 -- ============================================================================
 -- Anular: no se borra, se marca. Las lineas se conservan como historico.

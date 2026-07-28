@@ -275,6 +275,16 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - Verificado que las nóminas ya validadas (Jaime, Ainhoa, Adrián, persona 1250) no cambian.
 - **Despliegue requerido**: `registros_horas_sin_historial.sql`, `nomina_calculo_persona.sql` y `nominas.sql`. Ya aplicados.
 
+## 20. La nómina manual ya no se come los conceptos del puesto (28/07/2026)
+
+- **Problema**: el importe manual sustituía **todos** los devengos del puesto, no solo el salario base. Montaje, horas complementarias, plus de disponibilidad, nocturnidad, festivo trabajado y descuento por absentismo desaparecían sin figurar en ninguna lista. Caso real: **Denilson Santiago** perdía **439,84 € de montaje** al fijarle un importe manual de 1.200 €.
+- **Ahora se pagan aparte por defecto**. La lista «Complementos y pluses incluidos» los muestra uno a uno con su importe; **marcar uno significa «ya va dentro del importe manual»** y entonces no se suma — el mismo criterio que ya tenían los complementos de la persona y el plus de transporte.
+- **Decisión del usuario**: desmarcados por defecto (se pagan aparte) y con **todos** los conceptos del puesto, no solo los tres de horas.
+- **Piezas**: `get_conceptos_puesto_nomina(...)` (`supabase/tables/nomina_conceptos_puesto.sql`) alimenta la lista y el motor; `p_manual_conceptos_dentro text[]` en `calcular_nomina_persona` y `emitir_nomina`; se congela en `nominas.manual_conceptos_dentro`. En el frontend los conceptos llevan la clave con prefijo `concepto:` para distinguirlos de los complementos, cuya clave es el id de la asignación.
+- **Ojo, esto cambia importes**: hay **153 nóminas ya emitidas** (no se mueven, están congeladas), pero **si se reemite una manual el resultado subirá**. Las más afectadas: Carmen Logedo y Daniel Sánchez (+175,88 € cada una), Jennifer Iniesta (+62,76 €), Marina Segovia (+42,27 €) y Andrea Estrada (+25,13 €).
+- **Se retiraron las firmas anteriores** de `calcular_nomina_persona` y `emitir_nomina`: conservaban el comportamiento viejo y habrían competido con las nuevas.
+- **Despliegue requerido**: `nomina_conceptos_puesto.sql`, `nomina_calculo_persona.sql` y `nominas.sql`. Ya aplicados.
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.
