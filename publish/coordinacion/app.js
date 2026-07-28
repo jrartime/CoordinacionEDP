@@ -16701,14 +16701,33 @@ function renderRecordSubstitutionBadge(row) {
 // RECORDS_LOAD_LIMIT): si el turno que choca se quedo fuera del filtro, aqui no
 // sale. Por eso el resumen dice sobre que conjunto se ha mirado.
 //
-// Una fila sin horas no la trabaja esa persona (CAMB: lo cubrio otro; LG:
-// licencia), de modo que no ocupa su horario y no cuenta como solape. Es el
-// mismo criterio que withRecordSituacionSideEffects usa para vaciar las horas.
+// CAMB (el turno lo cubrio otro) y LG (licencia) significan que esa persona NO
+// hace ese turno: esta en otra actividad durante todo o parte de ese horario.
+// Se guarda el horario para saber de que turno se trata, pero las horas van
+// vacias y el hueco no lo ocupa, asi que no puede solapar con nada.
+//
+// Se mira la SITUACION y no solo las horas: hay partes importados que dejaron
+// las horas puestas en filas CAMB/LG (David Tella, 08/07/2026), y mirando solo
+// las horas esas filas se marcaban como solape sin serlo.
 let recordsOverlapMap = new Map();
 let recordsOverlapOnly = false;
 
+const RECORD_SITUACIONES_SIN_HORAS = new Set(["CAMB", "LG"]);
+
+function recordSituacionSinHoras(row) {
+  // La regla vive en Actividades (mismos ids de CAMB/LG) para no duplicarla.
+  if (window.CoordinacionActividades?.situacionSinHoras(row?.situacion_id)) {
+    return true;
+  }
+  // Sus catalogos pueden no estar cargados todavia (quiza no se abrio esa
+  // pestaña); la etiqueta viene en la propia fila y sirve de respaldo.
+  return RECORD_SITUACIONES_SIN_HORAS.has(String(row?.situacion || "").trim().toUpperCase());
+}
+
 function recordRowOccupiesTime(row) {
-  return Boolean(row?.fecha && row?.hora_inicio && row?.hora_fin) && (Number(row.horas) || 0) > 0;
+  if (!row?.fecha || !row?.hora_inicio || !row?.hora_fin) return false;
+  if (recordSituacionSinHoras(row)) return false;
+  return (Number(row.horas) || 0) > 0;
 }
 
 function recordTimeToMinutes(value) {
