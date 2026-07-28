@@ -285,6 +285,14 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Se retiraron las firmas anteriores** de `calcular_nomina_persona` y `emitir_nomina`: conservaban el comportamiento viejo y habrían competido con las nuevas.
 - **Despliegue requerido**: `nomina_conceptos_puesto.sql`, `nomina_calculo_persona.sql` y `nominas.sql`. Ya aplicados.
 
+## 21. Gestión compacta y Control personal masivo (28/07/2026)
+
+- **Gestión — historiales y horas**: los dos listados superiores quedan limitados a la cabecera más diez filas con scroll interno. El ajustador global de altura excluye expresamente `.gestion-table-wrapper` para no sobrescribir el límite con estilos en línea. El panel de historiales es más ancho, su botón Editar es más pequeño y todas sus cabeceras son ordenables. La ordenación es acumulativa: el último campo es el principal y los anteriores desempatan conservando su dirección.
+- **Listado mensual de nóminas**: todo el bloque es plegable y no consulta nada cerrado. Al abrir carga automáticamente; se eliminó `Ver listado`. Los filtros por mes/año, empresa, anuladas, emisión desde/hasta y personal múltiple son reactivos. El catálogo de personas solo contiene quienes tienen nómina bajo los demás filtros. El detalle apilado por nómina también es plegable.
+- **Límite de PostgREST**: `get_nominas_listado` devuelve líneas, por lo que 1.000 filas eran solo unas 65 nóminas. `fetchGestionNominaListadoRows` pagina el RPC hasta recuperar el mes completo. Los cambios de emisión/personal se resuelven sobre una caché del mes y las exportaciones respetan el resultado filtrado.
+- **Control personal**: se retiró la antigua zona `Opciones de borrado` y la acción `Borrar registros filtrados`. El nuevo panel `Asignación/borrado masivo` separa responsabilidades: `Aplicar` busca en todos los registros de los filtros activos el `Valor actual` del campo y asigna el `Nuevo valor`; el contador anticipa las coincidencias y la actualización se trocea en lotes de 500 ids. Para Personal se actualizan nombre y DNI juntos. `Borrar seleccionados` sigue exigiendo ticks explícitos.
+- **Informes de Historial laboral**: el cajón del generador usa hasta 1.120 px y una rejilla real de dos columnas; a 720 px pasa a una columna. Evita que las clases compartidas con el editor de Registros lo limiten a 640 px.
+
 ## Notas de entorno / convenciones
 
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.

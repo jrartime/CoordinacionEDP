@@ -1157,7 +1157,8 @@ textarea {
 
 .activities-bulk-assignment-panel #records-bulk-select-button,
 .activities-bulk-assignment-panel #historial-bulk-select-button,
-.activities-bulk-assignment-panel #activities-bulk-select-button {
+.activities-bulk-assignment-panel #activities-bulk-select-button,
+.activities-bulk-assignment-panel #control-enable-selective-delete-button {
   min-width: 112px;
 }
 
@@ -3646,6 +3647,22 @@ th {
   line-height: 1.25;
 }
 
+/* El generador de informes laborales comparte clases con el editor de
+   Registros, pero necesita el cajón ancho y una rejilla real de dos columnas.
+   Sin estas reglas, la cascada limita el cajón a 640 px y reparte cada campo
+   en una de las doce columnas del formulario de Registros. */
+#historial-report-panel .detail-drawer {
+  width: min(1120px, 96vw);
+}
+
+#historial-report-panel .records-detail-form .detail-field-row.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#historial-report-panel .records-detail-form .detail-field-row.cols-2 > label {
+  min-width: 0;
+}
+
 .detail-drawer .checkbox-item {
   min-height: 28px;
 }
@@ -4013,6 +4030,10 @@ th {
 }
 
 @media (max-width: 720px) {
+  #historial-report-panel .records-detail-form .detail-field-row.cols-2 {
+    grid-template-columns: 1fr;
+  }
+
   .event-personnel-row {
     grid-template-columns: 1fr;
   }
@@ -4216,7 +4237,7 @@ th {
 /* --- Gestión: diseño compacto de dos bloques (historiales + horas) --- */
 .gestion-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -4249,9 +4270,68 @@ th {
   margin: 0;
 }
 
+.gestion-collapsible-header {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.gestion-collapsible-header::-webkit-details-marker {
+  display: none;
+}
+
+.gestion-collapsible-header::before {
+  content: "▶";
+  color: var(--accent);
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+
+details[open] > .gestion-collapsible-header::before {
+  transform: rotate(90deg);
+}
+
+#gestion-nomina-listado-block > .gestion-collapsible-header {
+  justify-content: flex-start;
+}
+
+#gestion-nomina-listado-block > .gestion-collapsible-header .summary-chip {
+  margin-left: auto;
+}
+
+#gestion-nomina-listado-block[open] > .gestion-collapsible-header {
+  margin-bottom: 10px;
+}
+
 .gestion-table-wrapper {
-  max-height: 60vh;
+  /* Cabecera + un máximo de diez filas compactas. */
+  max-height: 334px;
   overflow: auto;
+}
+
+.gestion-historial-table-wrapper {
+  max-height: 334px;
+}
+
+#gestion-historial-table tbody tr,
+#gestion-pivot-table tbody tr {
+  height: 30px;
+}
+
+#gestion-historial-table .compact-button {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+#gestion-historial-table th.records-row-actions,
+#gestion-historial-table td.records-row-actions {
+  width: 30px;
+  min-width: 30px;
+  padding-left: 4px;
+  padding-right: 4px;
 }
 
 .records-table.gestion-compact-table {
@@ -5047,8 +5127,18 @@ th {
 }
 
 .private-tab-panel .gestion-nomina-listado-filtros select,
-.private-tab-panel .gestion-nomina-listado-filtros input[type="number"] {
+.private-tab-panel .gestion-nomina-listado-filtros input[type="number"],
+.private-tab-panel .gestion-nomina-listado-filtros input[type="datetime-local"] {
   height: 30px;
+  font-size: 0.76rem;
+}
+
+.gestion-nomina-listado-filtros .multi-check-dropdown {
+  min-width: 210px;
+}
+
+.gestion-nomina-listado-filtros .multi-check-toggle {
+  min-height: 30px;
   font-size: 0.76rem;
 }
 
@@ -5122,6 +5212,34 @@ th {
 .gestion-nomina-listado-anulada td {
   opacity: 0.55;
   text-decoration: line-through;
+}
+
+.gestion-nomina-listado-detalles {
+  margin-top: 14px;
+}
+
+.gestion-nomina-listado-detalles .gestion-nomina-expediente-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gestion-nomina-listado-detalles .gestion-nomina-expediente-title::marker {
+  color: var(--accent);
+}
+
+.gestion-nomina-listado-detalles .summary-chip {
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: normal;
+}
+
+.gestion-nomina-listado-detalles[open] .gestion-nomina-expediente-title {
+  margin-bottom: 6px;
 }
 
 .gestion-nomina-listado-detalle {

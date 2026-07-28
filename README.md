@@ -131,7 +131,8 @@ y deja constancia en `contexto-previo.md`.
 ## Informes y asignacion masiva
 
 - Actividades ya no gestiona ni muestra `llamamiento_enviado` ni `respuesta_llamamiento`; ese seguimiento se realiza desde Historial laboral. Las columnas se conservan en la base de datos y la edición de una actividad no sobrescribe sus valores históricos.
-- Los paneles de Registros, Actividades e Historial laboral se denominan `Asignacion/borrado masivo`. Aplicar cambios o borrar exige activar Seleccionar y marcar expresamente las filas con sus ticks; las coincidencias del valor actual nunca actuan por si solas.
+- Los paneles de Registros, Actividades e Historial laboral se denominan `Asignacion/borrado masivo`. En ellos aplicar cambios o borrar exige activar Seleccionar y marcar expresamente las filas con sus ticks.
+- Control personal tiene su propio panel `Asignacion/borrado masivo`: la asignación usa Campo, Valor actual y Nuevo valor y actúa sobre todas las coincidencias de los filtros activos; puede recorrer varias páginas y actualiza nombre+DNI conjuntamente al cambiar Personal. El borrado, en cambio, solo actúa sobre filas marcadas. Se retiró `Borrar registros filtrados`.
 - Los tres paneles muestran instrucciones al desplegarse y mantienen Aplicar/Borrar desactivados hasta que exista una seleccion. El borrado siempre solicita confirmacion.
 - Al seleccionar una persona y un intervalo completo en Registros, la barra de resultados muestra un resumen compacto de Horas, HC, HFest, HMon, PNR, Noct y Total, seguido de las horas teoricas calculadas a partir de los historiales laborales solapados.
 - El panel lateral de Registros prioriza los campos operativos. No repite el ID de la cabecera, organiza los campos principales por filas y deja Control/Factura al final. Categoria, HC, HF, HM, horas diurnas, clases, horas 2 y año permanecen almacenados y disponibles para informes/calculos, pero no se muestran en ese formulario.
