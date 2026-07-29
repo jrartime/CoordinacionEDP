@@ -89,6 +89,7 @@ Las **plantillas de correo** de Auth (recuperación e invitación) están traduc
 
 ### Supabase Coordinación
 
+- **Índices duplicados por renombrados**: al renombrar una tabla, Postgres **no** renombra sus índices. Reejecutar después el DDL con los nombres nuevos crea copias exactas que nadie usa pero que ocupan y se mantienen en cada escritura. Pasó con `horas` → `registros`, `tbl_registros` → `registros` → `registros_horarios` (¡tres copias de cada índice!) y `conciliausuarios` → `concilia_usuarios`; sumaban 51 MB. Limpieza y detalle en `supabase/tables/indices_limpieza_espacio.sql`, aplicada el 29/07/2026 (488 → 359 MB). **Antes de crear un índice, comprobar que no existe ya con otro nombre** — la consulta de duplicados por definición está en ese fichero.
 - `registros` está scoped por contrato asignado mediante RLS (`supabase/policies/registros_write.sql`) y funciones SET en `supabase/tables/coordinacion_contrato_id_sets.sql`.
 - Los filtros de la pestaña Registros usan:
   - `get_records_filter_contratos()` para contratos activos visibles/asignados.
