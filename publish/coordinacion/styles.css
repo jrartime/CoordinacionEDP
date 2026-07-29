@@ -4529,16 +4529,28 @@ details[open] > .gestion-collapsible-header::before {
   font-size: 0.72rem;
 }
 
-/* Mismo tamaño que los selects de al lado, pero en línea con su casilla. */
+/* Mismo tamaño que los selects de al lado, pero en línea con su casilla.
+   `flex-direction: row` es obligatorio: la regla global `label, fieldset` los
+   pone en columna, y sin esto la casilla queda encima del texto (con
+   align-items centrándolo, además). */
 .gestion-calc-check {
   display: flex;
+  flex-direction: row;
   align-items: center;
+  justify-content: flex-start;
   gap: 5px;
   font-size: 0.72rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
+/* Los inputs del panel van a width 100%; una casilla no debe estirarse ni
+   encogerse, o se come la fila y empuja al texto. */
 .gestion-calc-check input {
+  width: auto;
+  min-width: 0;
+  height: auto;
+  flex: 0 0 auto;
   margin: 0;
 }
 

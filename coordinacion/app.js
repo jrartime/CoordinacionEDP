@@ -18157,14 +18157,30 @@ function getGestionFilters() {
 let gestionExtraRows = [];
 let gestionExtraCatalogo = [];
 
+// Conceptos que genera el motor y NO son complementos del catálogo, así que
+// buscarlos por nombre no los encuentra. Es el mismo mapa fijo que aplica
+// get_codigo_nomina_concepto() en supabase/tables/nominas.sql: sin esta copia,
+// el cálculo en pantalla los muestra sin código y la nómina emitida con él, que
+// es el mismo concepto cambiando de aspecto según dónde se mire. Si cambia allí,
+// cambiarlo aquí.
+const GESTION_CONCEPTO_CODIGO_NOMINA = new Map([
+  ["prorrateo pagas extra", 30],
+  ["plus festivo trabajado", 12],
+  ["descuento por absentismo", 790],
+  ["horas complementarias de otro puesto", 67],
+  ["montaje de otro puesto", 60],
+]);
+
 function getGestionCodigoNomina(nombre, codigoNomina) {
   const label = String(nombre ?? "").trim();
+  if (codigoNomina !== null && codigoNomina !== undefined && codigoNomina !== "") {
+    return codigoNomina;
+  }
+  const clave = label.toLocaleLowerCase("es");
   const catalogo = gestionExtraCatalogo.find(
-    (row) => String(row.nombre || "").trim().toLocaleLowerCase("es") === label.toLocaleLowerCase("es")
+    (row) => String(row.nombre || "").trim().toLocaleLowerCase("es") === clave
   );
-  return codigoNomina === null || codigoNomina === undefined || codigoNomina === ""
-    ? catalogo?.codigo_nomina
-    : codigoNomina;
+  return catalogo?.codigo_nomina ?? GESTION_CONCEPTO_CODIGO_NOMINA.get(clave);
 }
 
 function formatGestionConceptoCodigo(nombre, codigoNomina) {
