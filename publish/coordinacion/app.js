@@ -18028,6 +18028,7 @@ const gestionFilterBaseCalculo = document.querySelector("#gestion-filter-base-ca
 // Vacío = "según modalidad de pago" del historial (Jornada no aplica, Horas
 // totales aplica exceso y defecto); los demás valores fuerzan el criterio.
 const gestionFilterAjusteJornada = document.querySelector("#gestion-filter-ajuste-jornada");
+const gestionFilterHorasOtrosPuestos = document.querySelector("#gestion-filter-horas-otros-puestos");
 // Nómina manual: el importe tecleado se impone a lo que saldría del historial y
 // del convenio. Los complementos marcados se dan por incluidos DENTRO de ese
 // importe, así que no se vuelven a sumar. Ver p_manual_* en
@@ -18138,6 +18139,12 @@ function getGestionFilters() {
     baseCalculo: gestionFilterBaseCalculo?.value || "",
     // Vacío significa "según modalidad de pago"; se envía null al RPC.
     ajusteJornada: gestionFilterAjusteJornada?.value || "",
+    // Por defecto true: las horas trabajadas se pagan, y no contarlas además
+    // resta en las modalidades que ajustan por jornada. Ver p_horas_otros_puestos
+    // en supabase/tables/nomina_calculo_persona.sql.
+    horasOtrosPuestos: gestionFilterHorasOtrosPuestos
+      ? gestionFilterHorasOtrosPuestos.checked
+      : true,
     manual: getGestionManualOptions(),
     complementosExtra: gestionExtraRows.length
       ? gestionExtraRows.map((row) => ({ complemento_id: row.id, importe: row.importe }))
@@ -18818,10 +18825,18 @@ async function renderGestionNominaHuerfanas(personalId, desde, hasta) {
     if (!filas.length) {
       return;
     }
-    // El motor solo paga solas las complementarias y el montaje, y siempre que
-    // la persona tenga algún historial ese día.
-    const cobradas = filas.filter((row) => [2, 3].includes(Number(row.tipo_hora_id)) && !row.sin_ningun_historial);
+    // Complementarias y montaje se pagan siempre solas, a la tarifa de su
+    // puesto. Las normales dependen del tick: contadas como jornada del periodo
+    // predominante, o ignoradas. En ambos casos hace falta algún historial ese
+    // día — sin alta no hay nómina posible, solo un aviso.
+    const { horasOtrosPuestos } = getGestionFilters();
+    const cobradas = filas.filter(
+      (row) =>
+        !row.sin_ningun_historial &&
+        ([2, 3].includes(Number(row.tipo_hora_id)) || horasOtrosPuestos)
+    );
     const fuera = filas.filter((row) => !cobradas.includes(row));
+    const soloJornada = (rows) => rows.filter((row) => ![2, 3].includes(Number(row.tipo_hora_id)));
     const lista = (rows) =>
       rows
         .map(
@@ -18832,17 +18847,31 @@ async function renderGestionNominaHuerfanas(personalId, desde, hasta) {
 
     let html = "";
     if (cobradas.length) {
+      const jornada = soloJornada(cobradas);
       html += `<div class="gestion-nomina-warning gestion-nomina-warning-info" role="status">
-        <p><strong>Horas en puestos que no están en su historial.</strong> Se pagan a la tarifa
-        del puesto donde se hicieron, porque son horas de otro servicio:</p>
+        <p><strong>Horas en puestos que no están en su historial.</strong> Las complementarias y
+        el montaje se pagan a la tarifa del puesto donde se hicieron, porque son horas de otro
+        servicio.${
+          jornada.length
+            ? " Las normales cuentan como jornada del periodo con más días, porque está marcado <em>Contar horas de otros puestos</em>."
+            : ""
+        }</p>
         <ul class="gestion-nomina-huerfanas-lista">${lista(cobradas)}</ul>
+        ${
+          jornada.length
+            ? "<p>Si el puesto del registro está mal elegido, desmarca esa opción y corrige el registro.</p>"
+            : ""
+        }
       </div>`;
     }
     if (fuera.length) {
+      const sinAlta = fuera.filter((row) => row.sin_ningun_historial);
       html += `<div class="gestion-nomina-warning" role="alert">
-        <p><strong>Horas que no entran en la nómina.</strong> Son horas normales en un puesto
-        que esta persona no tiene contratado, o de días sin ningún alta. No se pagan solas: su
-        jornada ya se cobra por el historial, y sumarlas sería pagarla dos veces.</p>
+        <p><strong>Horas que no entran en la nómina.</strong> ${
+          sinAlta.length === fuera.length
+            ? "Son de días sin ningún periodo de alta: falta el historial y no hay nómina posible."
+            : "Son horas normales en un puesto que esta persona no tiene contratado (o de días sin ningún alta) y <em>Contar horas de otros puestos</em> está desmarcado."
+        }</p>
         <ul class="gestion-nomina-huerfanas-lista">${lista(fuera)}</ul>
         <p>Revisa si el puesto del registro es el correcto o si falta un periodo en el historial.</p>
       </div>`;
@@ -19064,7 +19093,7 @@ async function toggleGestionNominaTotal(personalId) {
     return;
   }
   detail.innerHTML = '<p class="muted-text">Calculando…</p>';
-  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra } =
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra, horasOtrosPuestos } =
     getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
@@ -19086,6 +19115,7 @@ async function toggleGestionNominaTotal(personalId) {
       p_manual_transporte: manual ? manual.transporte : false,
       p_complementos_extra: complementosExtra,
       p_manual_conceptos_dentro: manual ? manual.conceptosDentro : null,
+      p_horas_otros_puestos: horasOtrosPuestos,
     });
     if (error) {
       throw error;
@@ -19173,7 +19203,7 @@ const gestionNominasEmitidasCache = new Map();
 // Mismos parámetros que usa la tarjeta del total, para que lo emitido sea
 // exactamente lo que se está viendo en pantalla.
 function getGestionNominaEmitirPayload(personalId) {
-  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra } =
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra, horasOtrosPuestos } =
     getGestionFilters();
   return {
     p_personal_id: Number(personalId),
@@ -19190,6 +19220,7 @@ function getGestionNominaEmitirPayload(personalId) {
     p_manual_transporte: manual ? manual.transporte : false,
     p_complementos_extra: complementosExtra,
     p_manual_conceptos_dentro: manual ? manual.conceptosDentro : null,
+    p_horas_otros_puestos: horasOtrosPuestos,
   };
 }
 
@@ -19306,7 +19337,7 @@ async function obtenerGestionNominaTotal(personalId) {
   if (gestionNominaCache.has("total")) {
     return gestionNominaCache.get("total");
   }
-  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra } =
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra, horasOtrosPuestos } =
     getGestionFilters();
   const supabase = await getSupabaseClient();
   const { data, error } = await supabase.rpc("calcular_nomina_persona", {
@@ -19324,6 +19355,7 @@ async function obtenerGestionNominaTotal(personalId) {
     p_manual_transporte: manual ? manual.transporte : false,
     p_complementos_extra: complementosExtra,
     p_manual_conceptos_dentro: manual ? manual.conceptosDentro : null,
+    p_horas_otros_puestos: horasOtrosPuestos,
   });
   if (error) throw error;
   gestionNominaCache.set("total", data || []);
@@ -28649,6 +28681,11 @@ async function init() {
   });
   gestionFilterAjusteJornada?.addEventListener("change", () => {
     void loadGestion();
+  });
+  // Como la nómina manual: solo cambia lo que se paga, no los historiales ni el
+  // pivote de horas, así que basta con rehacer el total.
+  gestionFilterHorasOtrosPuestos?.addEventListener("change", () => {
+    recalcularGestionNominaTotal();
   });
   // La nómina manual no recarga Gestión (los historiales y las horas no cambian):
   // basta con rehacer el total, que es lo único que depende de estas opciones.

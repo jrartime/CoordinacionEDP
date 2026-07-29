@@ -73,6 +73,10 @@ create table if not exists public.nominas (
   -- Conceptos del puesto que se dieron por incluidos en el importe manual y
   -- por tanto no se pagaron aparte.
   manual_conceptos_dentro text[],
+  -- Si se contaron como jornada las horas hechas en un puesto que la persona no
+  -- tiene contratado. Cambia el importe, asi que se congela con el resto de
+  -- parametros del calculo.
+  horas_otros_puestos boolean not null default true,
 
   -- Totales congelados (se derivan de nomina_lineas al emitir).
   total_devengado numeric(12, 2) not null default 0,
@@ -547,6 +551,8 @@ drop function if exists public.emitir_nomina(integer, date, date, integer, text,
 drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb);
 -- Idem al anadir p_manual_conceptos_dentro (2026-07-28).
 drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb);
+-- Idem al anadir p_horas_otros_puestos (2026-07-29).
+drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[]);
 
 create or replace function public.emitir_nomina(
   p_personal_id integer,
@@ -572,7 +578,11 @@ create or replace function public.emitir_nomina(
   -- Complementos anadidos a mano en el panel de Gestion; se pasan al motor
   -- y se guardan en la cabecera para poder reproducir el calculo.
   p_complementos_extra jsonb default null,
-  p_manual_conceptos_dentro text[] default null
+  p_manual_conceptos_dentro text[] default null,
+  -- Contar como jornada las horas de un puesto que la persona no tiene
+  -- contratado. Se congela en la cabecera: sin el, una nomina reemitida podria
+  -- salir por otro importe sin que nada explicara por que.
+  p_horas_otros_puestos boolean default true
 )
 returns bigint
 language plpgsql
@@ -585,6 +595,7 @@ declare
   v_previa bigint;
   v_lineas integer;
   v_ids bigint[];
+  v_hist_princ bigint;
   v_editada boolean := p_lineas is not null;
 begin
   if not public.is_coordinacion_admin() then
@@ -629,12 +640,14 @@ begin
     base_calculo, ajuste_jornada,
     manual_importe, manual_modo, manual_pagas_incluidas,
     manual_complementos, manual_transporte, complementos_extra, manual_conceptos_dentro,
+    horas_otros_puestos,
     notas, sustituye_a, editada, emitida_por_email
   ) values (
     p_personal_id, p_empresa_id, p_desde, p_hasta, v_ids,
     p_base_calculo, p_ajuste_jornada,
     p_manual_importe, p_manual_modo, coalesce(p_manual_pagas_incluidas, false),
     p_manual_complementos, coalesce(p_manual_transporte, false), p_complementos_extra, p_manual_conceptos_dentro,
+    coalesce(p_horas_otros_puestos, true),
     -- El nullif exterior evita reventar cuando el claim no viene (cadena vacia
     -- no es jsonb valido).
     p_notas, v_previa, v_editada,
@@ -672,7 +685,8 @@ begin
       p_personal_id, p_desde, p_hasta, p_empresa_id, p_base_calculo, p_ajuste_jornada,
       nullif(v_ids, '{}'::bigint[]), p_manual_importe, p_manual_modo,
       coalesce(p_manual_pagas_incluidas, false), p_manual_complementos,
-      coalesce(p_manual_transporte, false), p_complementos_extra, p_manual_conceptos_dentro
+      coalesce(p_manual_transporte, false), p_complementos_extra, p_manual_conceptos_dentro,
+      coalesce(p_horas_otros_puestos, true)
     ) c;
   end if;
 
@@ -722,6 +736,13 @@ begin
               - greatest(nh2.fecha_alta, p_desde)) desc, nh2.historial_id
     limit 1);
 
+  -- Se lee del expediente recien marcado en vez de repetir el criterio: si el
+  -- desempate cambiara, el desglose por puesto seguiria el mismo historial que
+  -- aporta las cotizaciones.
+  select nh.historial_id into v_hist_princ
+  from public.nomina_historiales nh
+  where nh.nomina_id = v_id and nh.predominante;
+
   -- 3) El desglose por puesto: explica de donde sale cada importe del total.
   --    NO suma (ambito 'puesto'); los totales se calculan solo con 'persona'.
   insert into public.nomina_lineas (
@@ -732,7 +753,10 @@ begin
          public.get_codigo_nomina_concepto(d.concepto), d.importe, d.detalle_de
   from public.historiales_laborales h
   cross join lateral public.calcular_nomina_devengos(
-    h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada) d
+    h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada,
+    -- Mismo criterio que calcular_nomina_persona: solo el predominante recoge
+    -- las horas huerfanas, o el desglose por puesto no cuadraria con el total.
+    coalesce(p_horas_otros_puestos, true) and h.id = v_hist_princ) d
   where h.personal_id = p_personal_id
     and (p_empresa_id is null or h.empresa_id = p_empresa_id)
     and (v_ids = '{}'::bigint[] or h.id = any(v_ids))
@@ -753,7 +777,10 @@ begin
     tipo_hora_id, tipo_hora, tipo_hora_codigo_nomina,
     situacion_id, situacion, horas, horas_nocturnas, dias, registros,
     registro_ids, excluida, cuenta_jornada, dia_efectivo)
-  select v_id, h.id, h.puesto_id, pu.puesto,
+  -- El puesto sale del REGISTRO, no del historial: mientras coinciden da igual,
+  -- pero en las horas de otro puesto el expediente debe decir donde se
+  -- trabajaron de verdad.
+  select v_id, h.id, r.puesto_id, pu.puesto,
          r.tipo_hora_id, th.tipo_hora, th.codigo_nomina,
          r.situacion_id, s.situacion,
          coalesce(sum(r.horas), 0)::numeric,
@@ -767,18 +794,24 @@ begin
                   or (s.situacion = 'FEST' and th.tipo_hora = 'FTRAB'), false)
   from public.historiales_laborales h
   join public.registros r
-    on r.personal_id = h.personal_id and r.puesto_id = h.puesto_id
+    on r.personal_id = h.personal_id
+   -- Las horas de un puesto sin contratar se adjuntan al historial predominante
+   -- cuando la nomina las paga: si no, el expediente no incluiria las horas que
+   -- la propia nomina esta retribuyendo y no habria con que auditarla.
+   and (r.puesto_id = h.puesto_id
+        or (coalesce(p_horas_otros_puestos, true) and h.id = v_hist_princ
+            and public.es_puesto_sin_historial(r.personal_id, r.puesto_id, r.empresa_id, r.fecha)))
    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
    and r.fecha >= greatest(h.fecha_alta, p_desde)
    and r.fecha <= least(coalesce(h.fecha_baja, p_hasta), p_hasta)
   left join public.tipo_horas th on th.id = r.tipo_hora_id
   left join public.situaciones s on s.id = r.situacion_id
-  left join public.puestos pu on pu.id = h.puesto_id
+  left join public.puestos pu on pu.id = r.puesto_id
   where h.personal_id = p_personal_id
     and (p_empresa_id is null or h.empresa_id = p_empresa_id)
     and (v_ids = '{}'::bigint[] or h.id = any(v_ids))
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
-  group by h.id, h.puesto_id, pu.puesto, r.tipo_hora_id, th.tipo_hora,
+  group by h.id, r.puesto_id, pu.puesto, r.tipo_hora_id, th.tipo_hora,
            th.codigo_nomina, r.situacion_id, s.situacion;
 
   -- Los totales se derivan de las lineas, no se copian de las lineas-resumen del
@@ -817,8 +850,8 @@ begin
 end;
 $$;
 
-revoke all on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[]) from public;
-grant execute on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[]) to authenticated;
+revoke all on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[], boolean) from public;
+grant execute on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[], boolean) to authenticated;
 
 -- ============================================================================
 -- Anular: no se borra, se marca. Las lineas se conservan como historico.
@@ -852,6 +885,9 @@ grant execute on function public.anular_nomina(bigint, text) to authenticated;
 -- RLS: admin-only, igual que personal_complementos y personal_confidencial.
 -- Son importes salariales reales por persona.
 -- ============================================================================
+
+-- Migracion para bases ya creadas: el create table de arriba no la anade.
+alter table public.nominas add column if not exists horas_otros_puestos boolean not null default true;
 
 alter table public.nominas enable row level security;
 alter table public.nomina_lineas enable row level security;

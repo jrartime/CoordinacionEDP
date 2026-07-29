@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260729-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260729-2" />
   </head>
   <body>
     <script>
@@ -1698,6 +1698,16 @@
                         <option value="ambos">Forzar: exceso y defecto</option>
                         <option value="ninguno">Forzar: no aplicar</option>
                       </select>
+                    </label>
+                    <!--
+                      Horas hechas en un puesto que la persona no tiene
+                      contratado. Marcado (por defecto) cuentan como jornada del
+                      periodo predominante; desmarcado se ignoran, que es lo que
+                      procede cuando el puesto del registro está mal elegido.
+                    -->
+                    <label class="gestion-calc-check">
+                      <input id="gestion-filter-horas-otros-puestos" type="checkbox" checked />
+                      Contar horas de otros puestos
                     </label>
                   </div>
 
@@ -7940,6 +7950,6 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260727-7" defer></script>
-    <script src="./app.js?v=20260729-2" defer></script>
+    <script src="./app.js?v=20260729-3" defer></script>
   </body>
 </html>

@@ -294,12 +294,49 @@ $$;
 revoke all on function public.get_convenio_precio_hora_jc(integer, numeric, date) from public;
 grant execute on function public.get_convenio_precio_hora_jc(integer, numeric, date) to authenticated;
 
+-- El puesto de un registro NO figura en ningun historial de la persona vigente
+-- ese dia. Es la definicion de "hora huerfana" y esta aqui, en una sola funcion,
+-- porque la comparten el motor (calcular_nomina_devengos, para sumarlas a la
+-- jornada) y el aviso de Gestion (get_horas_sin_historial, para listarlas). Si
+-- divergieran, la nomina pagaria un conjunto de horas distinto del que avisa.
+create or replace function public.es_puesto_sin_historial(
+  p_personal_id integer,
+  p_puesto_id integer,
+  p_empresa_id integer,
+  p_fecha date
+)
+returns boolean
+language sql stable security invoker set search_path = public
+as $$
+  select p_puesto_id is not null and not exists (
+    select 1 from public.historiales_laborales h
+    where h.personal_id = p_personal_id
+      and h.puesto_id = p_puesto_id
+      and (h.empresa_id is null or p_empresa_id is null or h.empresa_id = p_empresa_id)
+      and p_fecha >= h.fecha_alta
+      and (h.fecha_baja is null or p_fecha <= h.fecha_baja)
+  );
+$$;
+
+revoke all on function public.es_puesto_sin_historial(integer, integer, integer, date) from public;
+grant execute on function public.es_puesto_sin_historial(integer, integer, integer, date) to authenticated;
+
+-- Firma sin p_incluir_huerfanas (hasta 2026-07-29). Anadir un parametro con
+-- default no reemplaza: crea una sobrecarga y las llamadas quedan ambiguas.
+drop function if exists public.calcular_nomina_devengos(bigint, date, date, text, text);
+
 create or replace function public.calcular_nomina_devengos(
   p_historial_id bigint,
   p_desde date default null,
   p_hasta date default null,
   p_base_calculo text default null,
-  p_ajuste_jornada text default null
+  p_ajuste_jornada text default null,
+  -- Sumar a la jornada de ESTE historial las horas que la persona hizo en un
+  -- puesto que no tiene contratado (ver bloque HORAS DE OTRO PUESTO abajo).
+  -- calcular_nomina_persona solo lo pone a true para el historial PREDOMINANTE:
+  -- con dos historiales solapados, activarlo en los dos pagaria esas horas dos
+  -- veces, que es justo la fuga que el filtro por puesto vino a tapar.
+  p_incluir_huerfanas boolean default false
 )
 returns table (
   orden integer, concepto text, detalle text,
@@ -383,24 +420,48 @@ begin
     and r.fecha >= v_desde and r.fecha <= v_hasta
     and (s.situacion in ('NORM','SUST') or (s.situacion='FEST' and th.tipo_hora='FTRAB'));
 
-  select coalesce(sum(r.horas_nocturnas), 0)::numeric into v_horas_noct
-  from public.registros r
-  where r.personal_id = h.personal_id and r.puesto_id = h.puesto_id
-    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
-    and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
-    and r.fecha >= v_desde and r.fecha <= v_hasta;
+  -- HORAS DE OTRO PUESTO (p_incluir_huerfanas, 2026-07-29). Una persona que
+  -- cubre un servicio distinto del suyo genera registros con un puesto que no
+  -- tiene en su historial, y el filtro por puesto los descartaba: nadie los
+  -- recogia. En modalidad Jornada eso solo dejaba las horas sin pagar; en Horas
+  -- totales es peor, porque la jornada se compara con las teoricas y esas horas
+  -- ausentes se convierten en un DESCUENTO. Caso que lo destapo: Manuel Enrique
+  -- Fernandez, julio 2026, 24 h como Oficial de 1a con contrato de Recepcion:
+  -- el motor veia 145 h de 161 teoricas y le restaba 123,87 EUR de "Plus de
+  -- disponibilidad" por 16 h que en realidad si habia trabajado.
+  --
+  -- HCOMP y MONT quedan fuera a proposito: calcular_nomina_persona ya las paga
+  -- aparte a la tarifa del puesto donde se hicieron (lineas de orden 200+).
+  -- Meterlas tambien aqui las pagaria dos veces.
+  select coalesce(sum(x.horas_nocturnas), 0)::numeric into v_horas_noct
+  from (
+    select r.horas_nocturnas
+    from public.registros r
+    where r.personal_id = h.personal_id
+      and (r.puesto_id = h.puesto_id or (p_incluir_huerfanas
+           and public.es_puesto_sin_historial(r.personal_id, r.puesto_id, r.empresa_id, r.fecha)))
+      and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+      and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
+      and r.fecha >= v_desde and r.fecha <= v_hasta
+  ) x;
 
-  select coalesce(sum(r.horas) filter (where r.tipo_hora_id = 1), 0)::numeric,
-         coalesce(sum(r.horas) filter (where r.tipo_hora_id = 5), 0)::numeric,
-         coalesce(sum(r.horas) filter (where r.tipo_hora_id = 3), 0)::numeric,
-         coalesce(sum(r.horas) filter (where r.tipo_hora_id = 2), 0)::numeric,
-         coalesce(sum(r.horas) filter (where r.tipo_hora_id = 8), 0)::numeric
+  select coalesce(sum(x.horas) filter (where x.tipo_hora_id = 1), 0)::numeric,
+         coalesce(sum(x.horas) filter (where x.tipo_hora_id = 5), 0)::numeric,
+         coalesce(sum(x.horas) filter (where x.tipo_hora_id = 3), 0)::numeric,
+         coalesce(sum(x.horas) filter (where x.tipo_hora_id = 2), 0)::numeric,
+         coalesce(sum(x.horas) filter (where x.tipo_hora_id = 8), 0)::numeric
     into v_horas_reg, v_horas_pnr, v_horas_mont, v_horas_hcomp, v_horas_bout
-  from public.registros r
-  where r.personal_id = h.personal_id and r.puesto_id = h.puesto_id
-    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
-    and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
-    and r.fecha >= v_desde and r.fecha <= v_hasta;
+  from (
+    select r.horas, r.tipo_hora_id
+    from public.registros r
+    where r.personal_id = h.personal_id
+      and (r.puesto_id = h.puesto_id or (p_incluir_huerfanas
+           and r.tipo_hora_id not in (2, 3)
+           and public.es_puesto_sin_historial(r.personal_id, r.puesto_id, r.empresa_id, r.fecha)))
+      and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+      and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
+      and r.fecha >= v_desde and r.fecha <= v_hasta
+  ) x;
 
   v_modo := coalesce(nullif(trim(p_base_calculo), ''), v_conv.base_calculo, 'mensual');
 
@@ -559,7 +620,9 @@ begin
       null::numeric, round(sum(r.horas)::numeric, 2), round(v_precio_hora_jc, 4),
       round(sum(r.horas)::numeric * v_precio_hora_jc, 2), null::text
     from public.registros r
-    where r.personal_id = h.personal_id and r.puesto_id = h.puesto_id
+    where r.personal_id = h.personal_id
+      and (r.puesto_id = h.puesto_id or (p_incluir_huerfanas
+           and public.es_puesto_sin_historial(r.personal_id, r.puesto_id, r.empresa_id, r.fecha)))
       and (h.empresa_id is null or r.empresa_id = h.empresa_id)
       and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
       and r.fecha >= v_desde and r.fecha <= v_hasta
@@ -582,5 +645,5 @@ $$;
 drop function if exists public.calcular_nomina_devengos(bigint, date, date);
 drop function if exists public.calcular_nomina_devengos(bigint, date, date, text);
 
-revoke all on function public.calcular_nomina_devengos(bigint, date, date, text, text) from public;
-grant execute on function public.calcular_nomina_devengos(bigint, date, date, text, text) to authenticated;
+revoke all on function public.calcular_nomina_devengos(bigint, date, date, text, text, boolean) from public;
+grant execute on function public.calcular_nomina_devengos(bigint, date, date, text, text, boolean) to authenticated;

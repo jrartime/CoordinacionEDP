@@ -14,14 +14,21 @@
 --     "Conc. Coordiacion", "Coordinacion Contrato" frente a "Coordinacion
 --     Servicio").
 --
--- QUE HACE EL MOTOR CON ELLAS (decision del usuario, 2026-07-27):
+-- QUE HACE EL MOTOR CON ELLAS (decision del usuario, 2026-07-27; las REG
+-- revisadas el 2026-07-29):
 --   * HCOMP y MONT: se PAGAN, a la tarifa del puesto DONDE se hicieron, en
 --     lineas propias de orden 200+ (ver nomina_calculo_persona.sql). Son horas
 --     de otro servicio y no entran en la bolsa que absorbe la jornada del puesto
 --     contratado.
---   * REG: NO se pagan solas. Son jornada, y su salario base ya se cobra por el
---     historial: sumarlas seria pagarla dos veces. La pestana Gestion las avisa
---     para que se corrija el puesto del registro o se cree el periodo que falta.
+--   * REG: siguen sin cobrarse como linea propia (su salario base ya se cobra
+--     por el historial), pero con p_horas_otros_puestos SI CUENTAN COMO JORNADA
+--     del historial predominante. No contarlas restaba en las modalidades que
+--     ajustan por horas. Ver el bloque HORAS DE OTRO PUESTO en
+--     nomina_calculo.sql y el tick "Contar horas de otros puestos" en Gestion.
+--
+-- El criterio de "puesto huerfano" NO se duplica aqui: lo define
+-- es_puesto_sin_historial (nomina_calculo.sql) y esta funcion lo comparte con el
+-- motor, para que la nomina no pague un conjunto de horas distinto del avisado.
 --
 -- `sin_ningun_historial` marca los dias en que la persona no tiene NINGUN
 -- periodo vigente: ahi no hay nomina posible y solo cabe avisar, porque falta el
@@ -77,15 +84,9 @@ as $$
       select 1 from public.historiales_laborales h3
       where h3.id = any(p_historial_ids) and h3.personal_id = p_personal_id
         and r.fecha >= h3.fecha_alta and (h3.fecha_baja is null or r.fecha <= h3.fecha_baja)))
-    -- La clave: ningun historial de ESE puesto cubre ese dia.
-    and not exists (
-      select 1 from public.historiales_laborales h
-      where h.personal_id = r.personal_id
-        and h.puesto_id = r.puesto_id
-        and (h.empresa_id is null or r.empresa_id is null or h.empresa_id = r.empresa_id)
-        and r.fecha >= h.fecha_alta
-        and (h.fecha_baja is null or r.fecha <= h.fecha_baja)
-    )
+    -- La clave: ningun historial de ESE puesto cubre ese dia. Mismo criterio que
+    -- usa el motor para sumarlas a la jornada.
+    and public.es_puesto_sin_historial(r.personal_id, r.puesto_id, r.empresa_id, r.fecha)
   group by r.puesto_id, pu.puesto, r.tipo_hora_id, th.tipo_hora
   having sum(r.horas) > 0
   order by th.tipo_hora, sum(r.horas) desc;

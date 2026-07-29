@@ -81,15 +81,27 @@
 -- Gestion los muestra uno a uno (get_conceptos_puesto_nomina); marcarlos
 -- significa "ya van dentro del importe" y entonces no se suman.
 
--- HORAS EN UN PUESTO SIN HISTORIAL (2026-07-27). Si alguien cubre un servicio
--- distinto del suyo, calcular_nomina_devengos descarta esas horas al filtrar por
--- r.puesto_id = h.puesto_id y se perdian en silencio (caso real: Miguel Antonio
--- Rodriguez, 5 horas complementarias como socorrista con contrato de monitor).
--- Ahora las HCOMP y MONT se recogen aqui con get_horas_sin_historial, a la
--- tarifa del puesto DONDE se hicieron, en lineas de orden 200+. Las REG NO se
--- pagan solas: son jornada y su salario base ya se cobra por el historial, asi
--- que sumarlas seria pagarla dos veces; la pestana Gestion las avisa para que se
--- corrija el puesto del registro o se cree el periodo que falta.
+-- HORAS EN UN PUESTO SIN HISTORIAL (2026-07-27, revisado el 2026-07-29). Si
+-- alguien cubre un servicio distinto del suyo, calcular_nomina_devengos descarta
+-- esas horas al filtrar por r.puesto_id = h.puesto_id y se perdian en silencio
+-- (caso real: Miguel Antonio Rodriguez, 5 horas complementarias como socorrista
+-- con contrato de monitor). Las HCOMP y MONT se recogen aqui con
+-- get_horas_sin_historial, a la tarifa del puesto DONDE se hicieron, en lineas
+-- de orden 200+.
+--
+-- Las REG siguen sin pagarse como linea propia, por lo mismo de siempre: son
+-- jornada y su salario base ya se cobra por el historial. Pero el 2026-07-27 se
+-- decidio ademas NO CONTARLAS, y eso estaba mal en las modalidades que ajustan
+-- por horas: alli la jornada realizada se compara con la teorica, asi que una
+-- hora que no se cuenta no es que no se pague, es que RESTA. Manuel Enrique
+-- Fernandez (julio 2026) hizo 169 h de 161 teoricas y cobro un descuento de
+-- 123,87 EUR porque el motor solo veia las 145 h de su puesto.
+--
+-- Desde p_horas_otros_puestos (por defecto true) esas REG suman a la jornada
+-- del historial PREDOMINANTE, que es quien aporta cotizaciones y pagas. No se
+-- reparten entre todos los solapados: eso las pagaria una vez por puesto.
+-- Desmarcarlo recupera el comportamiento anterior, que es lo que procede cuando
+-- el puesto del registro esta mal elegido (un error de dato, no una cobertura).
 
 -- BASES DE COTIZACION POR CONCEPTO (2026-07-25). Antes las bases se calculaban
 -- como "bruto menos excepciones". Ahora cada concepto declara a que bases suma
@@ -119,6 +131,8 @@ drop function if exists public.calcular_nomina_persona(integer, date, date, inte
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb);
 -- Idem al anadir p_manual_conceptos_dentro (2026-07-28).
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[]);
+-- Idem al anadir p_horas_otros_puestos (2026-07-29).
+drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean);
 
 create or replace function public.calcular_nomina_persona(
   p_personal_id integer, p_desde date, p_hasta date,
@@ -143,7 +157,12 @@ create or replace function public.calcular_nomina_persona(
   p_complementos_extra jsonb default null,
   -- Conceptos del puesto que se dan por INCLUIDOS en el importe manual y
   -- por tanto no se pagan aparte. Vacio = todos se pagan aparte.
-  p_manual_conceptos_dentro text[] default null
+  p_manual_conceptos_dentro text[] default null,
+  -- Contar como jornada las horas hechas en un puesto que la persona no tiene
+  -- contratado. Por defecto SI: son horas trabajadas y no contarlas no solo
+  -- deja de pagarlas, en modalidad Horas totales las convierte en descuento.
+  -- Se desmarca cuando el puesto del registro esta mal elegido (error de dato).
+  p_horas_otros_puestos boolean default true
 )
 -- cantidad/precio acompanan a cada linea con las UNIDADES y el PRECIO UNITARIO
 -- que la produjeron. cotiza_en dice a que bases suma esa linea.
@@ -260,7 +279,12 @@ begin
   from (
     select d.concepto, sum(d.importe) as importe
     from public.historiales_laborales h
-    cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada) d
+    -- Las horas de un puesto sin contratar se suman SOLO al historial
+    -- predominante (hp): repartirlas entre todos los solapados las pagaria
+    -- tantas veces como puestos tenga la persona.
+    cross join lateral public.calcular_nomina_devengos(
+      h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada,
+      p_horas_otros_puestos and h.id = hp.id) d
     where h.personal_id = p_personal_id
       and (p_empresa_id is null or h.empresa_id = p_empresa_id)
       and (p_historial_ids is null or h.id = any(p_historial_ids))
@@ -422,7 +446,9 @@ begin
              sum(d.cantidad) as cantidad,
              case when count(distinct d.precio) = 1 then min(d.precio) end as precio
       from public.historiales_laborales h
-      cross join lateral public.calcular_nomina_devengos(h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada) d
+      cross join lateral public.calcular_nomina_devengos(
+        h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada,
+        p_horas_otros_puestos and h.id = hp.id) d
       where h.personal_id = p_personal_id
         and (p_empresa_id is null or h.empresa_id = p_empresa_id)
         and (p_historial_ids is null or h.id = any(p_historial_ids))
@@ -564,5 +590,5 @@ begin
 end;
 $$;
 
-revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[]) from public;
-grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[]) to authenticated;
+revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean) from public;
+grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean) to authenticated;

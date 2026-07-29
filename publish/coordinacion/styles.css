@@ -4529,6 +4529,19 @@ details[open] > .gestion-collapsible-header::before {
   font-size: 0.72rem;
 }
 
+/* Mismo tamaño que los selects de al lado, pero en línea con su casilla. */
+.gestion-calc-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.gestion-calc-check input {
+  margin: 0;
+}
+
 .private-tab-panel .gestion-calc-options .filter-field select {
   width: 100%;
   height: 28px;
