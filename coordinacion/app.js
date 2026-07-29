@@ -18157,6 +18157,24 @@ function getGestionFilters() {
 let gestionExtraRows = [];
 let gestionExtraCatalogo = [];
 
+function getGestionCodigoNomina(nombre, codigoNomina) {
+  const label = String(nombre ?? "").trim();
+  const catalogo = gestionExtraCatalogo.find(
+    (row) => String(row.nombre || "").trim().toLocaleLowerCase("es") === label.toLocaleLowerCase("es")
+  );
+  return codigoNomina === null || codigoNomina === undefined || codigoNomina === ""
+    ? catalogo?.codigo_nomina
+    : codigoNomina;
+}
+
+function formatGestionConceptoCodigo(nombre, codigoNomina) {
+  const label = String(nombre ?? "").trim();
+  const codigo = getGestionCodigoNomina(label, codigoNomina);
+  return codigo === null || codigo === undefined || codigo === ""
+    ? label
+    : `(${codigo}) ${label}`;
+}
+
 async function loadGestionExtraCatalogo() {
   if (!gestionExtraComplemento || gestionExtraCatalogo.length) {
     return;
@@ -18175,7 +18193,9 @@ async function loadGestionExtraCatalogo() {
       gestionExtraCatalogo
         .map(
           (row) =>
-            `<option value="${escapeHtml(row.id)}">${escapeHtml(row.nombre)}${row.codigo_nomina ? ` (${escapeHtml(row.codigo_nomina)})` : ""}</option>`
+            `<option value="${escapeHtml(row.id)}">${escapeHtml(
+              formatGestionConceptoCodigo(row.nombre, row.codigo_nomina)
+            )}</option>`
         )
         .join("");
   } catch (error) {
@@ -18194,7 +18214,7 @@ function renderGestionExtraLista() {
   gestionExtraLista.innerHTML = gestionExtraRows
     .map(
       (row, idx) => `<li class="gestion-extra-item">
-        <span>${escapeHtml(row.nombre)}</span>
+        <span>${escapeHtml(formatGestionConceptoCodigo(row.nombre, row.codigo_nomina))}</span>
         <strong>${escapeHtml(formatGestionImporte(row.importe))}</strong>
         <button type="button" data-gestion-extra-quitar="${idx}" title="Quitar">✕</button>
       </li>`
@@ -18214,7 +18234,12 @@ function addGestionExtraComplemento() {
     return;
   }
   const catalogo = gestionExtraCatalogo.find((row) => Number(row.id) === id);
-  gestionExtraRows.push({ id, nombre: catalogo?.nombre || `#${id}`, importe: round2(importe) });
+  gestionExtraRows.push({
+    id,
+    nombre: catalogo?.nombre || `#${id}`,
+    codigo_nomina: catalogo?.codigo_nomina ?? null,
+    importe: round2(importe),
+  });
   if (gestionExtraImporte) gestionExtraImporte.value = "";
   if (gestionExtraComplemento) gestionExtraComplemento.value = "";
   renderGestionExtraLista();
@@ -18283,7 +18308,7 @@ async function renderGestionManualComplementos(personalId, desde, historialRows)
 
   const items = complementos.map((row) => ({
     key: String(row.id),
-    label: row.nombre,
+    label: formatGestionConceptoCodigo(row.nombre, row.codigo_nomina),
     detalle: formatGestionImporte(row.importe),
   }));
   if ((historialRows || []).some((row) => row.tiene_plus_transporte)) {
@@ -19040,7 +19065,9 @@ function renderGestionNominaTable(rows) {
     .map((group, index) => {
       const seccion = String(group.row.seccion || "");
       const hasChildren = group.children.length > 0;
-      const concepto = escapeHtml(group.row.concepto || "");
+      const concepto = escapeHtml(
+        formatGestionConceptoCodigo(group.row.concepto, group.row.codigo_nomina)
+      );
       const conceptoCell = hasChildren
         ? `<button type="button" class="gestion-nomina-group-toggle" data-nomina-group="${index}" aria-expanded="false">
              <span class="gestion-nomina-caret">▾</span>${concepto}
@@ -19054,7 +19081,7 @@ function renderGestionNominaTable(rows) {
       const children = group.children
         .map(
           (child) => `<tr class="gestion-nomina-row gestion-nomina-child hidden" data-nomina-child="${index}">
-            <td>${escapeHtml(child.concepto || "")}</td>
+            <td>${escapeHtml(formatGestionConceptoCodigo(child.concepto, child.codigo_nomina))}</td>
             <td class="gestion-nomina-detalle">${escapeHtml(child.detalle || "")}</td>
             <td class="num">${escapeHtml(money(child.importe))}</td>
           </tr>`
@@ -19082,6 +19109,7 @@ async function toggleGestionNominaTotal(personalId) {
   detail.classList.remove("hidden");
   card?.classList.add("expanded");
   toggle?.setAttribute("aria-expanded", "true");
+  await loadGestionExtraCatalogo();
 
   if (gestionNominaCache.has("total")) {
     detail.innerHTML = renderGestionNominaTable(gestionNominaCache.get("total"));
@@ -19158,6 +19186,7 @@ async function toggleGestionNomina(historialId) {
   detail.classList.remove("hidden");
   card?.classList.add("expanded");
   toggle?.setAttribute("aria-expanded", "true");
+  await loadGestionExtraCatalogo();
 
   if (gestionNominaCache.has(key)) {
     detail.innerHTML = renderGestionNominaTable(gestionNominaCache.get(key));
@@ -19450,8 +19479,16 @@ function renderGestionNominaEditor() {
       const seccion = String(row.seccion || "");
       const calculada = seccion === "total";
       const esDeduccion = seccion === "deduccion";
+      const codigoNomina = getGestionCodigoNomina(row.concepto, row.codigo_nomina);
       return `<tr class="gestion-nomina-edit-row gestion-nomina-${escapeHtml(seccion)}">
-        <td>${calculada ? escapeHtml(row.concepto || "") : campo(idx, "concepto", row.concepto)}</td>
+        <td>${calculada
+          ? escapeHtml(formatGestionConceptoCodigo(row.concepto, row.codigo_nomina))
+          : `${
+              codigoNomina != null
+                ? `<span class="muted-text">(${escapeHtml(codigoNomina)})</span> `
+                : ""
+            }${campo(idx, "concepto", row.concepto)}`
+        }</td>
         <td>${calculada ? escapeHtml(row.detalle || "") : campo(idx, "detalle", row.detalle)}</td>
         <td class="num">${calculada || esDeduccion ? "" : campo(idx, "cantidad", row.cantidad)}</td>
         <td class="num">${calculada || esDeduccion ? "" : campo(idx, "precio", row.precio)}</td>
@@ -20080,7 +20117,7 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
       ],
       rows: [
         ...devengos.map((l) => ({
-          concepto: l.concepto,
+          concepto: formatGestionConceptoCodigo(l.concepto, l.codigo_nomina),
           cantidad: l.cantidad != null ? Number(l.cantidad).toLocaleString("es-ES", { maximumFractionDigits: 2 }) : "",
           precio: l.precio != null ? nominaPdfMoney(l.precio) : "",
           importe: money(l.importe),
@@ -20393,7 +20430,12 @@ function buildGestionNominaListado(rows, meta, horasRows = [], emisiones = new M
     // Las columnas de la matriz son las líneas que suman (sin detalle_de).
     if (!row.detalle_de) {
       if (!columnasMap.has(row.concepto)) {
-        columnasMap.set(row.concepto, { concepto: row.concepto, orden: row.orden, seccion: row.seccion });
+        columnasMap.set(row.concepto, {
+          concepto: row.concepto,
+          codigo_nomina: row.codigo_nomina,
+          orden: row.orden,
+          seccion: row.seccion,
+        });
       } else if (row.orden < columnasMap.get(row.concepto).orden) {
         columnasMap.get(row.concepto).orden = row.orden;
       }
@@ -20466,7 +20508,12 @@ function renderGestionNominaListado(data) {
     data.tiposHora.map((tipoHora) => `<th class="num">Horas ${escapeHtml(tipoHora)}</th>`).join("") +
     `<th class="num">Desplazamientos</th>` +
     data.columnas
-      .map((c) => `<th class="num gestion-nomina-listado-col-${escapeHtml(c.seccion)}">${escapeHtml(c.concepto)}</th>`)
+      .map(
+        (c) =>
+          `<th class="num gestion-nomina-listado-col-${escapeHtml(c.seccion)}">${escapeHtml(
+            formatGestionConceptoCodigo(c.concepto, c.codigo_nomina)
+          )}</th>`
+      )
       .join("");
   const cuerpo = data.nominas
     .map((n) => {
@@ -20547,7 +20594,7 @@ async function exportGestionNominaListadoExcel() {
       "Estado",
       ...data.tiposHora.map((tipoHora) => `Horas ${tipoHora}`),
       "Desplazamientos",
-      ...data.columnas.map((c) => c.concepto),
+      ...data.columnas.map((c) => formatGestionConceptoCodigo(c.concepto, c.codigo_nomina)),
     ];
     const filas = data.nominas.map((n) => [
       formatGestionNominaEmissionDate(n.emitida_en),
@@ -20708,7 +20755,10 @@ async function exportGestionNominaListadoPdf() {
           { label: "Importe €", key: "importe", width: 32, align: "right" },
         ],
         rows: n.lineas.map((l) => ({
-          concepto: l.detalle_de ? `      ${l.concepto}` : l.concepto,
+          concepto: `${l.detalle_de ? "      " : ""}${formatGestionConceptoCodigo(
+            l.concepto,
+            l.codigo_nomina
+          )}`,
           detalle: l.detalle || "",
           importe: nominaPdfMoney(l.importe),
           _seccion: !l.detalle_de && l.seccion === "total" ? "total" : undefined,
@@ -20741,7 +20791,7 @@ async function exportGestionNominaListadoPdf() {
             .filter((l) => !l.detalle_de)
             .map((l) => ({
               puesto: l.puesto || "",
-              concepto: l.concepto,
+              concepto: formatGestionConceptoCodigo(l.concepto, l.codigo_nomina),
               detalle: l.detalle || "",
               importe: nominaPdfMoney(l.importe),
             })),
