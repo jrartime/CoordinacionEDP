@@ -2513,6 +2513,10 @@ button.tag-chip.warm-button:hover {
   font-size: 0.76rem;
 }
 
+#records-table {
+  min-width: 1280px;
+}
+
 .records-table th,
 .records-table td {
   white-space: normal;
