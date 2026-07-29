@@ -85,19 +85,19 @@ const RECORD_COLUMNS = [
   { key: "fecha", label: "Fecha", type: "date", sortable: true },
   { key: "actividad_id", label: "Actividad", type: "number", hiddenInList: true },
   { key: "empresa_id", label: "Empresa", type: "number", relationLabelKey: "empresa", sortable: true, hiddenInList: true },
-  { key: "contrato_id", label: "Contrato", type: "number", relationLabelKey: "contrato", sortable: true },
-  { key: "servicio_id", label: "Servicio", type: "number", relationLabelKey: "servicio", sortable: true },
+  { key: "contrato_id", label: "Contrato", type: "number", relationLabelKey: "contrato", sortable: true, stackWith: ["servicio_id", "instalacion_id"] },
+  { key: "servicio_id", label: "Servicio", type: "number", relationLabelKey: "servicio", sortable: true, hiddenInList: true },
   { key: "titular_personal_id", label: "Titular", type: "number", relationLabelKey: "titular_personal", derived: true, readonly: true, hiddenInList: true },
   { key: "sustituto_personal_id", label: "Sustituto", type: "number", relationLabelKey: "sustituto_personal", derived: true, readonly: true, hiddenInList: true },
   { key: "sustituye_registro_id", label: "Sustituye a registro", type: "number", readonly: true, hiddenInList: true },
-  { key: "instalacion_id", label: "Instalacion", type: "number", relationLabelKey: "instalacion", sortable: true, shortLabelKey: "instalacion_siglas" },
+  { key: "instalacion_id", label: "Instalacion", type: "number", relationLabelKey: "instalacion", sortable: true, shortLabelKey: "instalacion_siglas", hiddenInList: true },
   { key: "categoria_id", label: "Categoria", type: "number", hiddenInList: true },
   { key: "puesto_id", label: "Puesto", type: "number", relationLabelKey: "puesto", sortable: true, stackWith: ["funcion_id", "modalidad_id"] },
   { key: "funcion_id", label: "Funcion", type: "number", relationLabelKey: "funcion", hiddenInList: true },
   { key: "modalidad_id", label: "Modalidad", type: "number", relationLabelKey: "modalidad", sortable: true, hiddenInList: true },
   { key: "nota", label: "Nota", type: "text", hiddenInList: true },
-  { key: "hora_inicio", label: "Inicio", type: "time", sortable: true },
-  { key: "hora_fin", label: "Fin", type: "time", sortable: true },
+  { key: "hora_inicio", label: "Inicio", type: "time", sortable: true, stackWith: "hora_fin" },
+  { key: "hora_fin", label: "Fin", type: "time", sortable: true, hiddenInList: true },
   { key: "horas", label: "Horas", type: "decimal", sortable: true },
   { key: "hc", label: "HC", type: "decimal", hiddenInList: true },
   { key: "hf", label: "HF", type: "decimal", hiddenInList: true },
@@ -108,11 +108,11 @@ const RECORD_COLUMNS = [
   { key: "horas_nocturnas", label: "H. nocturnas", type: "decimal", hiddenInList: true },
   { key: "clases", label: "Clases", type: "decimal", hiddenInList: true },
   { key: "horas_2", label: "Horas 2", type: "decimal", hiddenInList: true },
+  { key: "situacion_id", label: "Situacion", type: "number", relationLabelKey: "situacion", sortable: true },
+  { key: "tipo_hora_id", label: "Tipo hora", type: "number", relationLabelKey: "tipo_hora", sortable: true },
   { key: "sustitucion", label: "Sustitucion", type: "boolean" },
   { key: "facturar", label: "Facturar", type: "boolean" },
   { key: "abonar", label: "Abonar", type: "boolean" },
-  { key: "tipo_hora_id", label: "Tipo hora", type: "number", relationLabelKey: "tipo_hora", sortable: true },
-  { key: "situacion_id", label: "Situacion", type: "number", relationLabelKey: "situacion", sortable: true },
   { key: "anio", label: "Anio", type: "number", hiddenInList: true },
   { key: "observacion", label: "Observacion", type: "textarea", hiddenInList: true },
   { key: "control", label: "Control", type: "datetime", hiddenInList: true },
@@ -14276,8 +14276,7 @@ function formatRecordHours(value) {
 function getRecordsPeriodTotals(rows) {
   const totals = { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0 };
   rows.forEach((row) => addRecordReportHours(totals, row));
-  totals.total =
-    totals.horas + totals.hc + totals.hfest + totals.hmon + totals.pnr + totals.noct;
+  totals.total = totals.horas + totals.hc + totals.hfest + totals.hmon + totals.pnr;
   return totals;
 }
 
@@ -14457,9 +14456,7 @@ function renderRecordsTable() {
             for (const sk of stackKeys) {
               const stackedCol = RECORD_COLUMNS.find((c) => c.key === sk);
               if (stackedCol) {
-                const stackedLabel = stackedCol.relationLabelKey
-                  ? String(row[stackedCol.relationLabelKey] ?? "").trim()
-                  : String(row[stackedCol.key] ?? "").trim();
+                const stackedLabel = formatRecordDisplayValue(row, stackedCol);
                 if (stackedLabel) {
                   content += `<br><span class="muted-text">${escapeHtml(stackedLabel)}</span>`;
                 }
