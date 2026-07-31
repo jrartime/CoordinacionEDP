@@ -789,7 +789,7 @@ begin
          count(*)::integer,
          array_agg(r.id order by r.fecha, r.id),
          coalesce(s.situacion in ('CAMB', 'LG'), false),
-         r.tipo_hora_id in (1, 5, 8) and coalesce(s.situacion not in ('CAMB', 'LG'), true),
+         coalesce(r.tipo_hora_id in (1, 5, 8), false) and coalesce(s.situacion not in ('CAMB', 'LG'), true),
          coalesce(s.situacion in ('NORM', 'SUST')
                   or (s.situacion = 'FEST' and th.tipo_hora = 'FTRAB'), false)
   from public.historiales_laborales h
