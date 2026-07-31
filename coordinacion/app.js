@@ -61,6 +61,7 @@ const PRIVATE_TAB_TARGETS = new Set([
   "historial",
   "gestion",
   "contabilidad",
+  "facturacion",
   "settings",
 ]);
 let ACCESS_ASSIGNABLE_TABS = [
@@ -76,6 +77,7 @@ let ACCESS_ASSIGNABLE_TABS = [
   { key: "historial", label: "Historial laboral" },
   { key: "gestion", label: "Gestión" },
   { key: "contabilidad", label: "Contabilidad" },
+  { key: "facturacion", label: "Facturación" },
   { key: "settings", label: "Configuración" },
 ];
 const ACCESS_ASSIGNABLE_TABS_FALLBACK = [...ACCESS_ASSIGNABLE_TABS];
@@ -810,6 +812,7 @@ const privateTabRegistrosButton = document.querySelector("#private-tab-registros
 const privateTabHistorialButton = document.querySelector("#private-tab-historial");
 const privateTabGestionButton = document.querySelector("#private-tab-gestion");
 const privateTabContabilidadButton = document.querySelector("#private-tab-contabilidad");
+const privateTabFacturacionButton = document.querySelector("#private-tab-facturacion");
 const privateTabContractsButton = document.querySelector("#private-tab-contracts");
 const privateTabPersonalButton = document.querySelector("#private-tab-personal");
 const privateTabProgrammingButton = document.querySelector("#private-tab-programming");
@@ -825,6 +828,7 @@ const privateTabPanelRegistros = document.querySelector("#private-tab-panel-regi
 const privateTabPanelHistorial = document.querySelector("#private-tab-panel-historial");
 const privateTabPanelGestion = document.querySelector("#private-tab-panel-gestion");
 const privateTabPanelContabilidad = document.querySelector("#private-tab-panel-contabilidad");
+const privateTabPanelFacturacion = document.querySelector("#private-tab-panel-facturacion");
 const privateTabPanelSettings = document.querySelector("#private-tab-panel-settings");
 const settingsCatalogView = document.querySelector("#settings-catalog-view");
 const settingsReportsView = document.querySelector("#settings-reports-view");
@@ -1530,6 +1534,9 @@ let selectedRecordIds = new Set();
 let recordDetailSnapshot = null;
 let recordsExternalActivityFilter = "";
 let recordsReportPreviewRows = null;
+let recordsPersonReportPayload = null;
+let currentRecordsPersonReportImageCanvas = null;
+let currentRecordsPersonReportImageFileName = "";
 let recordsSort = { field: "fecha", direction: "desc" };
 // Facetas para los desplegables de filtro: valores distintos (contrato/servicio/
 // personal/instalacion) presentes en registros dentro del rango fecha/actividad.
@@ -2225,6 +2232,7 @@ function syncAccessTabVisibility() {
     historial: privateTabHistorialButton,
     gestion: privateTabGestionButton,
     contabilidad: privateTabContabilidadButton,
+    facturacion: privateTabFacturacionButton,
     programming: privateTabProgrammingButton,
     contracts: privateTabContractsButton,
     personal: privateTabPersonalButton,
@@ -2373,6 +2381,7 @@ function switchPrivateTab(target) {
   const showHistorial = normalizedTarget === "historial";
   const showGestion = normalizedTarget === "gestion";
   const showContabilidad = normalizedTarget === "contabilidad";
+  const showFacturacion = normalizedTarget === "facturacion";
   const showSettings = normalizedTarget === "settings";
   const showConcilia = normalizedTarget === "concilia" || normalizedTarget === "actividades";
   const hasAnyAccess = currentAllowedPrivateTabs.size > 0;
@@ -2387,6 +2396,7 @@ function switchPrivateTab(target) {
   privateTabPanelHistorial?.classList.toggle("hidden", !hasAnyAccess || !showHistorial);
   privateTabPanelGestion?.classList.toggle("hidden", !hasAnyAccess || !showGestion);
   privateTabPanelContabilidad?.classList.toggle("hidden", !hasAnyAccess || !showContabilidad);
+  privateTabPanelFacturacion?.classList.toggle("hidden", !hasAnyAccess || !showFacturacion);
   privateTabPanelSettings?.classList.toggle("hidden", !hasAnyAccess || !showSettings);
   privateTabPanelConciliaIntegrated?.classList.toggle("hidden", !hasAnyAccess || !showConcilia);
   if (showConcilia) {
@@ -2404,6 +2414,7 @@ function switchPrivateTab(target) {
   privateTabHistorialButton?.classList.toggle("active", showHistorial);
   privateTabGestionButton?.classList.toggle("active", showGestion);
   privateTabContabilidadButton?.classList.toggle("active", showContabilidad);
+  privateTabFacturacionButton?.classList.toggle("active", showFacturacion);
   privateTabSettingsButton?.classList.toggle("active", showSettings);
   privateTabSearchButton.setAttribute("aria-pressed", String(showSearch));
   privateTabControlButton.setAttribute("aria-pressed", String(showControl));
@@ -2417,6 +2428,7 @@ function switchPrivateTab(target) {
   privateTabHistorialButton?.setAttribute("aria-pressed", String(showHistorial));
   privateTabGestionButton?.setAttribute("aria-pressed", String(showGestion));
   privateTabContabilidadButton?.setAttribute("aria-pressed", String(showContabilidad));
+  privateTabFacturacionButton?.setAttribute("aria-pressed", String(showFacturacion));
   privateTabSettingsButton?.setAttribute("aria-pressed", String(showSettings));
   syncProgrammingTypeUi();
 }
@@ -9392,6 +9404,27 @@ function updateControlBulkMatchCount() {
   if (controlBulkApplyButton) controlBulkApplyButton.disabled = count === 0;
 }
 
+function applyControlBulkCurrentValueToFilters() {
+  const field = controlBulkField?.value;
+  const value = getControlBulkControlValue("current");
+  if (!field || !value) return;
+  const controls = {
+    personal: controlPersonalInput,
+    centro: controlCentroInput,
+    puesto: controlPuestoInput,
+  };
+  if (field === "fecha") {
+    controlDateFromInput.value = value;
+    controlDateToInput.value = value;
+    controlDateFromInput.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+  const control = controls[field];
+  if (!control) return;
+  control.value = value;
+  control.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 async function refreshControlBulkSource() {
   const key = JSON.stringify(buildControlFilters());
   if (key === controlBulkSourceKey && controlBulkSourceRows.length) {
@@ -11006,6 +11039,49 @@ function openPersonalComplementoForEdit(complementoRowId) {
   updatePersonalComplementoFormVisibility();
 }
 
+// Dos vigencias del MISMO complemento en la MISMA persona que se pisan en fechas: a
+// diferencia de Historial laboral no hay un patrón envoltura/tramo legítimo aquí, así que
+// cualquier solape es sospechoso (normalmente un tramo mal cerrado). Se avisa sin bloquear,
+// mismo criterio que Historial laboral (pendiente de Fase 7, ver [[nominas-estrategia]]).
+function personalComplementoRangesOverlap(aDesde, aHasta, bDesde, bHasta) {
+  const desdeOk = !bHasta || aDesde <= bHasta;
+  const hastaOk = !aHasta || bDesde <= aHasta;
+  return desdeOk && hastaOk;
+}
+
+function findSuspiciousPersonalComplementoOverlaps(payload, excludeId) {
+  return currentPersonalComplementoRows.filter((row) => {
+    if (excludeId != null && String(row.id) === String(excludeId)) return false;
+    if (String(row.complemento_id) !== String(payload.complemento_id)) return false;
+    return personalComplementoRangesOverlap(
+      payload.fecha_desde,
+      payload.fecha_hasta,
+      row.fecha_desde,
+      row.fecha_hasta
+    );
+  });
+}
+
+function confirmPersonalComplementoOverlap(payload, excludeId) {
+  const overlaps = findSuspiciousPersonalComplementoOverlaps(payload, excludeId);
+  if (!overlaps.length) {
+    return true;
+  }
+  const catalogo = getNominaComplementoCatalog(payload.complemento_id);
+  const lines = overlaps.map((item) => {
+    const hasta = item.fecha_hasta ? formatNullableDate(item.fecha_hasta) : "indefinido";
+    return `  · ${formatNullableDate(item.fecha_desde)} – ${hasta}`;
+  });
+  return window.confirm(
+    `"${catalogo?.nombre || "Este complemento"}" ya tiene ${overlaps.length} vigencia(s) que se ` +
+      `solapan en fechas con esta para la misma persona:\n\n` +
+      `${lines.join("\n")}\n\n` +
+      "Si es un cambio de importe a partir de una fecha, cierra el tramo anterior con Fecha hasta " +
+      "en vez de dejarlo abierto.\n\n" +
+      "¿Guardar igualmente?"
+  );
+}
+
 async function savePersonalComplemento(event) {
   event?.preventDefault();
   if (!currentSelectedPersonalId) {
@@ -11073,6 +11149,10 @@ async function savePersonalComplemento(event) {
     }
     payload.porcentaje = Number(porcentajeValue) / 100;
     payload.importe = null;
+  }
+
+  if (!confirmPersonalComplementoOverlap(payload, currentEditingPersonalComplementoId || null)) {
+    return;
   }
 
   const supabase = await getSupabaseClient();
@@ -14011,6 +14091,21 @@ function syncRecordsCompareControlButton() {
     : "Selecciona una persona y un intervalo completo";
 }
 
+function syncRecordsPersonReportButton() {
+  if (!recordsPersonReportButton) return;
+  const filters = getRecordsFilterValues();
+  const ready = Boolean(
+    filters.fechaDesde &&
+    filters.fechaHasta &&
+    filters.fechaDesde <= filters.fechaHasta &&
+    filters.personalId
+  );
+  recordsPersonReportButton.disabled = !ready;
+  recordsPersonReportButton.title = ready
+    ? "Generar el informe individual de horas"
+    : "Selecciona una persona y un intervalo completo";
+}
+
 function applyRecordsQueryFilters(query, filters) {
   let nextQuery = query;
 
@@ -14059,6 +14154,7 @@ function applyRecordsQueryFilters(query, filters) {
 
 function applyRecordsClientFilters() {
   invalidateRecordsReportPreview();
+  invalidateRecordsPersonReport();
   const filters = getRecordsFilterValues();
   // Los solapes se cruzan sobre todo lo cargado, no sobre lo ya filtrado: si la
   // busqueda deja fuera al turno que choca, la marca de la fila que si se ve
@@ -14068,10 +14164,10 @@ function applyRecordsClientFilters() {
     if (recordsOverlapOnly && !recordsOverlapMap.has(String(row.id))) {
       return false;
     }
-    if (!filters.search) {
-      return true;
+    if (!recordMatchesBulkCurrentFilter(row)) {
+      return false;
     }
-    return RECORD_COLUMNS.some((column) =>
+    return !filters.search || RECORD_COLUMNS.some((column) =>
       normalizeRecordText(formatRecordDisplayValue(row, column)).includes(filters.search)
     );
   });
@@ -14386,6 +14482,7 @@ function buildRecordsSummaryText(rows) {
 function renderRecordsTable() {
   renderRecordsTableHead();
   syncRecordsCompareControlButton();
+  syncRecordsPersonReportButton();
 
   if (!recordsTableBody) {
     return;
@@ -14615,6 +14712,7 @@ function buildRecordsControlComparison(records, controls, dateFrom, dateTo) {
 async function openRecordsCompareControl() {
   const filters = getRecordsFilterValues();
   syncRecordsCompareControlButton();
+  syncRecordsPersonReportButton();
   if (recordsCompareControlButton?.disabled) return;
 
   recordsCompareControlPanel?.classList.remove("hidden");
@@ -15693,6 +15791,702 @@ async function exportRecordsCompactReportPdf(previewRows = null) {
   }
 }
 
+// --- Informe individual (horas diarias + detalle + resumenes) ---
+// A diferencia del informe general (agrupa por contrato/puesto/situacion, sin fechas ni
+// horario), este exige una sola persona filtrada y muestra el desglose dia a dia con
+// hora de inicio/fin y tipo de hora, pensado para entregar a la propia persona.
+function buildPersonReportData(rows) {
+  const sorted = [...rows].sort((a, b) => {
+    const fechaCmp = String(a.fecha || "").localeCompare(String(b.fecha || ""));
+    if (fechaCmp !== 0) return fechaCmp;
+    return String(a.hora_inicio || "").localeCompare(String(b.hora_inicio || ""));
+  });
+
+  const dailyMap = new Map();
+  const puestoMap = new Map();
+  const tipoHoraMap = new Map();
+  const detailRows = [];
+  let totalHoras = 0;
+
+  for (const row of sorted) {
+    const horas = Number(row.horas) || 0;
+    const fecha = String(row.fecha || "");
+    const puesto = String(row.puesto || "").trim() || "Sin puesto";
+    const tipoHora = String(row.tipo_hora || "").trim() || "Sin tipo";
+
+    dailyMap.set(fecha, (dailyMap.get(fecha) || 0) + horas);
+    puestoMap.set(puesto, (puestoMap.get(puesto) || 0) + horas);
+    tipoHoraMap.set(tipoHora, (tipoHoraMap.get(tipoHora) || 0) + horas);
+    totalHoras += horas;
+
+    detailRows.push({
+      fecha,
+      puesto,
+      horaInicio: String(row.hora_inicio || "").slice(0, 5),
+      horaFin: String(row.hora_fin || "").slice(0, 5),
+      horas,
+      tipoHora,
+    });
+  }
+
+  const sumEntries = (map) =>
+    Array.from(map.entries())
+      .map(([label, horas]) => ({ label, horas }))
+      .sort((a, b) => b.horas - a.horas);
+
+  return {
+    personName: String(sorted[0]?.personal || "").trim() || "Sin personal",
+    daily: Array.from(dailyMap.entries())
+      .map(([fecha, horas]) => ({ fecha, horas }))
+      .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    detailRows,
+    byPuesto: sumEntries(puestoMap),
+    byTipoHora: sumEntries(tipoHoraMap),
+    totalHoras,
+  };
+}
+
+function renderRecordsPersonReportWeekdayMarker(fecha) {
+  const weekday = getControlWeekdayInfo(fecha);
+  return `
+    <span
+      class="weekday-marker records-date-weekday"
+      style="color: ${escapeHtml(weekday.color)};"
+      title="${escapeHtml(weekday.label)}"
+      aria-label="${escapeHtml(weekday.label)}"
+    >${escapeHtml(weekday.letter)}</span>
+  `;
+}
+
+function renderPersonReportPreview(data, range) {
+  if (recordsPersonReportSummary) {
+    recordsPersonReportSummary.textContent =
+      `${data.personName} · ${formatDisplayDate(range.from) || "-"} - ${formatDisplayDate(range.to) || "-"} · ` +
+      `${formatRecordHours(data.totalHoras)} h en ${data.daily.length} ${data.daily.length === 1 ? "día" : "días"}`;
+  }
+  if (!recordsPersonReportContent) {
+    return;
+  }
+  if (!data.detailRows.length) {
+    recordsPersonReportContent.innerHTML =
+      '<p class="empty-state">No hay registros con los filtros actuales.</p>';
+    return;
+  }
+
+  const dailyRowsHtml = data.daily
+    .map(
+      (item) => `
+        <tr>
+          <td class="weekday-marker-cell">${renderRecordsPersonReportWeekdayMarker(item.fecha)}</td>
+          <td>${escapeHtml(formatDisplayDate(item.fecha))}</td>
+          <td class="numeric-cell">${escapeHtml(formatRecordHours(item.horas))}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  const detailRowsHtml = data.detailRows
+    .map(
+      (row) => `
+        <tr>
+          <td>${escapeHtml(formatDisplayDate(row.fecha))}</td>
+          <td>${escapeHtml(row.puesto)}</td>
+          <td>${escapeHtml(row.horaInicio)}</td>
+          <td>${escapeHtml(row.horaFin)}</td>
+          <td class="numeric-cell">${escapeHtml(formatRecordHours(row.horas))}</td>
+          <td>${escapeHtml(row.tipoHora)}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  const summaryRowsHtml = (entries) =>
+    entries
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapeHtml(item.label)}</td>
+            <td class="numeric-cell">${escapeHtml(formatRecordHours(item.horas))}</td>
+          </tr>
+        `
+      )
+      .join("");
+
+  recordsPersonReportContent.innerHTML = `
+    <section class="records-person-report-section">
+      <h3>Horas diarias</h3>
+      <div class="records-person-report-table-wrap">
+        <table class="records-person-report-table">
+          <thead>
+            <tr><th>Día</th><th>Fecha</th><th class="numeric-heading">Horas</th></tr>
+          </thead>
+          <tbody>${dailyRowsHtml}</tbody>
+          <tfoot>
+            <tr><td colspan="2">Total</td><td class="numeric-cell">${escapeHtml(formatRecordHours(data.totalHoras))}</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+    <section class="records-person-report-section">
+      <h3>Detalle</h3>
+      <div class="records-person-report-table-wrap">
+        <table class="records-person-report-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Puesto</th>
+              <th>Hora inicio</th>
+              <th>Hora fin</th>
+              <th class="numeric-heading">Horas</th>
+              <th>Tipo hora</th>
+            </tr>
+          </thead>
+          <tbody>${detailRowsHtml}</tbody>
+        </table>
+      </div>
+      <div class="records-person-report-summary-grid">
+        <div>
+          <h4>Resumen por puesto</h4>
+          <div class="records-person-report-table-wrap">
+            <table class="records-person-report-table">
+              <thead><tr><th>Puesto</th><th class="numeric-heading">Horas</th></tr></thead>
+              <tbody>${summaryRowsHtml(data.byPuesto)}</tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <h4>Resumen por tipo de hora</h4>
+          <div class="records-person-report-table-wrap">
+            <table class="records-person-report-table">
+              <thead><tr><th>Tipo hora</th><th class="numeric-heading">Horas</th></tr></thead>
+              <tbody>${summaryRowsHtml(data.byTipoHora)}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function setRecordsPersonReportDownloadsEnabled(enabled) {
+  if (recordsPersonReportCsvButton) recordsPersonReportCsvButton.disabled = !enabled;
+  if (recordsPersonReportPdfButton) recordsPersonReportPdfButton.disabled = !enabled;
+  if (recordsPersonReportImageButton) recordsPersonReportImageButton.disabled = !enabled;
+}
+
+function invalidateRecordsPersonReport(message = "Los filtros han cambiado. Vuelve a generar el informe.") {
+  recordsPersonReportPayload = null;
+  setRecordsPersonReportDownloadsEnabled(false);
+  if (!recordsPersonReportPanel?.classList.contains("hidden")) {
+    if (recordsPersonReportSummary) {
+      recordsPersonReportSummary.textContent = message;
+    }
+    if (recordsPersonReportContent) {
+      recordsPersonReportContent.innerHTML = `<p class="empty-state">${escapeHtml(message)}</p>`;
+    }
+  }
+}
+
+async function openRecordsPersonReport() {
+  if (recordsPersonReportButton?.disabled) return;
+  recordsPersonReportPanel?.classList.remove("hidden");
+  recordsPersonReportBackdrop?.classList.remove("hidden");
+  recordsPersonReportPayload = null;
+  setRecordsPersonReportDownloadsEnabled(false);
+  if (recordsPersonReportSummary) {
+    recordsPersonReportSummary.textContent = "Preparando informe con los filtros actuales...";
+  }
+  if (recordsPersonReportContent) {
+    recordsPersonReportContent.innerHTML =
+      '<p class="empty-state">Cargando registros filtrados para el informe...</p>';
+  }
+
+  try {
+    const rows = await fetchRecordsForReport();
+    if (rows === null) {
+      if (recordsPersonReportSummary) recordsPersonReportSummary.textContent = "Generación de informe cancelada.";
+      if (recordsPersonReportContent) {
+        recordsPersonReportContent.innerHTML = '<p class="empty-state">Generación de informe cancelada.</p>';
+      }
+      return;
+    }
+    if (!rows.length) {
+      if (recordsPersonReportSummary) recordsPersonReportSummary.textContent = "No hay registros con los filtros actuales.";
+      if (recordsPersonReportContent) {
+        recordsPersonReportContent.innerHTML = '<p class="empty-state">No hay registros con los filtros actuales.</p>';
+      }
+      return;
+    }
+    const range = getRecordsReportDateRange(rows);
+    const data = buildPersonReportData(rows);
+    recordsPersonReportPayload = { data, range };
+    renderPersonReportPreview(data, range);
+    setRecordsPersonReportDownloadsEnabled(true);
+  } catch (error) {
+    recordsPersonReportPayload = null;
+    if (recordsPersonReportSummary) recordsPersonReportSummary.textContent = "No se pudo preparar el informe.";
+    if (recordsPersonReportContent) {
+      recordsPersonReportContent.innerHTML =
+        '<p class="empty-state">Error cargando los registros filtrados del informe.</p>';
+    }
+    setStatus(`No se pudo preparar el informe individual: ${error?.message ?? "error desconocido"}`, "error");
+  }
+}
+
+function closeRecordsPersonReport() {
+  recordsPersonReportPanel?.classList.add("hidden");
+  recordsPersonReportBackdrop?.classList.add("hidden");
+}
+
+function exportRecordsPersonReportCsv() {
+  if (!recordsPersonReportPayload) {
+    alert("Abre primero la previsualización del informe.");
+    return;
+  }
+  const { data, range } = recordsPersonReportPayload;
+  const headers = ["Fecha", "Puesto", "Hora inicio", "Hora fin", "Horas", "Tipo hora"];
+  const lines = [
+    headers.map(toCsvValue).join(","),
+    ...data.detailRows.map((row) =>
+      [
+        formatDisplayDate(row.fecha),
+        row.puesto,
+        row.horaInicio,
+        row.horaFin,
+        formatRecordHours(row.horas),
+        row.tipoHora,
+      ]
+        .map(toCsvValue)
+        .join(",")
+    ),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const suffix = sanitizeFileName(`${data.personName}-${range.from || "inicio"}-${range.to || "fin"}`);
+  triggerDownload(blob, `informe-horas-${suffix}.csv`);
+  setStatus("CSV del informe individual generado correctamente.", "success");
+}
+
+async function exportRecordsPersonReportPdf() {
+  try {
+    if (!recordsPersonReportPayload) {
+      alert("Abre primero la previsualización del informe.");
+      return;
+    }
+    setStatus("Preparando informe PDF individual...");
+    const { data, range } = recordsPersonReportPayload;
+
+    const { jsPDF } = await getJsPdfClient();
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const bottomMargin = 16;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("Informe de horas", margin, 18);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(data.personName, margin, 25);
+    doc.setFontSize(9);
+    doc.text(
+      `Periodo: ${formatDisplayDate(range.from) || "-"} - ${formatDisplayDate(range.to) || "-"}   Total: ${formatRecordHours(data.totalHoras)} h`,
+      margin,
+      31
+    );
+
+    let y = 38;
+    const sectionTitle = (title) => {
+      if (y + 10 > pageHeight - bottomMargin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(title, margin, y + 4);
+      y += 8;
+    };
+    const tableDefaults = { x: margin, margin, pageHeight, bottomMargin };
+
+    sectionTitle("Horas diarias");
+    y = drawNominaPdfTable(doc, {
+      ...tableDefaults,
+      y,
+      columns: [
+        { key: "dia", label: "Día", width: 14, align: "center" },
+        { key: "fecha", label: "Fecha", width: 36, align: "left" },
+        { key: "horas", label: "Horas", width: 30, align: "right" },
+      ],
+      rows: [
+        ...data.daily.map((item) => ({
+          dia: getControlWeekdayInfo(item.fecha).letter,
+          fecha: formatDisplayDate(item.fecha),
+          horas: formatRecordHours(item.horas),
+        })),
+        { dia: "", fecha: "Total", horas: formatRecordHours(data.totalHoras), _seccion: "total" },
+      ],
+    });
+    y += 8;
+
+    sectionTitle("Detalle");
+    y = drawNominaPdfTable(doc, {
+      ...tableDefaults,
+      y,
+      columns: [
+        { key: "fecha", label: "Fecha", width: 24, align: "left" },
+        { key: "puesto", label: "Puesto", width: 52, align: "left" },
+        { key: "horaInicio", label: "Inicio", width: 20, align: "center" },
+        { key: "horaFin", label: "Fin", width: 20, align: "center" },
+        { key: "horas", label: "Horas", width: 22, align: "right" },
+        { key: "tipoHora", label: "Tipo hora", width: 48, align: "left" },
+      ],
+      rows: data.detailRows.map((row) => ({
+        fecha: formatDisplayDate(row.fecha),
+        puesto: row.puesto,
+        horaInicio: row.horaInicio,
+        horaFin: row.horaFin,
+        horas: formatRecordHours(row.horas),
+        tipoHora: row.tipoHora,
+      })),
+    });
+    y += 8;
+
+    sectionTitle("Resumen por puesto");
+    y = drawNominaPdfTable(doc, {
+      ...tableDefaults,
+      y,
+      columns: [
+        { key: "label", label: "Puesto", width: 100, align: "left" },
+        { key: "horas", label: "Horas", width: 30, align: "right" },
+      ],
+      rows: [
+        ...data.byPuesto.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) })),
+        { label: "Total", horas: formatRecordHours(data.totalHoras), _seccion: "total" },
+      ],
+    });
+    y += 8;
+
+    sectionTitle("Resumen por tipo de hora");
+    y = drawNominaPdfTable(doc, {
+      ...tableDefaults,
+      y,
+      columns: [
+        { key: "label", label: "Tipo hora", width: 100, align: "left" },
+        { key: "horas", label: "Horas", width: 30, align: "right" },
+      ],
+      rows: [
+        ...data.byTipoHora.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) })),
+        { label: "Total", horas: formatRecordHours(data.totalHoras), _seccion: "total" },
+      ],
+    });
+
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(120, 120, 120);
+      doc.text(`Página ${p} de ${totalPages}`, pageWidth - margin, pageHeight - 8, { align: "right" });
+      doc.setTextColor(0, 0, 0);
+    }
+
+    const suffix = `${data.personName}-${range.from || "inicio"}-${range.to || "fin"}`
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-zA-Z0-9-]+/g, "-");
+    doc.save(`informe-horas-${suffix}.pdf`);
+    setStatus("Informe individual generado correctamente.", "success");
+  } catch (error) {
+    setStatus(`No se pudo generar el informe individual: ${error?.message ?? "error desconocido"}`, "error");
+  }
+}
+
+// --- PNG del informe individual (mismo patron de canvas que el informe de Control personal) ---
+function layoutCanvasTableRows(context, columns, rows, { lineHeight, cellPadding, minRowHeight }) {
+  return rows.map((row) => {
+    const cellLines = columns.map((column) =>
+      wrapCanvasText(context, String(row[column.key] ?? "-"), column.width - cellPadding * 2)
+    );
+    const rowHeight = Math.max(
+      minRowHeight,
+      Math.max(...cellLines.map((lines) => lines.length)) * lineHeight + cellPadding * 2
+    );
+    return { cellLines, rowHeight };
+  });
+}
+
+// Dibuja un titulo + tabla con cabecera y, si se pide, una fila de total alineada bajo la
+// columna "valueColumnKey". Devuelve el y de partida para la siguiente seccion.
+function drawCanvasTableSection(context, options) {
+  const {
+    x,
+    y: startY,
+    title,
+    columns,
+    rowLayouts,
+    headerHeight,
+    cellPadding,
+    lineHeight,
+    totalLabel,
+    totalValue,
+    valueColumnKey = "horas",
+  } = options;
+  let y = startY;
+  const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+
+  context.fillStyle = "#001f54";
+  context.font = "bold 26px Arial";
+  context.fillText(title, x, y + 22);
+  y += 40;
+
+  let cx = x;
+  context.font = "bold 20px Arial";
+  columns.forEach((column) => {
+    context.fillStyle = "#e5e7eb";
+    context.fillRect(cx, y, column.width, headerHeight);
+    context.strokeStyle = "#94a3b8";
+    context.strokeRect(cx, y, column.width, headerHeight);
+    context.fillStyle = "#111827";
+    context.fillText(column.label, cx + cellPadding, y + headerHeight - 15);
+    cx += column.width;
+  });
+  y += headerHeight;
+
+  rowLayouts.forEach(({ cellLines, rowHeight }) => {
+    cx = x;
+    context.font = "20px Arial";
+    columns.forEach((column, columnIndex) => {
+      context.strokeStyle = "#d6dbe7";
+      context.strokeRect(cx, y, column.width, rowHeight);
+      context.fillStyle = "#001f54";
+      cellLines[columnIndex].forEach((line, lineIndex) => {
+        context.fillText(line, cx + cellPadding, y + cellPadding + 20 + lineIndex * lineHeight);
+      });
+      cx += column.width;
+    });
+    y += rowHeight;
+  });
+
+  if (totalLabel != null) {
+    const valueColumn = columns.find((column) => column.key === valueColumnKey);
+    const valueX = valueColumn
+      ? x + columns.slice(0, columns.indexOf(valueColumn)).reduce((sum, column) => sum + column.width, 0)
+      : x;
+    context.fillStyle = "#f1f5f9";
+    context.fillRect(x, y, tableWidth, 46);
+    context.strokeStyle = "#94a3b8";
+    context.strokeRect(x, y, tableWidth, 46);
+    context.fillStyle = "#001f54";
+    context.font = "bold 22px Arial";
+    context.fillText(totalLabel, x + cellPadding, y + 30);
+    context.fillText(totalValue, valueX + cellPadding, y + 30);
+    y += 46;
+  }
+
+  return y + 32;
+}
+
+function getRecordsPersonReportImageFileName(personName, dateFrom, dateTo) {
+  return `informe-horas-${sanitizeFileName(personName)}-${dateFrom || "sin-inicio"}-${dateTo || "sin-fin"}.png`;
+}
+
+function drawRecordsPersonReportImage(data, range) {
+  const scale = 2;
+  const margin = 40;
+  const cellPadding = 10;
+  const lineHeight = 26;
+  const headerHeight = 42;
+  const minRowHeight = 46;
+  const titleHeight = 136;
+  const footerHeight = 60;
+
+  const dailyColumns = [
+    { key: "dia", label: "Dia", width: 70 },
+    { key: "fecha", label: "Fecha", width: 160 },
+    { key: "horas", label: "Horas", width: 130 },
+  ];
+  const detailColumns = [
+    { key: "fecha", label: "Fecha", width: 150 },
+    { key: "puesto", label: "Puesto", width: 340 },
+    { key: "inicio", label: "Inicio", width: 110 },
+    { key: "fin", label: "Fin", width: 110 },
+    { key: "horas", label: "Horas", width: 120 },
+    { key: "tipoHora", label: "Tipo hora", width: 260 },
+  ];
+  const puestoColumns = [
+    { key: "label", label: "Puesto", width: 340 },
+    { key: "horas", label: "Horas", width: 130 },
+  ];
+  const tipoHoraColumns = [
+    { key: "label", label: "Tipo hora", width: 340 },
+    { key: "horas", label: "Horas", width: 130 },
+  ];
+
+  const tableWidth = Math.max(
+    dailyColumns.reduce((sum, column) => sum + column.width, 0),
+    detailColumns.reduce((sum, column) => sum + column.width, 0),
+    puestoColumns.reduce((sum, column) => sum + column.width, 0),
+    tipoHoraColumns.reduce((sum, column) => sum + column.width, 0)
+  );
+  const canvasWidth = tableWidth + margin * 2;
+
+  const scratchCanvas = document.createElement("canvas");
+  const scratchContext = scratchCanvas.getContext("2d");
+  scratchContext.font = "24px Arial";
+  const layoutOptions = { lineHeight, cellPadding, minRowHeight };
+
+  const dailyRows = data.daily.map((item) => ({
+    dia: getControlWeekdayInfo(item.fecha).letter,
+    fecha: formatDisplayDate(item.fecha),
+    horas: formatRecordHours(item.horas),
+  }));
+  const detailRows = data.detailRows.map((row) => ({
+    fecha: formatDisplayDate(row.fecha),
+    puesto: row.puesto,
+    inicio: row.horaInicio || "-",
+    fin: row.horaFin || "-",
+    horas: formatRecordHours(row.horas),
+    tipoHora: row.tipoHora,
+  }));
+  const puestoRows = data.byPuesto.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) }));
+  const tipoHoraRows = data.byTipoHora.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) }));
+
+  const dailyLayouts = layoutCanvasTableRows(scratchContext, dailyColumns, dailyRows, layoutOptions);
+  const detailLayouts = layoutCanvasTableRows(scratchContext, detailColumns, detailRows, layoutOptions);
+  const puestoLayouts = layoutCanvasTableRows(scratchContext, puestoColumns, puestoRows, layoutOptions);
+  const tipoHoraLayouts = layoutCanvasTableRows(scratchContext, tipoHoraColumns, tipoHoraRows, layoutOptions);
+
+  const sectionHeight = (layouts, hasTotal) =>
+    40 + headerHeight + layouts.reduce((sum, layout) => sum + layout.rowHeight, 0) + (hasTotal ? 46 : 0) + 32;
+
+  const canvasHeight =
+    titleHeight +
+    sectionHeight(dailyLayouts, true) +
+    sectionHeight(detailLayouts, false) +
+    sectionHeight(puestoLayouts, true) +
+    sectionHeight(tipoHoraLayouts, true) +
+    footerHeight;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth * scale;
+  canvas.height = canvasHeight * scale;
+  const context = canvas.getContext("2d");
+  context.scale(scale, scale);
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvasWidth, canvasHeight);
+  context.fillStyle = "#001f54";
+  context.font = "bold 34px Arial";
+  context.fillText("Informe de horas", margin, 46);
+  context.font = "bold 26px Arial";
+  context.fillText(data.personName, margin, 82);
+  context.font = "22px Arial";
+  context.fillText(
+    `Periodo: ${formatDisplayDate(range.from) || "Sin fecha inicial"} - ${formatDisplayDate(range.to) || "Sin fecha final"}`,
+    margin,
+    114
+  );
+
+  let y = titleHeight;
+  const sectionDefaults = { x: margin, headerHeight, cellPadding, lineHeight };
+  y = drawCanvasTableSection(context, {
+    ...sectionDefaults,
+    y,
+    title: "Horas diarias",
+    columns: dailyColumns,
+    rowLayouts: dailyLayouts,
+    totalLabel: "Total",
+    totalValue: formatRecordHours(data.totalHoras),
+  });
+  y = drawCanvasTableSection(context, {
+    ...sectionDefaults,
+    y,
+    title: "Detalle",
+    columns: detailColumns,
+    rowLayouts: detailLayouts,
+  });
+  y = drawCanvasTableSection(context, {
+    ...sectionDefaults,
+    y,
+    title: "Resumen por puesto",
+    columns: puestoColumns,
+    rowLayouts: puestoLayouts,
+    totalLabel: "Total",
+    totalValue: formatRecordHours(data.totalHoras),
+  });
+  y = drawCanvasTableSection(context, {
+    ...sectionDefaults,
+    y,
+    title: "Resumen por tipo de hora",
+    columns: tipoHoraColumns,
+    rowLayouts: tipoHoraLayouts,
+    totalLabel: "Total",
+    totalValue: formatRecordHours(data.totalHoras),
+  });
+
+  context.fillStyle = "#64748b";
+  context.font = "18px Arial";
+  context.fillText(`Generado: ${new Date().toLocaleString("es-ES")}`, margin, canvasHeight - 12);
+
+  return canvas;
+}
+
+function showRecordsPersonReportImage() {
+  if (!recordsPersonReportPayload) {
+    alert("Abre primero la previsualización del informe.");
+    return;
+  }
+  try {
+    const { data, range } = recordsPersonReportPayload;
+    currentRecordsPersonReportImageCanvas = drawRecordsPersonReportImage(data, range);
+    currentRecordsPersonReportImageFileName = getRecordsPersonReportImageFileName(
+      data.personName,
+      range.from,
+      range.to
+    );
+    if (recordsPersonReportImagePreview) {
+      recordsPersonReportImagePreview.src = currentRecordsPersonReportImageCanvas.toDataURL("image/png");
+    }
+    recordsPersonReportImagePanel?.classList.remove("hidden");
+    setStatus("Imagen del informe individual generada correctamente.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo generar la imagen del informe individual.", "error");
+  }
+}
+
+function closeRecordsPersonReportImagePanel() {
+  recordsPersonReportImagePanel?.classList.add("hidden");
+}
+
+async function copyRecordsPersonReportImageToClipboard() {
+  try {
+    if (!currentRecordsPersonReportImageCanvas) {
+      throw new Error("Genera primero la imagen del informe.");
+    }
+    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
+      throw new Error("El navegador no permite copiar imagenes al portapapeles.");
+    }
+    const blob = await canvasToBlob(currentRecordsPersonReportImageCanvas);
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    setStatus("Imagen copiada al portapapeles.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo copiar la imagen.", "error");
+  }
+}
+
+async function downloadRecordsPersonReportImage() {
+  try {
+    if (!currentRecordsPersonReportImageCanvas) {
+      throw new Error("Genera primero la imagen del informe.");
+    }
+    const blob = await canvasToBlob(currentRecordsPersonReportImageCanvas);
+    triggerDownload(blob, currentRecordsPersonReportImageFileName || "informe-horas.png");
+    setStatus("Imagen descargada correctamente.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo descargar la imagen.", "error");
+  }
+}
+
 const RECORD_BULK_FIELDS = {
   fecha: { label: "Fecha", type: "date" },
   empresa_id: { label: "Empresa", type: "select", source: "empresa_id" },
@@ -15735,6 +16529,24 @@ const recordsReportPreviewContent = document.querySelector("#records-report-prev
 const recordsReportPreviewCloseButton = document.querySelector("#records-report-preview-close-button");
 const recordsReportPdfButton = document.querySelector("#records-report-pdf-button");
 const recordsReportCompactPdfButton = document.querySelector("#records-report-compact-pdf-button");
+const recordsPersonReportButton = document.querySelector("#records-person-report-button");
+const recordsPersonReportBackdrop = document.querySelector("#records-person-report-backdrop");
+const recordsPersonReportPanel = document.querySelector("#records-person-report-panel");
+const recordsPersonReportSummary = document.querySelector("#records-person-report-summary");
+const recordsPersonReportContent = document.querySelector("#records-person-report-content");
+const recordsPersonReportCloseButton = document.querySelector("#records-person-report-close-button");
+const recordsPersonReportCsvButton = document.querySelector("#records-person-report-csv-button");
+const recordsPersonReportPdfButton = document.querySelector("#records-person-report-pdf-button");
+const recordsPersonReportImageButton = document.querySelector("#records-person-report-image-button");
+const recordsPersonReportImageBackdrop = document.querySelector("#records-person-report-image-backdrop");
+const recordsPersonReportImagePanel = document.querySelector("#records-person-report-image-panel");
+const recordsPersonReportImagePreview = document.querySelector("#records-person-report-image-preview");
+const closeRecordsPersonReportImageButton = document.querySelector("#close-records-person-report-image-button");
+const copyRecordsPersonReportImageButton = document.querySelector("#copy-records-person-report-image-button");
+const downloadRecordsPersonReportImageButton = document.querySelector(
+  "#download-records-person-report-image-button"
+);
+let recordsBulkCurrentFilterActive = false;
 
 function getRecordsBulkFieldConfig() {
   return RECORD_BULK_FIELDS[recordsBulkFieldSelect?.value] || RECORD_BULK_FIELDS.fecha;
@@ -15903,6 +16715,65 @@ function updateRecordsBulkMatchCount() {
   updateRecordsBulkSelectionUi();
 }
 
+function recordMatchesBulkCurrentFilter(row) {
+  if (!recordsBulkCurrentFilterActive) return true;
+  const field = recordsBulkFieldSelect?.value;
+  const config = getRecordsBulkFieldConfig();
+  const rawValue = getRecordBulkControlValue("current");
+  if (!field || rawValue === RECORD_BULK_UNSET_VALUE) return true;
+  const currentValue = normalizeRecordBulkValue(rawValue, config);
+  return normalizeRecordBulkValue(row[field], config) === currentValue;
+}
+
+function applyRecordsBulkCurrentFilterToList() {
+  recordsBulkCurrentFilterActive = true;
+  applyRecordsClientFilters();
+  renderRecordsTable();
+  updateRecordsBulkMatchCount();
+}
+
+function applyRecordsBulkCurrentValueToFilters() {
+  const field = recordsBulkFieldSelect?.value;
+  const config = getRecordsBulkFieldConfig();
+  const rawValue = getRecordBulkControlValue("current");
+  if (!field || rawValue === "" || rawValue === RECORD_BULK_UNSET_VALUE) return;
+  const value = rawValue === RECORD_BULK_EMPTY_VALUE ? RECORD_EMPTY_FILTER_VALUE : String(rawValue);
+
+  if (field === "fecha") {
+    const from = document.querySelector("#records-filter-date-from");
+    const to = document.querySelector("#records-filter-date-to");
+    if (from && to) {
+      from.value = value;
+      to.value = value;
+      from.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return;
+  }
+
+  const filterIds = {
+    contrato_id: "records-filter-contrato",
+    servicio_id: "records-filter-servicio",
+    personal_id: "records-filter-personal",
+    instalacion_id: "records-filter-instalacion",
+  };
+  const filter = document.querySelector(`#${filterIds[field] || ""}`);
+  if (!filter) return;
+  if (filter instanceof HTMLSelectElement && filter.multiple) {
+    Array.from(filter.options).forEach((option) => {
+      option.selected = option.value === value;
+    });
+    syncMultiCheckDropdown(filter, filter.dataset.emptyLabel || "Todos los contratos");
+  } else {
+    filter.value = value;
+  }
+  if (field === "personal_id") {
+    const label = getRecordBulkSelectOptions(config.source)
+      .find((option) => String(option.value) === value)?.label || value;
+    setPersonalPickerSelection("records-filter", value, label.replace(/^\d+\s*·\s*/, ""));
+  }
+  filter.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 function getSelectedRecordRowsForBulkAction() {
   const ids = new Set(Array.from(selectedRecordIds).map(String));
   return filteredRecordsRows.filter((row) => ids.has(String(row.id)));
@@ -15975,10 +16846,13 @@ function clearRecordsBulkSelection() {
 }
 
 function clearRecordsBulkFields() {
+  recordsBulkCurrentFilterActive = false;
   if (recordsBulkFieldSelect) {
     recordsBulkFieldSelect.value = "fecha";
   }
   syncRecordsBulkUi();
+  applyRecordsClientFilters();
+  renderRecordsTable();
   updateRecordsBulkMatchCount();
 }
 
@@ -16198,6 +17072,7 @@ async function loadRecords({ force = false } = {}) {
     recordsTheoreticalHoursCache.clear();
   }
   invalidateRecordsReportPreview();
+  invalidateRecordsPersonReport();
   recordsPeriodSummaryRequestToken += 1;
   recordsPeriodSummary?.classList.add("hidden");
   if (recordsSummary) {
@@ -25418,6 +26293,35 @@ function updateHistorialBulkMatchCount() {
   syncHistorialBulkSelectionUi();
 }
 
+function applyHistorialBulkCurrentValueToFilters() {
+  const field = historialBulkFieldSelect?.value;
+  const value = getHistorialBulkControlValue("current");
+  if (!field || value === "") return;
+  const directNames = {
+    tipo_contratacion_id: "tipo_contratacion_id",
+    enviado: "enviado",
+    gestionado: "gestionado",
+    tramitado: "tramitado",
+  };
+  if (field === "fecha_alta") {
+    historialFiltersForm.elements.fecha_alta_desde.value = value;
+    historialFiltersForm.elements.fecha_alta_hasta.value = value;
+    historialFiltersForm.elements.fecha_alta_desde.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+  if (field === "fecha_baja") {
+    historialFiltersForm.elements.fecha_baja_desde.value = value;
+    historialFiltersForm.elements.fecha_baja_hasta.value = value;
+    historialFiltersForm.elements.fecha_baja_desde.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+  const controlName = directNames[field];
+  const control = controlName ? historialFiltersForm.elements[controlName] : null;
+  if (!control) return;
+  control.value = value;
+  control.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 // Filas que quedarian con fecha_baja anterior a fecha_alta al aplicar la masiva.
 // Importa porque el UPDATE es una sola sentencia y el CHECK historiales_laborales_fechas_validas
 // tumba el lote entero por una sola fila invalida, con un error de Postgres que no dice cual es.
@@ -25753,6 +26657,12 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
 
   if (normalizedTarget === "contabilidad") {
     await loadContabilidadActive();
+    return;
+  }
+
+  if (normalizedTarget === "facturacion") {
+    window.CoordinacionFacturacion?.init();
+    await window.CoordinacionFacturacion?.load();
     return;
   }
 
@@ -27956,6 +28866,12 @@ async function init() {
       setStatus(error?.message || "No se pudo cargar la contabilidad.", "error");
     });
   });
+  privateTabFacturacionButton?.addEventListener("click", () => {
+    switchPrivateTab("facturacion");
+    void refreshPrivateTabData("facturacion").catch((error) => {
+      setStatus(error?.message || "No se pudo cargar la facturación.", "error");
+    });
+  });
   privateTabContractsButton?.addEventListener("click", () => {
     switchPrivateTab("contracts");
     void refreshPrivateTabData("contracts").catch((error) => {
@@ -29322,7 +30238,11 @@ async function init() {
   historialDetailDuplicateButton?.addEventListener("click", duplicateHistorialDetail);
   historialBulkFieldSelect?.addEventListener("change", syncHistorialBulkUi);
   historialBulkCurrentValueInput?.addEventListener("input", updateHistorialBulkMatchCount);
-  historialBulkCurrentSelect?.addEventListener("change", updateHistorialBulkMatchCount);
+  historialBulkCurrentValueInput?.addEventListener("change", applyHistorialBulkCurrentValueToFilters);
+  historialBulkCurrentSelect?.addEventListener("change", () => {
+    updateHistorialBulkMatchCount();
+    applyHistorialBulkCurrentValueToFilters();
+  });
   historialBulkApplyButton?.addEventListener("click", () => void applyHistorialBulkAssignment());
   historialBulkDeleteButton?.addEventListener("click", () => void deleteSelectedHistorialBulkRows());
   historialBulkClearFieldsButton?.addEventListener("click", clearHistorialBulkFields);
@@ -29358,14 +30278,25 @@ async function init() {
     syncFilterResetButtons(recordsFiltersForm);
     void loadRecords();
   });
-  recordsBulkFieldSelect?.addEventListener("change", syncRecordsBulkUi);
-  recordsBulkCurrentValueInput?.addEventListener("input", updateRecordsBulkMatchCount);
+  recordsBulkFieldSelect?.addEventListener("change", () => {
+    recordsBulkCurrentFilterActive = false;
+    syncRecordsBulkUi();
+    applyRecordsClientFilters();
+    renderRecordsTable();
+  });
+  recordsBulkCurrentValueInput?.addEventListener("input", applyRecordsBulkCurrentFilterToList);
+  recordsBulkCurrentValueInput?.addEventListener("change", () => {
+    applyRecordsBulkCurrentFilterToList();
+    applyRecordsBulkCurrentValueToFilters();
+  });
   recordsBulkCurrentSelect?.addEventListener("change", () => {
+    applyRecordsBulkCurrentFilterToList();
     if (recordsBulkFieldSelect?.value === "servicio_id") {
       syncRecordsBulkUi();
-      return;
+    } else {
+      updateRecordsBulkMatchCount();
     }
-    updateRecordsBulkMatchCount();
+    applyRecordsBulkCurrentValueToFilters();
   });
   recordsBulkApplyButton?.addEventListener("click", () => void applyRecordsBulkAssignment());
   recordsBulkClearFieldsButton?.addEventListener("click", clearRecordsBulkFields);
@@ -29389,6 +30320,20 @@ async function init() {
   recordsReportCompactPdfButton?.addEventListener("click", () =>
     void exportRecordsCompactReportPdf(recordsReportPreviewRows)
   );
+  recordsPersonReportButton?.addEventListener("click", () => void openRecordsPersonReport());
+  recordsPersonReportCloseButton?.addEventListener("click", closeRecordsPersonReport);
+  recordsPersonReportBackdrop?.addEventListener("click", closeRecordsPersonReport);
+  recordsPersonReportCsvButton?.addEventListener("click", exportRecordsPersonReportCsv);
+  recordsPersonReportPdfButton?.addEventListener("click", () => void exportRecordsPersonReportPdf());
+  recordsPersonReportImageButton?.addEventListener("click", showRecordsPersonReportImage);
+  closeRecordsPersonReportImageButton?.addEventListener("click", closeRecordsPersonReportImagePanel);
+  recordsPersonReportImageBackdrop?.addEventListener("click", closeRecordsPersonReportImagePanel);
+  copyRecordsPersonReportImageButton?.addEventListener("click", () => {
+    void copyRecordsPersonReportImageToClipboard();
+  });
+  downloadRecordsPersonReportImageButton?.addEventListener("click", () => {
+    void downloadRecordsPersonReportImage();
+  });
   recordsRefreshButton?.addEventListener("click", () => {
     void loadRecords({ force: true });
   });
@@ -29622,7 +30567,11 @@ async function init() {
   });
   controlBulkField?.addEventListener("change", syncControlBulkAssignmentUi);
   controlBulkCurrentValue?.addEventListener("input", updateControlBulkMatchCount);
-  controlBulkCurrentSelect?.addEventListener("change", updateControlBulkMatchCount);
+  controlBulkCurrentValue?.addEventListener("change", applyControlBulkCurrentValueToFilters);
+  controlBulkCurrentSelect?.addEventListener("change", () => {
+    updateControlBulkMatchCount();
+    applyControlBulkCurrentValueToFilters();
+  });
   controlBulkApplyButton?.addEventListener("click", () => {
     void applyControlBulkAssignment();
   });

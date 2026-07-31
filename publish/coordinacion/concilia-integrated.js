@@ -2608,6 +2608,21 @@
     );
   }
 
+  function applyStudentsBulkCurrentValueToFilters() {
+    const definition = getStudentsBulkFieldDefinition();
+    const value = studentsBulkCurrentSelect?.value || STUDENTS_BULK_ANY_VALUE;
+    if ([STUDENTS_BULK_ANY_VALUE, STUDENTS_BULK_UNSET_VALUE].includes(value)) return;
+    const controls = {
+      centro: filterCentro,
+      semana: filterSemana,
+    };
+    const control = controls[definition.column];
+    if (!control) return;
+    control.value = value;
+    studentsCurrentPage = 1;
+    void applyStudentFilters();
+  }
+
   function clearActivityValidationError(form) {
     form?.querySelector(".activity-form-validation")?.remove();
   }
@@ -3395,6 +3410,44 @@
     }
 
     return Boolean(activitiesBulkCurrentFilterActive && activitiesBulkFieldSelect?.value);
+  }
+
+  function applyActivityBulkCurrentValueToFilters() {
+    const field = activitiesBulkFieldSelect?.value;
+    const rawValue = getActivityBulkControlValue("current");
+    if (!field || rawValue === "" || rawValue === ACTIVITY_BULK_UNSET_VALUE) return;
+    const value = rawValue === ACTIVITY_BULK_EMPTY_VALUE ? ACTIVITY_FILTER_EMPTY_VALUE : String(rawValue);
+
+    if (field === "fecha_inicio") {
+      filterActivityDateFrom.value = value;
+      return;
+    }
+    if (field === "fecha_fin") {
+      filterActivityDateTo.value = value;
+      return;
+    }
+    if (field === "contrato_id") {
+      Array.from(filterActivityContrato?.options || []).forEach((option) => {
+        option.selected = option.value === value;
+      });
+      syncMultiCheckDropdown(filterActivityContrato, "Todos los contratos");
+      return;
+    }
+    const controls = {
+      servicio_id: filterActivityServicio,
+      puesto_id: filterActivityPuesto,
+      instalacion_id: filterActivityInstalacion,
+      activo: filterActivityActivo,
+    };
+    if (controls[field]) {
+      controls[field].value = value;
+      return;
+    }
+    if (field === "personal_id") {
+      const label = getActivityBulkSelectOptions("personal")
+        .find((option) => String(option.value) === value)?.label || value;
+      filterActivityPersonal.value = label;
+    }
   }
 
   function normalizeActivityBulkValue(value, config = getActivitiesBulkFieldConfig()) {
@@ -7278,6 +7331,7 @@
     });
     studentsBulkFieldSelect?.addEventListener("change", syncStudentsBulkAssignmentUi);
     studentsBulkCurrentSelect?.addEventListener("change", () => {
+      applyStudentsBulkCurrentValueToFilters();
       void updateStudentsBulkMatchCount();
     });
     studentsBulkNewSelect?.addEventListener("change", () => {
@@ -7618,10 +7672,12 @@
     });
     activitiesBulkCurrentValueInput?.addEventListener("input", () => {
       activitiesBulkCurrentFilterActive = true;
+      applyActivityBulkCurrentValueToFilters();
       applyActivitiesFilters();
     });
     activitiesBulkCurrentSelect?.addEventListener("change", () => {
       activitiesBulkCurrentFilterActive = true;
+      applyActivityBulkCurrentValueToFilters();
       applyActivitiesFilters();
     });
     activitiesBulkNewValueInput?.addEventListener("input", syncActivitiesBulkAssignmentUi);

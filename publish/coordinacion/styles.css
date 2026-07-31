@@ -2507,6 +2507,86 @@ button.tag-chip.warm-button:hover {
   font-weight: 800;
 }
 
+#records-person-report-backdrop {
+  z-index: 80;
+  background: rgba(244, 246, 249, 0.72);
+}
+
+.records-person-report-panel {
+  right: auto;
+  left: 50%;
+  width: min(900px, calc(100vw - 48px));
+  transform: translateX(-50%);
+}
+
+.records-person-report-content {
+  display: grid;
+  gap: 20px;
+  max-height: 68vh;
+  overflow: auto;
+}
+
+.records-person-report-section h3 {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+
+.records-person-report-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.records-person-report-summary-grid h4 {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.records-person-report-table-wrap {
+  overflow-x: auto;
+}
+
+.records-person-report-table .weekday-marker-cell {
+  width: 34px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.records-person-report-table .weekday-marker {
+  display: inline-block;
+  min-width: 18px;
+  font-family: inherit;
+  font-weight: 900;
+}
+
+.records-person-report-table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.records-person-report-table th,
+.records-person-report-table td {
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.records-person-report-table .numeric-heading,
+.records-person-report-table .numeric-cell {
+  text-align: right;
+}
+
+.records-person-report-table tfoot td,
+.records-person-report-table tfoot th {
+  font-weight: 800;
+  background: #f8fafc;
+}
+
 .records-table {
   min-width: 1800px;
   table-layout: auto;
@@ -4018,6 +4098,430 @@ th {
   font: inherit;
   font-weight: 700;
   min-height: auto;
+}
+
+/* Facturacion de contratos */
+#private-tab-panel-facturacion {
+  min-width: 0;
+}
+
+.facturacion-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.facturacion-header,
+.facturacion-section-title,
+.facturacion-invoice-actions {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.facturacion-header h2,
+.facturacion-section-title h3,
+.facturacion-contract-card strong {
+  margin: 0;
+}
+
+.facturacion-header-actions {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.facturacion-generation-actions {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.facturacion-generation-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.facturacion-generation-summary article {
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+}
+
+.facturacion-generation-summary span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.facturacion-generation-summary strong {
+  font-size: 1.08rem;
+}
+
+.facturacion-generation-alerts {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.facturacion-generation-alerts li {
+  padding: 9px 11px;
+  border-radius: 7px;
+  background: #fffaeb;
+  color: #93370d;
+  font-size: 0.85rem;
+}
+
+.facturacion-config-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.facturacion-config-card {
+  padding: 16px;
+}
+
+.facturacion-dialog-footer {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.facturacion-dialog-footer .detail-actions {
+  margin-left: auto;
+}
+
+.facturacion-header-actions label {
+  min-width: 150px;
+}
+
+.facturacion-header-actions label:first-child {
+  min-width: 300px;
+}
+
+.facturacion-contract-card {
+  padding: 16px 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) minmax(480px, 2fr);
+  gap: 24px;
+}
+
+.facturacion-contract-card > div {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+
+.facturacion-contract-card > div span {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.facturacion-contract-card dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(100px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.facturacion-contract-card dl div {
+  display: grid;
+  gap: 3px;
+}
+
+.facturacion-contract-card dt {
+  color: var(--muted-soft);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.facturacion-contract-card dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.facturacion-subtabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.facturacion-subtabs button {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  padding: 10px 18px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.facturacion-subtabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.facturacion-empty {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  color: var(--muted);
+  background: #fff;
+}
+
+.facturacion-view {
+  display: grid;
+  gap: 16px;
+}
+
+.facturacion-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(145px, 1fr));
+  gap: 12px;
+}
+
+.facturacion-kpis article {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.facturacion-kpis span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.facturacion-kpis strong {
+  font-size: 1.35rem;
+}
+
+.facturacion-kpis strong.negative {
+  color: var(--error);
+}
+
+.facturacion-kpis strong.warning {
+  color: #b54708;
+}
+
+.facturacion-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr);
+  gap: 16px;
+}
+
+.facturacion-summary-grid .card,
+.facturacion-years-card,
+.facturacion-table-card {
+  padding: 16px;
+}
+
+.facturacion-alerts-card ul {
+  display: grid;
+  gap: 9px;
+  padding: 0;
+  margin: 14px 0 0;
+  list-style: none;
+}
+
+.facturacion-alerts-card li {
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.facturacion-alerts-card li.warning {
+  background: #fffaeb;
+  color: #93370d;
+}
+
+.facturacion-alerts-card li.error {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.facturacion-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.facturacion-table th,
+.facturacion-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.facturacion-table th {
+  color: var(--muted);
+  background: #f8fafc;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.facturacion-table td.numeric,
+.facturacion-table th.numeric {
+  text-align: right;
+}
+
+.facturacion-table td.negative {
+  color: var(--error);
+  font-weight: 700;
+}
+
+.facturacion-table .facturacion-function-total td {
+  border-top: 2px solid var(--line-strong);
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.facturacion-table .row-action {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+.facturacion-year-chart {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.facturacion-year-row {
+  display: grid;
+  grid-template-columns: 54px minmax(120px, 1fr) 120px;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+.facturacion-year-track {
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef2f6;
+}
+
+.facturacion-year-bar {
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.facturacion-year-value {
+  text-align: right;
+  font-weight: 600;
+}
+
+.facturacion-dialog {
+  width: min(720px, calc(100vw - 32px));
+  border: 0;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 24px 48px rgba(16, 24, 40, 0.2);
+}
+
+.facturacion-dialog::backdrop {
+  background: rgba(16, 24, 40, 0.45);
+}
+
+.facturacion-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.facturacion-dialog-header h3 {
+  margin: 0;
+}
+
+.facturacion-dialog-header button {
+  min-height: 32px;
+  padding: 3px 10px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  font-size: 1.35rem;
+}
+
+.facturacion-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.facturacion-form-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.facturacion-form-grid .facturacion-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: end;
+  min-height: 42px;
+}
+
+.facturacion-form-grid .facturacion-check input {
+  width: auto;
+}
+
+@media (max-width: 1000px) {
+  .facturacion-contract-card,
+  .facturacion-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .facturacion-kpis {
+    grid-template-columns: repeat(2, minmax(145px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .facturacion-header,
+  .facturacion-section-title,
+  .facturacion-invoice-actions,
+  .facturacion-generation-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .facturacion-header-actions,
+  .facturacion-header-actions label,
+  .facturacion-header-actions label:first-child {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .facturacion-contract-card dl,
+  .facturacion-kpis,
+  .facturacion-generation-summary,
+  .facturacion-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .settings-table .settings-sort-button:hover {

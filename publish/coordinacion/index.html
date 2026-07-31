@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260729-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260730-2" />
   </head>
   <body>
     <script>
@@ -607,6 +607,14 @@
                 Contabilidad
               </button>
               <button
+                id="private-tab-facturacion"
+                type="button"
+                class="private-tab-button hidden"
+                aria-pressed="false"
+              >
+                Facturación
+              </button>
+              <button
                 id="private-tab-settings"
                 type="button"
                 class="private-tab-button hidden"
@@ -853,6 +861,15 @@
                     <button id="records-report-preview-button" type="button" class="secondary-button">
                       Previsualizar informe
                     </button>
+                    <button
+                      id="records-person-report-button"
+                      type="button"
+                      class="secondary-button"
+                      disabled
+                      title="Selecciona una persona y un intervalo completo"
+                    >
+                      Informe individual
+                    </button>
                   </div>
                 </div>
 
@@ -923,6 +940,94 @@
                     <p class="empty-state">Abre la previsualizacion para revisar el informe.</p>
                   </div>
                 </aside>
+
+                <div id="records-person-report-backdrop" class="panel-backdrop hidden"></div>
+                <aside
+                  id="records-person-report-panel"
+                  class="report-panel records-person-report-panel hidden"
+                  aria-labelledby="records-person-report-title"
+                >
+                  <div class="side-panel-header">
+                    <div class="section-heading">
+                      <p class="eyebrow">Informe individual</p>
+                      <h2 id="records-person-report-title">Informe de horas</h2>
+                      <p id="records-person-report-summary">Selecciona una persona y un intervalo.</p>
+                    </div>
+                    <div class="header-actions">
+                      <button
+                        id="records-person-report-csv-button"
+                        type="button"
+                        class="warm-button compact-button"
+                        disabled
+                      >
+                        Exportar CSV
+                      </button>
+                      <button
+                        id="records-person-report-pdf-button"
+                        type="button"
+                        class="warm-button compact-button"
+                        disabled
+                      >
+                        Exportar PDF
+                      </button>
+                      <button
+                        id="records-person-report-image-button"
+                        type="button"
+                        class="secondary-button compact-button"
+                        disabled
+                      >
+                        Ver PNG
+                      </button>
+                      <button
+                        id="records-person-report-close-button"
+                        type="button"
+                        class="secondary-button compact-button"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                  <div id="records-person-report-content" class="records-person-report-content">
+                    <p class="empty-state">Abre el informe para revisar los datos.</p>
+                  </div>
+                </aside>
+
+                <section id="records-person-report-image-panel" class="detail-panel hidden">
+                  <div id="records-person-report-image-backdrop" class="detail-overlay"></div>
+                  <aside class="detail-drawer event-report-image-drawer">
+                    <div class="detail-header">
+                      <div>
+                        <p class="eyebrow">Registros</p>
+                        <h3>Vista previa PNG</h3>
+                      </div>
+                      <button
+                        id="close-records-person-report-image-button"
+                        type="button"
+                        class="secondary-button"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                    <div class="event-report-image-actions">
+                      <button id="copy-records-person-report-image-button" type="button">
+                        Copiar imagen
+                      </button>
+                      <button
+                        id="download-records-person-report-image-button"
+                        class="secondary-button"
+                        type="button"
+                      >
+                        Descargar PNG
+                      </button>
+                    </div>
+                    <div class="event-report-image-preview">
+                      <img
+                        id="records-person-report-image-preview"
+                        alt="Vista previa del informe individual de registros"
+                      />
+                    </div>
+                  </aside>
+                </section>
 
                 <div class="table-wrapper records-table-wrapper">
                   <table id="records-table" class="records-table">
@@ -4553,6 +4658,313 @@
           </div>
         </section>
 
+        <section id="private-tab-panel-facturacion" class="private-tab-panel hidden">
+          <section class="facturacion-shell">
+            <header class="facturacion-header">
+              <div>
+                <p class="eyebrow">Control económico</p>
+                <h2>Facturación de contratos</h2>
+              </div>
+              <div class="facturacion-header-actions">
+                <label>
+                  Contrato
+                  <select id="facturacion-contrato">
+                    <option value="">Selecciona un contrato</option>
+                  </select>
+                </label>
+                <label>
+                  Año natural
+                  <select id="facturacion-anio">
+                    <option value="">Todos</option>
+                  </select>
+                </label>
+                <button id="facturacion-refresh" type="button" class="secondary-button">Actualizar</button>
+              </div>
+            </header>
+
+            <p id="facturacion-status" class="panel-status-message"></p>
+
+            <article id="facturacion-contract-card" class="facturacion-contract-card hidden">
+              <div>
+                <strong id="facturacion-contract-name">—</strong>
+                <span id="facturacion-contract-description"></span>
+              </div>
+              <dl>
+                <div><dt>Cliente</dt><dd id="facturacion-contract-client">—</dd></div>
+                <div><dt>Expediente</dt><dd id="facturacion-contract-file">—</dd></div>
+                <div><dt>Vigencia</dt><dd id="facturacion-contract-dates">—</dd></div>
+                <div><dt>Estado</dt><dd id="facturacion-contract-state">—</dd></div>
+              </dl>
+            </article>
+
+            <nav class="facturacion-subtabs" aria-label="Secciones de facturación">
+              <button type="button" class="active" data-facturacion-view="resumen" aria-pressed="true">Resumen</button>
+              <button type="button" data-facturacion-view="presupuestos" aria-pressed="false">Presupuestos</button>
+              <button type="button" data-facturacion-view="facturas" aria-pressed="false">Facturas</button>
+              <button type="button" data-facturacion-view="preparacion" aria-pressed="false">Preparación de facturas</button>
+              <button type="button" data-facturacion-view="configuracion" aria-pressed="false">Configuración</button>
+            </nav>
+
+            <div id="facturacion-empty" class="facturacion-empty">
+              Selecciona un contrato para consultar su facturación.
+            </div>
+
+            <section data-facturacion-panel="resumen" class="facturacion-view hidden">
+              <div class="facturacion-kpis">
+                <article><span>Presupuesto</span><strong id="facturacion-kpi-budget">0,00 €</strong></article>
+                <article><span>Facturado</span><strong id="facturacion-kpi-invoiced">0,00 €</strong></article>
+                <article><span>Disponible</span><strong id="facturacion-kpi-balance">0,00 €</strong></article>
+                <article><span>Ejecución</span><strong id="facturacion-kpi-execution">0,0 %</strong></article>
+                <article><span>Pendiente de cobro</span><strong id="facturacion-kpi-pending">0,00 €</strong></article>
+              </div>
+
+              <div class="facturacion-summary-grid">
+                <article class="card facturacion-period-summary">
+                  <div class="facturacion-section-title">
+                    <div><p class="eyebrow">Seguimiento</p><h3>Periodos presupuestarios</h3></div>
+                  </div>
+                  <div class="table-scroll">
+                    <table class="facturacion-table">
+                      <thead><tr><th>Periodo</th><th>Inicio</th><th>Fin</th><th>Presupuesto</th><th>Facturado</th><th>Saldo</th><th>Ejecución</th></tr></thead>
+                      <tbody id="facturacion-summary-periods"></tbody>
+                    </table>
+                  </div>
+                </article>
+
+                <article class="card facturacion-alerts-card">
+                  <p class="eyebrow">Revisión</p>
+                  <h3>Alertas</h3>
+                  <ul id="facturacion-alerts"></ul>
+                </article>
+              </div>
+
+              <article class="card facturacion-years-card">
+                <p class="eyebrow">Evolución</p>
+                <h3>Facturación por año natural</h3>
+                <div id="facturacion-year-chart" class="facturacion-year-chart"></div>
+              </article>
+            </section>
+
+            <section data-facturacion-panel="presupuestos" class="facturacion-view hidden">
+              <div class="facturacion-section-title">
+                <div><p class="eyebrow">Planificación</p><h3>Presupuestos y periodos</h3></div>
+                <button id="facturacion-new-budget" type="button">Nuevo presupuesto</button>
+              </div>
+              <div class="table-scroll card facturacion-table-card">
+                <table class="facturacion-table">
+                  <thead><tr><th>Periodo</th><th>Fecha inicio</th><th>Fecha fin</th><th>Presupuesto</th><th>IVA</th><th>Facturado</th><th>Saldo</th><th>Ejecución</th><th></th></tr></thead>
+                  <tbody id="facturacion-budgets-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section data-facturacion-panel="facturas" class="facturacion-view hidden">
+              <div class="facturacion-section-title">
+                <div><p class="eyebrow">Documentos</p><h3>Facturas</h3></div>
+                <div class="facturacion-invoice-actions">
+                  <label>Buscar <input id="facturacion-invoice-search" type="search" placeholder="Número, referencia o cliente" /></label>
+                  <button id="facturacion-new-invoice" type="button">Nueva factura</button>
+                </div>
+              </div>
+              <div class="table-scroll card facturacion-table-card">
+                <table class="facturacion-table facturacion-invoices-table">
+                  <thead><tr><th>Fecha</th><th>Serie / Número</th><th>Referencia</th><th>Base</th><th>IVA</th><th>Total</th><th>Presupuesto</th><th>Estado</th><th>Cobro</th><th></th></tr></thead>
+                  <tbody id="facturacion-invoices-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section data-facturacion-panel="preparacion" class="facturacion-view hidden">
+              <div class="facturacion-section-title">
+                <div>
+                  <p class="eyebrow">Horas facturables</p>
+                  <h3>Preparación de facturas</h3>
+                </div>
+                <div class="facturacion-generation-actions">
+                  <label>Desde<input id="facturacion-generation-from" type="date" /></label>
+                  <label>Hasta<input id="facturacion-generation-to" type="date" /></label>
+                  <label>Contratos
+                    <select id="facturacion-generation-scope">
+                      <option value="selected">Contrato seleccionado</option>
+                      <option value="all">Todos los contratos visibles</option>
+                    </select>
+                  </label>
+                  <button id="facturacion-generation-calculate" type="button">Calcular</button>
+                  <button id="facturacion-generation-pdf" type="button" class="secondary-button" disabled>Descargar PDF</button>
+                </div>
+              </div>
+              <p class="muted-text">
+                Incluye únicamente registros marcados para facturar. Las tarifas por hora aplican
+                precio diurno y nocturno; las tarifas por mes o globales se aplican una vez por
+                contrato y función en el periodo.
+              </p>
+              <div id="facturacion-generation-summary" class="facturacion-generation-summary hidden"></div>
+              <ul id="facturacion-generation-alerts" class="facturacion-generation-alerts"></ul>
+              <div class="table-scroll card facturacion-table-card">
+                <table class="facturacion-table">
+                  <thead>
+                    <tr>
+                      <th>Contrato</th><th>Función</th><th>Instalación</th>
+                      <th>Horas</th><th>Diurnas</th><th>Nocturnas</th>
+                      <th>Tipo</th><th>Precio día</th><th>Precio noche</th><th>Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody id="facturacion-generation-body">
+                    <tr><td colspan="10" class="empty-state">Selecciona el periodo y pulsa Calcular.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section data-facturacion-panel="configuracion" class="facturacion-view hidden">
+              <div class="facturacion-config-grid">
+                <article class="card facturacion-config-card">
+                  <div class="facturacion-section-title">
+                    <div><p class="eyebrow">Contrato seleccionado</p><h3>Funciones y tarifas</h3></div>
+                    <button id="facturacion-new-rate" type="button">Nueva tarifa</button>
+                  </div>
+                  <p class="muted-text">Relaciona las funciones del contrato con sus precios diurno y nocturno, mensual o global.</p>
+                  <div class="table-scroll">
+                    <table class="facturacion-table">
+                      <thead><tr><th>Función</th><th>Descripción</th><th>Tipo</th><th>Precio 1</th><th>Precio 2</th><th>Estado</th><th></th></tr></thead>
+                      <tbody id="facturacion-rates-body"></tbody>
+                    </table>
+                  </div>
+                </article>
+
+                <article class="card facturacion-config-card">
+                  <div class="facturacion-section-title">
+                    <div><p class="eyebrow">Vigencia</p><h3>Periodos contractuales</h3></div>
+                    <button id="facturacion-new-period" type="button">Nuevo periodo</button>
+                  </div>
+                  <p class="muted-text">Contrato inicial, prórrogas y otras ampliaciones de vigencia.</p>
+                  <div class="table-scroll">
+                    <table class="facturacion-table">
+                      <thead><tr><th>Concepto</th><th>Inicio</th><th>Fin</th><th></th></tr></thead>
+                      <tbody id="facturacion-periods-body"></tbody>
+                    </table>
+                  </div>
+                </article>
+
+                <article class="card facturacion-config-card">
+                  <div class="facturacion-section-title">
+                    <div><p class="eyebrow">Catálogo global</p><h3>Estados de factura</h3></div>
+                    <button id="facturacion-new-status" type="button">Nuevo estado</button>
+                  </div>
+                  <p class="muted-text">Los cambios en este catálogo requieren permisos de administrador.</p>
+                  <div class="table-scroll">
+                    <table class="facturacion-table">
+                      <thead><tr><th>Orden</th><th>Estado</th><th>Descripción</th><th></th></tr></thead>
+                      <tbody id="facturacion-statuses-body"></tbody>
+                    </table>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </section>
+
+          <dialog id="facturacion-budget-dialog" class="facturacion-dialog">
+            <form id="facturacion-budget-form">
+              <input name="id" type="hidden" />
+              <div class="facturacion-dialog-header"><h3>Presupuesto</h3><button type="button" data-close-dialog aria-label="Cerrar">×</button></div>
+              <div class="facturacion-form-grid">
+                <label class="wide">Periodo<input name="periodo" required /></label>
+                <label>Fecha inicio<input name="fecha_inicio" type="date" required /></label>
+                <label>Fecha fin<input name="fecha_fin" type="date" required /></label>
+                <label>Presupuesto<input name="presupuesto" type="number" min="0" step="0.01" required /></label>
+                <label>IVA (%)<input name="porcentaje_iva" type="number" min="0" max="100" step="0.01" /></label>
+                <label class="wide">Observaciones<textarea name="observacion" rows="3"></textarea></label>
+              </div>
+              <div class="facturacion-dialog-footer">
+                <button id="facturacion-delete-budget" type="button" class="danger-button hidden">Eliminar</button>
+                <div class="detail-actions"><button type="button" class="secondary-button" data-close-dialog>Cancelar</button><button type="submit">Guardar</button></div>
+              </div>
+            </form>
+          </dialog>
+
+          <dialog id="facturacion-invoice-dialog" class="facturacion-dialog">
+            <form id="facturacion-invoice-form">
+              <input name="id" type="hidden" />
+              <div class="facturacion-dialog-header"><h3>Factura</h3><button type="button" data-close-dialog aria-label="Cerrar">×</button></div>
+              <div class="facturacion-form-grid">
+                <label>Fecha<input name="fecha" type="date" required /></label>
+                <label>Serie<input name="serie" /></label>
+                <label>Número<input name="n_documento" /></label>
+                <label>Presupuesto<select name="presupuesto_id"></select></label>
+                <label class="wide">Referencia<input name="referencia" /></label>
+                <label>Base imponible<input name="base_imponible" type="number" step="0.01" required /></label>
+                <label>IVA<input name="iva" type="number" step="0.01" required /></label>
+                <label>Total<input name="total" type="number" step="0.01" required /></label>
+                <label>Estado<select name="contrato_estado_factura_id"></select></label>
+                <label class="facturacion-check"><input name="cobrada" type="checkbox" /><span>Cobrada</span></label>
+                <label>Fecha de cobro<input name="fecha_cobro" type="date" /></label>
+                <label class="wide">Observaciones<textarea name="observacion" rows="3"></textarea></label>
+              </div>
+              <div class="facturacion-dialog-footer">
+                <button id="facturacion-delete-invoice" type="button" class="danger-button hidden">Eliminar</button>
+                <div class="detail-actions"><button type="button" class="secondary-button" data-close-dialog>Cancelar</button><button type="submit">Guardar</button></div>
+              </div>
+            </form>
+          </dialog>
+
+          <dialog id="facturacion-rate-dialog" class="facturacion-dialog">
+            <form id="facturacion-rate-form">
+              <input name="id" type="hidden" />
+              <div class="facturacion-dialog-header"><h3>Función y tarifa</h3><button type="button" data-close-dialog aria-label="Cerrar">×</button></div>
+              <div class="facturacion-form-grid">
+                <label class="wide">Función<select name="funcion_id" required></select></label>
+                <label>Tipo de precio
+                  <select name="tipo_precio" required>
+                    <option value="hora">Por hora</option>
+                    <option value="mes">Por mes</option>
+                    <option value="global">Global</option>
+                  </select>
+                </label>
+                <label class="facturacion-check"><input name="activo" type="checkbox" /><span>Tarifa activa</span></label>
+                <label>Precio 1 / diurno<input name="precio_01" type="number" step="0.0001" /></label>
+                <label>Precio 2 / nocturno<input name="precio_02" type="number" step="0.0001" /></label>
+                <label class="wide">Descripción<input name="observacion" /></label>
+              </div>
+              <div class="facturacion-dialog-footer">
+                <button id="facturacion-delete-rate" type="button" class="danger-button hidden">Eliminar</button>
+                <div class="detail-actions"><button type="button" class="secondary-button" data-close-dialog>Cancelar</button><button type="submit">Guardar</button></div>
+              </div>
+            </form>
+          </dialog>
+
+          <dialog id="facturacion-period-dialog" class="facturacion-dialog">
+            <form id="facturacion-period-form">
+              <input name="id" type="hidden" />
+              <div class="facturacion-dialog-header"><h3>Periodo contractual</h3><button type="button" data-close-dialog aria-label="Cerrar">×</button></div>
+              <div class="facturacion-form-grid">
+                <label class="wide">Concepto<input name="concepto" required /></label>
+                <label>Fecha inicio<input name="fecha_inicio" type="date" required /></label>
+                <label>Fecha fin<input name="fecha_fin" type="date" required /></label>
+              </div>
+              <div class="facturacion-dialog-footer">
+                <button id="facturacion-delete-period" type="button" class="danger-button hidden">Eliminar</button>
+                <div class="detail-actions"><button type="button" class="secondary-button" data-close-dialog>Cancelar</button><button type="submit">Guardar</button></div>
+              </div>
+            </form>
+          </dialog>
+
+          <dialog id="facturacion-status-dialog" class="facturacion-dialog">
+            <form id="facturacion-status-form">
+              <input name="id" type="hidden" />
+              <div class="facturacion-dialog-header"><h3>Estado de factura</h3><button type="button" data-close-dialog aria-label="Cerrar">×</button></div>
+              <div class="facturacion-form-grid">
+                <label>Orden<input name="registro" type="number" step="1" /></label>
+                <label>Estado<input name="estado" required /></label>
+                <label class="wide">Descripción<textarea name="descripcion" rows="3"></textarea></label>
+              </div>
+              <div class="facturacion-dialog-footer">
+                <button id="facturacion-delete-status" type="button" class="danger-button hidden">Eliminar</button>
+                <div class="detail-actions"><button type="button" class="secondary-button" data-close-dialog>Cancelar</button><button type="submit">Guardar</button></div>
+              </div>
+            </form>
+          </dialog>
+        </section>
+
         <section id="private-tab-panel-settings" class="private-tab-panel hidden">
           <nav class="settings-subtabs" aria-label="Secciones de configuración">
             <button class="settings-subtab-button active" type="button" data-settings-view="catalog" data-settings-catalog="puestos" aria-pressed="true">
@@ -7950,6 +8362,7 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260727-7" defer></script>
-    <script src="./app.js?v=20260729-6" defer></script>
+    <script src="./facturacion.js?v=20260730-1" defer></script>
+    <script src="./app.js?v=20260730-3" defer></script>
   </body>
 </html>
