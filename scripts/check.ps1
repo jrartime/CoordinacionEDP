@@ -21,6 +21,7 @@ Invoke-Step "JavaScript syntax" {
 
   $files = @(
     "coordinacion/app.js",
+    "coordinacion/facturacion.js",
     "coordinacion/concilia-integrated.js",
     "curriculos/app.js",
     "programacion/app.js",
