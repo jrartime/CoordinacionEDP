@@ -49,6 +49,12 @@
 --   * Tarifa de desplazamiento: la mayor entre los historiales del periodo que
 --     tengan el plus. No la del historial predominante: su convenio puede no
 --     tener tarifa aunque otro puesto de la persona si la tenga.
+--   * Complemento de movilidad: si el convenio del propio puesto no fija %,
+--     se busca entre los puestos huerfanos (sin historial) que la persona
+--     trabaja en el periodo uno cuyo convenio SI lo fije (ver bloque MOVILIDAD
+--     DESDE UN PUESTO HUERFANO). Mismo motivo que el desplazamiento: el flag
+--     tiene_complemento_movilidad vive en el historial pero el % puede venir
+--     de otro puesto real de la persona.
 --   * EMPRESA: los registros de un historial son los de SU empresa. Sin ese
 --     filtro, una persona con el mismo puesto en EDP y en INTECA (caso real:
 --     Javier Cortavitarte, puesto 2 en las dos) se llevaba en cada historial las
@@ -363,6 +369,7 @@ declare
   v_valor_extra numeric; v_factor numeric;
   v_dif numeric; v_exceso_reg numeric; v_aporta_extra numeric;
   v_pago_mont numeric; v_pago_hcomp numeric;
+  v_movilidad_pct numeric; v_movilidad_detalle text;
 begin
   select * into h from public.historiales_laborales where id = p_historial_id;
   if h.id is null then return; end if;
@@ -491,11 +498,44 @@ begin
       round(v_conv.plus_hora_nocturna * v_horas_noct, 2), null::text;
   end if;
 
-  if coalesce(h.tiene_complemento_movilidad, false) and coalesce(v_conv.complemento_movilidad_pct, 0) > 0 then
+  -- MOVILIDAD DESDE UN PUESTO HUERFANO (2026-07-30). Si el propio convenio no
+  -- fija % pero el flag esta activado y la persona trabaja horas en otro
+  -- puesto sin historial cuyo convenio SI fija movilidad, se usa ese %
+  -- (el del puesto huerfano con mas horas, si hay varios). Mismo espiritu que
+  -- la tarifa de desplazamiento: el convenio que aplica es el de donde se
+  -- trabaja de verdad. Caso real: Daniel Gonzalez Hernandez, historial en
+  -- "Conc. Monitorado" (convenio sin %) que ademas hace horas en "Monitorado
+  -- Deportivo" (10% de movilidad) sin historial alli -- antes cobraba 0 pese
+  -- a tener el flag activado. Solo con p_incluir_huerfanas, igual que el
+  -- resto de horas huerfanas.
+  v_movilidad_pct := v_conv.complemento_movilidad_pct;
+  v_movilidad_detalle := null;
+  if coalesce(h.tiene_complemento_movilidad, false) and coalesce(v_movilidad_pct, 0) = 0
+     and p_incluir_huerfanas then
+    select cs2.complemento_movilidad_pct into v_movilidad_pct
+    from public.registros r2
+    join public.puestos p2 on p2.id = r2.puesto_id
+    join lateral public.get_convenio_salario_vigente(p2.convenio_id, v_fecha_ref) cs2 on true
+    where r2.personal_id = h.personal_id
+      and r2.puesto_id <> h.puesto_id
+      and (h.empresa_id is null or r2.empresa_id = h.empresa_id)
+      and r2.fecha >= v_desde and r2.fecha <= v_hasta
+      and coalesce(r2.horas, 0) > 0
+      and coalesce(cs2.complemento_movilidad_pct, 0) > 0
+      and public.es_puesto_sin_historial(r2.personal_id, r2.puesto_id, r2.empresa_id, r2.fecha)
+    group by cs2.complemento_movilidad_pct
+    order by sum(r2.horas) desc
+    limit 1;
+    if coalesce(v_movilidad_pct, 0) > 0 then
+      v_movilidad_detalle := ' (convenio del puesto donde se hacen las horas complementarias)';
+    end if;
+  end if;
+
+  if coalesce(h.tiene_complemento_movilidad, false) and coalesce(v_movilidad_pct, 0) > 0 then
     return query select 50, 'Complemento de movilidad'::text,
-      format('%s%% sobre base', round(v_conv.complemento_movilidad_pct * 100, 2)),
-      round(v_base, 2), null::numeric, v_conv.complemento_movilidad_pct,
-      round(v_base * v_conv.complemento_movilidad_pct, 2), null::text;
+      format('%s%% sobre base%s', round(v_movilidad_pct * 100, 2), coalesce(v_movilidad_detalle, '')),
+      round(v_base, 2), null::numeric, v_movilidad_pct,
+      round(v_base * v_movilidad_pct, 2), null::text;
   end if;
 
   if coalesce(h.tiene_complemento_dedicacion, false) and coalesce(v_conv.complemento_dedicacion, 0) > 0 then
