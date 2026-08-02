@@ -89,8 +89,21 @@ if (-not $SkipPublish) {
 
       Get-ChildItem -LiteralPath $siteRoot -Filter "*.html" |
         ForEach-Object {
-          if ([System.IO.File]::ReadAllText($_.FullName).Contains("../shared/")) {
+          $html = [System.IO.File]::ReadAllText($_.FullName)
+          if ($html.Contains("../shared/")) {
             throw "Ruta ../shared/ encontrada en publish/$site/$($_.Name)"
+          }
+
+          # Cada script local referenciado por el HTML debe viajar en publish/.
+          # Evita desplegar una pagina correcta que falle por un modulo olvidado
+          # en la lista explicita de scripts/publish.ps1.
+          $scriptMatches = [regex]::Matches($html, '<script[^>]+src=["'']\./([^?"'']+)')
+          foreach ($match in $scriptMatches) {
+            $relativeScript = $match.Groups[1].Value.Replace('/', [IO.Path]::DirectorySeparatorChar)
+            $scriptPath = Join-Path $siteRoot $relativeScript
+            if (-not (Test-Path -LiteralPath $scriptPath)) {
+              throw "Script local ausente en publish/${site}: $($match.Groups[1].Value)"
+            }
           }
         }
       }
