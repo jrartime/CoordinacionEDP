@@ -180,28 +180,24 @@ before update on public.actividades
 for each row
 execute function public.set_actividades_updated_at();
 
+-- servicios es un catalogo global (ver servicios.sql): la fuente de verdad de
+-- que servicio esta habilitado en que contrato es contrato_servicios, no una
+-- columna en servicios.
 create or replace function public.validate_actividades_servicio_contrato()
 returns trigger
 language plpgsql
 as $$
-declare
-  service_contract_id integer;
 begin
   if new.servicio_id is null then
     return new;
   end if;
 
-  select s.contrato_id
-    into service_contract_id
-  from public.servicios s
-  where s.id = new.servicio_id;
-
-  if service_contract_id is null then
-    raise exception 'El servicio indicado no existe.';
-  end if;
-
-  if new.contrato_id is distinct from service_contract_id then
-    raise exception 'El servicio indicado no pertenece al contrato de la actividad.';
+  if not exists (
+    select 1 from public.contrato_servicios cs
+    where cs.contrato_id = new.contrato_id
+      and cs.servicio_id = new.servicio_id
+  ) then
+    raise exception 'El servicio indicado no esta habilitado en el contrato de la actividad.';
   end if;
 
   return new;

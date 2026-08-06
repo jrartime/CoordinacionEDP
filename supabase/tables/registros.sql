@@ -56,8 +56,7 @@ create table if not exists public.registros (
   situacion_id integer default 1,
   anio integer default 0,
   observacion text,
-  control timestamp with time zone default now(),
-  factura varchar(10)
+  control timestamp with time zone default now()
 );
 
 create index if not exists registros_fecha_hora_id_idx
@@ -342,8 +341,7 @@ select
   s.situacion,
   r.anio,
   r.observacion,
-  r.control,
-  r.factura
+  r.control
 from public.registros r
 left join public.actividades a
   on a.id = r.actividad_id

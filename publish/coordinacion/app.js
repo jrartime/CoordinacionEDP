@@ -114,11 +114,11 @@ const RECORD_COLUMNS = [
   { key: "tipo_hora_id", label: "Tipo hora", type: "number", relationLabelKey: "tipo_hora", sortable: true },
   { key: "sustitucion", label: "Sustitucion", type: "boolean" },
   { key: "facturar", label: "Facturar", type: "boolean" },
+  { key: "estado_facturacion", label: "Fact.", type: "text", readonly: true, sortable: true },
   { key: "abonar", label: "Abonar", type: "boolean" },
   { key: "anio", label: "Anio", type: "number", hiddenInList: true },
   { key: "observacion", label: "Observacion", type: "textarea", hiddenInList: true },
   { key: "control", label: "Control", type: "datetime", hiddenInList: true },
-  { key: "factura", label: "Factura", type: "text", hiddenInList: true },
 ];
 const RECORD_DETAIL_LABEL_COLUMNS = [
   "empresa",
@@ -138,11 +138,28 @@ const RECORD_DETAIL_LABEL_COLUMNS = [
   "apunte_abonado",
   "apunte_facturado",
   "apunte_neto",
+  "facturacion_factura_id",
+  "facturacion_preparacion_id",
+  "facturacion_factura_serie",
+  "facturacion_factura_documento",
+  "contrato_facturable_id",
+  "servicio_facturable_id",
+  "funcion_facturable_id",
+  "instalacion_facturable_id",
+  "facturacion_destino_contrato_id",
+  "facturacion_destino_contrato",
+  "facturacion_destino_servicio_id",
+  "facturacion_destino_servicio",
+  "facturacion_destino_funcion_id",
+  "facturacion_destino_funcion",
+  "facturacion_destino_instalacion_id",
+  "facturacion_destino_instalacion",
 ];
 const RECORD_SELECT_COLUMNS = Array.from(
   new Set([...RECORD_COLUMNS.map((column) => column.key), ...RECORD_DETAIL_LABEL_COLUMNS])
 ).join(",");
 const RECORDS_LOAD_LIMIT = 5000;
+const RECORDS_FETCH_PAGE_SIZE = 1000;
 const RECORD_REQUIRED_FIELDS = new Map([
   ["fecha", "Fecha"],
   ["personal_id", "Personal"],
@@ -164,6 +181,7 @@ const RECORD_DETAIL_HIDDEN_FIELDS = new Set([
 const RECORD_EMPTY_FILTER_VALUE = "__record_filter_empty__";
 const RECORD_BULK_UNSET_VALUE = "__unset__";
 const RECORD_BULK_EMPTY_VALUE = "__empty__";
+const RECORD_BULK_NOCHANGE_VALUE = "__nochange__";
 const RECORD_NUMERIC_FIELDS = new Set(
   RECORD_COLUMNS.filter((column) => ["number", "decimal"].includes(column.type)).map(
     (column) => column.key
@@ -235,6 +253,59 @@ const SETTINGS_CATALOGS = {
     usageReferences: [
       { table: "actividades", label: "Actividades", column: "modalidad_id" },
       { table: "registros", label: "Registros", column: "modalidad_id" },
+    ],
+  },
+  instalaciones: {
+    label: "Instalaciones",
+    singularLabel: "instalación",
+    table: "instalaciones",
+    order: "instalacion",
+    columns: "id,instalacion,activo,direccion,codigo_postal,localidad,provincia,telefono,gps_latitud,gps_longitud,siglas,categoria",
+    fields: [
+      { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
+      { key: "instalacion", label: "Instalación", type: "text", required: true },
+      { key: "activo", label: "Activo", type: "checkbox" },
+      { key: "siglas", label: "Siglas", type: "text", required: true },
+      { key: "direccion", label: "Dirección", type: "text" },
+      { key: "codigo_postal", label: "Código postal", type: "text" },
+      { key: "localidad", label: "Localidad", type: "text" },
+      { key: "provincia", label: "Provincia", type: "text" },
+      { key: "telefono", label: "Teléfono", type: "text" },
+      { key: "gps_latitud", label: "GPS latitud", type: "text" },
+      { key: "gps_longitud", label: "GPS longitud", type: "text" },
+      { key: "categoria", label: "Categoría", type: "text" },
+    ],
+    listFields: ["instalacion", "localidad", "siglas", "activo"],
+    titleField: "instalacion",
+    usageReferences: [
+      { table: "actividades", label: "Actividades", column: "instalacion_id" },
+      { table: "registros", label: "Registros", column: "instalacion_id" },
+    ],
+  },
+  servicios: {
+    label: "Servicios",
+    singularLabel: "servicio",
+    table: "servicios",
+    order: "servicio",
+    columns: "id,servicio,descripcion,activo",
+    fields: [
+      { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
+      { key: "servicio", label: "Servicio", type: "text", required: true },
+      { key: "activo", label: "Activo", type: "checkbox" },
+      { key: "descripcion", label: "Descripción", type: "textarea" },
+    ],
+    listFields: ["servicio", "activo"],
+    titleField: "servicio",
+    // Catálogo global (ver servicios_globalizar.sql): qué contrato lo usa vive
+    // en contrato_servicios, no en una columna de servicios. Dar de baja aquí
+    // (Activo) lo saca de "Disponibles" en el panel de Contratos sin
+    // desasignarlo de los contratos que ya lo tengan; borrar lo elimina del
+    // todo el catálogo, bloqueado si está en uso.
+    usageReferences: [
+      { table: "registros", label: "Registros", column: "servicio_id" },
+      { table: "actividades", label: "Actividades", column: "servicio_id" },
+      { table: "contrato_servicios", label: "Contratos asociados", column: "servicio_id" },
+      { table: "contratos_funciones_servicios", label: "Tarifas etiquetadas", column: "servicio_id" },
     ],
   },
   empresas: {
@@ -912,6 +983,15 @@ const recordDetailPanel = document.querySelector("#record-detail-panel");
 const recordDetailOverlay = document.querySelector("#record-detail-overlay");
 const recordDetailForm = document.querySelector("#record-detail-form");
 const recordDetailFields = document.querySelector("#record-detail-fields");
+const recordDetailBillingStatus = document.querySelector("#record-detail-billing-status");
+const recordDetailBillingRedirect = document.querySelector("#record-detail-billing-redirect");
+const recordDetailBillingRedirectStatus = document.querySelector("#record-detail-billing-redirect-status");
+const recordDetailBillingRedirectContrato = document.querySelector("#record-detail-billing-redirect-contrato");
+const recordDetailBillingRedirectServicio = document.querySelector("#record-detail-billing-redirect-servicio");
+const recordDetailBillingRedirectFuncion = document.querySelector("#record-detail-billing-redirect-funcion");
+const recordDetailBillingRedirectInstalacion = document.querySelector("#record-detail-billing-redirect-instalacion");
+const recordDetailBillingRedirectSaveButton = document.querySelector("#record-detail-billing-redirect-save");
+const recordDetailBillingRedirectClearButton = document.querySelector("#record-detail-billing-redirect-clear");
 const recordDetailTitle = document.querySelector("#record-detail-title");
 const recordDetailCloseButton = document.querySelector("#record-detail-close-button");
 const recordDetailCancelButton = document.querySelector("#record-detail-cancel-button");
@@ -939,6 +1019,16 @@ const recordsBulkSubstitutionSelectAll = document.querySelector("#records-bulk-s
 const recordsBulkSubstitutionCount = document.querySelector("#records-bulk-substitution-count");
 const recordsBulkSubstitutionConfirmButton = document.querySelector("#records-bulk-substitution-confirm-button");
 const recordsBulkSubstitutionCancelButton = document.querySelector("#records-bulk-substitution-cancel-button");
+const recordsBulkBillingRedirectButton = document.querySelector("#records-bulk-billing-redirect-button");
+const recordsBulkBillingRedirectPanel = document.querySelector("#records-bulk-billing-redirect-panel");
+const recordsBulkBillingRedirectOverlay = document.querySelector("#records-bulk-billing-redirect-overlay");
+const recordsBulkBillingRedirectInfo = document.querySelector("#records-bulk-billing-redirect-info");
+const recordsBulkBillingRedirectContrato = document.querySelector("#records-bulk-billing-redirect-contrato");
+const recordsBulkBillingRedirectServicio = document.querySelector("#records-bulk-billing-redirect-servicio");
+const recordsBulkBillingRedirectFuncion = document.querySelector("#records-bulk-billing-redirect-funcion");
+const recordsBulkBillingRedirectInstalacion = document.querySelector("#records-bulk-billing-redirect-instalacion");
+const recordsBulkBillingRedirectConfirmButton = document.querySelector("#records-bulk-billing-redirect-confirm-button");
+const recordsBulkBillingRedirectCancelButton = document.querySelector("#records-bulk-billing-redirect-cancel-button");
 const controlFiltersForm = document.querySelector("#control-filters-form");
 const controlDateFromInput = document.querySelector("#control-date-from");
 const controlDateToInput = document.querySelector("#control-date-to");
@@ -1352,14 +1442,13 @@ const contractDetailNightEndInput = document.querySelector("#contract-detail-noc
 const contractDetailNightFieldsWrap = document.querySelector("#contract-detail-nocturnidad-fields");
 const contractDetailDeleteButton = document.querySelector("#contract-detail-delete-button");
 const contractServicesSection = document.querySelector("#contract-services-section");
-const contractServiceForm = document.querySelector("#contract-service-form");
-const contractServiceIdInput = document.querySelector("#contract-service-id");
-const contractServiceNameInput = document.querySelector("#contract-service-name");
-const contractServiceDescriptionInput = document.querySelector("#contract-service-description");
-const contractServiceActiveInput = document.querySelector("#contract-service-active");
-const contractServiceClearButton = document.querySelector("#contract-service-clear-button");
-const contractServiceDeleteButton = document.querySelector("#contract-service-delete-button");
-const contractServicesList = document.querySelector("#contract-services-list");
+const contractServiceFilter = document.querySelector("#contract-service-filter");
+const contractServiceAvailableSelect = document.querySelector("#contract-service-available-select");
+const contractServiceSelectedSelect = document.querySelector("#contract-service-selected-select");
+const contractServiceAddButton = document.querySelector("#contract-service-add-button");
+const contractServiceRemoveButton = document.querySelector("#contract-service-remove-button");
+const contractServiceNewForm = document.querySelector("#contract-service-new-form");
+const contractServiceNewNameInput = document.querySelector("#contract-service-new-name");
 const contractPersonalSection = document.querySelector("#contract-personal-section");
 const contractPersonalFilter = document.querySelector("#contract-personal-filter");
 const contractPersonalAvailableSelect = document.querySelector("#contract-personal-available-select");
@@ -1384,7 +1473,7 @@ const accessUserNameInput = document.querySelector("#access-user-name");
 const accessUserRoleSelect = document.querySelector("#access-user-role");
 const accessUserActiveInput = document.querySelector("#access-user-active");
 const accessUserTabsContainer = document.querySelector("#access-user-tabs");
-const accessUserServicesSelect = document.querySelector("#access-user-services");
+const accessUserContractsSelect = document.querySelector("#access-user-contracts");
 const accessUserSaveButton = document.querySelector("#access-user-save-button");
 const accessUserClearButton = document.querySelector("#access-user-clear-button");
 const accessUserDeleteButton = document.querySelector("#access-user-delete-button");
@@ -1601,6 +1690,7 @@ let controlTotalsSections = [];
 let controlTotalsCurrentSummary = "";
 const eventAssignmentSaveTimers = new Map();
 let currentContractRows = [];
+let contractServiceCatalogRows = [];
 let currentContractServiceRows = [];
 let contractPersonalCatalogRows = [];
 let contractInstallationCatalogRows = [];
@@ -1632,7 +1722,7 @@ let currentEditingPersonalComplementoId = "";
 let pendingPersonalImportRows = [];
 let pendingPersonalImportFileName = "";
 let currentAccessUsers = [];
-let currentAccessServices = [];
+let currentAccessContracts = [];
 let currentAccessAssignments = [];
 let currentAccessTabAssignments = [];
 let currentSettingsCatalog = "puestos";
@@ -7764,23 +7854,24 @@ function openProgrammingCreateDetail() {
 }
 
 function openProgrammingDuplicateDetail(recordId) {
-  const row = findProgrammingRowById(recordId);
-  if (!row) {
-    setStatus("No se encontró el registro de programación.", "error");
-    return;
-  }
+  try {
+    const row = findProgrammingRowById(recordId);
+    if (!row) throw new Error("no se encontró el registro de programación");
 
-  populateProgrammingDetailForm(
-    {
-      ...row,
-      id: "",
-      archived: false,
-    },
-    {
-      mode: "duplicate",
-      title: "Duplicar registro de programación",
-    }
-  );
+    populateProgrammingDetailForm(
+      {
+        ...row,
+        id: "",
+        archived: false,
+      },
+      {
+        mode: "duplicate",
+        title: "Duplicar registro de programación",
+      }
+    );
+  } catch (error) {
+    setStatus(`No se pudo preparar el duplicado: ${error?.message || "error desconocido"}.`, "error");
+  }
 }
 
 async function closeProgrammingDetail(options = {}) {
@@ -11867,7 +11958,14 @@ function formatNullableTime(value) {
 }
 
 function getServicesForContract(contractId) {
-  return currentContractServiceRows.filter((service) => Number(service.contrato_id) === Number(contractId));
+  const catalogById = new Map(contractServiceCatalogRows.map((s) => [Number(s.id), s]));
+  return currentContractServiceRows
+    .filter((row) => Number(row.contrato_id) === Number(contractId))
+    .map((row) => ({
+      ...row,
+      id: row.servicio_id,
+      servicio: catalogById.get(Number(row.servicio_id))?.servicio || `Servicio ${row.servicio_id}`,
+    }));
 }
 
 function isCurrentContractAssignment(row) {
@@ -11886,6 +11984,12 @@ function getCurrentContractInstallationAssignments(contractId = currentEditingCo
   );
 }
 
+function getCurrentContractServiceAssignments(contractId = currentEditingContractId) {
+  return currentContractServiceRows.filter(
+    (row) => Number(row.contrato_id) === Number(contractId) && isCurrentContractAssignment(row)
+  );
+}
+
 function formatContractPersonalLabel(row) {
   const dni = String(row?.dni || "").trim();
   return dni ? `${row.personal} (${dni})` : row.personal;
@@ -11893,11 +11997,35 @@ function formatContractPersonalLabel(row) {
 
 function renderContractAssignmentOptions() {
   const hasContract = Boolean(currentEditingContractId);
+  contractServicesSection?.classList.toggle("hidden", !hasContract);
   contractPersonalSection?.classList.toggle("hidden", !hasContract);
   contractInstallationsSection?.classList.toggle("hidden", !hasContract);
 
   if (!hasContract) {
     return;
+  }
+
+  if (contractServiceAvailableSelect && contractServiceSelectedSelect) {
+    const filterText = normalizeSearchText(contractServiceFilter?.value || "");
+    const assignedIds = new Set(
+      getCurrentContractServiceAssignments().map((row) => Number(row.servicio_id))
+    );
+    const filteredRows = contractServiceCatalogRows.filter((row) => {
+      const haystack = normalizeSearchText(row.servicio);
+      return !filterText || haystack.includes(filterText);
+    });
+    // Un servicio de baja (Configuración → Servicios) no se ofrece para
+    // asignar de nuevo, pero si un contrato ya lo tenía sigue viéndose en
+    // "Asignados" (marcado) para poder consultarlo o quitarlo.
+    const availableRows = filteredRows.filter((row) => row.activo !== false && !assignedIds.has(Number(row.id)));
+    const selectedRows = filteredRows.filter((row) => assignedIds.has(Number(row.id)));
+
+    contractServiceAvailableSelect.innerHTML = availableRows
+      .map((row) => `<option value="${row.id}">${escapeHtml(row.servicio)}</option>`)
+      .join("");
+    contractServiceSelectedSelect.innerHTML = selectedRows
+      .map((row) => `<option value="${row.id}">${escapeHtml(row.servicio)}${row.activo ? "" : " · no activo"}</option>`)
+      .join("");
   }
 
   if (contractPersonalAvailableSelect && contractPersonalSelectedSelect) {
@@ -12118,50 +12246,6 @@ function renderContractsTable() {
     .join("");
 }
 
-function renderContractServicesList() {
-  if (!contractServicesList) {
-    return;
-  }
-
-  if (!currentEditingContractId) {
-    contractServicesList.innerHTML =
-      '<p class="empty-state">Guarda el contrato antes de añadir servicios.</p>';
-    return;
-  }
-
-  const services = getServicesForContract(currentEditingContractId);
-  if (!services.length) {
-    contractServicesList.innerHTML = '<p class="empty-state">Este contrato no tiene servicios.</p>';
-    return;
-  }
-
-  contractServicesList.innerHTML = services
-    .map(
-      (service) => `
-        <div class="contract-service-row">
-          <div>
-            <strong>${escapeHtml(service.servicio)}</strong>
-            <span>${escapeHtml(service.descripcion || "")}</span>
-          </div>
-          <span>${service.activo ? "Activo" : "Inactivo"}</span>
-          <div class="action-buttons">
-            <button type="button" class="secondary-button" data-contract-service-edit="${escapeHtml(service.id)}">
-              Editar
-            </button>
-            <button
-              type="button"
-              class="danger-button tooltip-button"
-              aria-label="Eliminar servicio"
-              data-contract-service-delete="${escapeHtml(service.id)}"
-            >
-              ${renderIcon("delete")}
-            </button>
-          </div>
-        </div>
-      `
-    )
-    .join("");
-}
 
 async function loadContractsManagement() {
   setContractsStatus("Cargando contratos...");
@@ -12169,6 +12253,7 @@ async function loadContractsManagement() {
   const supabase = await getSupabaseClient();
   const [
     contractsResult,
+    serviceCatalogResult,
     servicesResult,
     personalCatalogResult,
     installationCatalogResult,
@@ -12181,8 +12266,11 @@ async function loadContractsManagement() {
       .order("contrato", { ascending: true }),
     supabase
       .from("servicios")
-      .select("id, contrato_id, servicio, descripcion, activo, created_at, updated_at")
+      .select("id, servicio, descripcion, activo")
       .order("servicio", { ascending: true }),
+    supabase
+      .from("contrato_servicios")
+      .select("contrato_id, servicio_id, activo"),
     supabase
       .from("personal")
       .select("id, personal, dni, activo, vinculacion_id")
@@ -12201,7 +12289,7 @@ async function loadContractsManagement() {
 
   const error =
     contractsResult.error ||
-    servicesResult.error ||
+    serviceCatalogResult.error ||
     personalCatalogResult.error ||
     installationCatalogResult.error;
   if (error) {
@@ -12210,7 +12298,13 @@ async function loadContractsManagement() {
   }
 
   currentContractRows = contractsResult.data || [];
-  currentContractServiceRows = servicesResult.data || [];
+  contractServiceCatalogRows = (serviceCatalogResult.data || []).map((row) => ({
+    id: Number(row.id),
+    servicio: row.servicio,
+    descripcion: row.descripcion || "",
+    activo: row.activo,
+  }));
+  currentContractServiceRows = servicesResult.error ? [] : servicesResult.data || [];
   contractPersonalCatalogRows = (personalCatalogResult.data || [])
     .filter((row) => row.id && row.personal)
     .filter((row) => [1, 2].includes(Number(row.vinculacion_id)))
@@ -12231,10 +12325,9 @@ async function loadContractsManagement() {
     ? []
     : contractInstallationResult.data || [];
   renderContractsTable();
-  renderContractServicesList();
   renderContractAssignmentOptions();
 
-  const assignmentError = contractPersonalResult.error || contractInstallationResult.error;
+  const assignmentError = servicesResult.error || contractPersonalResult.error || contractInstallationResult.error;
   if (assignmentError) {
     setContractsStatus(
       `Contratos cargados. Falta ejecutar la migración de asignaciones por contrato: ${assignmentError.message}`,
@@ -12247,17 +12340,6 @@ async function loadContractsManagement() {
     `Contratos visibles: ${getVisibleContractRows().length} de ${currentContractRows.length}.`,
     "success"
   );
-}
-
-function resetContractServiceForm() {
-  contractServiceForm?.reset();
-  if (contractServiceIdInput) {
-    contractServiceIdInput.value = "";
-  }
-  if (contractServiceActiveInput) {
-    contractServiceActiveInput.checked = true;
-  }
-  contractServiceDeleteButton?.classList.add("hidden");
 }
 
 function syncContractNightFieldsState() {
@@ -12319,8 +12401,11 @@ function openContractDetailPanel(contractId = "") {
   contractServicesSection?.classList.toggle("hidden", !contract);
   contractPersonalSection?.classList.toggle("hidden", !contract);
   contractInstallationsSection?.classList.toggle("hidden", !contract);
-  resetContractServiceForm();
-  renderContractServicesList();
+  contractServiceNewForm?.classList.toggle("hidden", !currentUserIsAccessAdmin);
+  if (contractServiceFilter) {
+    contractServiceFilter.value = "";
+  }
+  contractServiceNewForm?.reset();
   renderContractAssignmentOptions();
   markFormPristine(contractDetailForm);
   contractDetailPanel?.classList.remove("hidden");
@@ -12334,7 +12419,9 @@ async function closeContractDetailPanel(options = {}) {
   }
   contractDetailPanel?.classList.add("hidden");
   contractDetailForm?.reset();
-  resetContractServiceForm();
+  if (contractServiceFilter) {
+    contractServiceFilter.value = "";
+  }
   if (contractPersonalFilter) {
     contractPersonalFilter.value = "";
   }
@@ -12411,82 +12498,91 @@ async function deleteCurrentContract() {
   setContractsStatus("Contrato eliminado correctamente.", "success");
 }
 
-async function saveContractService(event) {
+// servicios es un catálogo global compartido entre contratos: aquí solo se
+// asigna/desasigna (contrato_servicios), nunca se edita ni se borra el
+// catálogo en sí -eso afectaría a cualquier otro contrato que use el mismo
+// servicio-. A diferencia de contrato_personal/contrato_instalaciones (que
+// conservan la fila al desasignar, con removed_at, para guardar historial),
+// aquí desasignar borra la fila: no hay necesidad de historial de qué
+// servicios ha tenido un contrato.
+async function setContractServiceBatch(serviceIds, isEnabled) {
+  const ids = serviceIds.map(Number).filter(Boolean);
+  if (!currentEditingContractId || !ids.length) {
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const contractId = Number(currentEditingContractId);
+  const request = isEnabled
+    ? supabase.from("contrato_servicios").upsert(
+        ids.map((servicioId) => ({
+          contrato_id: contractId,
+          servicio_id: servicioId,
+          activo: true,
+        })),
+        { onConflict: "contrato_id,servicio_id" }
+      )
+    : supabase
+        .from("contrato_servicios")
+        .delete()
+        .eq("contrato_id", contractId)
+        .in("servicio_id", ids);
+
+  const { error } = await request;
+  if (error) {
+    setContractsStatus(`No se pudo actualizar los servicios del contrato: ${error.message}`, "error");
+    return;
+  }
+
+  if (isEnabled) {
+    const targetIds = new Set(ids);
+    currentContractServiceRows = [
+      ...currentContractServiceRows.filter(
+        (row) => !(Number(row.contrato_id) === contractId && targetIds.has(Number(row.servicio_id)))
+      ),
+      ...ids.map((servicioId) => ({ contrato_id: contractId, servicio_id: servicioId, activo: true })),
+    ];
+  } else {
+    currentContractServiceRows = currentContractServiceRows.filter(
+      (row) => !(Number(row.contrato_id) === contractId && ids.includes(Number(row.servicio_id)))
+    );
+  }
+  renderContractAssignmentOptions();
+  renderContractsTable();
+  setContractsStatus("Servicios del contrato actualizados.", "success");
+}
+
+async function createAndAssignContractService(event) {
   event.preventDefault();
   if (!currentEditingContractId) {
     setContractsStatus("Guarda primero el contrato.", "error");
     return;
   }
 
-  const payload = {
-    contrato_id: Number(currentEditingContractId),
-    servicio: contractServiceNameInput?.value.trim() || null,
-    descripcion: contractServiceDescriptionInput?.value.trim() || null,
-    activo: Boolean(contractServiceActiveInput?.checked),
-  };
-  const serviceId = contractServiceIdInput?.value;
-  if (!payload.servicio) {
+  const name = contractServiceNewNameInput?.value.trim() || "";
+  if (!name) {
     setContractsStatus("Indica el nombre del servicio.", "error");
     return;
   }
 
   const supabase = await getSupabaseClient();
-  const request = serviceId
-    ? supabase.from("servicios").update(payload).eq("id", Number(serviceId))
-    : supabase.from("servicios").insert(payload);
-  const { error } = await request;
+  const { data, error } = await supabase
+    .from("servicios")
+    .insert({ servicio: name })
+    .select("id, servicio, descripcion, activo")
+    .single();
   if (error) {
-    setContractsStatus(`No se pudo guardar el servicio: ${error.message}`, "error");
+    setContractsStatus(`No se pudo crear el servicio: ${error.message}`, "error");
     return;
   }
 
-  resetContractServiceForm();
-  await loadContractsManagement();
-  renderContractServicesList();
-  setContractsStatus("Servicio guardado correctamente.", "success");
-}
-
-function editContractService(serviceId) {
-  const service = currentContractServiceRows.find((item) => String(item.id) === String(serviceId));
-  if (!service) {
-    return;
-  }
-
-  if (contractServiceIdInput) {
-    contractServiceIdInput.value = service.id;
-  }
-  if (contractServiceNameInput) {
-    contractServiceNameInput.value = service.servicio || "";
-  }
-  if (contractServiceDescriptionInput) {
-    contractServiceDescriptionInput.value = service.descripcion || "";
-  }
-  if (contractServiceActiveInput) {
-    contractServiceActiveInput.checked = Boolean(service.activo);
-  }
-  contractServiceDeleteButton?.classList.remove("hidden");
-  contractServiceNameInput?.focus();
-}
-
-async function deleteContractService(serviceId) {
-  const confirmed = window.confirm("Vas a eliminar este servicio.");
-  if (!confirmed) {
-    return;
-  }
-
-  const supabase = await getSupabaseClient();
-  const { error } = await supabase.from("servicios").delete().eq("id", Number(serviceId));
-  if (error) {
-    setContractsStatus(`No se pudo eliminar el servicio: ${error.message}`, "error");
-    return;
-  }
-
-  if (String(contractServiceIdInput?.value || "") === String(serviceId)) {
-    resetContractServiceForm();
-  }
-  await loadContractsManagement();
-  renderContractServicesList();
-  setContractsStatus("Servicio eliminado correctamente.", "success");
+  contractServiceCatalogRows = [
+    ...contractServiceCatalogRows,
+    { id: Number(data.id), servicio: data.servicio, descripcion: data.descripcion || "", activo: data.activo },
+  ];
+  contractServiceNewForm?.reset();
+  await setContractServiceBatch([data.id], true);
+  setContractsStatus(`Servicio "${name}" creado y asignado.`, "success");
 }
 
 function getTodayIsoDate() {
@@ -12652,11 +12748,6 @@ function isValidUuid(value) {
 
 function normalizeAccessRole(value) {
   return ["admin", "coordinator", "area_coordinator", "viewer"].includes(value) ? value : "viewer";
-}
-
-function getAccessServiceLabel(service) {
-  const contractName = service.contractName || `Contrato ${service.contrato_id}`;
-  return `${contractName} / ${service.servicio}`;
 }
 
 function getSettingsCatalogConfig(catalog = currentSettingsCatalog) {
@@ -13218,6 +13309,12 @@ async function saveSettingsDetail(event) {
     return;
   }
 
+  if (config.table === "instalaciones" || config.table === "servicios") {
+    recordRelationOptionsCache = {};
+    recordServiceContratoIds = new Map();
+    recordsFacetKey = null;
+    recordsFacetRows = [];
+  }
   closeSettingsDetail({ force: true });
   await loadSettingsManagement();
   setSettingsStatus("Registro guardado correctamente.", "success");
@@ -13295,6 +13392,12 @@ async function deleteSettingsDetail() {
     return;
   }
 
+  if (config.table === "instalaciones" || config.table === "servicios") {
+    recordRelationOptionsCache = {};
+    recordServiceContratoIds = new Map();
+    recordsFacetKey = null;
+    recordsFacetRows = [];
+  }
   closeSettingsDetail({ force: true });
   await loadSettingsManagement();
   setSettingsStatus("Registro borrado correctamente.", "success");
@@ -13304,7 +13407,7 @@ function getAccessAssignmentsForUser(userId) {
   return new Set(
     currentAccessAssignments
       .filter((assignment) => assignment.user_id === userId)
-      .map((assignment) => String(assignment.servicio_id))
+      .map((assignment) => String(assignment.contrato_id))
   );
 }
 
@@ -13396,16 +13499,16 @@ function setAccessFormTabs(tabKeys = new Set()) {
   renderAccessTabOptions(tabKeys);
 }
 
-function renderAccessFormServiceOptions(selectedServiceIds = new Set()) {
-  if (!accessUserServicesSelect) {
+function renderAccessFormContractOptions(selectedContractIds = new Set()) {
+  if (!accessUserContractsSelect) {
     return;
   }
 
-  accessUserServicesSelect.innerHTML = currentAccessServices
+  accessUserContractsSelect.innerHTML = currentAccessContracts
     .map(
-      (service) => `
-        <option value="${escapeHtml(service.id)}" ${selectedServiceIds.has(String(service.id)) ? "selected" : ""}>
-          ${escapeHtml(getAccessServiceLabel(service))}
+      (contract) => `
+        <option value="${escapeHtml(contract.id)}" ${selectedContractIds.has(String(contract.id)) ? "selected" : ""}>
+          ${escapeHtml(contract.contrato)}
         </option>
       `
     )
@@ -13446,10 +13549,12 @@ async function loadCurrentAccessRole() {
       currentAllowedPrivateTabs.add("registros");
     }
     openEventSettingsButton?.classList.toggle("hidden", !currentUserIsAccessAdmin);
+    applyBillingRedirectAdminVisibility();
   } catch (_error) {
     currentUserIsAccessAdmin = false;
     currentAllowedPrivateTabs = new Set();
     openEventSettingsButton?.classList.add("hidden");
+    applyBillingRedirectAdminVisibility();
   }
 }
 
@@ -13472,12 +13577,12 @@ function renderAccessUsers() {
 
   accessUsersTableBody.innerHTML = currentAccessUsers
     .map((user) => {
-      const selectedServices = getAccessAssignmentsForUser(user.user_id);
-      const serviceSummary = formatAccessListSummary(
-        currentAccessServices
-          .filter((service) => selectedServices.has(String(service.id)))
-          .map(getAccessServiceLabel),
-        "Sin servicios"
+      const selectedContracts = getAccessAssignmentsForUser(user.user_id);
+      const contractSummary = formatAccessListSummary(
+        currentAccessContracts
+          .filter((contract) => selectedContracts.has(String(contract.id)))
+          .map((contract) => contract.contrato),
+        "Sin contratos"
       );
       const selectedTabs = getAccessTabAssignmentsForUser(user.user_id);
       const tabSummary = user.rol === "admin"
@@ -13495,7 +13600,7 @@ function renderAccessUsers() {
           <td>${escapeHtml(user.rol)}</td>
           <td>${escapeHtml(user.activo ? "Activo" : "Inactivo")}</td>
           <td>${escapeHtml(tabSummary)}</td>
-          <td>${escapeHtml(serviceSummary)}</td>
+          <td>${escapeHtml(contractSummary)}</td>
         </tr>
       `;
     })
@@ -13512,28 +13617,24 @@ async function loadAccessManagement() {
   setAccessStatus("Cargando accesos...");
   const supabase = await getSupabaseClient();
   await loadAccessTabCatalog(supabase);
-  const [usersResult, servicesResult, contractsResult, assignmentsResult, tabAssignmentsResult] = await Promise.all([
+  const [usersResult, contractsResult, assignmentsResult, tabAssignmentsResult] = await Promise.all([
     supabase
       .from("coordinacion_usuarios")
       .select("user_id, rol, nombre, activo, created_at, updated_at")
       .order("nombre", { ascending: true }),
     supabase
-      .from("servicios")
-      .select("id, contrato_id, servicio, activo")
-      .order("servicio", { ascending: true }),
-    supabase
       .from("contratos")
       .select("id, contrato, activo")
       .order("contrato", { ascending: true }),
     supabase
-      .from("coordinacion_usuario_servicios")
-      .select("user_id, servicio_id"),
+      .from("coordinacion_usuario_contratos")
+      .select("user_id, contrato_id"),
     supabase
       .from("coordinacion_usuario_pestanas")
       .select("user_id, pestana"),
   ]);
 
-  const error = [usersResult, servicesResult, contractsResult, assignmentsResult, tabAssignmentsResult].find(
+  const error = [usersResult, contractsResult, assignmentsResult, tabAssignmentsResult].find(
     (result) => result.error
   )?.error;
   if (error) {
@@ -13541,36 +13642,20 @@ async function loadAccessManagement() {
     return;
   }
 
-  const contractNames = new Map(
-    (contractsResult.data || []).map((contract) => [Number(contract.id), contract.contrato])
-  );
-  const activeContractIds = new Set(
-    (contractsResult.data || [])
-      .filter((contract) => contract.activo)
-      .map((contract) => Number(contract.id))
-  );
   currentAccessUsers = (usersResult.data || []).map((user) => ({
     ...user,
     rol: normalizeAccessRole(user.rol),
   }));
-  currentAccessServices = (servicesResult.data || [])
-    .filter((service) => activeContractIds.has(Number(service.contrato_id)))
-    .map((service) => ({
-      ...service,
-      id: String(service.id),
-      contrato_id: Number(service.contrato_id),
-      contractName: contractNames.get(Number(service.contrato_id)) || "",
-    }))
+  currentAccessContracts = (contractsResult.data || [])
+    .filter((contract) => contract.activo)
+    .map((contract) => ({ id: String(contract.id), contrato: contract.contrato }))
     .sort((left, right) =>
-      getAccessServiceLabel(left).localeCompare(getAccessServiceLabel(right), "es", {
-        sensitivity: "base",
-        numeric: true,
-      })
+      (left.contrato || "").localeCompare(right.contrato || "", "es", { sensitivity: "base", numeric: true })
     );
   currentAccessAssignments = assignmentsResult.data || [];
   currentAccessTabAssignments = tabAssignmentsResult.data || [];
 
-  renderAccessFormServiceOptions();
+  renderAccessFormContractOptions();
   renderAccessUsers();
   setAccessStatus(`Accesos cargados: ${currentAccessUsers.length}.`, "success");
 }
@@ -13586,7 +13671,7 @@ function resetAccessUserForm() {
   if (accessUserSaveButton) {
     accessUserSaveButton.textContent = "Guardar usuario";
   }
-  renderAccessFormServiceOptions();
+  renderAccessFormContractOptions();
   setAccessFormTabs();
   accessUserIdInput?.focus();
 }
@@ -13637,7 +13722,7 @@ function editAccessUser(userId) {
   if (accessUserSaveButton) {
     accessUserSaveButton.textContent = "Guardar cambios";
   }
-  renderAccessFormServiceOptions(getAccessAssignmentsForUser(userId));
+  renderAccessFormContractOptions(getAccessAssignmentsForUser(userId));
   openAccessUserPanel("edit");
   accessUserNameInput?.focus();
   setAccessStatus("Usuario cargado para edición.");
@@ -13657,7 +13742,7 @@ async function saveAccessUserFromForm(event) {
     rol: normalizeAccessRole(accessUserRoleSelect?.value),
     activo: Boolean(accessUserActiveInput?.checked),
   };
-  const serviceIds = Array.from(accessUserServicesSelect?.selectedOptions || []).map((option) =>
+  const contractIds = Array.from(accessUserContractsSelect?.selectedOptions || []).map((option) =>
     Number(option.value)
   );
   const tabKeys = payload.rol === "admin" ? [] : collectAccessFormTabs();
@@ -13677,23 +13762,23 @@ async function saveAccessUserFromForm(event) {
   }
 
   const { error: deleteError } = await supabase
-    .from("coordinacion_usuario_servicios")
+    .from("coordinacion_usuario_contratos")
     .delete()
     .eq("user_id", userId);
   if (deleteError) {
-    setAccessStatus(`No se pudieron actualizar los servicios: ${deleteError.message}`, "error");
+    setAccessStatus(`No se pudieron actualizar los contratos: ${deleteError.message}`, "error");
     return;
   }
 
-  if (serviceIds.length) {
-    const { error: insertError } = await supabase.from("coordinacion_usuario_servicios").insert(
-      serviceIds.map((serviceId) => ({
+  if (contractIds.length) {
+    const { error: insertError } = await supabase.from("coordinacion_usuario_contratos").insert(
+      contractIds.map((contratoId) => ({
         user_id: userId,
-        servicio_id: serviceId,
+        contrato_id: contratoId,
       }))
     );
     if (insertError) {
-      setAccessStatus(`No se pudieron asignar los servicios: ${insertError.message}`, "error");
+      setAccessStatus(`No se pudieron asignar los contratos: ${insertError.message}`, "error");
       return;
     }
   }
@@ -13737,7 +13822,7 @@ async function saveAccessUserRow(userId) {
 
   const role = normalizeAccessRole(row.querySelector("[data-access-role]")?.value);
   const active = Boolean(row.querySelector("[data-access-active]")?.checked);
-  const serviceIds = Array.from(row.querySelector("[data-access-services]")?.selectedOptions || []).map(
+  const contractIds = Array.from(row.querySelector("[data-access-contracts]")?.selectedOptions || []).map(
     (option) => Number(option.value)
   );
   const currentUser = currentAccessUsers.find((user) => user.user_id === userId);
@@ -13762,23 +13847,23 @@ async function saveAccessUserRow(userId) {
   }
 
   const { error: deleteError } = await supabase
-    .from("coordinacion_usuario_servicios")
+    .from("coordinacion_usuario_contratos")
     .delete()
     .eq("user_id", userId);
   if (deleteError) {
-    setAccessStatus(`No se pudieron actualizar los servicios: ${deleteError.message}`, "error");
+    setAccessStatus(`No se pudieron actualizar los contratos: ${deleteError.message}`, "error");
     return;
   }
 
-  if (serviceIds.length) {
-    const { error: insertError } = await supabase.from("coordinacion_usuario_servicios").insert(
-      serviceIds.map((serviceId) => ({
+  if (contractIds.length) {
+    const { error: insertError } = await supabase.from("coordinacion_usuario_contratos").insert(
+      contractIds.map((contratoId) => ({
         user_id: userId,
-        servicio_id: serviceId,
+        contrato_id: contratoId,
       }))
     );
     if (insertError) {
-      setAccessStatus(`No se pudieron asignar los servicios: ${insertError.message}`, "error");
+      setAccessStatus(`No se pudieron asignar los contratos: ${insertError.message}`, "error");
       return;
     }
   }
@@ -13882,6 +13967,7 @@ async function handleLogout() {
   eventAssemblyPersonnelIds = new Set();
   eventsCatalogsLoaded = false;
   currentContractRows = [];
+  contractServiceCatalogRows = [];
   currentContractServiceRows = [];
   contractPersonalCatalogRows = [];
   contractInstallationCatalogRows = [];
@@ -13892,7 +13978,7 @@ async function handleLogout() {
   renderContractsTable();
   renderContractAssignmentOptions();
   currentAccessUsers = [];
-  currentAccessServices = [];
+  currentAccessContracts = [];
   currentAccessAssignments = [];
   currentAccessTabAssignments = [];
   currentAllowedPrivateTabs = new Set(["programming"]);
@@ -14068,11 +14154,13 @@ function getRecordsFilterValues() {
     servicioId: document.querySelector("#records-filter-servicio")?.value || "",
     personalId: document.querySelector("#records-filter-personal")?.value || "",
     instalacionId: document.querySelector("#records-filter-instalacion")?.value || "",
+    estadoFacturacion: document.querySelector("#records-filter-estado-facturacion")?.value || "",
     actividadId:
       document.querySelector("#records-filter-actividad")?.value ||
       recordsExternalActivityFilter ||
       "",
     search: normalizeRecordText(document.querySelector("#records-filter-search")?.value || ""),
+    showAll: Boolean(document.querySelector("#records-filter-show-all")?.checked),
   };
 }
 
@@ -14148,6 +14236,22 @@ function applyRecordsQueryFilters(query, filters) {
           : nextQuery.eq(column, Number(value));
     }
   });
+
+  if (filters.estadoFacturacion === "Redirigido") {
+    // Filtrar por estado_facturacion='Redirigido' a secas obliga a evaluar el
+    // CASE (registro_tiene_redireccion_facturacion incluido) fila a fila en
+    // orden de fecha hasta encontrar coincidencias; como las redirecciones son
+    // rarisimas eso puede recorrer casi toda la tabla y agotar el
+    // statement_timeout. Acotar primero por id (ver
+    // registros_con_redireccion_facturacion_ids, que parte de la tabla
+    // pequeña) evita el escaneo. Ver loadRecords, que resuelve estos ids antes
+    // de llamar aqui.
+    nextQuery = nextQuery
+      .in("id", filters.redirigidoIds?.length ? filters.redirigidoIds : [-1])
+      .eq("estado_facturacion", "Redirigido");
+  } else if (filters.estadoFacturacion) {
+    nextQuery = nextQuery.eq("estado_facturacion", filters.estadoFacturacion);
+  }
 
   return nextQuery;
 }
@@ -14340,11 +14444,16 @@ async function ensureRecordRelationSelectOptions(control) {
 }
 
 function getRecordRelationOptionsForCell(field, row) {
-  const options = recordRelationOptionsCache[field] || [];
+  let options = recordRelationOptionsCache[field] || [];
+  if (["instalacion_id", "facturacion_destino_instalacion_id"].includes(field)) {
+    options = options.filter(
+      (option) => option.activo === true || String(option.value) === String(row?.[field] ?? "")
+    );
+  }
   if (field !== "servicio_id" || !row?.contrato_id) {
     return options;
   }
-  return options.filter((option) => String(option.contrato_id || "") === String(row.contrato_id));
+  return options.filter((option) => recordServiceMatchesContract(option.value, row.contrato_id));
 }
 
 function getRecordServiceOption(serviceId) {
@@ -14360,8 +14469,10 @@ function recordServiceMatchesContract(serviceId, contractId) {
   if (serviceId == null || serviceId === "") {
     return true;
   }
-  const service = getRecordServiceOption(serviceId);
-  return Boolean(service && String(service.contrato_id || "") === String(contractId || ""));
+  if (contractId == null || contractId === "") {
+    return false;
+  }
+  return Boolean(recordServiceContratoIds.get(String(serviceId))?.has(String(contractId)));
 }
 
 function formatRecordHours(value) {
@@ -14567,6 +14678,9 @@ function renderRecordsTable() {
             }
             content += renderRecordSubstitutionBadge(row);
             content += renderRecordOverlapBadge(row);
+          }
+          if (column.key === "estado_facturacion") {
+            content = renderRecordBillingBadge(row);
           }
         }
         return `<td data-record-row="${escapeHtml(row.id)}" data-record-field-read="${escapeHtml(
@@ -15093,12 +15207,26 @@ function updateRecordsFilterOptions() {
     } else {
       ids = new Set();
       const compatibleRows = getRecordsCompatibleFacetRows(idKey, currentValues);
+      const activeInstallationIds = idKey === "instalacion_id"
+        ? new Set(
+            (recordRelationOptionsCache.instalacion_id || [])
+              .filter((option) => option.activo === true)
+              .map((option) => String(option.value))
+          )
+        : null;
       for (const row of compatibleRows) {
         const val = row[idKey];
+        if (
+          activeInstallationIds
+          && val != null
+          && val !== ""
+          && !activeInstallationIds.has(String(val))
+        ) continue;
         ids.add(val == null || val === "" ? RECORD_EMPTY_FILTER_VALUE : String(val));
       }
       if (!ids.size && !recordsFacetRows.length && !recordsRows.length) {
         for (const o of recordRelationOptionsCache[idKey] || []) {
+          if (activeInstallationIds && o.activo !== true) continue;
           ids.add(String(o.value));
         }
       }
@@ -16507,6 +16635,14 @@ const RECORD_BULK_FIELDS = {
   sustitucion: { label: "Sustitucion", type: "boolean" },
   nota: { label: "Nota", type: "text" },
   observacion: { label: "Observacion", type: "text" },
+  // No son columnas de registros: viven en registros_facturacion_destino y
+  // applyRecordsBulkAssignment las trata aparte (ver
+  // applyRecordsBulkBillingRedirect). "Vacío" quita solo esa dimension de la
+  // redireccion (conserva la otra si estaba fijada).
+  facturacion_destino_contrato_id: { label: "Contrato de facturación", type: "select", source: "facturacion_destino_contrato_id" },
+  facturacion_destino_servicio_id: { label: "Servicio de facturación", type: "select", source: "facturacion_destino_servicio_id" },
+  facturacion_destino_funcion_id: { label: "Función de facturación", type: "select", source: "facturacion_destino_funcion_id" },
+  facturacion_destino_instalacion_id: { label: "Instalación de facturación", type: "select", source: "facturacion_destino_instalacion_id" },
 };
 
 const recordsBulkZone = document.querySelector("#records-bulk-zone");
@@ -16553,15 +16689,25 @@ function getRecordsBulkFieldConfig() {
 }
 
 function getRecordBulkContractLabel(contractId) {
-  const option = (recordsFilterContratos || recordRelationOptionsCache.contrato_id || []).find(
+  const option = [
+    ...(recordRelationOptionsCache.contrato_id || []),
+    ...(recordsFilterContratos || []),
+  ].find(
     (item) => String(item.value) === String(contractId)
   );
   return option?.label || `Contrato ${contractId}`;
 }
 
+const RECORD_BULK_EXTRA_LABEL_KEYS = {
+  facturacion_destino_contrato_id: "facturacion_destino_contrato",
+  facturacion_destino_servicio_id: "facturacion_destino_servicio",
+  facturacion_destino_funcion_id: "facturacion_destino_funcion",
+  facturacion_destino_instalacion_id: "facturacion_destino_instalacion",
+};
+
 function getRecordBulkSelectOptions(source, options = {}) {
   const col = RECORD_COLUMNS.find((c) => c.key === source);
-  const labelKey = col?.relationLabelKey;
+  const labelKey = col?.relationLabelKey || RECORD_BULK_EXTRA_LABEL_KEYS[source];
   const presentValues = new Map();
   for (const row of recordsRows) {
     const val = row[source];
@@ -16569,31 +16715,45 @@ function getRecordBulkSelectOptions(source, options = {}) {
     presentValues.set(String(val), labelKey ? (row[labelKey] ?? "") : String(val));
   }
 
-  const catalog = source === "contrato_id" && recordsFilterContratos?.length
-    ? recordsFilterContratos
-    : recordRelationOptionsCache[source] || [];
+  // El filtro de contratos está limitado deliberadamente a contratos relevantes
+  // para el listado. En "Nuevo valor", en cambio, deben ofrecerse todos los
+  // contratos activos visibles para poder reasignar registros a uno recién creado.
+  const relationCatalog = recordRelationOptionsCache[source] || [];
+  const catalog = source === "contrato_id"
+    ? Array.from(
+        new Map(
+          [...(recordsFilterContratos || []), ...relationCatalog]
+            .map((item) => [String(item.value), item])
+        ).values()
+      )
+    : relationCatalog;
   const catalogByValue = new Map(catalog.map((item) => [String(item.value), item]));
+  const activeOnlySources = new Set([
+    "contrato_id",
+    "instalacion_id",
+    "facturacion_destino_instalacion_id",
+  ]);
+  const assignableCatalog = activeOnlySources.has(source) && options.kind === "new"
+    ? catalog.filter((item) => item.activo === true)
+    : catalog;
   const formatOption = (value, fallbackLabel = "") => {
     const item = catalogByValue.get(String(value));
     const baseLabel = item?.label || fallbackLabel || String(value);
-    if (source === "servicio_id") {
-      return {
-        value,
-        label: `${baseLabel} · ${getRecordBulkContractLabel(item?.contrato_id)}`,
-      };
-    }
-    return { value, label: source === "contrato_id" ? baseLabel : `${value} · ${baseLabel}` };
+    return { value, label: source === "contrato_id" ? baseLabel : `${baseLabel} · ID ${value}` };
   };
   const sortOptions = (rows) => rows.sort((a, b) =>
     a.label.localeCompare(b.label, "es", { sensitivity: "base" })
   );
-  const present = sortOptions(
+  let present = sortOptions(
     Array.from(presentValues.entries()).map(([value, label]) => formatOption(value, label))
   );
   if (options.kind !== "new") return present;
+  if (activeOnlySources.has(source)) {
+    present = present.filter((item) => catalogByValue.get(String(item.value))?.activo === true);
+  }
 
   const remaining = sortOptions(
-    catalog
+    assignableCatalog
       .filter((item) => !presentValues.has(String(item.value)))
       .map((item) => formatOption(item.value, item.label))
   );
@@ -16769,7 +16929,7 @@ function applyRecordsBulkCurrentValueToFilters() {
   if (field === "personal_id") {
     const label = getRecordBulkSelectOptions(config.source)
       .find((option) => String(option.value) === value)?.label || value;
-    setPersonalPickerSelection("records-filter", value, label.replace(/^\d+\s*·\s*/, ""));
+    setPersonalPickerSelection("records-filter", value, label.replace(/\s*·\s*ID\s+\d+\s*$/, ""));
   }
   filter.dispatchEvent(new Event("change", { bubbles: true }));
 }
@@ -16794,6 +16954,9 @@ function updateRecordsBulkSelectionUi() {
   }
   if (recordsBulkDeleteButton) {
     recordsBulkDeleteButton.disabled = !recordsSelectionMode || !count;
+  }
+  if (recordsBulkBillingRedirectButton) {
+    recordsBulkBillingRedirectButton.disabled = !recordsSelectionMode || !count;
   }
   if (recordsBulkSelectionCount) {
     recordsBulkSelectionCount.textContent = recordsSelectionMode
@@ -16883,6 +17046,44 @@ async function deleteSelectedBulkRecords() {
   }
 }
 
+// Bulk de "Contrato/Servicio/Función/Instalación de facturación": no son
+// columnas de registros (viven en registros_facturacion_destino), así que en
+// vez de un UPDATE se hace upsert/delete por fila, conservando las otras tres
+// dimensiones de la redirección tal cual estaban en cada registro (fijar el
+// contrato no debe borrar una función ya redirigida, y viceversa).
+const BILLING_REDIRECT_FIELD_TO_COLUMN = {
+  facturacion_destino_contrato_id: "contrato_id",
+  facturacion_destino_servicio_id: "servicio_id",
+  facturacion_destino_funcion_id: "funcion_id",
+  facturacion_destino_instalacion_id: "instalacion_id",
+};
+
+async function applyRecordsBulkBillingRedirect(field, matches, newValue, supabase) {
+  const targetColumn = BILLING_REDIRECT_FIELD_TO_COLUMN[field];
+  const rows = matches.map((row) => ({
+    registro_id: row.id,
+    contrato_id: row.facturacion_destino_contrato_id ?? null,
+    servicio_id: row.facturacion_destino_servicio_id ?? null,
+    funcion_id: row.facturacion_destino_funcion_id ?? null,
+    instalacion_id: row.facturacion_destino_instalacion_id ?? null,
+    [targetColumn]: newValue,
+  }));
+  const toUpsert = rows.filter((row) =>
+    row.contrato_id !== null || row.servicio_id !== null || row.funcion_id !== null || row.instalacion_id !== null
+  );
+  const toDeleteIds = rows
+    .filter((row) => row.contrato_id === null && row.servicio_id === null && row.funcion_id === null && row.instalacion_id === null)
+    .map((row) => row.registro_id);
+  if (toUpsert.length) {
+    const { error } = await supabase.from("registros_facturacion_destino").upsert(toUpsert);
+    if (error) throw error;
+  }
+  if (toDeleteIds.length) {
+    const { error } = await supabase.from("registros_facturacion_destino").delete().in("registro_id", toDeleteIds);
+    if (error) throw error;
+  }
+}
+
 async function applyRecordsBulkAssignment() {
   const field = recordsBulkFieldSelect?.value;
   const config = getRecordsBulkFieldConfig();
@@ -16912,13 +17113,20 @@ async function applyRecordsBulkAssignment() {
 
   const currentLabel = normalizeRecordBulkValue(getRecordBulkControlValue("current"), config);
   const newLabel = rawNewValue === RECORD_BULK_EMPTY_VALUE ? "Vacío" : normalizeRecordBulkValue(rawNewValue, config);
-  const newServiceContractId =
-    field === "servicio_id" && newValue !== null
-      ? Number(getRecordServiceOption(newValue)?.contrato_id)
-      : null;
-  if (field === "servicio_id" && newValue !== null && !Number.isFinite(newServiceContractId)) {
-    setStatus("Selecciona un servicio valido.", "error");
-    return;
+  // servicios es un catálogo global: ya no hay "el contrato del servicio" que
+  // pueda arrastrar el contrato del registro (como sí ocurre al revés, con
+  // "Contrato" -ver mas abajo-). En su lugar se exige que el servicio elegido
+  // esté habilitado en el contrato de CADA registro afectado; si alguno no lo
+  // tiene, se bloquea entero en vez de aplicar a medias.
+  if (field === "servicio_id" && newValue !== null) {
+    const incompatibles = matches.filter((row) => !recordServiceMatchesContract(newValue, row.contrato_id));
+    if (incompatibles.length) {
+      setStatus(
+        `${incompatibles.length} de ${matches.length} registros no tienen ese servicio habilitado en su contrato. Filtra por contrato antes de aplicar el cambio.`,
+        "error"
+      );
+      return;
+    }
   }
 
   // Ver withRecordSituacionSideEffects: entrar en CAMB/LG vacía las horas y quita
@@ -16942,8 +17150,6 @@ async function applyRecordsBulkAssignment() {
   const warning =
     field === "contrato_id"
       ? "\n\nAviso: al cambiar el contrato se dejará el servicio sin asignar en esos registros. Después tendrás que asignar un servicio del nuevo contrato."
-      : field === "servicio_id" && newValue !== null
-        ? "\n\nAviso: si el servicio pertenece a otro contrato, se actualizará también el contrato de esos registros."
       : situacionDestinoSinHoras
         ? "\n\nAviso: esos turnos no los trabaja el titular del registro, así que se quedarán sin horas y sin facturar ni abonar."
       : situacionFilasARestaurar.length
@@ -16971,12 +17177,19 @@ async function applyRecordsBulkAssignment() {
   try {
     const supabase = await getSupabaseClient();
     const ids = matches.map((row) => row.id);
+
+    if (BILLING_REDIRECT_FIELD_TO_COLUMN[field]) {
+      await applyRecordsBulkBillingRedirect(field, matches, newValue, supabase);
+      await loadRecords();
+      clearRecordsBulkSelection();
+      setStatus(`${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}.`, "success");
+      return;
+    }
+
     const updatePayload =
       field === "contrato_id"
         ? { contrato_id: newValue, servicio_id: null }
-        : field === "servicio_id" && newValue !== null
-          ? { servicio_id: newValue, contrato_id: newServiceContractId }
-          : { [field]: newValue };
+        : { [field]: newValue };
     if (situacionDestinoSinHoras) {
       const { error } = await supabase
         .from("registros")
@@ -17085,21 +17298,45 @@ async function loadRecords({ force = false } = {}) {
   try {
     const supabase = await getSupabaseClient();
     const filters = getRecordsFilterValues();
+    if (filters.estadoFacturacion === "Redirigido") {
+      const { data: redirigidoIds, error: redirigidoError } = await supabase.rpc(
+        "registros_con_redireccion_facturacion_ids"
+      );
+      if (redirigidoError) throw redirigidoError;
+      filters.redirigidoIds = (redirigidoIds || []).map((row) =>
+        typeof row === "object" ? row.registros_con_redireccion_facturacion_ids : row
+      );
+    }
     await loadRecordRelationOptions();
-    const buildQuery = (tableName, columns) => {
-      let nextQuery = supabase
-        .from(tableName)
-        .select(columns)
-        .order("fecha", { ascending: false })
-        .order("hora_inicio", { ascending: true })
-        .limit(RECORDS_LOAD_LIMIT);
+    const fetchFilteredRecords = async (tableName, columns) => {
+      const rows = [];
+      let offset = 0;
 
-      return applyRecordsQueryFilters(nextQuery, filters);
+      do {
+        let nextQuery = supabase
+          .from(tableName)
+          .select(columns)
+          .order("fecha", { ascending: false })
+          .order("hora_inicio", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + RECORDS_FETCH_PAGE_SIZE - 1);
+        nextQuery = applyRecordsQueryFilters(nextQuery, filters);
+
+        const { data, error } = await nextQuery;
+        if (error) return { data: null, error };
+
+        const pageRows = data ?? [];
+        rows.push(...pageRows);
+        if (!filters.showAll || pageRows.length < RECORDS_FETCH_PAGE_SIZE) break;
+        offset += RECORDS_FETCH_PAGE_SIZE;
+      } while (true);
+
+      return { data: rows, error: null };
     };
 
-    let { data, error } = await buildQuery("registros_detalle", RECORD_SELECT_COLUMNS);
+    let { data, error } = await fetchFilteredRecords("registros_detalle", RECORD_SELECT_COLUMNS);
     if (error && String(error.message || "").toLowerCase().includes("registros_detalle")) {
-      ({ data, error } = await buildQuery(
+      ({ data, error } = await fetchFilteredRecords(
         "registros",
         RECORD_COLUMNS.filter((column) => !column.derived).map((column) => column.key).join(",")
       ));
@@ -17114,6 +17351,10 @@ async function loadRecords({ force = false } = {}) {
     applyRecordsClientFilters();
     sortRecordsRows();
     renderRecordsTable();
+    // Refresca también los catálogos de asignación masiva. Así, al pulsar
+    // Actualizar, un contrato creado después de abrir la pestaña aparece sin
+    // tener que cambiar de campo ni recargar toda la aplicación.
+    syncRecordsBulkUi();
     // La tabla ya está pintada; las facetas (para los desplegables) pueden tardar
     // en el peor caso, así que se cargan después sin bloquear el render.
     await loadRecordsFacets(filters);
@@ -17275,8 +17516,23 @@ const RECORD_RELATION_TABLES = {
   modalidad_id: { table: "modalidades", labelCol: "modalidad" },
   tipo_hora_id: { table: "tipo_horas", labelCol: "tipo_hora" },
   situacion_id: { table: "situaciones", labelCol: "situacion" },
+  facturacion_destino_contrato_id: { table: "contratos", labelCol: "contrato" },
+  facturacion_destino_servicio_id: { table: "servicios", labelCol: "servicio" },
+  facturacion_destino_funcion_id: { table: "funciones", labelCol: "funcion" },
+  facturacion_destino_instalacion_id: { table: "instalaciones", labelCol: "instalacion" },
 };
 let recordRelationOptionsCache = {};
+// servicios es un catálogo global (ya no tiene contrato_id propio): qué
+// servicio está habilitado en qué contrato vive en contrato_servicios. Mapa
+// servicio_id -> Set(contrato_id) para resolver "¿este servicio vale para
+// este contrato?" en vez de comparar una columna que ya no existe.
+let recordServiceContratoIds = new Map();
+// Mapa funcion_id -> Set(contrato_id) via contratos_funciones (las tarifas),
+// para poder anteponer en los desplegables las funciones que ya tienen
+// tarifa en el contrato elegido. A diferencia de servicios, una función SIN
+// tarifa en ningún contrato sigue siendo válida (no se filtra, solo se
+// ordena).
+let recordFunctionContratoIds = new Map();
 
 async function loadRecordRelationOptions() {
   if (Object.keys(recordRelationOptionsCache).length) return;
@@ -17290,24 +17546,55 @@ async function loadRecordRelationOptions() {
       }
       uniqueTables[tableKey].keys.push(key);
     }
-    await Promise.all(
-      Object.values(uniqueTables).map(async ({ table, labelCol, keys }) => {
+    await Promise.all([
+      ...Object.values(uniqueTables).map(async ({ table, labelCol, keys }) => {
+        const selectColumns = ["contratos", "instalaciones"].includes(table)
+          ? `id,${labelCol},activo`
+          : `id,${labelCol}`;
         const { data } = await supabase
           .from(table)
-          .select(table === "servicios" ? `id,${labelCol},contrato_id` : `id,${labelCol}`)
+          .select(selectColumns)
           .order(labelCol, { ascending: true })
           .limit(5000);
         if (!data) return;
         const options = data.map((r) => ({
           value: r.id,
           label: r[labelCol] ?? "",
-          contrato_id: r.contrato_id,
+          activo: r.activo,
         }));
         for (const key of keys) {
           recordRelationOptionsCache[key] = options;
         }
-      })
-    );
+      }),
+      (async () => {
+        const { data } = await supabase
+          .from("contrato_servicios")
+          .select("contrato_id,servicio_id")
+          .eq("activo", true)
+          .limit(5000);
+        const map = new Map();
+        for (const row of data || []) {
+          const key = String(row.servicio_id);
+          if (!map.has(key)) map.set(key, new Set());
+          map.get(key).add(String(row.contrato_id));
+        }
+        recordServiceContratoIds = map;
+      })(),
+      (async () => {
+        const { data } = await supabase
+          .from("contratos_funciones")
+          .select("contrato_id,funcion_id")
+          .not("funcion_id", "is", null)
+          .limit(5000);
+        const map = new Map();
+        for (const row of data || []) {
+          const key = String(row.funcion_id);
+          if (!map.has(key)) map.set(key, new Set());
+          map.get(key).add(String(row.contrato_id));
+        }
+        recordFunctionContratoIds = map;
+      })(),
+    ]);
     // Contratos del filtro: activos + asignados + con registros en todo el listado.
     const { data: filterContratos } = await supabase.rpc("get_records_filter_contratos");
     recordsFilterContratos = (filterContratos ?? []).map((c) => ({
@@ -17348,7 +17635,7 @@ function renderRecordRelationSelect(name, value, options, readonly) {
   return `<select name="${name}" ${required ? "required" : ""} ${readonly ? "disabled" : ""}>${html}</select>`;
 }
 
-function getRecordRelationOptionsForContract(field, contractId) {
+function getRecordRelationOptionsForContract(field, contractId, currentValue = null) {
   let catalog = field === "contrato_id" && Array.isArray(recordsFilterContratos)
     ? recordsFilterContratos
     : recordRelationOptionsCache[field] || [];
@@ -17356,8 +17643,11 @@ function getRecordRelationOptionsForContract(field, contractId) {
     if (contractId == null || contractId === "") {
       return [];
     }
+    catalog = catalog.filter((option) => recordServiceMatchesContract(option.value, contractId));
+  }
+  if (["instalacion_id", "facturacion_destino_instalacion_id"].includes(field)) {
     catalog = catalog.filter(
-      (option) => String(option.contrato_id ?? "") === String(contractId)
+      (option) => option.activo === true || String(option.value) === String(currentValue ?? "")
     );
   }
   // Un registro histórico puede pertenecer a un contrato ya inactivo o que el
@@ -17404,7 +17694,7 @@ function reorderRecordDetailRelationSelects(contractId) {
     if (!select || select.tagName !== "SELECT") continue;
     const current = select.value;
     const readonly = Boolean(select.disabled);
-    const options = getRecordRelationOptionsForContract(field, contractId);
+    const options = getRecordRelationOptionsForContract(field, contractId, current);
     select.outerHTML = renderRecordRelationSelect(field, current, options, readonly);
   }
 }
@@ -17439,7 +17729,7 @@ function renderRecordDetailForm(row) {
     }
 
     if (RECORD_RELATION_TABLES[column.key]) {
-      const options = getRecordRelationOptionsForContract(column.key, row.contrato_id);
+      const options = getRecordRelationOptionsForContract(column.key, row.contrato_id, value);
       return `<label class="${fieldClass}">${label}${renderRecordRelationSelect(
         name,
         value,
@@ -17625,6 +17915,314 @@ async function revertRecordChange(changeId) {
   }
 }
 
+// Redireccion de facturacion (registros_facturacion_destino): factura este
+// registro bajo otro contrato/servicio/funcion/instalacion sin tocar sus
+// datos reales. Es un bloque de guardado propio (no pasa por
+// collectRecordDetailPayload/saveRecordPatch, que solo saben escribir en la
+// tabla registros) con su propio boton, para que sea una accion deliberada y
+// no se cuele mezclada con una edicion cualquiera del registro. Solo
+// administradores: ver applyBillingRedirectAdminVisibility.
+function populateRecordBillingRedirectOptions() {
+  if (recordDetailBillingRedirectContrato) {
+    const contratoOptions = (recordRelationOptionsCache.contrato_id || [])
+      .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+      .join("");
+    recordDetailBillingRedirectContrato.innerHTML = `<option value="">— mismo que el registro —</option>${contratoOptions}`;
+  }
+  if (recordDetailBillingRedirectServicio) {
+    const servicioOptions = (recordRelationOptionsCache.servicio_id || [])
+      .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+      .join("");
+    recordDetailBillingRedirectServicio.innerHTML = `<option value="">— mismo que el registro —</option>${servicioOptions}`;
+  }
+  if (recordDetailBillingRedirectFuncion) {
+    const funcionOptions = (recordRelationOptionsCache.funcion_id || [])
+      .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+      .join("");
+    recordDetailBillingRedirectFuncion.innerHTML = `<option value="">— misma que el registro —</option>${funcionOptions}`;
+  }
+  if (recordDetailBillingRedirectInstalacion) {
+    const instalacionOptions = (recordRelationOptionsCache.instalacion_id || [])
+      .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+      .join("");
+    recordDetailBillingRedirectInstalacion.innerHTML = `<option value="">— misma que el registro —</option>${instalacionOptions}`;
+  }
+}
+
+function renderRecordBillingRedirect(row) {
+  if (!recordDetailBillingRedirectStatus) return;
+  if (!currentUserIsAccessAdmin) {
+    recordDetailBillingRedirect?.classList.add("hidden");
+    return;
+  }
+  recordDetailBillingRedirect?.classList.remove("hidden");
+  populateRecordBillingRedirectOptions();
+  const contratoId = row.facturacion_destino_contrato_id;
+  const servicioId = row.facturacion_destino_servicio_id;
+  const funcionId = row.facturacion_destino_funcion_id;
+  const instalacionId = row.facturacion_destino_instalacion_id;
+  if (recordDetailBillingRedirectContrato) recordDetailBillingRedirectContrato.value = contratoId ? String(contratoId) : "";
+  if (recordDetailBillingRedirectServicio) recordDetailBillingRedirectServicio.value = servicioId ? String(servicioId) : "";
+  if (recordDetailBillingRedirectFuncion) recordDetailBillingRedirectFuncion.value = funcionId ? String(funcionId) : "";
+  if (recordDetailBillingRedirectInstalacion) recordDetailBillingRedirectInstalacion.value = instalacionId ? String(instalacionId) : "";
+  const redirected = Boolean(contratoId || servicioId || funcionId || instalacionId);
+  recordDetailBillingRedirectStatus.textContent = redirected
+    ? `Se factura en: ${row.facturacion_destino_contrato || row.contrato || "—"} · `
+      + `${row.facturacion_destino_servicio || "(mismo servicio)"} · `
+      + `${row.facturacion_destino_funcion || row.funcion || "—"} · `
+      + `${row.facturacion_destino_instalacion || "(misma instalación)"}`
+    : "Sin redirigir: se factura en su propio contrato, servicio, función e instalación.";
+  recordDetailBillingRedirectClearButton?.classList.toggle("hidden", !redirected);
+}
+
+async function persistRecordBillingRedirect(recordId, contratoValue, servicioValue, funcionValue, instalacionValue) {
+  const supabase = await getSupabaseClient();
+  const isEmpty = !contratoValue && !servicioValue && !funcionValue && !instalacionValue;
+  const result = isEmpty
+    ? await supabase.from("registros_facturacion_destino").delete().eq("registro_id", recordId)
+    : await supabase.from("registros_facturacion_destino").upsert({
+        registro_id: Number(recordId),
+        contrato_id: contratoValue ? Number(contratoValue) : null,
+        servicio_id: servicioValue ? Number(servicioValue) : null,
+        funcion_id: funcionValue ? Number(funcionValue) : null,
+        instalacion_id: instalacionValue ? Number(instalacionValue) : null,
+      });
+  if (result.error) {
+    setStatus(`No se pudo guardar la redirección de facturación: ${result.error.message}`, "error");
+    return;
+  }
+  await loadRecords({ force: true });
+  const refreshedRow = recordsRows.find((item) => String(item.id) === String(recordId));
+  if (refreshedRow && String(selectedRecordId) === String(recordId)) {
+    recordDetailSnapshot = { ...refreshedRow };
+    renderRecordBillingRedirect(refreshedRow);
+  }
+  setStatus(isEmpty ? "Redirección de facturación eliminada." : "Redirección de facturación guardada.", "success");
+}
+
+async function saveRecordBillingRedirect() {
+  if (!selectedRecordId) return;
+  const contratoValue = recordDetailBillingRedirectContrato?.value || "";
+  const servicioValue = recordDetailBillingRedirectServicio?.value || "";
+  const funcionValue = recordDetailBillingRedirectFuncion?.value || "";
+  const instalacionValue = recordDetailBillingRedirectInstalacion?.value || "";
+  if (!contratoValue && !servicioValue && !funcionValue && !instalacionValue) {
+    setStatus("Elige al menos un contrato, servicio, función o instalación de facturación distintos, o usa \"Quitar redirección\".", "error");
+    return;
+  }
+  await persistRecordBillingRedirect(selectedRecordId, contratoValue, servicioValue, funcionValue, instalacionValue);
+}
+
+async function clearRecordBillingRedirect() {
+  if (!selectedRecordId) return;
+  await persistRecordBillingRedirect(selectedRecordId, "", "", "", "");
+}
+
+// Oculta/quita todo el bloque de redireccion de facturacion (panel de
+// detalle y las 4 opciones del select de asignacion masiva) para quien no
+// sea administrador. Se llama al resolver el rol (loadCurrentAccessRole) y
+// de forma defensiva al abrir el detalle de un registro.
+const BILLING_REDIRECT_BULK_FIELDS = [
+  "facturacion_destino_contrato_id",
+  "facturacion_destino_servicio_id",
+  "facturacion_destino_funcion_id",
+  "facturacion_destino_instalacion_id",
+];
+
+function applyBillingRedirectAdminVisibility() {
+  if (!currentUserIsAccessAdmin) {
+    recordDetailBillingRedirect?.classList.add("hidden");
+  }
+  recordsBulkBillingRedirectButton?.classList.toggle("hidden", !currentUserIsAccessAdmin);
+  const bulkFieldSelect = document.querySelector("#records-bulk-field");
+  if (bulkFieldSelect) {
+    let selectionWasRemoved = false;
+    BILLING_REDIRECT_BULK_FIELDS.forEach((field) => {
+      const option = bulkFieldSelect.querySelector(`option[value="${field}"]`);
+      if (!option) return;
+      option.classList.toggle("hidden", !currentUserIsAccessAdmin);
+      option.disabled = !currentUserIsAccessAdmin;
+      if (!currentUserIsAccessAdmin && bulkFieldSelect.value === field) selectionWasRemoved = true;
+    });
+    if (selectionWasRemoved) bulkFieldSelect.value = "fecha";
+  }
+}
+
+// Redireccion de facturacion en un solo paso para varios registros a la vez
+// (a diferencia de la Asignacion masiva del panel de filtros, que solo toca
+// un campo por pasada). Reutiliza la misma seleccion por ticks
+// (recordsSelectionMode/selectedRecordIds) que Aplicar/Borrar. Cada uno de
+// los 4 campos es independiente: "No modificar" deja esa dimension tal cual
+// estaba en cada registro (puede diferir de uno a otro), "Quitar" la vacia.
+function buildRecordsBulkBillingRedirectOptionsHtml(rows, emptyLabel, selectedValue) {
+  const options = rows
+    .map((o) => `<option value="${escapeHtml(o.value)}" ${String(o.value) === String(selectedValue) ? "selected" : ""}>${escapeHtml(o.label)}</option>`)
+    .join("");
+  const noChangeSelected = selectedValue == null || selectedValue === RECORD_BULK_NOCHANGE_VALUE;
+  return (
+    `<option value="${RECORD_BULK_NOCHANGE_VALUE}" ${noChangeSelected ? "selected" : ""}>No modificar</option>` +
+    `<option value="${RECORD_BULK_EMPTY_VALUE}" ${selectedValue === RECORD_BULK_EMPTY_VALUE ? "selected" : ""}>Quitar (${emptyLabel})</option>` +
+    options
+  );
+}
+
+// Antepone (sin filtrar del todo, salvo que se pida) las filas cuyo id esta
+// en contratoIds.get(fila.value); el resto sigue en su orden alfabetico.
+function sortRecordsBulkOptionsByContrato(rows, contratoIdMap, selectedContratoId) {
+  if (!selectedContratoId) return rows;
+  const matches = [];
+  const rest = [];
+  for (const row of rows) {
+    if (contratoIdMap.get(String(row.value))?.has(String(selectedContratoId))) matches.push(row);
+    else rest.push(row);
+  }
+  return [...matches, ...rest];
+}
+
+// Servicio y función se reordenan (no se filtran del todo: la redirección es
+// deliberadamente cruzada entre contratos) cada vez que cambia el contrato
+// elegido en el propio panel, para que lo mas probable este arriba sin
+// impedir elegir cualquier otra cosa.
+function renderRecordsBulkBillingRedirectServicioFuncionOptions() {
+  const selectedContratoId = ["", RECORD_BULK_NOCHANGE_VALUE, RECORD_BULK_EMPTY_VALUE].includes(recordsBulkBillingRedirectContrato?.value)
+    ? null
+    : recordsBulkBillingRedirectContrato?.value;
+  if (recordsBulkBillingRedirectServicio) {
+    const currentValue = recordsBulkBillingRedirectServicio.value;
+    const rows = sortRecordsBulkOptionsByContrato(
+      recordRelationOptionsCache.servicio_id || [],
+      recordServiceContratoIds,
+      selectedContratoId
+    );
+    recordsBulkBillingRedirectServicio.innerHTML = buildRecordsBulkBillingRedirectOptionsHtml(
+      rows,
+      "usar el servicio propio de cada registro",
+      currentValue
+    );
+  }
+  if (recordsBulkBillingRedirectFuncion) {
+    const currentValue = recordsBulkBillingRedirectFuncion.value;
+    const rows = sortRecordsBulkOptionsByContrato(
+      recordRelationOptionsCache.funcion_id || [],
+      recordFunctionContratoIds,
+      selectedContratoId
+    );
+    recordsBulkBillingRedirectFuncion.innerHTML = buildRecordsBulkBillingRedirectOptionsHtml(
+      rows,
+      "usar la función propia de cada registro",
+      currentValue
+    );
+  }
+}
+
+function populateRecordsBulkBillingRedirectSelects() {
+  if (recordsBulkBillingRedirectContrato) {
+    // Solo contratos activos: redirigir la facturación a un contrato dado de
+    // baja no tiene sentido.
+    const activeContracts = (recordRelationOptionsCache.contrato_id || []).filter((o) => o.activo === true);
+    recordsBulkBillingRedirectContrato.innerHTML = buildRecordsBulkBillingRedirectOptionsHtml(
+      activeContracts,
+      "usar el contrato propio de cada registro"
+    );
+  }
+  renderRecordsBulkBillingRedirectServicioFuncionOptions();
+  if (recordsBulkBillingRedirectInstalacion) {
+    const activeInstallations = (recordRelationOptionsCache.instalacion_id || []).filter((o) => o.activo === true);
+    recordsBulkBillingRedirectInstalacion.innerHTML = buildRecordsBulkBillingRedirectOptionsHtml(
+      activeInstallations,
+      "usar la instalación propia de cada registro"
+    );
+  }
+}
+
+function openRecordsBulkBillingRedirectPanel() {
+  if (!recordsBulkBillingRedirectPanel || !currentUserIsAccessAdmin) return;
+  const targets = getRecordsBulkTargetRows();
+  if (!targets.length) {
+    setStatus("Pulsa Seleccionar y marca al menos un registro antes de redirigir su facturación.", "error");
+    return;
+  }
+  populateRecordsBulkBillingRedirectSelects();
+  if (recordsBulkBillingRedirectInfo) {
+    recordsBulkBillingRedirectInfo.textContent =
+      `${targets.length} registro${targets.length !== 1 ? "s" : ""} seleccionado${targets.length !== 1 ? "s" : ""}.`;
+  }
+  recordsBulkBillingRedirectPanel.classList.remove("hidden");
+}
+
+function closeRecordsBulkBillingRedirectPanel() {
+  recordsBulkBillingRedirectPanel?.classList.add("hidden");
+}
+
+async function confirmRecordsBulkBillingRedirect() {
+  const targets = getRecordsBulkTargetRows();
+  if (!targets.length) {
+    closeRecordsBulkBillingRedirectPanel();
+    return;
+  }
+
+  const selections = {
+    contrato_id: recordsBulkBillingRedirectContrato?.value || RECORD_BULK_NOCHANGE_VALUE,
+    servicio_id: recordsBulkBillingRedirectServicio?.value || RECORD_BULK_NOCHANGE_VALUE,
+    funcion_id: recordsBulkBillingRedirectFuncion?.value || RECORD_BULK_NOCHANGE_VALUE,
+    instalacion_id: recordsBulkBillingRedirectInstalacion?.value || RECORD_BULK_NOCHANGE_VALUE,
+  };
+  const dimensions = Object.keys(selections);
+  if (dimensions.every((key) => selections[key] === RECORD_BULK_NOCHANGE_VALUE)) {
+    setStatus("Elige al menos un campo a modificar (o usa Quitar para vaciarlo).", "error");
+    return;
+  }
+
+  const currentSourceField = {
+    contrato_id: "facturacion_destino_contrato_id",
+    servicio_id: "facturacion_destino_servicio_id",
+    funcion_id: "facturacion_destino_funcion_id",
+    instalacion_id: "facturacion_destino_instalacion_id",
+  };
+
+  if (!confirm(`¿Aplicar la redirección de facturación elegida a ${targets.length} registro${targets.length !== 1 ? "s" : ""}?`)) {
+    return;
+  }
+
+  const rows = targets.map((row) => {
+    const payload = { registro_id: row.id };
+    dimensions.forEach((key) => {
+      const selection = selections[key];
+      payload[key] =
+        selection === RECORD_BULK_NOCHANGE_VALUE
+          ? (row[currentSourceField[key]] ?? null)
+          : selection === RECORD_BULK_EMPTY_VALUE
+            ? null
+            : Number(selection);
+    });
+    return payload;
+  });
+  const toUpsert = rows.filter((row) =>
+    row.contrato_id !== null || row.servicio_id !== null || row.funcion_id !== null || row.instalacion_id !== null
+  );
+  const toDeleteIds = rows
+    .filter((row) => row.contrato_id === null && row.servicio_id === null && row.funcion_id === null && row.instalacion_id === null)
+    .map((row) => row.registro_id);
+
+  try {
+    const supabase = await getSupabaseClient();
+    if (toUpsert.length) {
+      const { error } = await supabase.from("registros_facturacion_destino").upsert(toUpsert);
+      if (error) throw error;
+    }
+    if (toDeleteIds.length) {
+      const { error } = await supabase.from("registros_facturacion_destino").delete().in("registro_id", toDeleteIds);
+      if (error) throw error;
+    }
+    closeRecordsBulkBillingRedirectPanel();
+    await loadRecords({ force: true });
+    clearRecordsBulkSelection();
+    setStatus(`Redirección de facturación actualizada en ${targets.length} registro${targets.length !== 1 ? "s" : ""}.`, "success");
+  } catch (error) {
+    setStatus(`No se pudo redirigir la facturación: ${error.message}`, "error");
+  }
+}
+
 async function openRecordDetail(recordId) {
   const row = recordsRows.find((item) => String(item.id) === String(recordId));
   if (!row || !recordDetailPanel) {
@@ -17635,6 +18233,12 @@ async function openRecordDetail(recordId) {
   // Las reglas de situacion (que CAMB y LG van sin horas) se piden ya para que
   // calculateRecordHoursForSituacion pueda responder sin esperar.
   void window.CoordinacionActividades?.loadRecordRules();
+  // registros_detalle ya trae el estado de facturacion resuelto (Fase 2): no
+  // hace falta una consulta aparte, solo pintar lo que vino en la fila.
+  if (recordDetailBillingStatus) {
+    recordDetailBillingStatus.textContent = `Estado de facturación: ${recordBillingStatusDetail(row)}.`;
+  }
+  renderRecordBillingRedirect(row);
   selectedRecordId = String(recordId);
   recordDetailSnapshot = { ...row };
   renderRecordDetailForm(row);
@@ -17758,33 +18362,43 @@ async function deleteRecordDetail() {
 }
 
 async function duplicateRecordDetail() {
-  if (!recordDetailSnapshot?.id) return;
-
-  const excludeKeys = new Set(["id", "control"]);
-  const derivedKeys = new Set(RECORD_DETAIL_LABEL_COLUMNS);
-  const insertData = {};
-  for (const column of RECORD_COLUMNS) {
-    if (excludeKeys.has(column.key) || derivedKeys.has(column.key) || column.derived) continue;
-    const field = recordDetailForm?.elements[column.key];
-    if (field) {
-      insertData[column.key] = column.type === "boolean"
-        ? Boolean(field.checked)
-        : parseRecordFieldValue(field.value ?? recordDetailSnapshot[column.key], column);
-    } else if (recordDetailSnapshot[column.key] !== undefined) {
-      insertData[column.key] = recordDetailSnapshot[column.key];
-    }
+  if (!recordDetailSnapshot?.id) {
+    setStatus("No se pudo duplicar el registro: no hay ningún registro seleccionado.", "error");
+    return;
   }
 
   try {
+    const excludeKeys = new Set(["id", "control"]);
+    const derivedKeys = new Set(RECORD_DETAIL_LABEL_COLUMNS);
+    const insertData = {};
+    for (const column of RECORD_COLUMNS) {
+      // Las columnas derivadas o de solo lectura proceden de registros_detalle,
+      // pero no existen necesariamente en la tabla registros ni son insertables.
+      if (
+        excludeKeys.has(column.key)
+        || derivedKeys.has(column.key)
+        || column.derived
+        || column.readonly
+      ) continue;
+      const field = recordDetailForm?.elements[column.key];
+      if (field) {
+        insertData[column.key] = column.type === "boolean"
+          ? Boolean(field.checked)
+          : parseRecordFieldValue(field.value ?? recordDetailSnapshot[column.key], column);
+      } else if (recordDetailSnapshot[column.key] !== undefined) {
+        insertData[column.key] = recordDetailSnapshot[column.key];
+      }
+    }
+
     validateRecordRequiredFields(insertData);
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase.from("registros").insert(insertData).select("id").single();
     if (error) throw error;
     await loadRecords();
-    openRecordDetail(data.id);
+    await openRecordDetail(data.id);
     setStatus(`Registro duplicado. Nuevo ID: ${data.id}`, "success");
   } catch (error) {
-    setStatus(`No se pudo duplicar el registro: ${error.message}`, "error");
+    setStatus(`No se pudo duplicar el registro: ${error?.message || "error desconocido"}`, "error");
   }
 }
 
@@ -18071,6 +18685,48 @@ function renderRecordOverlapBadge(row) {
   const info = getRecordOverlapInfo(row);
   if (!info) return "";
   return ` <span class="record-overlap-badge" title="${escapeHtml(info.title)}">&#9888; Solape</span>`;
+}
+
+// Estado de facturacion (Fase 2): registros_detalle ya lo resuelve contra
+// contratos_facturacion_lineas/_preparaciones, aqui solo se pinta. Se usa
+// tanto en la columna de la lista como en el panel de detalle, para no tener
+// dos criterios distintos de lo mismo.
+const RECORD_BILLING_BADGE_CLASS = {
+  "Pendiente": "record-billing-badge-pendiente",
+  "En preparación": "record-billing-badge-en-preparacion",
+  "Facturado": "record-billing-badge-facturado",
+  "Excluido": "record-billing-badge-excluido",
+  "Redirigido": "record-billing-badge-redirigido",
+};
+
+function recordBillingStatus(row) {
+  return row.estado_facturacion || (row.facturar ? "Pendiente" : "Excluido");
+}
+
+function recordBillingStatusDetail(row) {
+  const estado = recordBillingStatus(row);
+  if (estado === "Facturado") {
+    const label = [row.facturacion_factura_serie, row.facturacion_factura_documento]
+      .filter(Boolean)
+      .join("/") || `#${row.facturacion_factura_id}`;
+    return `Facturado (factura ${label})`;
+  }
+  if (estado === "En preparación") {
+    return `Incluido en la preparación #${row.facturacion_preparacion_id} (aún sin factura)`;
+  }
+  if (estado === "Excluido") {
+    return "No se factura (excluido)";
+  }
+  if (estado === "Redirigido") {
+    return "Se factura bajo otro contrato, servicio, función o instalación.";
+  }
+  return "Pendiente de facturar";
+}
+
+function renderRecordBillingBadge(row) {
+  const estado = recordBillingStatus(row);
+  const cls = RECORD_BILLING_BADGE_CLASS[estado] || "record-billing-badge-pendiente";
+  return `<span class="record-billing-badge ${cls}" title="${escapeHtml(recordBillingStatusDetail(row))}">${escapeHtml(estado)}</span>`;
 }
 
 function updateRecordsOverlapButton() {
@@ -23980,7 +24636,9 @@ function openHistorialReportCompaniesSettings() {
   resetSettingsSort();
   historialReportConfigDetails?.removeAttribute("open");
   switchPrivateTab("settings");
-  void loadSettingsManagement();
+  void loadSettingsManagement().catch((error) => {
+    setSettingsStatus(`No se pudo cargar Configuración: ${error?.message || "error desconocido"}`, "error");
+  });
 }
 
 function openReportTemplateSettings() {
@@ -26026,21 +26684,24 @@ async function deleteHistorialDetail() {
   }
 }
 
-function duplicateHistorialDetail() {
+async function duplicateHistorialDetail() {
   if (!historialDetailSnapshot) {
+    setStatus("No se pudo duplicar el periodo: no hay ningún periodo seleccionado.", "error");
     return;
   }
-  // Tomamos los valores actuales del formulario como semilla del nuevo periodo.
-  const seed = {};
-  HISTORIAL_FORM_FIELDS.forEach((field) => {
-    if (field.readonly) {
-      return;
-    }
-    const control = historialDetailForm?.elements[field.key];
-    const rawValue = field.type === "boolean" ? Boolean(control?.checked) : control?.value;
-    seed[field.key] = parseHistorialFieldValue(rawValue, field);
-  });
-  void openHistorialNew(seed);
+  try {
+    // Tomamos los valores actuales del formulario como semilla del nuevo periodo.
+    const seed = {};
+    HISTORIAL_FORM_FIELDS.forEach((field) => {
+      if (field.readonly) return;
+      const control = historialDetailForm?.elements[field.key];
+      const rawValue = field.type === "boolean" ? Boolean(control?.checked) : control?.value;
+      seed[field.key] = parseHistorialFieldValue(rawValue, field);
+    });
+    await openHistorialNew(seed);
+  } catch (error) {
+    setStatus(`No se pudo duplicar el periodo: ${error?.message || "error desconocido"}`, "error");
+  }
 }
 
 // Puente para que otros módulos (el panel de historial de Actividades, en
@@ -28924,11 +29585,15 @@ async function init() {
       currentSettingsCatalog = catalog;
       resetSettingsSort();
       closeSettingsDetail({ force: true });
-      void loadSettingsManagement();
+      void loadSettingsManagement().catch((error) => {
+        setSettingsStatus(`No se pudo cargar Configuración: ${error?.message || "error desconocido"}`, "error");
+      });
     });
   });
   settingsRefreshButton?.addEventListener("click", () => {
-    void loadSettingsManagement();
+    void loadSettingsManagement().catch((error) => {
+      setSettingsStatus(`No se pudo actualizar Configuración: ${error?.message || "error desconocido"}`, "error");
+    });
   });
   settingsNewButton?.addEventListener("click", () => {
     openSettingsDetail("new");
@@ -28942,10 +29607,14 @@ async function init() {
       : { id: getNextSettingsId(), activo: true, ...(config.newDefaults || {}) });
   });
   settingsDetailDeleteButton?.addEventListener("click", () => {
-    void deleteSettingsDetail();
+    void deleteSettingsDetail().catch((error) => {
+      setSettingsStatus(`No se pudo borrar el registro: ${error?.message || "error desconocido"}`, "error");
+    });
   });
   settingsDetailForm?.addEventListener("submit", (event) => {
-    void saveSettingsDetail(event);
+    void saveSettingsDetail(event).catch((error) => {
+      setSettingsStatus(`No se pudo guardar el registro: ${error?.message || "error desconocido"}`, "error");
+    });
   });
   settingsDetailFields?.addEventListener("change", (event) => {
     const input = event.target.closest("[data-settings-file-target]");
@@ -29150,27 +29819,32 @@ async function init() {
   contractDetailDeleteButton?.addEventListener("click", () => {
     void deleteCurrentContract();
   });
-  contractServiceForm?.addEventListener("submit", (event) => {
-    void saveContractService(event);
+  contractServiceNewForm?.addEventListener("submit", (event) => {
+    void createAndAssignContractService(event);
   });
-  contractServiceClearButton?.addEventListener("click", resetContractServiceForm);
-  contractServiceDeleteButton?.addEventListener("click", () => {
-    if (contractServiceIdInput?.value) {
-      void deleteContractService(contractServiceIdInput.value);
+  contractServiceAddButton?.addEventListener("click", () => {
+    void setContractServiceBatch(getSelectedOptionValues(contractServiceAvailableSelect), true);
+  });
+  contractServiceRemoveButton?.addEventListener("click", () => {
+    void setContractServiceBatch(getSelectedOptionValues(contractServiceSelectedSelect), false);
+  });
+  contractServiceAvailableSelect?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const value = event.target.closest("option")?.value || contractServiceAvailableSelect.value;
+    if (value) {
+      void setContractServiceBatch([value], true);
     }
   });
-  contractServicesList?.addEventListener("click", (event) => {
-    const editServiceId = event.target.closest("[data-contract-service-edit]")?.dataset.contractServiceEdit;
-    if (editServiceId) {
-      editContractService(editServiceId);
-      return;
-    }
-
-    const deleteServiceId = event.target.closest("[data-contract-service-delete]")?.dataset.contractServiceDelete;
-    if (deleteServiceId) {
-      void deleteContractService(deleteServiceId);
+  contractServiceSelectedSelect?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const value = event.target.closest("option")?.value || contractServiceSelectedSelect.value;
+    if (value) {
+      void setContractServiceBatch([value], false);
     }
   });
+  contractServiceFilter?.addEventListener("input", debounce(renderContractAssignmentOptions, 160));
   contractPersonalAddButton?.addEventListener("click", () => {
     void setContractPersonalBatch(getSelectedOptionValues(contractPersonalAvailableSelect), true);
   });
@@ -30459,6 +31133,8 @@ async function init() {
       reorderRecordDetailRelationSelects(contractId);
     }
   });
+  recordDetailBillingRedirectSaveButton?.addEventListener("click", () => void saveRecordBillingRedirect());
+  recordDetailBillingRedirectClearButton?.addEventListener("click", () => void clearRecordBillingRedirect());
   recordDetailCloseButton?.addEventListener("click", () => closeRecordDetail());
   recordDetailOverlay?.addEventListener("click", () => closeRecordDetail());
   recordDetailCancelButton?.addEventListener("click", cancelRecordDetailEdit);
@@ -30476,6 +31152,11 @@ async function init() {
   recordsBulkSubstitutionButton?.addEventListener("click", openRecordsBulkSubstitutionPanel);
   recordsBulkSubstitutionCancelButton?.addEventListener("click", closeRecordsBulkSubstitutionPanel);
   recordsBulkSubstitutionOverlay?.addEventListener("click", closeRecordsBulkSubstitutionPanel);
+  recordsBulkBillingRedirectButton?.addEventListener("click", openRecordsBulkBillingRedirectPanel);
+  recordsBulkBillingRedirectCancelButton?.addEventListener("click", closeRecordsBulkBillingRedirectPanel);
+  recordsBulkBillingRedirectOverlay?.addEventListener("click", closeRecordsBulkBillingRedirectPanel);
+  recordsBulkBillingRedirectConfirmButton?.addEventListener("click", () => void confirmRecordsBulkBillingRedirect());
+  recordsBulkBillingRedirectContrato?.addEventListener("change", renderRecordsBulkBillingRedirectServicioFuncionOptions);
   recordsBulkSubstitutionConfirmButton?.addEventListener("click", () => {
     void confirmRecordsBulkSubstitution();
   });

@@ -12,6 +12,10 @@
     rates: [],
     periods: [],
     functions: [],
+    services: [],
+    functionServices: [],
+    preparations: [],
+    preparationsLoaded: false,
     contractId: "",
     year: "",
     generation: null,
@@ -111,9 +115,10 @@
   }
 
   function renderContractOptions() {
+    const byName = (a, b) => String(a.contrato || "").localeCompare(String(b.contrato || ""), "es", { sensitivity: "base" });
+    const active = state.contracts.filter((row) => row.activo).sort(byName);
+    const inactive = state.contracts.filter((row) => !row.activo).sort(byName);
     const current = state.contractId;
-    const active = state.contracts.filter((row) => row.activo);
-    const inactive = state.contracts.filter((row) => !row.activo);
     const options = [
       '<option value="">Selecciona un contrato</option>',
       ...active.map((row) => `<option value="${row.id}">${escapeHtml(row.contrato)}</option>`),
@@ -213,7 +218,8 @@
     const alerts = [];
     const unassigned = invoices.filter((row) => !row.presupuesto_id).length;
     const noStatus = invoices.filter((row) => !row.contrato_estado_factura_id).length;
-    const paidWithoutCollection = invoices.filter((row) => Number(row.contrato_estado_factura_id) === 5 && !row.cobrada).length;
+    const paidStatusIds = new Set(state.statuses.filter((row) => row.es_pagada).map((row) => String(row.id)));
+    const paidWithoutCollection = invoices.filter((row) => paidStatusIds.has(String(row.contrato_estado_factura_id)) && !row.cobrada).length;
     const badTotal = invoices.filter((row) => Math.abs(numeric(row.base_imponible) + numeric(row.iva) - numeric(row.total)) > 0.03).length;
     const totals = invoiceBudgetTotals(invoices);
     const exceeded = budgets.filter((row) => (totals.get(String(row.id)) || 0) > numeric(row.presupuesto)).length;
@@ -290,6 +296,7 @@
       ? rates.map((row) => `
           <tr>
             <td>${escapeHtml(functionNames.get(String(row.funcion_id)) || "Sin función")}</td>
+            <td>${serviceIdsForRate(row.id).length ? escapeHtml(serviceNames(serviceIdsForRate(row.id))) : '<span class="muted-text">Sin servicio</span>'}</td>
             <td>${escapeHtml(row.observacion || "—")}</td>
             <td>${escapeHtml(row.tipo_precio || "—")}</td>
             <td class="numeric">${row.precio_01 == null ? "—" : formatMoney(row.precio_01)}</td>
@@ -297,7 +304,7 @@
             <td>${row.activo ? "Activa" : "No activa"}</td>
             <td><button type="button" class="secondary-button row-action" data-edit-rate="${row.id}">Editar</button></td>
           </tr>`).join("")
-      : '<tr><td colspan="7" class="empty-state">El contrato no tiene funciones y tarifas configuradas.</td></tr>';
+      : '<tr><td colspan="8" class="empty-state">El contrato no tiene funciones y tarifas configuradas.</td></tr>';
 
     const periods = state.periods
       .filter((row) => String(row.contrato_id) === String(state.contractId))
@@ -317,10 +324,11 @@
           <tr>
             <td>${row.registro ?? "—"}</td>
             <td>${escapeHtml(row.estado)}</td>
+            <td>${row.es_pagada ? "Sí" : "—"}</td>
             <td>${escapeHtml(row.descripcion || "—")}</td>
             <td>${state.isAdmin ? `<button type="button" class="secondary-button row-action" data-edit-status="${row.id}">Editar</button>` : ""}</td>
           </tr>`).join("")
-      : '<tr><td colspan="4" class="empty-state">No hay estados configurados.</td></tr>';
+      : '<tr><td colspan="5" class="empty-state">No hay estados configurados.</td></tr>';
   }
 
   function render() {
@@ -333,6 +341,8 @@
     });
     renderContractCard();
     renderYears();
+    renderPreparations();
+    renderBillingGeneration();
     if (!hasContract) return;
     renderKpis();
     renderBudgets();
@@ -343,13 +353,15 @@
   }
 
   function switchView(view) {
-    state.view = ["resumen", "presupuestos", "facturas", "preparacion", "configuracion"].includes(view) ? view : "resumen";
+    state.view = ["resumen", "presupuestos", "facturas", "preparacion", "control", "configuracion"].includes(view) ? view : "resumen";
     qa("[data-facturacion-view]").forEach((button) => {
       const active = button.dataset.facturacionView === state.view;
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", String(active));
     });
     render();
+    if (state.view === "control") void loadControl();
+    if (state.view === "preparacion") void ensurePreparationsLoaded();
   }
 
   async function load({ force = false } = {}) {
@@ -359,7 +371,10 @@
     }
     setStatus("Cargando facturación…");
     const supabase = await getClient();
-    const [contracts, budgets, invoices, statuses, rates, periods, functions, admin] = await Promise.all([
+    // contratos_facturacion_preparaciones no se carga aquí: es de las tablas
+    // más pesadas y solo hace falta al abrir "Preparación de facturas" -se
+    // carga sola, perezosa, igual que Control- (ver ensurePreparationsLoaded).
+    const [contracts, budgets, invoices, statuses, rates, periods, functions, services, contratoServicios, functionServices, admin] = await Promise.all([
       fetchAll(supabase, "contratos", "id, contrato, descripcion, fecha_inicio, fecha_fin, expediente, cliente, activo, iva", "contrato"),
       fetchAll(supabase, "contratos_presupuestos", "*", "fecha_inicio"),
       fetchAll(supabase, "contratos_facturacion", "*", "fecha", false),
@@ -367,9 +382,12 @@
       fetchAll(supabase, "contratos_funciones", "*", "id"),
       fetchAll(supabase, "contratos_fechas", "*", "fecha_inicio"),
       fetchAll(supabase, "funciones", "id,funcion,activo", "funcion"),
+      fetchAll(supabase, "servicios", "id,servicio,activo", "servicio"),
+      fetchAll(supabase, "contrato_servicios", "contrato_id,servicio_id,activo", "contrato_id"),
+      fetchAll(supabase, "contratos_funciones_servicios", "*", "id"),
       supabase.rpc("is_coordinacion_admin"),
     ]);
-    const failed = [contracts, budgets, invoices, statuses, rates, periods, functions].find((result) => result.error);
+    const failed = [contracts, budgets, invoices, statuses, rates, periods, functions, services, contratoServicios, functionServices].find((result) => result.error);
     if (failed) {
       setStatus(`No se pudo cargar Facturación: ${failed.error.message}`, "error");
       throw failed.error;
@@ -381,13 +399,112 @@
     state.rates = rates.data || [];
     state.periods = periods.data || [];
     state.functions = functions.data || [];
+    state.services = services.data || [];
+    state.contratoServicios = contratoServicios.data || [];
+    state.functionServices = functionServices.data || [];
     state.isAdmin = !admin.error && Boolean(admin.data);
     state.loaded = true;
     if (state.contractId && !selectedContract()) state.contractId = "";
     renderContractOptions();
     render();
     setStatus("");
+    if (state.view === "preparacion") void ensurePreparationsLoaded();
   }
+
+  // Fase 6 (rendimiento): guardar/borrar una fila no necesita releer las 11
+  // tablas de load() -presupuestos, facturas, tarifas... de TODOS los
+  // contratos-, solo la que cambió. "Preparación de facturas" agrupa por
+  // contrato_facturable_id (puede mezclar contratos vía redirección) y usa
+  // rates/budgets/functionServices de cualquier contrato, no solo el
+  // seleccionado, así que esas tablas siguen cargándose completas en load();
+  // lo que se optimiza aquí es NO repetir esa carga completa en cada
+  // guardado, sino refrescar solo la tabla afectada.
+  async function reloadBudgets() {
+    const supabase = await getClient();
+    const result = await fetchAll(supabase, "contratos_presupuestos", "*", "fecha_inicio");
+    if (result.error) {
+      setStatus(`No se pudieron actualizar los presupuestos: ${result.error.message}`, "error");
+      return;
+    }
+    state.budgets = result.data || [];
+    render();
+  }
+
+  async function reloadInvoices() {
+    const supabase = await getClient();
+    const result = await fetchAll(supabase, "contratos_facturacion", "*", "fecha", false);
+    if (result.error) {
+      setStatus(`No se pudieron actualizar las facturas: ${result.error.message}`, "error");
+      return;
+    }
+    state.invoices = result.data || [];
+    render();
+  }
+
+  async function reloadStatuses() {
+    const supabase = await getClient();
+    const result = await fetchAll(supabase, "contratos_estado_facturas", "*", "registro");
+    if (result.error) {
+      setStatus(`No se pudieron actualizar los estados: ${result.error.message}`, "error");
+      return;
+    }
+    state.statuses = result.data || [];
+    render();
+  }
+
+  async function reloadPeriods() {
+    const supabase = await getClient();
+    const result = await fetchAll(supabase, "contratos_fechas", "*", "fecha_inicio");
+    if (result.error) {
+      setStatus(`No se pudieron actualizar los periodos: ${result.error.message}`, "error");
+      return;
+    }
+    state.periods = result.data || [];
+    render();
+  }
+
+  async function reloadRates() {
+    const supabase = await getClient();
+    const [rates, functionServices] = await Promise.all([
+      fetchAll(supabase, "contratos_funciones", "*", "id"),
+      fetchAll(supabase, "contratos_funciones_servicios", "*", "id"),
+    ]);
+    const failed = rates.error || functionServices.error;
+    if (failed) {
+      setStatus(`No se pudieron actualizar las tarifas: ${failed.message}`, "error");
+      return;
+    }
+    state.rates = rates.data || [];
+    state.functionServices = functionServices.data || [];
+    render();
+  }
+
+  async function reloadPreparations() {
+    const supabase = await getClient();
+    const result = await fetchAll(supabase, "contratos_facturacion_preparaciones", "*", "created_at", false);
+    if (result.error) {
+      setStatus(`No se pudieron actualizar las preparaciones: ${result.error.message}`, "error");
+      return;
+    }
+    state.preparations = result.data || [];
+    state.preparationsLoaded = true;
+    render();
+  }
+
+  // Carga perezosa (como loadControl para la pestaña Control): solo la
+  // primera vez que se visita "Preparación de facturas", no en cada load().
+  async function ensurePreparationsLoaded() {
+    if (state.preparationsLoaded) return;
+    await reloadPreparations();
+  }
+
+  const CONFIGURATION_TABLE_RELOADERS = {
+    contratos_presupuestos: reloadBudgets,
+    contratos_facturacion: reloadInvoices,
+    contratos_estado_facturas: reloadStatuses,
+    contratos_fechas: reloadPeriods,
+    contratos_funciones: reloadRates,
+  };
 
   function getIsoWeek(value) {
     const date = new Date(`${String(value).slice(0, 10)}T12:00:00Z`);
@@ -404,6 +521,38 @@
       ? Math.max(0, total - nocturnal)
       : numeric(row.horas_diurnas);
     return { total, diurnal, nocturnal };
+  }
+
+  function serviceName(serviceId) {
+    if (!serviceId) return "Sin servicio";
+    const service = state.services.find((row) => String(row.id) === String(serviceId));
+    return service?.servicio || `Servicio ${serviceId}`;
+  }
+
+  function serviceNames(serviceIds) {
+    if (!serviceIds?.length) return "Sin servicio";
+    return serviceIds.map((id) => serviceName(id)).join(" + ");
+  }
+
+  // Etiquetas de servicio de una tarifa (contratos_funciones.id). Puede haber
+  // varias: esa funcion se comparte entre esos servicios y, al agrupar por
+  // servicio, se fusionan siempre juntos (ver contratos_funciones_servicio.sql).
+  function serviceIdsForRate(rateId) {
+    if (!rateId) return [];
+    return state.functionServices
+      .filter((row) => String(row.contrato_funcion_id) === String(rateId))
+      .map((row) => row.servicio_id);
+  }
+
+  // servicios es un catálogo global (ver servicios_globalizar.sql): qué
+  // servicios están habilitados en un contrato vive en contrato_servicios.
+  function servicesForContract(contractId) {
+    const enabledIds = new Set(
+      state.contratoServicios
+        .filter((row) => row.activo && String(row.contrato_id) === String(contractId))
+        .map((row) => String(row.servicio_id))
+    );
+    return state.services.filter((service) => enabledIds.has(String(service.id)));
   }
 
   function selectRate(contractId, functionId) {
@@ -423,13 +572,21 @@
     for (let offset = 0; ; offset += pageSize) {
       let query = supabase
         .from("registros_detalle")
-        .select("id,fecha,contrato_id,contrato,instalacion_id,instalacion,funcion_id,funcion,horas,horas_diurnas,horas_nocturnas")
+        .select(
+          "id,fecha,contrato_id,contrato,instalacion_id,instalacion,funcion_id,funcion,horas,horas_diurnas,horas_nocturnas,"
+          + "contrato_facturable_id,servicio_facturable_id,funcion_facturable_id,instalacion_facturable_id,"
+          + "facturacion_destino_contrato,facturacion_destino_servicio_id,facturacion_destino_servicio,"
+          + "facturacion_destino_funcion,facturacion_destino_instalacion"
+        )
         .gte("fecha", from)
         .lte("fecha", to)
         .eq("facturar", true)
         .order("fecha", { ascending: true })
         .range(offset, offset + pageSize - 1);
-      if (scope === "selected") query = query.eq("contrato_id", Number(state.contractId));
+      // Se agrupa por donde se factura, no por donde se trabajo: un registro
+      // redirigido a este contrato (registros_facturacion_destino) entra aqui
+      // aunque su contrato_id operativo sea otro.
+      if (scope === "selected") query = query.eq("contrato_facturable_id", Number(state.contractId));
       const result = await query;
       if (result.error) throw result.error;
       rows.push(...(result.data || []));
@@ -440,20 +597,32 @@
 
   function buildBillingGeneration(records, from, to) {
     const contracts = new Map(state.contracts.map((row) => [String(row.id), row]));
+    const functionNames = new Map(state.functions.map((row) => [String(row.id), row.funcion]));
     const groups = new Map();
     const alerts = [];
 
+    // Se agrupa por contrato/funcion FACTURABLE (el destino si el registro
+    // esta redirigido via registros_facturacion_destino, si no el propio):
+    // asi una funcion "Monitorado" trabajada en el contrato A pero redirigida
+    // al B cae en el grupo del B, con la tarifa/servicio del B.
     records.forEach((row) => {
-      const key = `${row.contrato_id ?? ""}|${row.funcion_id ?? ""}`;
+      const key = `${row.contrato_facturable_id ?? ""}|${row.funcion_facturable_id ?? ""}`;
       if (!groups.has(key)) {
-        const rateInfo = selectRate(row.contrato_id, row.funcion_id);
+        const rateInfo = selectRate(row.contrato_facturable_id, row.funcion_facturable_id);
         groups.set(key, {
           key,
-          contratoId: row.contrato_id,
-          contrato: row.contrato || contracts.get(String(row.contrato_id))?.contrato || `Contrato ${row.contrato_id}`,
-          funcionId: row.funcion_id,
-          funcion: row.funcion || "Sin función",
-          contract: contracts.get(String(row.contrato_id)),
+          contratoId: row.contrato_facturable_id,
+          contrato: contracts.get(String(row.contrato_facturable_id))?.contrato
+            || row.facturacion_destino_contrato || row.contrato || `Contrato ${row.contrato_facturable_id}`,
+          funcionId: row.funcion_facturable_id,
+          funcion: functionNames.get(String(row.funcion_facturable_id))
+            || row.facturacion_destino_funcion || row.funcion || "Sin función",
+          // Arranca con el/los servicio(s) de la tarifa; si algún registro
+          // trae un servicio de facturación explícito (redirección), se añade
+          // aparte más abajo -no lo sustituye, porque puede haber registros
+          // del mismo grupo sin esa redirección concreta-.
+          servicioIdSet: new Set(serviceIdsForRate(rateInfo.selected?.id)),
+          contract: contracts.get(String(row.contrato_facturable_id)),
           rate: rateInfo.selected,
           ambiguousRate: rateInfo.ambiguous,
           total: 0,
@@ -461,17 +630,34 @@
           nocturnal: 0,
           installations: new Map(),
           weeks: new Map(),
+          records: [],
+          redirectedFrom: new Set(),
         });
       }
       const group = groups.get(key);
+      if (String(row.contrato_id) !== String(row.contrato_facturable_id)) {
+        group.redirectedFrom.add(row.contrato || `Contrato ${row.contrato_id}`);
+      }
+      // Solo si el propio registro trae un servicio de facturación explícito
+      // (redirección): si no, el servicio del grupo lo sigue marcando la
+      // tarifa (servicioIdSet ya arrancó con esos).
+      if (row.facturacion_destino_servicio_id) {
+        group.servicioIdSet.add(row.servicio_facturable_id);
+      }
       const hours = recordHours(row);
       group.total += hours.total;
       group.diurnal += hours.diurnal;
       group.nocturnal += hours.nocturnal;
-      const installationKey = String(row.instalacion_id ?? row.instalacion ?? "sin-instalacion");
+      group.records.push({
+        registroId: row.id,
+        instalacionId: row.instalacion_facturable_id ?? null,
+        diurnal: hours.diurnal,
+        nocturnal: hours.nocturnal,
+      });
+      const installationKey = String(row.instalacion_facturable_id ?? row.facturacion_destino_instalacion ?? row.instalacion ?? "sin-instalacion");
       if (!group.installations.has(installationKey)) {
         group.installations.set(installationKey, {
-          instalacion: row.instalacion || "Sin instalación",
+          instalacion: row.facturacion_destino_instalacion || row.instalacion || "Sin instalación",
           total: 0,
           diurnal: 0,
           nocturnal: 0,
@@ -501,6 +687,7 @@
     const normalized = Array.from(groups.values())
       .sort((a, b) => `${a.contrato} ${a.funcion}`.localeCompare(`${b.contrato} ${b.funcion}`, "es"))
       .map((group) => {
+        group.servicioIds = Array.from(group.servicioIdSet);
         const type = String(group.rate?.tipo_precio || "").toLocaleLowerCase("es");
         const priceDay = numeric(group.rate?.precio_01);
         const priceNight = group.rate?.precio_02 == null ? priceDay : numeric(group.rate.precio_02);
@@ -510,15 +697,44 @@
             ? priceDay
             : group.diurnal * priceDay + group.nocturnal * priceNight
           : 0;
-        const ivaRate = group.contract?.iva == null ? 0.21 : numeric(group.contract.iva);
+        const ivaFallback = group.contract?.iva == null;
+        const ivaRate = ivaFallback ? 0.21 : numeric(group.contract.iva);
         const iva = subtotal * ivaRate;
+        // Estas tres condiciones ya no son solo un aviso: bloquean "Guardar
+        // preparación" (ver saveBillingGeneration) porque guardar con un
+        // precio a ciegas crearia un importe real erroneo.
+        let pricingIssue = null;
         if (!group.rate) {
-          alerts.push(`${group.contrato} · ${group.funcion}: no tiene tarifa configurada.`);
+          pricingIssue = `${group.contrato} · ${group.funcion}: no tiene tarifa configurada.`;
         } else if (group.ambiguousRate) {
-          alerts.push(`${group.contrato} · ${group.funcion}: hay varias tarifas; se ha usado ${formatMoney(priceDay)}.`);
+          pricingIssue = `${group.contrato} · ${group.funcion}: hay varias tarifas y ninguna está activa; actívala en Configuración.`;
         } else if (!group.rate.tipo_precio || group.rate.precio_01 == null) {
-          alerts.push(`${group.contrato} · ${group.funcion}: la tarifa está incompleta.`);
+          pricingIssue = `${group.contrato} · ${group.funcion}: la tarifa está incompleta.`;
         }
+        if (pricingIssue) alerts.push(pricingIssue);
+        if (ivaFallback) {
+          alerts.push(`${group.contrato}: el contrato no tiene IVA configurado; se ha aplicado el 21% por defecto.`);
+        }
+        if (group.redirectedFrom.size) {
+          alerts.push(`${group.contrato} · ${group.funcion}: incluye horas trabajadas en ${Array.from(group.redirectedFrom).join(", ")} y redirigidas aquí para facturar.`);
+        }
+        // Con tarifa por hora el importe de cada linea se puede prorratear
+        // (diurnas*precio + nocturnas*precio); con tarifa fija (mes/global) el
+        // precio es del grupo entero y no tiene sentido repartirlo por registro,
+        // asi que la linea se guarda sin importe propio (el total fiable es el
+        // de la preparacion).
+        const lines = group.records.map((record) => ({
+          registro_id: record.registroId,
+          instalacion_id: record.instalacionId,
+          funcion_id: group.funcionId,
+          horas_diurnas: record.diurnal,
+          horas_nocturnas: record.nocturnal,
+          precio_01: group.rate?.precio_01 ?? null,
+          precio_02: group.rate?.precio_02 ?? null,
+          tipo_precio: group.rate?.tipo_precio ?? null,
+          importe: fixed ? null : record.diurnal * priceDay + record.nocturnal * priceNight,
+        }));
+
         return {
           ...group,
           type: type || "sin tipo",
@@ -530,6 +746,9 @@
           totalWithIva: subtotal + iva,
           installations: Array.from(group.installations.values()).sort((a, b) => a.instalacion.localeCompare(b.instalacion, "es")),
           weeks: Array.from(group.weeks.values()).sort((a, b) => a.instalacion.localeCompare(b.instalacion, "es") || a.week - b.week),
+          lines,
+          pricingIssue,
+          ivaFallback,
         };
       });
 
@@ -539,7 +758,18 @@
   function renderBillingGeneration() {
     const generation = state.generation;
     el.generationPdf.disabled = !generation?.groups.length;
-    if (!generation) return;
+    el.generationSave.disabled = !generation?.groups.length;
+    if (!generation) {
+      // Sin esto, cambiar una tarifa/servicio en Configuración deja en pantalla
+      // el cálculo anterior (ya obsoleto) sin ningún aviso: parece que el
+      // cambio no sirvió de nada hasta que se pulsa Calcular de nuevo.
+      el.generationSummary.classList.add("hidden");
+      el.generationSummary.innerHTML = "";
+      el.generationAlerts.innerHTML = "";
+      el.generationBody.innerHTML =
+        '<tr><td colspan="11" class="empty-state">La configuración ha cambiado desde el último cálculo. Pulsa Calcular de nuevo.</td></tr>';
+      return;
+    }
     const totalHours = generation.groups.reduce((sum, group) => sum + group.total, 0);
     const subtotal = generation.groups.reduce((sum, group) => sum + group.subtotal, 0);
     const total = generation.groups.reduce((sum, group) => sum + group.totalWithIva, 0);
@@ -554,7 +784,8 @@
       ...group.installations.map((installation, index) => `
           <tr>
             <td>${index ? "" : escapeHtml(group.contrato)}</td>
-            <td>${index ? "" : escapeHtml(group.funcion)}</td>
+            <td>${index ? "" : escapeHtml(serviceNames(group.servicioIds))}</td>
+            <td>${index ? "" : escapeHtml(group.funcion)}${index || !group.redirectedFrom.size ? "" : `<br><span class="muted-text" title="Horas trabajadas en otro contrato, redirigidas aquí para facturar">↪ ${escapeHtml(Array.from(group.redirectedFrom).join(", "))}</span>`}</td>
             <td>${escapeHtml(installation.instalacion)}</td>
             <td class="numeric">${percent.format(installation.total)}</td>
             <td class="numeric">${percent.format(installation.diurnal)}</td>
@@ -562,6 +793,7 @@
             <td></td><td></td><td></td><td></td>
           </tr>`),
       `<tr class="facturacion-function-total">
+        <td></td>
         <td></td>
         <td colspan="2">Total ${escapeHtml(group.funcion)}</td>
         <td class="numeric">${percent.format(group.total)}</td>
@@ -575,7 +807,8 @@
     ]);
     el.generationBody.innerHTML = rows.length
       ? rows.join("")
-      : '<tr><td colspan="10" class="empty-state">No hay registros marcados para facturar en el periodo.</td></tr>';
+      : '<tr><td colspan="11" class="empty-state">No hay registros marcados para facturar en el periodo.</td></tr>';
+    el.generationSave.disabled = !generation.groups.length;
   }
 
   async function calculateBillingGeneration() {
@@ -592,6 +825,7 @@
     }
     setStatus("Calculando horas facturables…");
     el.generationCalculate.disabled = true;
+    el.generationSave.disabled = true;
     try {
       const records = await fetchBillingRecords(from, to, scope);
       state.generation = buildBillingGeneration(records, from, to);
@@ -602,6 +836,385 @@
     } finally {
       el.generationCalculate.disabled = false;
     }
+  }
+
+  // "Servicio" y "función separada" exigen que la tarifa tenga al menos un
+  // servicio asignado (contratos_funciones_servicios): son variantes de la
+  // misma agrupacion por servicio, y sin el dato no hay forma de decidir que
+  // funciones van juntas en la misma factura. "Contrato completo" no lo
+  // necesita: bastante con saber a que contrato pertenece cada registro.
+  function resolveGroupServiceIssue(group, agrupacion) {
+    if (agrupacion === "contrato") return null;
+    if (!group.servicioIds.length) {
+      return `${group.contrato} · ${group.funcion}: la tarifa no tiene ningún servicio asignado (Configuración → Funciones y tarifas). No se puede guardar agrupando por servicio.`;
+    }
+    return null;
+  }
+
+  // Una funcion puede etiquetarse con varios servicios (se comparte entre
+  // ellos). Cuando eso pasa, esos servicios quedan "atados" y se agrupan
+  // siempre juntos en la agrupacion "servicio" -no se reparten horas entre
+  // ellos-, y el atado se contagia: si otra funcion enlaza a su vez uno de
+  // esos servicios con un tercero, los tres acaban en la misma preparacion.
+  // Es el algoritmo de componentes conexos (union-find) sobre los ids de
+  // servicio que aparecen juntos en una misma tarifa.
+  function buildServiceClusters(groups) {
+    const parent = new Map();
+    const find = (x) => {
+      if (!parent.has(x)) parent.set(x, x);
+      let root = x;
+      while (parent.get(root) !== root) root = parent.get(root);
+      let cur = x;
+      while (parent.get(cur) !== root) {
+        const next = parent.get(cur);
+        parent.set(cur, root);
+        cur = next;
+      }
+      return root;
+    };
+    const union = (a, b) => {
+      const ra = find(a);
+      const rb = find(b);
+      if (ra !== rb) parent.set(ra, rb);
+    };
+    groups.forEach((group) => {
+      group.servicioIds.forEach((id) => find(id));
+      for (let i = 1; i < group.servicioIds.length; i += 1) {
+        union(group.servicioIds[0], group.servicioIds[i]);
+      }
+    });
+    const members = new Map();
+    groups.forEach((group) => {
+      group.servicioIds.forEach((id) => {
+        const root = find(id);
+        if (!members.has(root)) members.set(root, new Set());
+        members.get(root).add(id);
+      });
+    });
+    return {
+      membersOf: (id) => Array.from(members.get(find(id)) || [id]).sort((a, b) => a - b),
+    };
+  }
+
+  function clusterGenerationGroups(groups, agrupacion) {
+    const serviceClusters = agrupacion === "servicio" ? buildServiceClusters(groups) : null;
+    const clusters = new Map();
+    groups.forEach((group) => {
+      const groupServiceIds = agrupacion === "servicio"
+        ? serviceClusters.membersOf(group.servicioIds[0])
+        : agrupacion === "funcion"
+          ? [...group.servicioIds].sort((a, b) => a - b)
+          : [];
+      const key = agrupacion === "contrato"
+        ? `${group.contratoId}|contrato`
+        : agrupacion === "servicio"
+          ? `${group.contratoId}|servicio:${groupServiceIds.join(",")}`
+          : `${group.contratoId}|funcion:${group.funcionId}|servicio:${groupServiceIds.join(",")}`;
+      if (!clusters.has(key)) {
+        clusters.set(key, {
+          contratoId: group.contratoId,
+          contrato: group.contrato,
+          servicioIds: agrupacion === "contrato" ? [] : groupServiceIds,
+          funcionId: agrupacion === "funcion" ? group.funcionId : null,
+          label: agrupacion === "contrato"
+            ? `${group.contrato} · contrato completo`
+            : agrupacion === "servicio"
+              ? `${group.contrato} · ${serviceNames(groupServiceIds)}`
+              : `${group.contrato} · ${serviceNames(groupServiceIds)} · ${group.funcion}`,
+          baseImponible: 0,
+          iva: 0,
+          total: 0,
+          diurnal: 0,
+          nocturnal: 0,
+          lines: [],
+        });
+      }
+      const cluster = clusters.get(key);
+      cluster.baseImponible += group.subtotal;
+      cluster.iva += group.iva;
+      cluster.total += group.totalWithIva;
+      cluster.diurnal += group.diurnal;
+      cluster.nocturnal += group.nocturnal;
+      cluster.lines.push(...group.lines);
+    });
+    return Array.from(clusters.values());
+  }
+
+  async function saveBillingGeneration() {
+    const generation = state.generation;
+    if (!generation?.groups.length) return;
+    const agrupacion = el.generationGroupBy.value;
+    const issue = generation.groups.map((group) => resolveGroupServiceIssue(group, agrupacion)).find(Boolean);
+    if (issue) {
+      setStatus(issue, "error");
+      return;
+    }
+    // Guardar con un precio a ciegas (sin tarifa, con varias sin activar, o
+    // incompleta) o con el IVA supuesto al 21% crearía un importe real que no
+    // se corresponde con la configuración: se bloquea hasta corregirlo, no
+    // solo se avisa.
+    const pricingIssue = generation.groups.find((group) => group.pricingIssue)?.pricingIssue;
+    if (pricingIssue) {
+      setStatus(`${pricingIssue} No se puede guardar la preparación hasta corregirlo.`, "error");
+      return;
+    }
+    const ivaIssueGroup = generation.groups.find((group) => group.ivaFallback);
+    if (ivaIssueGroup) {
+      setStatus(`${ivaIssueGroup.contrato}: configura el IVA del contrato antes de guardar la preparación (pestaña Contratos).`, "error");
+      return;
+    }
+    const clusters = clusterGenerationGroups(generation.groups, agrupacion);
+    el.generationSave.disabled = true;
+    setStatus("Guardando preparación…");
+    const supabase = await getClient();
+    let saved = 0;
+    let skipped = 0;
+    try {
+      for (const cluster of clusters) {
+        const payload = {
+          p_contrato_id: cluster.contratoId,
+          p_fecha_desde: generation.from,
+          p_fecha_hasta: generation.to,
+          p_servicio_ids: cluster.servicioIds,
+          p_funcion_id: cluster.funcionId,
+          p_lineas: cluster.lines,
+          p_base_imponible: cluster.baseImponible,
+          p_iva: cluster.iva,
+          p_total: cluster.total,
+          p_horas_diurnas: cluster.diurnal,
+          p_horas_nocturnas: cluster.nocturnal,
+        };
+        let result = await supabase.rpc("guardar_preparacion_facturacion", payload);
+        if (result.error && /Ya hay una preparación vigente/.test(result.error.message)) {
+          const wantsRegenerate = window.confirm(
+            `${cluster.label}\n\n${result.error.message}\n\n¿Regenerar? Se anulará la anterior (queda como histórico) y se guarda esta como nueva versión.`
+          );
+          if (!wantsRegenerate) {
+            skipped += 1;
+            continue;
+          }
+          const motivo = window.prompt("Motivo de la regeneración (opcional):", "") || null;
+          result = await supabase.rpc("guardar_preparacion_facturacion", { ...payload, p_reemplazar: true, p_observacion: motivo });
+        }
+        if (result.error) throw new Error(`${cluster.label}: ${result.error.message}`);
+        saved += 1;
+      }
+      await reloadPreparations();
+      const savedText = `${saved} ${saved === 1 ? "preparación guardada" : "preparaciones guardadas"}`;
+      const skippedText = skipped ? ` (${skipped} sin guardar, ya existían y no se regeneraron)` : "";
+      setStatus(`${savedText}${skippedText}.`, saved ? "success" : "");
+    } catch (error) {
+      setStatus(`No se pudo guardar la preparación: ${error.message}`, "error");
+    } finally {
+      el.generationSave.disabled = !state.generation?.groups.length;
+    }
+  }
+
+  function preparationGroupingLabel(row) {
+    if (row.funcion_id) {
+      const funcion = state.functions.find((item) => String(item.id) === String(row.funcion_id));
+      return `${serviceNames(row.servicio_ids)} · ${funcion?.funcion || `Función ${row.funcion_id}`}`;
+    }
+    if (row.servicio_ids?.length) return serviceNames(row.servicio_ids);
+    return "Contrato completo";
+  }
+
+  function preparationsForSelection() {
+    return state.preparations
+      .filter((row) => !state.contractId || String(row.contrato_id) === String(state.contractId))
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  }
+
+  function renderPreparations() {
+    if (!el.preparationsBody) return;
+    const contractNames = new Map(state.contracts.map((row) => [String(row.id), row.contrato]));
+    const invoiceNames = new Map(state.invoices.map((row) => [String(row.id), [row.serie, row.n_documento].filter(Boolean).join("/") || `#${row.id}`]));
+    const rows = preparationsForSelection();
+    el.preparationsBody.innerHTML = rows.length
+      ? rows.map((row) => `
+          <tr>
+            <td>${formatDate(row.fecha_desde)} – ${formatDate(row.fecha_hasta)}</td>
+            <td>${escapeHtml(contractNames.get(String(row.contrato_id)) || `Contrato ${row.contrato_id}`)}</td>
+            <td>${escapeHtml(preparationGroupingLabel(row))}</td>
+            <td><span class="${row.estado === "vigente" ? "" : "muted-text"}">${escapeHtml(row.estado)}</span>${row.estado !== "vigente" && row.anulada_motivo ? ` · ${escapeHtml(row.anulada_motivo)}` : ""}</td>
+            <td class="numeric">${formatMoney(row.total)}</td>
+            <td>${row.contrato_facturacion_id ? escapeHtml(invoiceNames.get(String(row.contrato_facturacion_id)) || `#${row.contrato_facturacion_id}`) : "—"}</td>
+            <td>${formatDate(row.created_at)}</td>
+            <td class="facturacion-preparation-actions">${row.estado === "vigente" ? `
+              ${row.contrato_facturacion_id ? "" : `<button type="button" class="row-action" data-crear-factura="${row.id}">Crear factura</button>`}
+              <button type="button" class="danger-button row-action" data-anular-preparacion="${row.id}">Anular</button>
+            ` : ""}</td>
+          </tr>`).join("")
+      : '<tr><td colspan="8" class="empty-state">No hay preparaciones guardadas todavía.</td></tr>';
+  }
+
+  async function anulatePreparation(id) {
+    const motivo = window.prompt("Motivo de la anulación:", "");
+    if (motivo === null) return;
+    const supabase = await getClient();
+    const result = await supabase.rpc("anular_preparacion_facturacion", { p_id: Number(id), p_motivo: motivo || null });
+    if (result.error) {
+      setStatus(`No se pudo anular la preparación: ${result.error.message}`, "error");
+      return;
+    }
+    await reloadPreparations();
+    setStatus("Preparación anulada.", "success");
+  }
+
+  // Busca un presupuesto del mismo contrato cuyo periodo solape con el de la
+  // preparación, como sugerencia inicial; el usuario puede cambiarlo en el
+  // dialogo de la factura igualmente.
+  function suggestBudgetForPreparation(prep) {
+    return state.budgets.find((budget) =>
+      String(budget.contrato_id) === String(prep.contrato_id)
+      && budget.fecha_inicio && budget.fecha_fin
+      && String(budget.fecha_inicio) <= prep.fecha_hasta
+      && String(budget.fecha_fin) >= prep.fecha_desde
+    ) || null;
+  }
+
+  async function createInvoiceFromPreparation(id) {
+    const prep = state.preparations.find((row) => String(row.id) === String(id));
+    if (!prep) return;
+    if (!window.confirm(
+      `Se creará una factura real para ${preparationGroupingLabel(prep)} `
+      + `(${formatDate(prep.fecha_desde)} – ${formatDate(prep.fecha_hasta)}) por ${formatMoney(prep.total)}. `
+      + `Después podrás completar serie, número y cliente. ¿Continuar?`
+    )) {
+      return;
+    }
+    setStatus("Creando factura…");
+    const supabase = await getClient();
+    const budget = suggestBudgetForPreparation(prep);
+    const result = await supabase.rpc("crear_factura_desde_preparacion", {
+      p_preparacion_id: Number(id),
+      p_presupuesto_id: budget ? budget.id : null,
+    });
+    if (result.error) {
+      setStatus(`No se pudo crear la factura: ${result.error.message}`, "error");
+      return;
+    }
+    const invoiceId = result.data;
+    state.contractId = String(prep.contrato_id);
+    await Promise.all([reloadInvoices(), reloadPreparations()]);
+    const invoiceRow = state.invoices.find((row) => String(row.id) === String(invoiceId));
+    switchView("facturas");
+    if (invoiceRow) fillInvoiceForm(invoiceRow);
+    setStatus("Factura creada. Completa serie, número y cliente.", "success");
+  }
+
+  const CONTROL_MONTH_STATES = ["Pendiente", "Redirigido", "En preparación", "Facturado", "Excluido"];
+  const CONTROL_STATE_CLASS = {
+    "Pendiente": "record-billing-badge-pendiente",
+    "Redirigido": "record-billing-badge-redirigido",
+    "En preparación": "record-billing-badge-en-preparacion",
+    "Facturado": "record-billing-badge-facturado",
+    "Excluido": "record-billing-badge-excluido",
+  };
+
+  function formatControlMonth(value) {
+    const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+  }
+
+  async function loadControl() {
+    if (!el.controlMonthsBody) return;
+    if (!state.contractId) {
+      el.controlKpis.innerHTML = "";
+      el.controlMonthsBody.innerHTML = '<tr><td colspan="6" class="empty-state">Selecciona un contrato para ver su seguimiento.</td></tr>';
+      el.controlInvoicesBody.innerHTML = '<tr><td colspan="4" class="empty-state">Selecciona un contrato para ver su seguimiento.</td></tr>';
+      return;
+    }
+    el.controlMonthsBody.innerHTML = '<tr><td colspan="6" class="empty-state">Cargando…</td></tr>';
+    const supabase = await getClient();
+    const contratoId = Number(state.contractId);
+    const desde = el.controlFrom.value || null;
+    const hasta = el.controlTo.value || null;
+    const [monthly, byInvoice] = await Promise.all([
+      supabase.rpc("get_facturacion_seguimiento_mensual", { p_contrato_id: contratoId, p_desde: desde, p_hasta: hasta }),
+      supabase.rpc("get_facturacion_horas_por_factura", { p_contrato_id: contratoId, p_desde: desde, p_hasta: hasta }),
+    ]);
+    if (monthly.error || byInvoice.error) {
+      const message = (monthly.error || byInvoice.error).message;
+      setStatus(`No se pudo cargar el control de facturación: ${message}`, "error");
+      el.controlMonthsBody.innerHTML = `<tr><td colspan="5" class="empty-state">${escapeHtml(message)}</td></tr>`;
+      return;
+    }
+    renderControl(monthly.data || [], byInvoice.data || []);
+  }
+
+  function renderControl(monthly, byInvoice) {
+    const totals = { "Pendiente": 0, "Redirigido": 0, "En preparación": 0, "Facturado": 0, "Excluido": 0 };
+    const byMonth = new Map();
+    monthly.forEach((row) => {
+      totals[row.estado_facturacion] = (totals[row.estado_facturacion] || 0) + numeric(row.horas);
+      if (!byMonth.has(row.mes)) byMonth.set(row.mes, {});
+      byMonth.get(row.mes)[row.estado_facturacion] = numeric(row.horas);
+    });
+
+    el.controlKpis.innerHTML = CONTROL_MONTH_STATES.map((estado) => `
+      <article><span class="record-billing-badge ${CONTROL_STATE_CLASS[estado]}">${escapeHtml(estado)}</span><strong>${percent.format(totals[estado] || 0)} h</strong></article>
+    `).join("");
+
+    const currentMonthStart = new Date();
+    currentMonthStart.setDate(1);
+    currentMonthStart.setHours(0, 0, 0, 0);
+    const months = Array.from(byMonth.keys()).sort();
+    el.controlMonthsBody.innerHTML = months.length
+      ? months.map((mes) => {
+          const hours = byMonth.get(mes);
+          const isPastMonth = new Date(`${mes}T00:00:00`) < currentMonthStart;
+          const pendingGap = isPastMonth && numeric(hours["Pendiente"]) > 0;
+          return `
+            <tr class="${pendingGap ? "facturacion-control-gap" : ""}">
+              <td>${escapeHtml(formatControlMonth(mes))}</td>
+              <td class="numeric">${pendingGap ? "⚠ " : ""}${percent.format(numeric(hours["Pendiente"]))} h</td>
+              <td class="numeric">${percent.format(numeric(hours["Redirigido"]))} h</td>
+              <td class="numeric">${percent.format(numeric(hours["En preparación"]))} h</td>
+              <td class="numeric">${percent.format(numeric(hours["Facturado"]))} h</td>
+              <td class="numeric">${percent.format(numeric(hours["Excluido"]))} h</td>
+            </tr>`;
+        }).join("")
+      : '<tr><td colspan="6" class="empty-state">No hay registros en el periodo.</td></tr>';
+
+    const invoiceNames = new Map(state.invoices.map((row) => [String(row.id), row]));
+    el.controlInvoicesBody.innerHTML = byInvoice.length
+      ? byInvoice.map((row) => {
+          const invoice = invoiceNames.get(String(row.contrato_facturacion_id));
+          const label = invoice ? ([invoice.serie, invoice.n_documento].filter(Boolean).join("/") || `#${row.contrato_facturacion_id}`) : `#${row.contrato_facturacion_id}`;
+          return `
+            <tr>
+              <td>${escapeHtml(label)}</td>
+              <td>${invoice ? formatDate(invoice.fecha) : "—"}</td>
+              <td class="numeric">${row.registros}</td>
+              <td class="numeric">${percent.format(numeric(row.horas))} h</td>
+            </tr>`;
+        }).join("")
+      : '<tr><td colspan="4" class="empty-state">No hay horas facturadas en el periodo.</td></tr>';
+  }
+
+  function viewPendingInRecords() {
+    if (!state.contractId) return;
+    const contratoSelect = document.querySelector("#records-filter-contrato");
+    const estadoSelect = document.querySelector("#records-filter-estado-facturacion");
+    if (!contratoSelect || !estadoSelect || typeof window.switchPrivateTab !== "function" || typeof window.loadRecords !== "function") {
+      setStatus("No se pudo abrir Registros filtrado; ábrelo manualmente y filtra por este contrato.", "error");
+      return;
+    }
+    window.switchPrivateTab("registros");
+    Array.from(contratoSelect.options).forEach((option) => {
+      option.selected = option.value === String(state.contractId);
+    });
+    estadoSelect.value = "Pendiente";
+    // No se dispara "change" en el select: el propio formulario ya escucha ese
+    // evento y lanzaría una segunda carga en paralelo con la de aquí abajo.
+    // La UI del desplegable de checkboxes se sincroniza aparte porque es un
+    // overlay sobre el <select> real (ver getMultiCheckDropdown en app.js).
+    if (typeof window.syncMultiCheckDropdown === "function") {
+      window.syncMultiCheckDropdown(contratoSelect, contratoSelect.dataset.emptyLabel || "Todos los contratos");
+    }
+    void window.loadRecords({ force: true });
   }
 
   function pdfNumber(value) {
@@ -736,6 +1349,10 @@
       ...state.functions.map((item) => `<option value="${item.id}">${escapeHtml(item.funcion)}${item.activo ? "" : " · no activa"}</option>`),
     ].join("");
     form.elements.funcion_id.value = row.funcion_id || "";
+    const taggedServiceIds = new Set(serviceIdsForRate(row.id).map(String));
+    form.elements.servicio_ids.innerHTML = servicesForContract(state.contractId)
+      .map((service) => `<option value="${service.id}"${taggedServiceIds.has(String(service.id)) ? " selected" : ""}>${escapeHtml(service.servicio)}</option>`)
+      .join("");
     form.elements.tipo_precio.value = row.tipo_precio || "hora";
     form.elements.precio_01.value = row.precio_01 ?? "";
     form.elements.precio_02.value = row.precio_02 ?? "";
@@ -762,6 +1379,7 @@
     form.elements.id.value = row.id || "";
     form.elements.registro.value = row.registro ?? "";
     form.elements.estado.value = row.estado || "";
+    form.elements.es_pagada.checked = Boolean(row.es_pagada);
     form.elements.descripcion.value = row.descripcion || "";
     el.deleteStatus.classList.toggle("hidden", !row.id);
     el.statusDialog.showModal();
@@ -793,8 +1411,7 @@
       return;
     }
     el.budgetDialog.close();
-    state.loaded = false;
-    await load({ force: true });
+    await reloadBudgets();
     setStatus("Presupuesto guardado.", "success");
   }
 
@@ -830,15 +1447,17 @@
       return;
     }
     el.invoiceDialog.close();
-    state.loaded = false;
-    await load({ force: true });
+    await reloadInvoices();
     setStatus("Factura guardada.", "success");
   }
 
-  async function refreshAfterConfigurationChange(message, view = "configuracion") {
-    state.loaded = false;
+  // Reemplaza al antiguo "recargar las 11 tablas de load()" tras guardar una
+  // fila de configuración: solo relee la tabla que cambió (reloader) y, como
+  // tarifas/servicios pueden afectar al precio, invalida la previsualización
+  // de "Preparación de facturas" que hubiera a medio hacer.
+  async function refreshAfterConfigurationChange(reloader, message, view = "configuracion") {
+    await reloader();
     state.generation = null;
-    await load({ force: true });
     switchView(view);
     setStatus(message, "success");
   }
@@ -855,17 +1474,38 @@
       observacion: form.elements.observacion.value.trim() || null,
       activo: form.elements.activo.checked,
     };
+    const serviceIds = Array.from(form.elements.servicio_ids.selectedOptions).map((option) => Number(option.value));
     const supabase = await getClient();
     const id = form.elements.id.value;
     const result = id
-      ? await supabase.from("contratos_funciones").update(payload).eq("id", id)
-      : await supabase.from("contratos_funciones").insert(payload);
+      ? await supabase.from("contratos_funciones").update(payload).eq("id", id).select("id").single()
+      : await supabase.from("contratos_funciones").insert(payload).select("id").single();
     if (result.error) {
-      setStatus(`No se pudo guardar la tarifa: ${result.error.message}`, "error");
+      const message = result.error.code === "23505"
+        ? "Ya hay una tarifa activa para esta función en este contrato. Desactívala o edítala en vez de crear otra."
+        : result.error.message;
+      setStatus(`No se pudo guardar la tarifa: ${message}`, "error");
       return;
     }
+    const rateId = result.data.id;
+    // Reemplazo simple (borrar y volver a insertar las etiquetas elegidas):
+    // el volumen por tarifa es minimo y así no hay que calcular el diff.
+    const deleteResult = await supabase.from("contratos_funciones_servicios").delete().eq("contrato_funcion_id", rateId);
+    if (deleteResult.error) {
+      setStatus(`Tarifa guardada, pero no se pudieron actualizar sus servicios: ${deleteResult.error.message}`, "error");
+      return;
+    }
+    if (serviceIds.length) {
+      const insertResult = await supabase.from("contratos_funciones_servicios").insert(
+        serviceIds.map((servicioId) => ({ contrato_funcion_id: rateId, contrato_id: Number(state.contractId), servicio_id: servicioId }))
+      );
+      if (insertResult.error) {
+        setStatus(`Tarifa guardada, pero no se pudieron asignar los servicios: ${insertResult.error.message}`, "error");
+        return;
+      }
+    }
     el.rateDialog.close();
-    await refreshAfterConfigurationChange("Función y tarifa guardadas.");
+    await refreshAfterConfigurationChange(reloadRates, "Función y tarifa guardadas.");
   }
 
   async function savePeriod(event) {
@@ -891,7 +1531,7 @@
       return;
     }
     el.periodDialog.close();
-    await refreshAfterConfigurationChange("Periodo contractual guardado.");
+    await refreshAfterConfigurationChange(reloadPeriods, "Periodo contractual guardado.");
   }
 
   async function saveStatus(event) {
@@ -900,6 +1540,7 @@
     const payload = {
       registro: form.elements.registro.value === "" ? null : Number(form.elements.registro.value),
       estado: form.elements.estado.value.trim(),
+      es_pagada: form.elements.es_pagada.checked,
       descripcion: form.elements.descripcion.value.trim() || null,
     };
     const supabase = await getClient();
@@ -912,7 +1553,7 @@
       return;
     }
     el.statusDialog.close();
-    await refreshAfterConfigurationChange("Estado de factura guardado.");
+    await refreshAfterConfigurationChange(reloadStatuses, "Estado de factura guardado.");
   }
 
   async function deleteConfigurationRow(table, id, label, dialog, view = "configuracion") {
@@ -924,7 +1565,13 @@
       return;
     }
     dialog.close();
-    await refreshAfterConfigurationChange(`${label} eliminado.`, view);
+    const reloader = CONFIGURATION_TABLE_RELOADERS[table];
+    if (reloader) {
+      await refreshAfterConfigurationChange(reloader, `${label} eliminado.`, view);
+    } else {
+      switchView(view);
+      setStatus(`${label} eliminado.`, "success");
+    }
   }
 
   function bind() {
@@ -934,6 +1581,7 @@
       state.generation = null;
       el.generationPdf.disabled = true;
       render();
+      if (state.view === "control") void loadControl();
     });
     el.yearSelect.addEventListener("change", () => {
       state.year = el.yearSelect.value;
@@ -948,7 +1596,16 @@
     el.newPeriod.addEventListener("click", () => fillPeriodForm());
     el.newStatus.addEventListener("click", () => fillStatusForm());
     el.generationCalculate.addEventListener("click", () => void calculateBillingGeneration());
+    el.generationSave.addEventListener("click", () => void saveBillingGeneration());
     el.generationPdf.addEventListener("click", () => void exportBillingGenerationPdf());
+    el.preparationsBody.addEventListener("click", (event) => {
+      const anularId = event.target.closest("[data-anular-preparacion]")?.dataset.anularPreparacion;
+      if (anularId) void anulatePreparation(anularId);
+      const facturaId = event.target.closest("[data-crear-factura]")?.dataset.crearFactura;
+      if (facturaId) void createInvoiceFromPreparation(facturaId);
+    });
+    el.controlRefresh.addEventListener("click", () => void loadControl());
+    el.controlViewPending.addEventListener("click", viewPendingInRecords);
     el.budgetForm.addEventListener("submit", saveBudget);
     el.invoiceForm.addEventListener("submit", saveInvoice);
     el.rateForm.addEventListener("submit", saveRate);
@@ -1036,11 +1693,14 @@
       generationFrom: q("#facturacion-generation-from"),
       generationTo: q("#facturacion-generation-to"),
       generationScope: q("#facturacion-generation-scope"),
+      generationGroupBy: q("#facturacion-generation-groupby"),
       generationCalculate: q("#facturacion-generation-calculate"),
+      generationSave: q("#facturacion-generation-save"),
       generationPdf: q("#facturacion-generation-pdf"),
       generationSummary: q("#facturacion-generation-summary"),
       generationAlerts: q("#facturacion-generation-alerts"),
       generationBody: q("#facturacion-generation-body"),
+      preparationsBody: q("#facturacion-preparations-body"),
       ratesBody: q("#facturacion-rates-body"),
       periodsBody: q("#facturacion-periods-body"),
       statusesBody: q("#facturacion-statuses-body"),
@@ -1058,6 +1718,13 @@
       deleteStatus: q("#facturacion-delete-status"),
       deleteBudget: q("#facturacion-delete-budget"),
       deleteInvoice: q("#facturacion-delete-invoice"),
+      controlFrom: q("#facturacion-control-from"),
+      controlTo: q("#facturacion-control-to"),
+      controlRefresh: q("#facturacion-control-refresh"),
+      controlKpis: q("#facturacion-control-kpis"),
+      controlMonthsBody: q("#facturacion-control-months-body"),
+      controlInvoicesBody: q("#facturacion-control-invoices-body"),
+      controlViewPending: q("#facturacion-control-view-pending"),
     });
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -1071,6 +1738,12 @@
       lastDay.getFullYear(),
       String(lastDay.getMonth() + 1).padStart(2, "0"),
       String(lastDay.getDate()).padStart(2, "0"),
+    ].join("-");
+    const controlStart = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    el.controlFrom.value = [
+      controlStart.getFullYear(),
+      String(controlStart.getMonth() + 1).padStart(2, "0"),
+      "01",
     ].join("-");
     state.initialized = true;
     bind();

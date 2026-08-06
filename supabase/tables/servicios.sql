@@ -1,6 +1,17 @@
+-- servicios es un catalogo GLOBAL (nombre unico en todo el sistema): un mismo
+-- servicio (p.ej. "Conserjería e Información") puede estar habilitado en
+-- varios contratos a la vez, en vez de duplicarse una fila por contrato. Que
+-- servicio esta habilitado en que contrato vive en contrato_servicios (ver
+-- contrato_servicios.sql), que es tambien quien decide el alcance por
+-- contrato en RLS y en las validaciones de registros/actividades/tarifas.
+--
+-- Hasta 2026-08-06 esta tabla era 1:N con contratos (contrato_id not null,
+-- nombre unico por contrato); se globalizo fusionando los servicios que
+-- compartian nombre en distinto contrato (32 filas -> 23) y creando
+-- contrato_servicios con una fila por cada asociacion contrato-servicio que
+-- ya existiera. Ver servicios_globalizar.sql para la migracion.
 create table if not exists public.servicios (
   id bigserial primary key,
-  contrato_id integer not null references public.contratos (id) on delete restrict,
   servicio text not null,
   servicio_normalizado text generated always as (lower(btrim(servicio))) stored,
   descripcion text,
@@ -8,41 +19,11 @@ create table if not exists public.servicios (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint servicios_servicio_not_empty check (length(btrim(servicio)) > 0),
-  constraint servicios_contrato_servicio_normalizado_key unique (contrato_id, servicio_normalizado)
+  constraint servicios_servicio_normalizado_key unique (servicio_normalizado)
 );
 
-do $$
-begin
-  if exists (
-    select 1
-    from pg_constraint
-    where conname = 'servicios_servicio_normalizado_key'
-      and conrelid = 'public.servicios'::regclass
-  ) then
-    alter table public.servicios
-      drop constraint servicios_servicio_normalizado_key;
-  end if;
-
-  if not exists (
-    select 1
-    from pg_constraint
-    where conname = 'servicios_contrato_servicio_normalizado_key'
-      and conrelid = 'public.servicios'::regclass
-  ) then
-    alter table public.servicios
-      add constraint servicios_contrato_servicio_normalizado_key
-      unique (contrato_id, servicio_normalizado);
-  end if;
-end $$;
-
 comment on table public.servicios is
-  'Servicios asociados a contratos. Un contrato puede tener varios servicios y cada servicio pertenece a un unico contrato.';
-
-comment on column public.servicios.contrato_id is
-  'Contrato al que pertenece el servicio. Relacion 1:N desde contratos hacia servicios.';
-
-create index if not exists servicios_contrato_id_idx
-on public.servicios (contrato_id);
+  'Catalogo global de servicios. Un servicio puede estar habilitado en varios contratos a la vez (ver contrato_servicios).';
 
 create index if not exists servicios_activo_idx
 on public.servicios (activo);

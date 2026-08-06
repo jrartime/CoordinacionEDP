@@ -2390,6 +2390,22 @@ button.tag-chip.warm-button:hover {
   align-self: end;
 }
 
+.records-show-all-toggle {
+  align-self: end;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px !important;
+  height: 28px;
+  white-space: nowrap;
+}
+
+.private-tab-panel .records-show-all-toggle input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  margin: 0;
+}
+
 .private-tab-panel .records-filters-compact .filter-actions button {
   padding: 3px 10px;
   font-size: 0.72rem;
@@ -2851,6 +2867,40 @@ button.tag-chip.warm-button:hover {
 
 .records-table tr.record-row-solape > td:first-child {
   box-shadow: inset 3px 0 0 #dc2626;
+}
+
+.record-billing-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.record-billing-badge-pendiente {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.record-billing-badge-en-preparacion {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.record-billing-badge-facturado {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.record-billing-badge-excluido {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.record-billing-badge-redirigido {
+  background: #ede9fe;
+  color: #5b21b6;
 }
 
 #records-overlap-button.is-active {
@@ -4400,6 +4450,38 @@ th {
   min-height: 28px;
   padding: 4px 8px;
   font-size: 0.75rem;
+}
+
+.facturacion-preparation-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.facturacion-table tr.facturacion-control-gap {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.facturacion-table tr.facturacion-control-gap > td:first-child {
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+
+.record-detail-billing-redirect {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-color, #cbd5e1);
+  border-radius: 8px;
+}
+
+.record-detail-billing-redirect .detail-actions {
+  margin-top: 8px;
+}
+
+/* .records-detail-form fuerza una rejilla de 12 columnas para los campos del
+   registro (con grid-area por campo); este bloque no la usa, así que sin esta
+   regla los 4 selects heredaban esa rejilla y quedaban de 1/12 de ancho. */
+.records-detail-form .record-detail-billing-redirect .detail-field-row.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .facturacion-year-chart {

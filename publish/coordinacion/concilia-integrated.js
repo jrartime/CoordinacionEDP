@@ -2448,6 +2448,7 @@
         situacionRows,
         tipoHoraRows,
         servicioRows,
+        contractServiceRows,
         contractPersonalRows,
         contractInstallationRows,
       ] = await Promise.all([
@@ -2476,9 +2477,13 @@
         ]),
         fetchCatalog(supabase, "situaciones", "id,situacion", "situacion"),
         fetchCatalog(supabase, "tipo_horas", "id,tipo_hora", "tipo_hora"),
-        fetchCatalog(supabase, "servicios", "id,contrato_id,servicio", "servicio", [
+        fetchCatalog(supabase, "servicios", "id,servicio", "servicio", [
           { column: "activo", value: true },
         ]),
+        supabase
+          .from("contrato_servicios")
+          .select("contrato_id,servicio_id")
+          .eq("activo", true),
         supabase
           .from("contrato_personal")
           .select("contrato_id,personal_id,activo,fecha_inicio,fecha_fin,removed_at"),
@@ -2489,6 +2494,9 @@
 
       if (contractPersonalRows.error && !isMissingTableError(contractPersonalRows.error, "contrato_personal")) {
         throw contractPersonalRows.error;
+      }
+      if (contractServiceRows.error) {
+        throw contractServiceRows.error;
       }
       if (
         contractInstallationRows.error &&
@@ -2506,7 +2514,11 @@
       activityUsesContractAssignments = !contractPersonalRows.error && !contractInstallationRows.error;
       activityPersonalRows = personalRows;
       activityInstallationRows = instalacionRows;
-      activityServiceRows = servicioRows;
+      const serviceById = new Map(servicioRows.map((row) => [String(row.id), row]));
+      activityServiceRows = (contractServiceRows.data ?? []).flatMap((assignment) => {
+        const service = serviceById.get(String(assignment.servicio_id));
+        return service ? [{ ...service, contrato_id: assignment.contrato_id }] : [];
+      });
 
       activitySituacionesSinHoras = new Set(
         (situacionRows ?? [])
@@ -2802,7 +2814,9 @@
       (activity) => String(activity.id) === String(editActivityId?.value || "")
     );
     const selectedService = activityServiceRows.find(
-      (service) => String(service.id) === String(formData.get("servicio_id"))
+      (service) =>
+        String(service.id) === String(formData.get("servicio_id")) &&
+        String(service.contrato_id) === String(formData.get("contrato_id"))
     ) || (
       editedActivity &&
       String(editedActivity.servicio_id) === String(formData.get("servicio_id"))
@@ -5260,39 +5274,44 @@
     return true;
   }
 
-  function duplicateActivityToCreateForm() {
+  async function duplicateActivityToCreateForm() {
     if (!editActivityId.value) {
+      setStatus("No se pudo duplicar la actividad: no hay ninguna actividad seleccionada.", "error");
       return;
     }
 
-    activityForm.reset();
-    activityPersonal.value = "";
-    activityContrato.value = editActivityContrato.value;
-    renderActivityServiceOptions(activityServicio, activityContrato.value, editActivityServicio.value);
-    renderActivityContractScopedOptions(activityForm, "", editActivityInstalacion.value);
-    activityEmpresa.value = editActivityEmpresa.value;
-    activityInstalacion.value = editActivityInstalacion.value;
-    activityPuesto.value = editActivityPuesto.value;
-    activityFuncion.value = editActivityFuncion.value;
-    activityModalidad.value = editActivityModalidad.value;
-    activitySituacion.value = editActivitySituacion.value;
-    activityTipoHora.value = editActivityTipoHora.value;
-    activityForm.elements.fecha_inicio.value = activityEditForm.elements.fecha_inicio.value;
-    activityForm.elements.fecha_fin.value = activityEditForm.elements.fecha_fin.value;
-    activityForm.elements.hora_inicio.value = activityEditForm.elements.hora_inicio.value;
-    activityForm.elements.hora_fin.value = activityEditForm.elements.hora_fin.value;
-    activityForm.elements.observaciones.value = activityEditForm.elements.observaciones.value;
-    activityForm.elements.activo.checked = activityEditForm.elements.activo.checked;
-    setSelectedWeekdays(activityForm, getSelectedWeekdays(activityEditForm));
-    setActivityCustomSchedules(
-      activityForm,
-      getActivityCustomSchedules(activityEditForm, getSelectedWeekdays(activityEditForm)) || {}
-    );
-    activityCreatePanel.classList.remove("hidden");
-    activityPanelBackdrop.classList.remove("hidden");
-    activityPersonal.focus();
-    closeActivityEdit({ force: true });
-    setStatus("Actividad duplicada. Selecciona el personal y guarda el nuevo registro.", "success");
+    try {
+      activityForm.reset();
+      activityPersonal.value = "";
+      activityContrato.value = editActivityContrato.value;
+      renderActivityServiceOptions(activityServicio, activityContrato.value, editActivityServicio.value);
+      renderActivityContractScopedOptions(activityForm, "", editActivityInstalacion.value);
+      activityEmpresa.value = editActivityEmpresa.value;
+      activityInstalacion.value = editActivityInstalacion.value;
+      activityPuesto.value = editActivityPuesto.value;
+      activityFuncion.value = editActivityFuncion.value;
+      activityModalidad.value = editActivityModalidad.value;
+      activitySituacion.value = editActivitySituacion.value;
+      activityTipoHora.value = editActivityTipoHora.value;
+      activityForm.elements.fecha_inicio.value = activityEditForm.elements.fecha_inicio.value;
+      activityForm.elements.fecha_fin.value = activityEditForm.elements.fecha_fin.value;
+      activityForm.elements.hora_inicio.value = activityEditForm.elements.hora_inicio.value;
+      activityForm.elements.hora_fin.value = activityEditForm.elements.hora_fin.value;
+      activityForm.elements.observaciones.value = activityEditForm.elements.observaciones.value;
+      activityForm.elements.activo.checked = activityEditForm.elements.activo.checked;
+      setSelectedWeekdays(activityForm, getSelectedWeekdays(activityEditForm));
+      setActivityCustomSchedules(
+        activityForm,
+        getActivityCustomSchedules(activityEditForm, getSelectedWeekdays(activityEditForm)) || {}
+      );
+      activityCreatePanel.classList.remove("hidden");
+      activityPanelBackdrop.classList.remove("hidden");
+      activityPersonal.focus();
+      await closeActivityEdit({ force: true });
+      setStatus("Actividad duplicada. Selecciona el personal y guarda el nuevo registro.", "success");
+    } catch (error) {
+      setStatus(`No se pudo duplicar la actividad: ${error?.message || "error desconocido"}`, "error");
+    }
   }
 
   async function handleActivitySubmit(event) {
@@ -5975,21 +5994,26 @@
   }
 
   function duplicateCurrentStudentForNewRecord() {
-    const sourceName = trimInputValue(studentAlumnado) || "alumno";
-    studentId.value = "";
-    studentCodigoPersona.value = "";
-    studentNombre.value = "";
-    studentApellidos.value = "";
-    studentAlumnado.value = "";
-    studentDocumento.value = "";
-    studentFechaNacimiento.value = "";
-    studentEdad.value = "";
-    studentMovil.value = "";
-    studentMail.value = "";
-    duplicateStudentFormButton?.classList.add("hidden");
-    studentPanelTitle.textContent = `Duplicar ${sourceName}`;
-    studentPanelSummary.textContent = "Completa los datos personales para crear un alumno nuevo.";
-    studentCodigoPersona.focus();
+    try {
+      if (!studentId.value) throw new Error("no hay ningún alumno seleccionado");
+      const sourceName = trimInputValue(studentAlumnado) || "alumno";
+      studentId.value = "";
+      studentCodigoPersona.value = "";
+      studentNombre.value = "";
+      studentApellidos.value = "";
+      studentAlumnado.value = "";
+      studentDocumento.value = "";
+      studentFechaNacimiento.value = "";
+      studentEdad.value = "";
+      studentMovil.value = "";
+      studentMail.value = "";
+      duplicateStudentFormButton?.classList.add("hidden");
+      studentPanelTitle.textContent = `Duplicar ${sourceName}`;
+      studentPanelSummary.textContent = "Completa los datos personales para crear un alumno nuevo.";
+      studentCodigoPersona.focus();
+    } catch (error) {
+      setStatus(`No se pudo duplicar el alumno: ${error?.message || "error desconocido"}`, "error");
+    }
   }
 
   function fillStudentForm(row) {

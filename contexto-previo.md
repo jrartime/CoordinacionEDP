@@ -295,6 +295,8 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 
 ## Notas de entorno / convenciones
 
+- **Instalaciones activas (06/08/2026)**: el catálogo se gestiona desde Configuración y `activo = false` retira la instalación de los selectores de Registros y de sus nuevos valores masivos, conservando referencias históricas. La escritura está protegida por RLS de administrador. Para habilitarla en Supabase debe aplicarse `supabase/policies/instalaciones_write.sql` (o volver a aplicar `master_tables_write.sql`).
+
 - **Acciones de paneles**: cabecera fija para herramientas y cierre; pie fijo para eliminar/archivar, descartar y guardar/confirmar. `coordinacion/icons.svg` contiene el catálogo común y `decorateStaticActionButtons` aplica iconos también a botones generados dinámicamente.
 
 - Sin framework de build; JS vanilla. `index.html` carga solo `app.js` + `concilia-integrated.js` (los `coordinacion/modules/*.js` son un refactor **no conectado / código muerto**).

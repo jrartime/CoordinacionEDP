@@ -6,7 +6,14 @@
 --    cada desplegable pueda recalcularse contra los demas filtros.
 -- ============================================================================
 
-create or replace function public.get_records_filter_contratos(p_user_id uuid default auth.uid())
+-- servicios ya no tiene contrato_id (ver servicios_globalizar.sql); el
+-- alcance por contrato es directo via coordinacion_usuario_contratos.
+-- DROP necesario si se llegó a desplegar temporalmente una versión con una
+-- columna de retorno adicional. PostgreSQL no permite cambiar el RETURNS TABLE
+-- mediante CREATE OR REPLACE.
+drop function if exists public.get_records_filter_contratos(uuid);
+
+create function public.get_records_filter_contratos(p_user_id uuid default auth.uid())
 returns table (
   id integer,
   contrato text
@@ -21,19 +28,7 @@ as $$
   where c.activo = true
     and (
       public.is_coordinacion_admin(p_user_id)
-      or exists (
-        select 1
-        from public.coordinacion_usuario_servicios cus
-        join public.servicios s
-          on s.id = cus.servicio_id
-         and s.contrato_id = c.id
-         and s.activo = true
-        join public.coordinacion_usuarios cu
-          on cu.user_id = cus.user_id
-         and cu.activo = true
-         and cu.rol in ('coordinator', 'area_coordinator', 'viewer')
-        where cus.user_id = p_user_id
-      )
+      or c.id in (select public.coordinacion_readable_contrato_ids(p_user_id))
     )
   order by c.contrato;
 $$;

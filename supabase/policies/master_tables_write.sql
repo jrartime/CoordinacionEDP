@@ -2,11 +2,13 @@ alter table public.puestos enable row level security;
 alter table public.funciones enable row level security;
 alter table public.modalidades enable row level security;
 alter table public.empresas enable row level security;
+alter table public.instalaciones enable row level security;
 
 grant select, insert, update, delete on public.puestos to authenticated;
 grant select, insert, update, delete on public.funciones to authenticated;
 grant select, insert, update, delete on public.modalidades to authenticated;
 grant select, insert, update, delete on public.empresas to authenticated;
+grant select, insert, update, delete on public.instalaciones to authenticated;
 
 drop policy if exists "authenticated_can_insert_puestos" on public.puestos;
 create policy "authenticated_can_insert_puestos"
@@ -74,6 +76,28 @@ for delete
 to authenticated
 using (public.is_coordinacion_admin());
 
+drop policy if exists "authenticated_can_insert_instalaciones" on public.instalaciones;
+create policy "authenticated_can_insert_instalaciones"
+on public.instalaciones
+for insert
+to authenticated
+with check (public.is_coordinacion_admin());
+
+drop policy if exists "authenticated_can_update_instalaciones" on public.instalaciones;
+create policy "authenticated_can_update_instalaciones"
+on public.instalaciones
+for update
+to authenticated
+using (public.is_coordinacion_admin())
+with check (public.is_coordinacion_admin());
+
+drop policy if exists "authenticated_can_delete_instalaciones" on public.instalaciones;
+create policy "authenticated_can_delete_instalaciones"
+on public.instalaciones
+for delete
+to authenticated
+using (public.is_coordinacion_admin());
+
 drop policy if exists "authenticated_can_insert_empresas" on public.empresas;
 create policy "authenticated_can_insert_empresas"
 on public.empresas
@@ -111,7 +135,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if p_catalog not in ('puestos', 'funciones', 'modalidades', 'empresas') then
+  if p_catalog not in ('puestos', 'funciones', 'modalidades', 'instalaciones', 'empresas', 'servicios') then
     raise exception 'Catálogo no soportado: %', p_catalog;
   end if;
 
@@ -170,6 +194,22 @@ begin
     end if;
   end if;
 
+  if p_catalog = 'instalaciones' then
+    if to_regclass('public.actividades') is not null then
+      return query
+      select 'actividades'::text, 'Actividades'::text, count(*)::bigint
+      from public.actividades
+      where instalacion_id = p_record_id;
+    end if;
+
+    if to_regclass('public.registros') is not null then
+      return query
+      select 'registros'::text, 'Registros'::text, count(*)::bigint
+      from public.registros
+      where instalacion_id = p_record_id;
+    end if;
+  end if;
+
   if p_catalog = 'empresas' then
     if to_regclass('public.actividades') is not null then
       return query
@@ -190,6 +230,36 @@ begin
       select 'historiales_laborales'::text, 'Historiales laborales'::text, count(*)::bigint
       from public.historiales_laborales
       where empresa_id = p_record_id;
+    end if;
+  end if;
+
+  if p_catalog = 'servicios' then
+    if to_regclass('public.registros') is not null then
+      return query
+      select 'registros'::text, 'Registros'::text, count(*)::bigint
+      from public.registros
+      where servicio_id = p_record_id;
+    end if;
+
+    if to_regclass('public.actividades') is not null then
+      return query
+      select 'actividades'::text, 'Actividades'::text, count(*)::bigint
+      from public.actividades
+      where servicio_id = p_record_id;
+    end if;
+
+    if to_regclass('public.contrato_servicios') is not null then
+      return query
+      select 'contrato_servicios'::text, 'Contratos asociados'::text, count(*)::bigint
+      from public.contrato_servicios
+      where servicio_id = p_record_id;
+    end if;
+
+    if to_regclass('public.contratos_funciones_servicios') is not null then
+      return query
+      select 'contratos_funciones_servicios'::text, 'Tarifas etiquetadas'::text, count(*)::bigint
+      from public.contratos_funciones_servicios
+      where servicio_id = p_record_id;
     end if;
   end if;
 end;

@@ -1,32 +1,31 @@
 -- ============================================================================
 --  Validacion registros.servicio_id -> registros.contrato_id.
 -- ----------------------------------------------------------------------------
---  Evita que se guarden registros con un servicio que pertenece a otro contrato.
---  Complementa la validacion equivalente que ya existe en public.actividades.
+--  Evita que se guarden registros con un servicio que no esta habilitado en
+--  ese contrato. Complementa la validacion equivalente que ya existe en
+--  public.actividades.
+--
+--  `servicios` es un catalogo global (ver servicios.sql): un mismo servicio
+--  puede estar habilitado en varios contratos a la vez, asi que ya no basta
+--  con comparar servicios.contrato_id -esa columna ni siquiera existe-; la
+--  fuente de verdad es contrato_servicios (ver contrato_servicios.sql).
 -- ============================================================================
 
 create or replace function public.validate_registros_servicio_contrato()
 returns trigger
 language plpgsql
 as $$
-declare
-  service_contract_id integer;
 begin
   if new.servicio_id is null then
     return new;
   end if;
 
-  select s.contrato_id
-    into service_contract_id
-  from public.servicios s
-  where s.id = new.servicio_id;
-
-  if service_contract_id is null then
-    raise exception 'El servicio indicado no existe.';
-  end if;
-
-  if new.contrato_id is distinct from service_contract_id then
-    raise exception 'El servicio indicado no pertenece al contrato del registro.';
+  if not exists (
+    select 1 from public.contrato_servicios cs
+    where cs.contrato_id = new.contrato_id
+      and cs.servicio_id = new.servicio_id
+  ) then
+    raise exception 'El servicio indicado no esta habilitado en el contrato del registro.';
   end if;
 
   return new;
