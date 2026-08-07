@@ -16,9 +16,16 @@
     functionServices: [],
     preparations: [],
     preparationsLoaded: false,
+    preparationSelectedIds: new Set(),
     contractId: "",
     year: "",
     generation: null,
+    // Ticks "a nivel de servicio": cada grupo calculado (contrato+función,
+    // que es como llega ya resuelto el servicio de la tarifa) se puede
+    // excluir del guardado sin tener que recalcular. Guarda las group.key
+    // desmarcadas; vacío = se guarda todo lo calculado (el estado por
+    // defecto). Se reinicia en cada Calcular nuevo.
+    generationExcludedGroupKeys: new Set(),
     isAdmin: false,
   };
 
@@ -600,15 +607,41 @@
     const functionNames = new Map(state.functions.map((row) => [String(row.id), row.funcion]));
     const groups = new Map();
     const alerts = [];
+    // Cache por contrato+funcion: la tarifa y sus servicios etiquetados no
+    // cambian entre registros de la misma funcion, y con miles de registros
+    // no compensa recalcularlo (selectRate/serviceIdsForRate) fila a fila.
+    const rateCache = new Map();
 
-    // Se agrupa por contrato/funcion FACTURABLE (el destino si el registro
-    // esta redirigido via registros_facturacion_destino, si no el propio):
-    // asi una funcion "Monitorado" trabajada en el contrato A pero redirigida
-    // al B cae en el grupo del B, con la tarifa/servicio del B.
+    // Se agrupa por contrato/funcion/servicio FACTURABLE (el destino si el
+    // registro esta redirigido via registros_facturacion_destino, si no el
+    // propio): asi una funcion "Monitorado" trabajada en el contrato A pero
+    // redirigida al B cae en el grupo del B, con la tarifa/servicio del B.
+    // Se separa por servicio aunque la funcion sea la misma (una tarifa puede
+    // etiquetar varios servicios a la vez, ver serviceIdsForRate): cada
+    // servicio facturable es su fila y su tick propios en pantalla. Ese
+    // "atado" de la tarifa se respeta igualmente al guardar -no se reparten
+    // horas entre servicios-, pero eso lo hace clusterGenerationGroups con
+    // buildServiceClusters, no este calculo.
     records.forEach((row) => {
-      const key = `${row.contrato_facturable_id ?? ""}|${row.funcion_facturable_id ?? ""}`;
-      if (!groups.has(key)) {
+      const rateKey = `${row.contrato_facturable_id ?? ""}|${row.funcion_facturable_id ?? ""}`;
+      if (!rateCache.has(rateKey)) {
         const rateInfo = selectRate(row.contrato_facturable_id, row.funcion_facturable_id);
+        rateCache.set(rateKey, { rateInfo, fallbackServiceIds: serviceIdsForRate(rateInfo.selected?.id) });
+      }
+      const { rateInfo, fallbackServiceIds } = rateCache.get(rateKey);
+      // Si el registro no trae servicio propio (ni el suyo ni uno de
+      // redireccion, ver registros_detalle_apuntes.sql) y la tarifa de su
+      // funcion tiene un unico servicio etiquetado, no hay ambiguedad: se
+      // agrupa directamente con ese servicio -mucho registro historico no
+      // tiene servicio_id propio, y sin este fallback aparecia como una fila
+      // "duplicada" del mismo servicio en vez de sumarse-. Con 0 o 2+
+      // servicios en la tarifa no hay forma de decidir solo, y se deja en su
+      // propio grupo "sin servicio" (mismo criterio que antes).
+      const resolvedServicioId = row.servicio_facturable_id
+        ?? (fallbackServiceIds.length === 1 ? fallbackServiceIds[0] : null);
+      const key = `${row.contrato_facturable_id ?? ""}|${row.funcion_facturable_id ?? ""}|${resolvedServicioId ?? ""}`;
+      if (!groups.has(key)) {
+        const resolvedServiceIds = resolvedServicioId != null ? [resolvedServicioId] : fallbackServiceIds;
         groups.set(key, {
           key,
           contratoId: row.contrato_facturable_id,
@@ -617,11 +650,7 @@
           funcionId: row.funcion_facturable_id,
           funcion: functionNames.get(String(row.funcion_facturable_id))
             || row.facturacion_destino_funcion || row.funcion || "Sin función",
-          // Arranca con el/los servicio(s) de la tarifa; si algún registro
-          // trae un servicio de facturación explícito (redirección), se añade
-          // aparte más abajo -no lo sustituye, porque puede haber registros
-          // del mismo grupo sin esa redirección concreta-.
-          servicioIdSet: new Set(serviceIdsForRate(rateInfo.selected?.id)),
+          servicioIdSet: new Set(resolvedServiceIds),
           contract: contracts.get(String(row.contrato_facturable_id)),
           rate: rateInfo.selected,
           ambiguousRate: rateInfo.ambiguous,
@@ -637,12 +666,6 @@
       const group = groups.get(key);
       if (String(row.contrato_id) !== String(row.contrato_facturable_id)) {
         group.redirectedFrom.add(row.contrato || `Contrato ${row.contrato_id}`);
-      }
-      // Solo si el propio registro trae un servicio de facturación explícito
-      // (redirección): si no, el servicio del grupo lo sigue marcando la
-      // tarifa (servicioIdSet ya arrancó con esos).
-      if (row.facturacion_destino_servicio_id) {
-        group.servicioIdSet.add(row.servicio_facturable_id);
       }
       const hours = recordHours(row);
       group.total += hours.total;
@@ -752,13 +775,57 @@
         };
       });
 
-    return { from, to, records: records.length, groups: normalized, alerts };
+    // Un mismo aviso (tarifa sin servicio, IVA por defecto...) puede repetirse
+    // una vez por cada servicio separado de la misma función; no aporta nada
+    // verlo duplicado.
+    return { from, to, records: records.length, groups: normalized, alerts: Array.from(new Set(alerts)) };
+  }
+
+  // "A nivel de servicio": cada grupo calculado ya es un contrato+función con
+  // su servicio de tarifa resuelto, así que un tick por grupo es un tick por
+  // servicio facturable. Desmarcarlo lo deja fuera de Guardar/PDF sin tener
+  // que volver a Calcular.
+  function getSelectedGenerationGroups() {
+    const generation = state.generation;
+    if (!generation) return [];
+    return generation.groups.filter((group) => !state.generationExcludedGroupKeys.has(group.key));
+  }
+
+  function renderGenerationSelectionSummary() {
+    if (!el.generationSelectionSummary) return;
+    const generation = state.generation;
+    if (!generation?.groups.length) {
+      el.generationSelectionSummary.textContent = "";
+      return;
+    }
+    const selected = getSelectedGenerationGroups();
+    if (selected.length === generation.groups.length) {
+      el.generationSelectionSummary.textContent = "Se guardarán todos los servicios calculados.";
+      return;
+    }
+    const hours = selected.reduce((sum, group) => sum + group.total, 0);
+    el.generationSelectionSummary.textContent = selected.length
+      ? `Se guardarán ${selected.length} de ${generation.groups.length} servicios (${percent.format(hours)} h). Los desmarcados se quedan fuera de esta preparación.`
+      : "No has dejado ningún servicio marcado: no hay nada que guardar.";
+  }
+
+  function toggleGenerationGroupSelection(key, included) {
+    if (included) state.generationExcludedGroupKeys.delete(key);
+    else state.generationExcludedGroupKeys.add(key);
+    renderGenerationSelectionSummary();
+    const disabled = !getSelectedGenerationGroups().length;
+    el.generationSave.disabled = disabled;
+    el.generationPdf.disabled = disabled;
+    el.generationPreview.disabled = disabled;
+    el.generationWeekly.disabled = disabled;
   }
 
   function renderBillingGeneration() {
     const generation = state.generation;
     el.generationPdf.disabled = !generation?.groups.length;
     el.generationSave.disabled = !generation?.groups.length;
+    el.generationPreview.disabled = !generation?.groups.length;
+    el.generationWeekly.disabled = !generation?.groups.length;
     if (!generation) {
       // Sin esto, cambiar una tarifa/servicio en Configuración deja en pantalla
       // el cálculo anterior (ya obsoleto) sin ningún aviso: parece que el
@@ -767,7 +834,8 @@
       el.generationSummary.innerHTML = "";
       el.generationAlerts.innerHTML = "";
       el.generationBody.innerHTML =
-        '<tr><td colspan="11" class="empty-state">La configuración ha cambiado desde el último cálculo. Pulsa Calcular de nuevo.</td></tr>';
+        '<tr><td colspan="12" class="empty-state">La configuración ha cambiado desde el último cálculo. Pulsa Calcular de nuevo.</td></tr>';
+      if (el.generationSelectionSummary) el.generationSelectionSummary.textContent = "";
       return;
     }
     const totalHours = generation.groups.reduce((sum, group) => sum + group.total, 0);
@@ -780,9 +848,12 @@
       <article><span>Base calculada</span><strong>${formatMoney(subtotal)}</strong></article>
       <article><span>Total con IVA</span><strong>${formatMoney(total)}</strong></article>`;
     el.generationAlerts.innerHTML = generation.alerts.map((alert) => `<li>${escapeHtml(alert)}</li>`).join("");
-    const rows = generation.groups.flatMap((group) => [
-      ...group.installations.map((installation, index) => `
-          <tr>
+    const rows = generation.groups.flatMap((group) => {
+      const checked = !state.generationExcludedGroupKeys.has(group.key);
+      return [
+        ...group.installations.map((installation, index) => `
+          <tr class="${checked ? "" : "facturacion-generation-row-excluded"}">
+            <td>${index ? "" : `<input type="checkbox" class="facturacion-generation-group-check" data-group-key="${escapeHtml(group.key)}" ${checked ? "checked" : ""} aria-label="Incluir ${escapeHtml(serviceNames(group.servicioIds))} al guardar" />`}</td>
             <td>${index ? "" : escapeHtml(group.contrato)}</td>
             <td>${index ? "" : escapeHtml(serviceNames(group.servicioIds))}</td>
             <td>${index ? "" : escapeHtml(group.funcion)}${index || !group.redirectedFrom.size ? "" : `<br><span class="muted-text" title="Horas trabajadas en otro contrato, redirigidas aquí para facturar">↪ ${escapeHtml(Array.from(group.redirectedFrom).join(", "))}</span>`}</td>
@@ -792,7 +863,8 @@
             <td class="numeric">${percent.format(installation.nocturnal)}</td>
             <td></td><td></td><td></td><td></td>
           </tr>`),
-      `<tr class="facturacion-function-total">
+        `<tr class="facturacion-function-total${checked ? "" : " facturacion-generation-row-excluded"}">
+        <td></td>
         <td></td>
         <td></td>
         <td colspan="2">Total ${escapeHtml(group.funcion)}</td>
@@ -804,11 +876,16 @@
         <td class="numeric">${formatMoney(group.priceNight)}</td>
         <td class="numeric">${formatMoney(group.subtotal)}</td>
       </tr>`,
-    ]);
+      ];
+    });
     el.generationBody.innerHTML = rows.length
       ? rows.join("")
-      : '<tr><td colspan="11" class="empty-state">No hay registros marcados para facturar en el periodo.</td></tr>';
-    el.generationSave.disabled = !generation.groups.length;
+      : '<tr><td colspan="12" class="empty-state">No hay registros marcados para facturar en el periodo.</td></tr>';
+    el.generationSave.disabled = !getSelectedGenerationGroups().length;
+    el.generationPdf.disabled = !getSelectedGenerationGroups().length;
+    el.generationPreview.disabled = !getSelectedGenerationGroups().length;
+    el.generationWeekly.disabled = !getSelectedGenerationGroups().length;
+    renderGenerationSelectionSummary();
   }
 
   async function calculateBillingGeneration() {
@@ -829,6 +906,7 @@
     try {
       const records = await fetchBillingRecords(from, to, scope);
       state.generation = buildBillingGeneration(records, from, to);
+      state.generationExcludedGroupKeys = new Set();
       renderBillingGeneration();
       setStatus(`Cálculo completado: ${records.length} registros incluidos.`, "success");
     } catch (error) {
@@ -841,10 +919,12 @@
   // "Servicio" y "función separada" exigen que la tarifa tenga al menos un
   // servicio asignado (contratos_funciones_servicios): son variantes de la
   // misma agrupacion por servicio, y sin el dato no hay forma de decidir que
-  // funciones van juntas en la misma factura. "Contrato completo" no lo
-  // necesita: bastante con saber a que contrato pertenece cada registro.
+  // funciones van juntas en la misma factura. "Contrato completo" y
+  // "Contrato y función" no lo necesitan: junta lo que haya en los datos
+  // (servicio_facturable_id de cada registro) sin depender de la etiqueta de
+  // la tarifa.
   function resolveGroupServiceIssue(group, agrupacion) {
-    if (agrupacion === "contrato") return null;
+    if (agrupacion === "contrato" || agrupacion === "contrato_funcion") return null;
     if (!group.servicioIds.length) {
       return `${group.contrato} · ${group.funcion}: la tarifa no tiene ningún servicio asignado (Configuración → Funciones y tarifas). No se puede guardar agrupando por servicio.`;
     }
@@ -853,12 +933,17 @@
 
   // Una funcion puede etiquetarse con varios servicios (se comparte entre
   // ellos). Cuando eso pasa, esos servicios quedan "atados" y se agrupan
-  // siempre juntos en la agrupacion "servicio" -no se reparten horas entre
-  // ellos-, y el atado se contagia: si otra funcion enlaza a su vez uno de
-  // esos servicios con un tercero, los tres acaban en la misma preparacion.
-  // Es el algoritmo de componentes conexos (union-find) sobre los ids de
-  // servicio que aparecen juntos en una misma tarifa.
-  function buildServiceClusters(groups) {
+  // siempre juntos en las agrupaciones "servicio" y "función separada" -no
+  // se reparten horas entre ellos-, y el atado se contagia: si otra funcion
+  // enlaza a su vez uno de esos servicios con un tercero, los tres acaban en
+  // la misma preparacion. Es el algoritmo de componentes conexos (union-find)
+  // sobre los ids de servicio que etiquetan una misma tarifa
+  // (contratos_funciones_servicios), no sobre los grupos calculados: desde
+  // que buildBillingGeneration separa el calculo por servicio, una misma
+  // tarifa nunca junta sus servicios en un solo grupo, así que el atado hay
+  // que leerlo de la tarifa directamente para que el guardado los siga
+  // juntando.
+  function buildServiceClusters() {
     const parent = new Map();
     const find = (x) => {
       if (!parent.has(x)) parent.set(x, x);
@@ -877,74 +962,179 @@
       const rb = find(b);
       if (ra !== rb) parent.set(ra, rb);
     };
-    groups.forEach((group) => {
-      group.servicioIds.forEach((id) => find(id));
-      for (let i = 1; i < group.servicioIds.length; i += 1) {
-        union(group.servicioIds[0], group.servicioIds[i]);
+    const idsByRate = new Map();
+    state.functionServices.forEach((row) => {
+      if (!idsByRate.has(row.contrato_funcion_id)) idsByRate.set(row.contrato_funcion_id, []);
+      idsByRate.get(row.contrato_funcion_id).push(row.servicio_id);
+    });
+    idsByRate.forEach((ids) => {
+      ids.forEach((id) => find(id));
+      for (let i = 1; i < ids.length; i += 1) {
+        union(ids[0], ids[i]);
       }
     });
     const members = new Map();
-    groups.forEach((group) => {
-      group.servicioIds.forEach((id) => {
-        const root = find(id);
-        if (!members.has(root)) members.set(root, new Set());
-        members.get(root).add(id);
-      });
+    state.functionServices.forEach((row) => {
+      const root = find(row.servicio_id);
+      if (!members.has(root)) members.set(root, new Set());
+      members.get(root).add(row.servicio_id);
     });
     return {
       membersOf: (id) => Array.from(members.get(find(id)) || [id]).sort((a, b) => a - b),
     };
   }
 
+  // "Contrato y función": a diferencia de "servicio"/"función separada" (que
+  // solo juntan servicios atados por una misma tarifa), esta junta sin mirar
+  // la tarifa -todo lo que haya en los datos (servicio_facturable_id de cada
+  // registro) para ese contrato+función va a la misma preparación-. Util
+  // cuando la función se reparte entre servicios que no comparten tarifa.
   function clusterGenerationGroups(groups, agrupacion) {
-    const serviceClusters = agrupacion === "servicio" ? buildServiceClusters(groups) : null;
+    const serviceClusters = agrupacion === "servicio" || agrupacion === "funcion" ? buildServiceClusters() : null;
     const clusters = new Map();
     groups.forEach((group) => {
-      const groupServiceIds = agrupacion === "servicio"
+      const groupServiceIds = agrupacion === "servicio" || agrupacion === "funcion"
         ? serviceClusters.membersOf(group.servicioIds[0])
-        : agrupacion === "funcion"
-          ? [...group.servicioIds].sort((a, b) => a - b)
-          : [];
+        : [];
       const key = agrupacion === "contrato"
         ? `${group.contratoId}|contrato`
         : agrupacion === "servicio"
           ? `${group.contratoId}|servicio:${groupServiceIds.join(",")}`
-          : `${group.contratoId}|funcion:${group.funcionId}|servicio:${groupServiceIds.join(",")}`;
+          : agrupacion === "contrato_funcion"
+            ? `${group.contratoId}|contrato_funcion:${group.funcionId}`
+            : `${group.contratoId}|funcion:${group.funcionId}|servicio:${groupServiceIds.join(",")}`;
       if (!clusters.has(key)) {
         clusters.set(key, {
           contratoId: group.contratoId,
           contrato: group.contrato,
-          servicioIds: agrupacion === "contrato" ? [] : groupServiceIds,
-          funcionId: agrupacion === "funcion" ? group.funcionId : null,
-          label: agrupacion === "contrato"
-            ? `${group.contrato} · contrato completo`
-            : agrupacion === "servicio"
-              ? `${group.contrato} · ${serviceNames(groupServiceIds)}`
-              : `${group.contrato} · ${serviceNames(groupServiceIds)} · ${group.funcion}`,
+          funcion: group.funcion,
+          servicioIdSet: new Set(),
+          funcionId: agrupacion === "funcion" || agrupacion === "contrato_funcion" ? group.funcionId : null,
           baseImponible: 0,
           iva: 0,
           total: 0,
           diurnal: 0,
           nocturnal: 0,
           lines: [],
+          // Solo para la vista previa (previewGenerationClustering): que
+          // filas calculadas (servicio+función) caen en este mismo grupo al
+          // guardar, para poder explicar el porqué de cada agrupación.
+          contributingGroups: [],
         });
       }
       const cluster = clusters.get(key);
+      (agrupacion === "contrato_funcion" ? group.servicioIds : groupServiceIds).forEach((id) => cluster.servicioIdSet.add(id));
       cluster.baseImponible += group.subtotal;
       cluster.iva += group.iva;
       cluster.total += group.totalWithIva;
       cluster.diurnal += group.diurnal;
       cluster.nocturnal += group.nocturnal;
       cluster.lines.push(...group.lines);
+      cluster.contributingGroups.push({
+        servicio: serviceNames(group.servicioIds),
+        funcion: group.funcion,
+        total: group.total,
+        diurnal: group.diurnal,
+        nocturnal: group.nocturnal,
+        subtotal: group.subtotal,
+      });
     });
-    return Array.from(clusters.values());
+    return Array.from(clusters.values()).map((cluster) => {
+      const servicioIds = Array.from(cluster.servicioIdSet).sort((a, b) => a - b);
+      const label = agrupacion === "contrato"
+        ? `${cluster.contrato} · contrato completo`
+        : agrupacion === "servicio"
+          ? `${cluster.contrato} · ${serviceNames(servicioIds)}`
+          : agrupacion === "contrato_funcion"
+            ? `${cluster.contrato} · ${cluster.funcion}`
+            : `${cluster.contrato} · ${serviceNames(servicioIds)} · ${cluster.funcion}`;
+      return { ...cluster, servicioIds, label };
+    });
+  }
+
+  // Muestra qué preparaciones se crearían con la agrupación elegida sin
+  // guardar nada -para poder comparar "Servicio", "función separada",
+  // "Contrato y función" y "Contrato completo" antes de decidir cuál usar-.
+  // Reutiliza el mismo diálogo que la vista previa de una preparación ya
+  // guardada (previewPreparation), con contenido distinto: aquí sale de
+  // clusterGenerationGroups sobre el cálculo en pantalla, no de líneas
+  // congeladas en base de datos.
+  function previewGenerationClustering() {
+    const generation = state.generation;
+    const selectedGroups = getSelectedGenerationGroups();
+    if (!generation || !selectedGroups.length || !el.preparationPreviewDialog) return;
+    const agrupacion = el.generationGroupBy.value;
+    const agrupacionLabel = el.generationGroupBy.selectedOptions[0]?.textContent || agrupacion;
+    const clusters = clusterGenerationGroups(selectedGroups, agrupacion);
+    const issues = selectedGroups.map((group) => resolveGroupServiceIssue(group, agrupacion)).filter(Boolean);
+    el.preparationPreviewBody.innerHTML = `
+      <p class="muted-text">
+        Así quedarían las preparaciones si guardas ahora con «${escapeHtml(agrupacionLabel)}»:
+        ${clusters.length} ${clusters.length === 1 ? "preparación" : "preparaciones"}. Esto no guarda nada,
+        solo lo enseña.
+      </p>
+      ${issues.length ? `<ul class="facturacion-generation-alerts">${Array.from(new Set(issues)).map((issue) => `<li>${escapeHtml(issue)}</li>`).join("")}</ul>` : ""}
+      ${clusters.map((cluster) => `
+        <h4>${escapeHtml(cluster.label)}</h4>
+        <div class="facturacion-generation-summary">
+          <article><span>Registros</span><strong>${cluster.lines.length}</strong></article>
+          <article><span>Horas</span><strong>${percent.format(cluster.diurnal + cluster.nocturnal)} h</strong></article>
+          <article><span>Base imponible</span><strong>${formatMoney(cluster.baseImponible)}</strong></article>
+          <article><span>Total con IVA</span><strong>${formatMoney(cluster.total)}</strong></article>
+        </div>
+        <div class="table-scroll">
+          <table class="facturacion-table">
+            <thead><tr><th>Servicio</th><th>Función</th><th>Horas</th><th>Base</th></tr></thead>
+            <tbody>
+              ${cluster.contributingGroups.map((item) => `
+                <tr>
+                  <td>${escapeHtml(item.servicio)}</td>
+                  <td>${escapeHtml(item.funcion)}</td>
+                  <td class="numeric">${percent.format(item.total)}</td>
+                  <td class="numeric">${formatMoney(item.subtotal)}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      `).join("")}
+    `;
+    el.preparationPreviewDialog.showModal();
+  }
+
+  // Desglose por instalación y semana de los servicios marcados en el
+  // cálculo, sin generar PDF. Vivía dentro de "Descargar PDF"; se saca a un
+  // botón aparte porque alargaba el PDF con un detalle que no siempre hace
+  // falta imprimir.
+  function previewGenerationWeekly() {
+    const selectedGroups = getSelectedGenerationGroups();
+    if (!selectedGroups.length || !el.preparationPreviewDialog) return;
+    el.preparationPreviewBody.innerHTML = `
+      <p class="muted-text">Desglose por instalación y semana de los servicios marcados. Esto no guarda nada.</p>
+      ${selectedGroups.map((group) => `
+        <h4>${escapeHtml(group.contrato)} · ${escapeHtml(serviceNames(group.servicioIds))} · ${escapeHtml(group.funcion)}</h4>
+        <div class="table-scroll">
+          <table class="facturacion-table">
+            <thead><tr><th>Instalación</th><th>Semana</th><th>Total</th><th>Diurnas</th><th>Nocturnas</th></tr></thead>
+            <tbody>
+              ${group.weeks.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td>${item.week}</td><td class="numeric">${percent.format(item.total)}</td><td class="numeric">${percent.format(item.diurnal)}</td><td class="numeric">${percent.format(item.nocturnal)}</td></tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      `).join("")}
+    `;
+    el.preparationPreviewDialog.showModal();
   }
 
   async function saveBillingGeneration() {
     const generation = state.generation;
     if (!generation?.groups.length) return;
+    const selectedGroups = getSelectedGenerationGroups();
+    if (!selectedGroups.length) {
+      setStatus("No has dejado ningún servicio marcado para guardar.", "error");
+      return;
+    }
     const agrupacion = el.generationGroupBy.value;
-    const issue = generation.groups.map((group) => resolveGroupServiceIssue(group, agrupacion)).find(Boolean);
+    const issue = selectedGroups.map((group) => resolveGroupServiceIssue(group, agrupacion)).find(Boolean);
     if (issue) {
       setStatus(issue, "error");
       return;
@@ -953,17 +1143,18 @@
     // incompleta) o con el IVA supuesto al 21% crearía un importe real que no
     // se corresponde con la configuración: se bloquea hasta corregirlo, no
     // solo se avisa.
-    const pricingIssue = generation.groups.find((group) => group.pricingIssue)?.pricingIssue;
+    const pricingIssue = selectedGroups.find((group) => group.pricingIssue)?.pricingIssue;
     if (pricingIssue) {
       setStatus(`${pricingIssue} No se puede guardar la preparación hasta corregirlo.`, "error");
       return;
     }
-    const ivaIssueGroup = generation.groups.find((group) => group.ivaFallback);
+    const ivaIssueGroup = selectedGroups.find((group) => group.ivaFallback);
     if (ivaIssueGroup) {
       setStatus(`${ivaIssueGroup.contrato}: configura el IVA del contrato antes de guardar la preparación (pestaña Contratos).`, "error");
       return;
     }
-    const clusters = clusterGenerationGroups(generation.groups, agrupacion);
+    const observacion = el.generationObservacion?.value.trim() || null;
+    const clusters = clusterGenerationGroups(selectedGroups, agrupacion);
     el.generationSave.disabled = true;
     setStatus("Guardando preparación…");
     const supabase = await getClient();
@@ -983,6 +1174,7 @@
           p_total: cluster.total,
           p_horas_diurnas: cluster.diurnal,
           p_horas_nocturnas: cluster.nocturnal,
+          p_observacion: observacion,
         };
         let result = await supabase.rpc("guardar_preparacion_facturacion", payload);
         if (result.error && /Ya hay una preparación vigente/.test(result.error.message)) {
@@ -994,19 +1186,20 @@
             continue;
           }
           const motivo = window.prompt("Motivo de la regeneración (opcional):", "") || null;
-          result = await supabase.rpc("guardar_preparacion_facturacion", { ...payload, p_reemplazar: true, p_observacion: motivo });
+          result = await supabase.rpc("guardar_preparacion_facturacion", { ...payload, p_reemplazar: true, p_observacion: motivo || observacion });
         }
         if (result.error) throw new Error(`${cluster.label}: ${result.error.message}`);
         saved += 1;
       }
       await reloadPreparations();
+      if (saved && el.generationObservacion) el.generationObservacion.value = "";
       const savedText = `${saved} ${saved === 1 ? "preparación guardada" : "preparaciones guardadas"}`;
       const skippedText = skipped ? ` (${skipped} sin guardar, ya existían y no se regeneraron)` : "";
       setStatus(`${savedText}${skippedText}.`, saved ? "success" : "");
     } catch (error) {
       setStatus(`No se pudo guardar la preparación: ${error.message}`, "error");
     } finally {
-      el.generationSave.disabled = !state.generation?.groups.length;
+      el.generationSave.disabled = !getSelectedGenerationGroups().length;
     }
   }
 
@@ -1030,9 +1223,17 @@
     const contractNames = new Map(state.contracts.map((row) => [String(row.id), row.contrato]));
     const invoiceNames = new Map(state.invoices.map((row) => [String(row.id), [row.serie, row.n_documento].filter(Boolean).join("/") || `#${row.id}`]));
     const rows = preparationsForSelection();
+    // La seleccion no sobrevive a filas que ya no estan visibles (cambio de
+    // contrato, recarga...): evita marcar "de fondo" preparaciones que el
+    // usuario ya no ve.
+    const visibleIds = new Set(rows.map((row) => String(row.id)));
+    Array.from(state.preparationSelectedIds).forEach((id) => {
+      if (!visibleIds.has(id)) state.preparationSelectedIds.delete(id);
+    });
     el.preparationsBody.innerHTML = rows.length
       ? rows.map((row) => `
           <tr>
+            <td><input type="checkbox" class="facturacion-preparation-check" data-prep-id="${row.id}" ${state.preparationSelectedIds.has(String(row.id)) ? "checked" : ""} aria-label="Marcar preparación del ${formatDate(row.fecha_desde)} al ${formatDate(row.fecha_hasta)}" /></td>
             <td>${formatDate(row.fecha_desde)} – ${formatDate(row.fecha_hasta)}</td>
             <td>${escapeHtml(contractNames.get(String(row.contrato_id)) || `Contrato ${row.contrato_id}`)}</td>
             <td>${escapeHtml(preparationGroupingLabel(row))}</td>
@@ -1040,12 +1241,19 @@
             <td class="numeric">${formatMoney(row.total)}</td>
             <td>${row.contrato_facturacion_id ? escapeHtml(invoiceNames.get(String(row.contrato_facturacion_id)) || `#${row.contrato_facturacion_id}`) : "—"}</td>
             <td>${formatDate(row.created_at)}</td>
-            <td class="facturacion-preparation-actions">${row.estado === "vigente" ? `
-              ${row.contrato_facturacion_id ? "" : `<button type="button" class="row-action" data-crear-factura="${row.id}">Crear factura</button>`}
-              <button type="button" class="danger-button row-action" data-anular-preparacion="${row.id}">Anular</button>
-            ` : ""}</td>
+            <td class="facturacion-preparation-actions">
+              <button type="button" class="row-action" data-preview-preparacion="${row.id}">Vista previa</button>
+              ${row.estado === "vigente" && !row.contrato_facturacion_id ? `<button type="button" class="row-action" data-crear-factura="${row.id}">Crear factura</button>` : ""}
+              ${row.estado === "vigente" ? `<button type="button" class="danger-button row-action" data-anular-preparacion="${row.id}">Anular</button>` : ""}
+              ${row.contrato_facturacion_id ? "" : `<button type="button" class="danger-button row-action" data-eliminar-preparacion="${row.id}">Eliminar</button>`}
+            </td>
           </tr>`).join("")
-      : '<tr><td colspan="8" class="empty-state">No hay preparaciones guardadas todavía.</td></tr>';
+      : '<tr><td colspan="9" class="empty-state">No hay preparaciones guardadas todavía.</td></tr>';
+    if (el.preparationsCheckAll) {
+      el.preparationsCheckAll.checked = rows.length > 0 && rows.every((row) => state.preparationSelectedIds.has(String(row.id)));
+      el.preparationsCheckAll.disabled = !rows.length;
+    }
+    if (el.preparationsPdf) el.preparationsPdf.disabled = !state.preparationSelectedIds.size;
   }
 
   async function anulatePreparation(id) {
@@ -1059,6 +1267,21 @@
     }
     await reloadPreparations();
     setStatus("Preparación anulada.", "success");
+  }
+
+  // Borrado real (no deja rastro), a diferencia de anular: pensado para
+  // limpiar preparaciones de prueba o duplicadas. El propio RPC bloquea el
+  // borrado si la preparación ya está vinculada a una factura real.
+  async function deletePreparation(id) {
+    if (!window.confirm("¿Eliminar esta preparación? Esta acción no se puede deshacer y no deja rastro (a diferencia de anular).")) return;
+    const supabase = await getClient();
+    const result = await supabase.rpc("eliminar_preparacion_facturacion", { p_id: Number(id) });
+    if (result.error) {
+      setStatus(`No se pudo eliminar la preparación: ${result.error.message}`, "error");
+      return;
+    }
+    await reloadPreparations();
+    setStatus("Preparación eliminada.", "success");
   }
 
   // Busca un presupuesto del mismo contrato cuyo periodo solape con el de la
@@ -1223,7 +1446,8 @@
 
   async function exportBillingGenerationPdf() {
     const generation = state.generation;
-    if (!generation?.groups.length) return;
+    const selectedGroups = getSelectedGenerationGroups();
+    if (!selectedGroups.length) return;
     el.generationPdf.disabled = true;
     setStatus("Generando PDF…");
     try {
@@ -1252,7 +1476,7 @@
         y += 6;
       };
 
-      for (const group of generation.groups) {
+      for (const group of selectedGroups) {
         if (!firstPage) {
           doc.addPage();
           y = margin;
@@ -1263,6 +1487,10 @@
         doc.text(`Fecha inicial   ${formatDate(generation.from)}     Fecha fin   ${formatDate(generation.to)}`, margin, y);
         y += 7;
         doc.text(`Contrato        ${group.contrato}`, margin, y);
+        y += 7;
+        doc.text(`Expediente      ${group.contract?.expediente || "—"}`, margin, y);
+        y += 7;
+        doc.text(`Vigencia        ${formatDate(group.contract?.fecha_inicio)} – ${formatDate(group.contract?.fecha_fin)}`, margin, y);
         y += 8;
         doc.setFontSize(15);
         doc.text(new Intl.DateTimeFormat("es-ES", { month: "long" }).format(new Date(`${generation.from}T12:00:00`)), margin, y);
@@ -1278,15 +1506,6 @@
         row(["PRECIO", group.type, formatMoney(group.priceDay), formatMoney(group.priceNight)], [100, 28, 28, 28], true);
         row(["Base imponible", formatMoney(group.subtotal), `IVA ${percent.format(group.ivaRate * 100)} %`, formatMoney(group.iva)], [100, 28, 28, 28], true);
         row(["Total IVA incluido", formatMoney(group.totalWithIva), "", ""], [100, 28, 28, 28], true);
-        y += 8;
-        pageBreak(18);
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
-        doc.text("Desglose por semanas", margin, y);
-        y += 3;
-        row(["Instalación", "Semana", "Total", "Diurnas", "Nocturnas"], [88, 20, 25, 25, 26], true);
-        group.weeks.forEach((item) =>
-          row([item.instalacion, item.week, pdfNumber(item.total), pdfNumber(item.diurnal), pdfNumber(item.nocturnal)], [88, 20, 25, 25, 26]));
       }
       doc.save(`preparacion-facturas-${generation.from}-${generation.to}.pdf`);
       setStatus("PDF de preparación generado.", "success");
@@ -1294,6 +1513,195 @@
       setStatus(`No se pudo generar el PDF: ${error.message}`, "error");
     } finally {
       el.generationPdf.disabled = false;
+    }
+  }
+
+  // PDF detallado de preparaciones ya guardadas (las marcadas con el tick):
+  // un archivo por preparación, reconstruido desde sus líneas congeladas
+  // (contratos_facturacion_lineas), no desde el cálculo en pantalla -que
+  // puede haber cambiado desde que se guardó-. La cabecera (base/IVA/total)
+  // es siempre la que se guardó entonces, autoritativa; el desglose por
+  // instalación/semana se reconstruye agrupando esas líneas por función.
+  // Trae las líneas congeladas de una o varias preparaciones, con fecha
+  // (para la semana ISO), instalación y función embebidas via PostgREST, y
+  // las devuelve indexadas por preparacion_id -fuente única para el PDF y
+  // para la vista previa, que deben mostrar exactamente lo mismo-.
+  async function fetchPreparationLines(ids) {
+    const supabase = await getClient();
+    const pageSize = 1000;
+    const data = [];
+    // Sin paginar, una preparación de un contrato grande (miles de líneas)
+    // ya podía chocar sola contra el límite de 1.000 filas de PostgREST;
+    // marcando varias a la vez para el PDF combinado el corte llegaba mucho
+    // antes -las últimas preparaciones del lote se quedaban sin líneas, y su
+    // función/instalación/semana desaparecía del PDF sin ningún error-.
+    for (let offset = 0; ; offset += pageSize) {
+      const { data: page, error } = await supabase
+        .from("contratos_facturacion_lineas")
+        .select("preparacion_id,instalacion_id,funcion_id,horas_diurnas,horas_nocturnas,precio_01,precio_02,tipo_precio,importe,registros(fecha),instalaciones(instalacion),funciones(funcion)")
+        .in("preparacion_id", ids)
+        .order("id", { ascending: true })
+        .range(offset, offset + pageSize - 1);
+      if (error) throw new Error(error.message);
+      data.push(...(page || []));
+      if ((page || []).length < pageSize) break;
+    }
+    const byPrep = new Map();
+    data.forEach((line) => {
+      const key = String(line.preparacion_id);
+      if (!byPrep.has(key)) byPrep.set(key, []);
+      byPrep.get(key).push(line);
+    });
+    return byPrep;
+  }
+
+  // Agrupa las líneas de una preparación por función y, dentro de cada una,
+  // por instalación y por instalación+semana. Misma forma para el PDF y la
+  // vista previa. El precio/tipo de cada función sale de sus propias líneas
+  // (congelado al guardar, igual para todas dentro de la misma función); el
+  // subtotal se sale de sumar los importes de línea con tarifa por hora, o
+  // del precio fijo tal cual con tarifa por mes/global (esas líneas no
+  // llevan importe propio, ver guardar_preparacion_facturacion).
+  function groupPreparationLines(lines) {
+    const byFuncion = new Map();
+    (lines || []).forEach((line) => {
+      const key = String(line.funcion_id ?? "");
+      if (!byFuncion.has(key)) {
+        byFuncion.set(key, {
+          funcion: line.funciones?.funcion || "Sin función",
+          installations: new Map(),
+          weeks: new Map(),
+          total: 0,
+          diurnal: 0,
+          nocturnal: 0,
+          tipoPrecio: line.tipo_precio || null,
+          precioDia: line.precio_01 != null ? numeric(line.precio_01) : null,
+          precioNoche: line.precio_02 != null ? numeric(line.precio_02) : null,
+          importeSum: 0,
+        });
+      }
+      const bucket = byFuncion.get(key);
+      const diurnal = numeric(line.horas_diurnas);
+      const nocturnal = numeric(line.horas_nocturnas);
+      bucket.total += diurnal + nocturnal;
+      bucket.diurnal += diurnal;
+      bucket.nocturnal += nocturnal;
+      bucket.importeSum += numeric(line.importe);
+      const instKey = String(line.instalacion_id ?? "sin-instalacion");
+      const instName = line.instalaciones?.instalacion || "Sin instalación";
+      if (!bucket.installations.has(instKey)) bucket.installations.set(instKey, { instalacion: instName, total: 0, diurnal: 0, nocturnal: 0 });
+      const inst = bucket.installations.get(instKey);
+      inst.total += diurnal + nocturnal;
+      inst.diurnal += diurnal;
+      inst.nocturnal += nocturnal;
+      const week = line.registros?.fecha ? getIsoWeek(line.registros.fecha) : "?";
+      const weekKey = `${instKey}|${week}`;
+      if (!bucket.weeks.has(weekKey)) bucket.weeks.set(weekKey, { instalacion: instName, week, total: 0, diurnal: 0, nocturnal: 0 });
+      const weekBucket = bucket.weeks.get(weekKey);
+      weekBucket.total += diurnal + nocturnal;
+      weekBucket.diurnal += diurnal;
+      weekBucket.nocturnal += nocturnal;
+    });
+    return Array.from(byFuncion.values())
+      .sort((a, b) => a.funcion.localeCompare(b.funcion, "es"))
+      .map((bucket) => {
+        const fixed = bucket.tipoPrecio === "mes" || bucket.tipoPrecio === "global";
+        return {
+          ...bucket,
+          subtotal: fixed ? (bucket.precioDia ?? 0) : bucket.importeSum,
+          installations: Array.from(bucket.installations.values()).sort((a, b) => a.instalacion.localeCompare(b.instalacion, "es")),
+          weeks: Array.from(bucket.weeks.values()).sort((a, b) => a.instalacion.localeCompare(b.instalacion, "es") || a.week - b.week),
+        };
+      });
+  }
+
+  async function exportSelectedPreparationsPdf() {
+    const ids = Array.from(state.preparationSelectedIds);
+    if (!ids.length) return;
+    el.preparationsPdf.disabled = true;
+    setStatus("Generando PDF de las preparaciones marcadas…");
+    try {
+      const linesByPrep = await fetchPreparationLines(ids);
+      const contracts = new Map(state.contracts.map((item) => [String(item.id), item]));
+      const { jsPDF } = await import("https://esm.sh/jspdf@2.5.1");
+      const preparations = state.preparations
+        .filter((item) => state.preparationSelectedIds.has(String(item.id)))
+        .sort((a, b) => String(a.fecha_desde).localeCompare(String(b.fecha_desde)) || a.id - b.id);
+      const pageHeight = 297;
+      const margin = 14;
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      let firstPrep = true;
+
+      for (const prep of preparations) {
+        if (!firstPrep) doc.addPage();
+        firstPrep = false;
+        let y = margin;
+        const pageBreak = (needed = 12) => {
+          if (y + needed <= pageHeight - 16) return;
+          doc.addPage();
+          y = margin;
+        };
+        const row = (values, widths, bold = false) => {
+          pageBreak(7);
+          doc.setFont("helvetica", bold ? "bold" : "normal");
+          doc.setFontSize(8);
+          let x = margin;
+          values.forEach((value, index) => {
+            doc.rect(x, y, widths[index], 6);
+            doc.text(String(value ?? ""), x + 1.5, y + 4.1, { maxWidth: widths[index] - 3 });
+            x += widths[index];
+          });
+          y += 6;
+        };
+
+        const contract = contracts.get(String(prep.contrato_id));
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.text(`Fecha inicial   ${formatDate(prep.fecha_desde)}     Fecha fin   ${formatDate(prep.fecha_hasta)}`, margin, y);
+        y += 7;
+        doc.text(`Contrato        ${contract?.contrato || `Contrato ${prep.contrato_id}`}`, margin, y);
+        y += 7;
+        doc.text(`Expediente      ${contract?.expediente || "—"}`, margin, y);
+        y += 7;
+        doc.text(`Vigencia        ${formatDate(contract?.fecha_inicio)} – ${formatDate(contract?.fecha_fin)}`, margin, y);
+        y += 7;
+        doc.text(`Agrupación      ${preparationGroupingLabel(prep)}`, margin, y);
+        y += 7;
+        doc.text(`Estado          ${prep.estado}${prep.estado !== "vigente" && prep.anulada_motivo ? ` · ${prep.anulada_motivo}` : ""}`, margin, y);
+        y += 7;
+        if (prep.observacion) {
+          doc.text(`Observación     ${prep.observacion}`, margin, y, { maxWidth: 180 });
+          y += 7;
+        }
+        y += 2;
+        row(["Base imponible", formatMoney(prep.base_imponible), "IVA", formatMoney(prep.iva)], [50, 45, 25, 62], true);
+        row(["Total con IVA", formatMoney(prep.total), "", ""], [50, 45, 25, 62], true);
+        y += 5;
+
+        groupPreparationLines(linesByPrep.get(String(prep.id))).forEach((bucket) => {
+          pageBreak(20);
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.text(bucket.funcion, margin, y);
+          y += 3;
+          row(["Instalación", "Total", "Diurnas", "Nocturnas"], [100, 28, 28, 28], true);
+          bucket.installations.forEach((item) => row([item.instalacion, pdfNumber(item.total), pdfNumber(item.diurnal), pdfNumber(item.nocturnal)], [100, 28, 28, 28]));
+          row(["TOTAL", pdfNumber(bucket.total), pdfNumber(bucket.diurnal), pdfNumber(bucket.nocturnal)], [100, 28, 28, 28], true);
+          y += 3;
+          row(["PRECIO", bucket.tipoPrecio || "—", formatMoney(bucket.precioDia), formatMoney(bucket.precioNoche ?? bucket.precioDia)], [100, 28, 28, 28], true);
+          row([`Subtotal ${bucket.funcion}`, pdfNumber(bucket.total), "", formatMoney(bucket.subtotal)], [100, 28, 28, 28], true);
+          y += 5;
+        });
+      }
+      const todayIso = new Date().toISOString().slice(0, 10);
+      doc.save(preparations.length === 1
+        ? `preparacion-${preparations[0].id}-${preparations[0].fecha_desde}-${preparations[0].fecha_hasta}.pdf`
+        : `preparaciones-facturas-${todayIso}.pdf`);
+      setStatus(`PDF generado con ${preparations.length} ${preparations.length === 1 ? "preparación" : "preparaciones"}.`, "success");
+    } catch (error) {
+      setStatus(`No se pudo generar el PDF: ${error.message}`, "error");
+    } finally {
+      el.preparationsPdf.disabled = !state.preparationSelectedIds.size;
     }
   }
 
@@ -1309,6 +1717,61 @@
     form.elements.observacion.value = row.observacion || "";
     el.deleteBudget.classList.toggle("hidden", !row.id);
     el.budgetDialog.showModal();
+  }
+
+  // Vista previa en pantalla de una preparación ya guardada: mismo contenido
+  // que el PDF (cabecera con los importes congelados + desglose por función,
+  // instalación y semana), pero sin generar el archivo -para mirarlo rápido
+  // antes de descargar o antes de decidir si anular/eliminar-.
+  async function previewPreparation(id) {
+    const prep = state.preparations.find((item) => String(item.id) === String(id));
+    if (!prep || !el.preparationPreviewDialog) return;
+    el.preparationPreviewBody.innerHTML = '<p class="muted-text">Cargando…</p>';
+    el.preparationPreviewDialog.showModal();
+    try {
+      const linesByPrep = await fetchPreparationLines([id]);
+      const buckets = groupPreparationLines(linesByPrep.get(String(id)));
+      const contract = state.contracts.find((item) => String(item.id) === String(prep.contrato_id));
+      el.preparationPreviewBody.innerHTML = `
+        <div class="facturacion-generation-summary">
+          <article><span>Periodo</span><strong>${formatDate(prep.fecha_desde)} – ${formatDate(prep.fecha_hasta)}</strong></article>
+          <article><span>Contrato</span><strong>${escapeHtml(contract?.contrato || `Contrato ${prep.contrato_id}`)}</strong></article>
+          <article><span>Expediente</span><strong>${escapeHtml(contract?.expediente || "—")}</strong></article>
+          <article><span>Vigencia</span><strong>${formatDate(contract?.fecha_inicio)} – ${formatDate(contract?.fecha_fin)}</strong></article>
+          <article><span>Agrupación</span><strong>${escapeHtml(preparationGroupingLabel(prep))}</strong></article>
+          <article><span>Estado</span><strong>${escapeHtml(prep.estado)}${prep.estado !== "vigente" && prep.anulada_motivo ? ` · ${escapeHtml(prep.anulada_motivo)}` : ""}</strong></article>
+          <article><span>Base imponible</span><strong>${formatMoney(prep.base_imponible)}</strong></article>
+          <article><span>IVA</span><strong>${formatMoney(prep.iva)}</strong></article>
+          <article><span>Total con IVA</span><strong>${formatMoney(prep.total)}</strong></article>
+        </div>
+        ${prep.observacion ? `<p class="muted-text"><strong>Observación:</strong> ${escapeHtml(prep.observacion)}</p>` : ""}
+        ${buckets.length ? buckets.map((bucket) => `
+          <h4>${escapeHtml(bucket.funcion)}</h4>
+          <div class="table-scroll">
+            <table class="facturacion-table">
+              <thead><tr><th>Instalación</th><th>Total</th><th>Diurnas</th><th>Nocturnas</th></tr></thead>
+              <tbody>
+                ${bucket.installations.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td class="numeric">${percent.format(item.total)}</td><td class="numeric">${percent.format(item.diurnal)}</td><td class="numeric">${percent.format(item.nocturnal)}</td></tr>`).join("")}
+                <tr class="facturacion-function-total"><td>TOTAL</td><td class="numeric">${percent.format(bucket.total)}</td><td class="numeric">${percent.format(bucket.diurnal)}</td><td class="numeric">${percent.format(bucket.nocturnal)}</td></tr>
+                <tr><td>PRECIO (${escapeHtml(bucket.tipoPrecio || "—")})</td><td class="numeric" colspan="2">${formatMoney(bucket.precioDia)}${bucket.precioNoche != null && bucket.precioNoche !== bucket.precioDia ? ` / ${formatMoney(bucket.precioNoche)}` : ""}</td><td></td></tr>
+                <tr class="facturacion-function-total"><td>Subtotal ${escapeHtml(bucket.funcion)}</td><td class="numeric" colspan="2"></td><td class="numeric">${formatMoney(bucket.subtotal)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="eyebrow">Desglose por semanas</p>
+          <div class="table-scroll">
+            <table class="facturacion-table">
+              <thead><tr><th>Instalación</th><th>Semana</th><th>Total</th><th>Diurnas</th><th>Nocturnas</th></tr></thead>
+              <tbody>
+                ${bucket.weeks.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td>${item.week}</td><td class="numeric">${percent.format(item.total)}</td><td class="numeric">${percent.format(item.diurnal)}</td><td class="numeric">${percent.format(item.nocturnal)}</td></tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+        `).join("") : '<p class="muted-text">Esta preparación no tiene líneas.</p>'}
+      `;
+    } catch (error) {
+      el.preparationPreviewBody.innerHTML = `<p class="muted-text">No se pudo cargar la vista previa: ${escapeHtml(error.message)}</p>`;
+    }
   }
 
   function fillInvoiceForm(row = {}) {
@@ -1596,14 +2059,54 @@
     el.newPeriod.addEventListener("click", () => fillPeriodForm());
     el.newStatus.addEventListener("click", () => fillStatusForm());
     el.generationCalculate.addEventListener("click", () => void calculateBillingGeneration());
+    el.generationPreview.addEventListener("click", previewGenerationClustering);
+    el.generationWeekly.addEventListener("click", previewGenerationWeekly);
     el.generationSave.addEventListener("click", () => void saveBillingGeneration());
     el.generationPdf.addEventListener("click", () => void exportBillingGenerationPdf());
+    el.generationBody.addEventListener("change", (event) => {
+      const checkbox = event.target.closest(".facturacion-generation-group-check");
+      if (!checkbox) return;
+      toggleGenerationGroupSelection(checkbox.dataset.groupKey, checkbox.checked);
+      // Solo cambia la clase de las filas de ese grupo (tachado/atenuado) en
+      // vez de reconstruir toda la tabla por un tick: desde la fila del
+      // checkbox (primera instalación del grupo) hasta la fila "Total X"
+      // incluida, que es donde acaba el bloque de ese grupo.
+      let node = checkbox.closest("tr");
+      while (node) {
+        node.classList.toggle("facturacion-generation-row-excluded", !checkbox.checked);
+        if (node.classList.contains("facturacion-function-total")) break;
+        node = node.nextElementSibling;
+      }
+    });
     el.preparationsBody.addEventListener("click", (event) => {
       const anularId = event.target.closest("[data-anular-preparacion]")?.dataset.anularPreparacion;
       if (anularId) void anulatePreparation(anularId);
       const facturaId = event.target.closest("[data-crear-factura]")?.dataset.crearFactura;
       if (facturaId) void createInvoiceFromPreparation(facturaId);
+      const eliminarId = event.target.closest("[data-eliminar-preparacion]")?.dataset.eliminarPreparacion;
+      if (eliminarId) void deletePreparation(eliminarId);
+      const previewId = event.target.closest("[data-preview-preparacion]")?.dataset.previewPreparacion;
+      if (previewId) void previewPreparation(previewId);
     });
+    el.preparationsBody.addEventListener("change", (event) => {
+      const checkbox = event.target.closest(".facturacion-preparation-check");
+      if (!checkbox) return;
+      const id = checkbox.dataset.prepId;
+      if (checkbox.checked) state.preparationSelectedIds.add(id);
+      else state.preparationSelectedIds.delete(id);
+      const rows = preparationsForSelection();
+      if (el.preparationsCheckAll) {
+        el.preparationsCheckAll.checked = rows.length > 0 && rows.every((row) => state.preparationSelectedIds.has(String(row.id)));
+      }
+      if (el.preparationsPdf) el.preparationsPdf.disabled = !state.preparationSelectedIds.size;
+    });
+    el.preparationsCheckAll?.addEventListener("change", () => {
+      const rows = preparationsForSelection();
+      if (el.preparationsCheckAll.checked) rows.forEach((row) => state.preparationSelectedIds.add(String(row.id)));
+      else rows.forEach((row) => state.preparationSelectedIds.delete(String(row.id)));
+      renderPreparations();
+    });
+    el.preparationsPdf?.addEventListener("click", () => void exportSelectedPreparationsPdf());
     el.controlRefresh.addEventListener("click", () => void loadControl());
     el.controlViewPending.addEventListener("click", viewPendingInRecords);
     el.budgetForm.addEventListener("submit", saveBudget);
@@ -1697,10 +2200,18 @@
       generationCalculate: q("#facturacion-generation-calculate"),
       generationSave: q("#facturacion-generation-save"),
       generationPdf: q("#facturacion-generation-pdf"),
+      generationPreview: q("#facturacion-generation-preview"),
+      generationWeekly: q("#facturacion-generation-weekly"),
       generationSummary: q("#facturacion-generation-summary"),
       generationAlerts: q("#facturacion-generation-alerts"),
       generationBody: q("#facturacion-generation-body"),
+      generationObservacion: q("#facturacion-generation-observacion"),
+      generationSelectionSummary: q("#facturacion-generation-selection-summary"),
       preparationsBody: q("#facturacion-preparations-body"),
+      preparationsCheckAll: q("#facturacion-preparations-check-all"),
+      preparationsPdf: q("#facturacion-preparations-pdf"),
+      preparationPreviewDialog: q("#facturacion-preparation-preview-dialog"),
+      preparationPreviewBody: q("#facturacion-preparation-preview-body"),
       ratesBody: q("#facturacion-rates-body"),
       periodsBody: q("#facturacion-periods-body"),
       statusesBody: q("#facturacion-statuses-body"),
@@ -1727,8 +2238,10 @@
       controlViewPending: q("#facturacion-control-view-pending"),
     });
     const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    // Mes anterior al actual por defecto: las facturas se preparan cuando el
+    // mes ya ha cerrado, no a mitad del mes en curso.
+    const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
     el.generationFrom.value = [
       firstDay.getFullYear(),
       String(firstDay.getMonth() + 1).padStart(2, "0"),

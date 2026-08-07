@@ -358,3 +358,41 @@ $$;
 
 revoke all on function public.anular_preparacion_facturacion(bigint, text) from public;
 grant execute on function public.anular_preparacion_facturacion(bigint, text) to authenticated;
+
+-- ----------------------------------------------------------------------------
+--  eliminar_preparacion_facturacion: borrado real (no deja rastro), a
+--  diferencia de anular. Solo para preparaciones que nunca llegaron a
+--  convertirse en factura -si contrato_facturacion_id esta informado, se
+--  bloquea, para no romper el rastro de una factura real ya emitida-.
+--  contratos_facturacion_lineas se limpia solo via el ON DELETE CASCADE de
+--  preparacion_id. security invoker: el RLS de escritura ya limita a los
+--  contratos que el usuario puede gestionar.
+-- ----------------------------------------------------------------------------
+create or replace function public.eliminar_preparacion_facturacion(p_id bigint)
+returns void
+language plpgsql
+volatile
+security invoker
+set search_path = public
+as $$
+declare
+  v_factura bigint;
+begin
+  select contrato_facturacion_id into v_factura
+  from public.contratos_facturacion_preparaciones
+  where id = p_id;
+
+  if not found then
+    raise exception 'La preparación #% no existe.', p_id;
+  end if;
+
+  if v_factura is not null then
+    raise exception 'La preparación #% está vinculada a la factura #%; no se puede eliminar, solo anular.', p_id, v_factura;
+  end if;
+
+  delete from public.contratos_facturacion_preparaciones where id = p_id;
+end;
+$$;
+
+revoke all on function public.eliminar_preparacion_facturacion(bigint) from public;
+grant execute on function public.eliminar_preparacion_facturacion(bigint) to authenticated;

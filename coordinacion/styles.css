@@ -4446,6 +4446,15 @@ th {
   font-weight: 700;
 }
 
+.facturacion-table tr.facturacion-generation-row-excluded td {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.facturacion-table tr.facturacion-generation-row-excluded td:first-child {
+  text-decoration: none;
+}
+
 .facturacion-table .row-action {
   min-height: 28px;
   padding: 4px 8px;
@@ -4527,6 +4536,23 @@ th {
 
 .facturacion-dialog::backdrop {
   background: rgba(16, 24, 40, 0.45);
+}
+
+.facturacion-preview-dialog {
+  width: min(900px, calc(100vw - 32px));
+}
+
+.facturacion-preview-body {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.facturacion-preview-body h4 {
+  margin: 16px 0 4px;
+}
+
+.facturacion-preview-body .eyebrow {
+  margin: 10px 0 4px;
 }
 
 .facturacion-dialog-header {

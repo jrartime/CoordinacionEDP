@@ -4917,12 +4917,18 @@
                   </label>
                   <label>Agrupar factura por
                     <select id="facturacion-generation-groupby">
+                      <option value="contrato" selected>Contrato completo</option>
                       <option value="servicio">Servicio (todas sus funciones)</option>
                       <option value="funcion">Servicio, función separada</option>
-                      <option value="contrato">Contrato completo</option>
+                      <option value="contrato_funcion">Contrato y función (junta servicios)</option>
                     </select>
                   </label>
+                  <label>Observación
+                    <input id="facturacion-generation-observacion" type="text" placeholder="Nota para esta preparación (opcional)" />
+                  </label>
                   <button id="facturacion-generation-calculate" type="button">Calcular</button>
+                  <button id="facturacion-generation-preview" type="button" class="secondary-button" disabled>Vista previa de agrupación</button>
+                  <button id="facturacion-generation-weekly" type="button" class="secondary-button" disabled>Desglose por semanas</button>
                   <button id="facturacion-generation-save" type="button" class="secondary-button" disabled>Guardar preparación</button>
                   <button id="facturacion-generation-pdf" type="button" class="secondary-button" disabled>Descargar PDF</button>
                 </div>
@@ -4932,37 +4938,43 @@
                 precio diurno y nocturno; las tarifas por mes o globales se aplican una vez por
                 contrato y función en el periodo. Guardar la preparación deja constancia de qué
                 registros entraron y evita que se vuelvan a facturar; una factura nunca cruza contratos.
+                Desmarca el tick de un servicio para dejarlo fuera de esta preparación.
               </p>
+              <p id="facturacion-generation-selection-summary" class="muted-text"></p>
               <div id="facturacion-generation-summary" class="facturacion-generation-summary hidden"></div>
               <ul id="facturacion-generation-alerts" class="facturacion-generation-alerts"></ul>
               <div class="table-scroll card facturacion-table-card">
                 <table class="facturacion-table">
                   <thead>
                     <tr>
-                      <th>Contrato</th><th>Servicio</th><th>Función</th><th>Instalación</th>
+                      <th></th><th>Contrato</th><th>Servicio</th><th>Función</th><th>Instalación</th>
                       <th>Horas</th><th>Diurnas</th><th>Nocturnas</th>
                       <th>Tipo</th><th>Precio día</th><th>Precio noche</th><th>Importe</th>
                     </tr>
                   </thead>
                   <tbody id="facturacion-generation-body">
-                    <tr><td colspan="11" class="empty-state">Selecciona el periodo y pulsa Calcular.</td></tr>
+                    <tr><td colspan="12" class="empty-state">Selecciona el periodo y pulsa Calcular.</td></tr>
                   </tbody>
                 </table>
               </div>
 
               <div class="facturacion-section-title">
                 <div><p class="eyebrow">Trazabilidad</p><h3>Preparaciones guardadas</h3></div>
+                <div class="facturacion-generation-actions">
+                  <button id="facturacion-preparations-pdf" type="button" class="secondary-button" disabled>Descargar PDF de marcadas</button>
+                </div>
               </div>
               <div class="table-scroll card facturacion-table-card">
                 <table class="facturacion-table">
                   <thead>
                     <tr>
+                      <th><input id="facturacion-preparations-check-all" type="checkbox" aria-label="Marcar todas" /></th>
                       <th>Periodo</th><th>Contrato</th><th>Agrupación</th><th>Estado</th>
                       <th>Total</th><th>Factura</th><th>Generada</th><th></th>
                     </tr>
                   </thead>
                   <tbody id="facturacion-preparations-body">
-                    <tr><td colspan="8" class="empty-state">No hay preparaciones guardadas todavía.</td></tr>
+                    <tr><td colspan="9" class="empty-state">No hay preparaciones guardadas todavía.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -5170,6 +5182,14 @@
                 <div class="detail-actions"><button type="button" class="secondary-button" data-close-dialog>Cancelar</button><button type="submit">Guardar</button></div>
               </div>
             </form>
+          </dialog>
+
+          <dialog id="facturacion-preparation-preview-dialog" class="facturacion-dialog facturacion-preview-dialog">
+            <div class="facturacion-dialog-header"><h3>Vista previa de la preparación</h3><button type="button" data-close-dialog aria-label="Cerrar">×</button></div>
+            <div id="facturacion-preparation-preview-body" class="facturacion-preview-body"></div>
+            <div class="facturacion-dialog-footer">
+              <div class="detail-actions"><button type="button" class="secondary-button" data-close-dialog>Cerrar</button></div>
+            </div>
           </dialog>
         </section>
 
@@ -8594,7 +8614,7 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260727-7" defer></script>
-    <script src="./facturacion.js?v=20260806-13" defer></script>
+    <script src="./facturacion.js?v=20260807-12" defer></script>
     <script src="./app.js?v=20260806-10" defer></script>
   </body>
 </html>
