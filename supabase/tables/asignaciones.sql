@@ -106,7 +106,8 @@ execute function public.validate_asignaciones_personal_ids();
 
 drop view if exists public.asignaciones_detalle;
 
-create view public.asignaciones_detalle as
+create view public.asignaciones_detalle
+with (security_invoker = true) as
 select
   a.id,
   a.instalacion_id,

@@ -145,8 +145,10 @@ execute function public.set_registro_horas_nocturnas();
 -- ============================================================================
 --
 -- Ya ejecutado el 2026-07-27: 54 registros, 6 personas, 33,5 horas. Se guardo el
--- estado previo en public.registros_nocturnas_backup_20260727 por si hay que
--- volver atras. Se deja aqui como referencia de lo aplicado.
+-- estado previo en public.registros_nocturnas_backup_20260727 por si hacia falta
+-- volver atras; la tabla se borro el 2026-08-07 (ya no hacia falta y el linter de
+-- seguridad de Supabase la marcaba por no tener RLS). Se deja aqui como
+-- referencia de lo aplicado.
 --
 --   create table public.registros_nocturnas_backup_20260727 as
 --   select r.id, r.fecha, r.personal_id, r.contrato_id,

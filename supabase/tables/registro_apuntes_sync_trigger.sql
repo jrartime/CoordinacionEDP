@@ -67,10 +67,15 @@ begin
             coalesce(NEW.abonar, true), coalesce(NEW.facturar, true), true, 'auto-sync PNR (devengo)')
     returning id into v_devengo_id;
 
+    -- La devolucion SOLO resta de nomina (abonar). El cliente se sigue
+    -- facturando la hora PNR entera via el DEVENGO de arriba: facturar=false
+    -- aqui a proposito, no coalesce(NEW.facturar,...) (confirmado por el
+    -- usuario: "cuando tiene tipo hora PNR y facturacion si, esas horas se
+    -- facturan pero no se resta").
     insert into public.registro_apuntes
       (registro_id, cantidad, concepto_id, movimiento, abonar, facturar, auto, compensa_apunte_id, nota)
     values (NEW.id, -abs(v_cant), 1, 'DEVOLUCION_HD',
-            coalesce(NEW.abonar, true), coalesce(NEW.facturar, true), true, v_devengo_id,
+            coalesce(NEW.abonar, true), false, true, v_devengo_id,
             'auto-sync PNR (devolucion)');
 
   -- BIN (7) / BOUT (8): bolsa de horas, regla pendiente -> sin apunte auto por ahora.
@@ -89,3 +94,15 @@ drop trigger if exists trg_sync_registro_apunte_upd on public.registros;
 create trigger trg_sync_registro_apunte_upd
   after update on public.registros
   for each row execute function public.sync_registro_apunte();
+
+-- ============================================================================
+-- Backfill: DEVOLUCION_HD ya generadas antes del cambio de arriba
+-- ============================================================================
+-- Ya ejecutado el 2026-08-10: la funcion solo aplica hacia adelante (se
+-- dispara con INSERT/UPDATE de registros), asi que los pares PNR ya creados
+-- se corrigen aparte. Afecto 403 filas DEVOLUCION_HD con facturar=true en
+-- todo el sistema (-2004 h agregadas que dejaban de facturarse sin deber).
+--
+--   update public.registro_apuntes
+--   set facturar = false
+--   where movimiento = 'DEVOLUCION_HD' and auto = true and facturar = true;

@@ -166,7 +166,8 @@ execute function public.set_eventos_updated_at();
 
 drop view if exists public.eventos_cronograma_detalle;
 
-create or replace view public.eventos_cronograma_detalle as
+create or replace view public.eventos_cronograma_detalle
+with (security_invoker = true) as
 select
   c.id,
   c.evento_id,

@@ -240,7 +240,7 @@ _(Completado: subida a IONOS y prueba logueado coordinador vs admin — OK.)_
 - **Convenio del campo**: `null` = «calcúlalo tú» (lo que envía ahora el frontend); un valor distinto del anterior = lo teclea quien edita y se respeta; un valor igual pero con el horario, contrato, situación o tipo de hora cambiados = se recalcula. **La importación histórica trae el valor del parte y no se pisa.**
 - **Solo se paga la noche que se trabaja**: situación NORM o SUST, o FEST con hora FTRAB, y tipo de hora productivo. En vacaciones, IT, permisos, bolsa o cambio de actividad el 0 es correcto — de las ~102 h que parecían faltar en julio, 68 eran de gente que no trabajaba.
 - **Frontend**: se quitó el cálculo en cliente de los tres sitios que lo hacían (`buildRecordsForActivity`, `withRecordSituacionSideEffects` y la asignación masiva, que además ya no necesita agrupar por nocturnas). Delegan enviando `null`.
-- **Recalculado**: los 54 registros de julio, con copia previa en `registros_nocturnas_backup_20260727`.
+- **Recalculado**: los 54 registros de julio, con copia previa en `registros_nocturnas_backup_20260727` (tabla borrada el 07/08/2026 tras un aviso del linter de seguridad de Supabase por no tener RLS; ya no hacía falta para revertir).
 - **Pendiente sin aplicar**: abril (14 registros, 9,5 h) y mayo (3, 3 h) también tienen turnos nocturnos sin plus, pero vienen del parte importado, donde el 0 puede ser el dato bueno. No tocar sin confirmar.
 - **Ojo**: el plus de la **nómina** se paga por `historiales_laborales.tiene_nocturnidad`, no por el flag del contrato. Rellenar las horas del registro no basta si la persona no lo tiene marcado (Alba Queipo lo tiene nulo, Enrique Gutiérrez en `false`).
 
