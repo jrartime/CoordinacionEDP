@@ -520,8 +520,24 @@ begin
       coalesce(sum(rg.horas) filter (where rg.tipo_hora_id = 3), 0)::numeric as horas_mont,
       coalesce(sum(rg.horas) filter (where rg.tipo_hora_id = 2), 0)::numeric as horas_hcomp,
       coalesce(sum(rg.horas) filter (where rg.tipo_hora_id = 4), 0)::numeric as horas_ftrab,
-      coalesce(sum(rg.horas) filter (where rg.tipo_hora_id = 8), 0)::numeric as horas_bout,
-      coalesce(sum(rg.horas) filter (where rg.tipo_hora_id = 7), 0)::numeric as horas_bin,
+      -- Bolsa de horas: ya no vive en registros.tipo_hora_id (7/8), sino en
+      -- apuntes registro_apuntes (BOLSA_ENTRA/BOLSA_SALE), ver nomina_calculo.sql.
+      coalesce((
+        select sum(abs(a.cantidad)) from public.registro_apuntes a
+        join public.registros ra on ra.id = a.registro_id
+        where a.movimiento = 'BOLSA_SALE' and ra.personal_id = h.personal_id and ra.puesto_id = h.puesto_id
+          and (h.empresa_id is null or ra.empresa_id = h.empresa_id)
+          and coalesce(ra.situacion_id, -1) <> all(v_sit_excluidas)
+          and ra.fecha >= v_desde and ra.fecha <= v_hasta
+      ), 0)::numeric as horas_bout,
+      coalesce((
+        select sum(a.cantidad) from public.registro_apuntes a
+        join public.registros ra on ra.id = a.registro_id
+        where a.movimiento = 'BOLSA_ENTRA' and ra.personal_id = h.personal_id and ra.puesto_id = h.puesto_id
+          and (h.empresa_id is null or ra.empresa_id = h.empresa_id)
+          and coalesce(ra.situacion_id, -1) <> all(v_sit_excluidas)
+          and ra.fecha >= v_desde and ra.fecha <= v_hasta
+      ), 0)::numeric as horas_bin,
       coalesce(sum(rg.horas_nocturnas), 0)::numeric as horas_noct
     from public.registros rg
     where rg.personal_id = h.personal_id and rg.puesto_id = h.puesto_id
@@ -789,7 +805,12 @@ begin
          count(*)::integer,
          array_agg(r.id order by r.fecha, r.id),
          coalesce(s.situacion in ('CAMB', 'LG'), false),
-         coalesce(r.tipo_hora_id in (1, 5, 8), false) and coalesce(s.situacion not in ('CAMB', 'LG'), true),
+         (coalesce(r.tipo_hora_id in (1, 5), false)
+          or exists (
+              select 1 from public.registro_apuntes a
+              where a.registro_id = r.id and a.movimiento = 'BOLSA_SALE'
+            ))
+           and coalesce(s.situacion not in ('CAMB', 'LG'), true),
          coalesce(s.situacion in ('NORM', 'SUST')
                   or (s.situacion = 'FEST' and th.tipo_hora = 'FTRAB'), false)
   from public.historiales_laborales h
@@ -813,6 +834,48 @@ begin
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
   group by h.id, r.puesto_id, pu.puesto, r.tipo_hora_id, th.tipo_hora,
            th.codigo_nomina, r.situacion_id, s.situacion;
+
+  -- 4b) Movimientos de bolsa de horas (registro_apuntes) del mismo periodo, con
+  --     el mismo detalle por registro que antes daba registros.tipo_hora_id=7/8.
+  --     Se etiquetan con esos mismos ids de tipo_horas (BIN/BOUT) solo a efectos
+  --     de mostrarlo igual que antes: el dato real ya no vive en esa columna.
+  insert into public.nomina_horas (
+    nomina_id, historial_id, puesto_id, puesto,
+    tipo_hora_id, tipo_hora, tipo_hora_codigo_nomina,
+    situacion_id, situacion, horas, horas_nocturnas, dias, registros,
+    registro_ids, excluida, cuenta_jornada, dia_efectivo)
+  select v_id, h.id, r.puesto_id, pu.puesto,
+         th.id, th.tipo_hora, th.codigo_nomina,
+         r.situacion_id, s.situacion,
+         coalesce(sum(abs(a.cantidad)), 0)::numeric,
+         0::numeric,
+         count(distinct r.fecha)::integer,
+         count(*)::integer,
+         array_agg(r.id order by r.fecha, r.id),
+         false,
+         (a.movimiento = 'BOLSA_SALE'),
+         coalesce(s.situacion in ('NORM', 'SUST')
+                  or (s.situacion = 'FEST' and false), false)
+  from public.historiales_laborales h
+  join public.registro_apuntes a on a.movimiento in ('BOLSA_ENTRA', 'BOLSA_SALE')
+  join public.registros r
+    on r.id = a.registro_id
+   and r.personal_id = h.personal_id
+   and (r.puesto_id = h.puesto_id
+        or (coalesce(p_horas_otros_puestos, true) and h.id = v_hist_princ
+            and public.es_puesto_sin_historial(r.personal_id, r.puesto_id, r.empresa_id, r.fecha)))
+   and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+   and r.fecha >= greatest(h.fecha_alta, p_desde)
+   and r.fecha <= least(coalesce(h.fecha_baja, p_hasta), p_hasta)
+  left join public.situaciones s on s.id = r.situacion_id
+  left join public.puestos pu on pu.id = r.puesto_id
+  left join public.tipo_horas th on th.id = (case a.movimiento when 'BOLSA_ENTRA' then 7 else 8 end)
+  where h.personal_id = p_personal_id
+    and (p_empresa_id is null or h.empresa_id = p_empresa_id)
+    and (v_ids = '{}'::bigint[] or h.id = any(v_ids))
+    and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
+  group by h.id, r.puesto_id, pu.puesto, th.id, th.tipo_hora, th.codigo_nomina,
+           r.situacion_id, s.situacion, a.movimiento;
 
   -- Los totales se derivan de las lineas, no se copian de las lineas-resumen del
   -- motor: asi la cabecera cuadra con su propio desglose. Las filas con

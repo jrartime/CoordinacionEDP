@@ -1007,6 +1007,18 @@ const recordSubstitutionPersonSelect = document.querySelector("#record-substitut
 const recordSubstitutionConfirmButton = document.querySelector("#record-substitution-confirm-button");
 const recordSubstitutionCancelButton = document.querySelector("#record-substitution-cancel-button");
 const recordSubstitutionTipoHoraSelect = document.querySelector("#record-substitution-tipo-hora");
+const recordDetailBolsaButton = document.querySelector("#record-detail-bolsa-button");
+const recordBolsaPanel = document.querySelector("#record-bolsa-panel");
+const recordBolsaOverlay = document.querySelector("#record-bolsa-overlay");
+const recordBolsaInfo = document.querySelector("#record-bolsa-info");
+const recordBolsaSaldoActual = document.querySelector("#record-bolsa-saldo-actual");
+const recordBolsaMovimientoSelect = document.querySelector("#record-bolsa-movimiento");
+const recordBolsaHorasInput = document.querySelector("#record-bolsa-horas");
+const recordBolsaNotaInput = document.querySelector("#record-bolsa-nota");
+const recordBolsaHelp = document.querySelector("#record-bolsa-help");
+const recordBolsaConfirmButton = document.querySelector("#record-bolsa-confirm-button");
+const recordBolsaCancelButton = document.querySelector("#record-bolsa-cancel-button");
+const recordsBolsaSaldoChip = document.querySelector("#records-bolsa-saldo");
 const recordsBulkSubstitutionButton = document.querySelector("#records-bulk-substitution-button");
 const recordsBulkSubstitutionPanel = document.querySelector("#records-bulk-substitution-panel");
 const recordsBulkSubstitutionOverlay = document.querySelector("#records-bulk-substitution-overlay");
@@ -14194,6 +14206,40 @@ function syncRecordsPersonReportButton() {
     : "Selecciona una persona y un intervalo completo";
 }
 
+// Contador de saldo de bolsa de horas, reactivo al filtro de persona (mismo
+// patrón que syncRecordsCompareControlButton/syncRecordsPersonReportButton).
+// Se apoya en la vista bolsa_horas_saldo (suma en vivo de registro_apuntes,
+// sin marcador mensual que mantener a mano).
+let recordsBolsaSaldoRequestToken = 0;
+async function syncRecordsBolsaSaldo() {
+  if (!recordsBolsaSaldoChip) return;
+  const filters = getRecordsFilterValues();
+  const personalId = filters.personalId;
+  if (!personalId) {
+    recordsBolsaSaldoChip.classList.add("hidden");
+    recordsBolsaSaldoChip.textContent = "";
+    return;
+  }
+  const token = ++recordsBolsaSaldoRequestToken;
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("bolsa_horas_saldo")
+      .select("saldo")
+      .eq("personal_id", personalId)
+      .maybeSingle();
+    if (token !== recordsBolsaSaldoRequestToken) return;
+    if (error) throw error;
+    const saldo = Number(data?.saldo ?? 0);
+    recordsBolsaSaldoChip.textContent = `Bolsa de horas: ${formatRecordHours(saldo)} h`;
+    recordsBolsaSaldoChip.classList.toggle("negative", saldo < 0);
+    recordsBolsaSaldoChip.classList.remove("hidden");
+  } catch (err) {
+    if (token !== recordsBolsaSaldoRequestToken) return;
+    console.error("No se pudo leer el saldo de la bolsa de horas.", err);
+  }
+}
+
 function applyRecordsQueryFilters(query, filters) {
   let nextQuery = query;
 
@@ -14594,6 +14640,7 @@ function renderRecordsTable() {
   renderRecordsTableHead();
   syncRecordsCompareControlButton();
   syncRecordsPersonReportButton();
+  syncRecordsBolsaSaldo();
 
   if (!recordsTableBody) {
     return;
@@ -14827,6 +14874,7 @@ async function openRecordsCompareControl() {
   const filters = getRecordsFilterValues();
   syncRecordsCompareControlButton();
   syncRecordsPersonReportButton();
+  syncRecordsBolsaSaldo();
   if (recordsCompareControlButton?.disabled) return;
 
   recordsCompareControlPanel?.classList.remove("hidden");
@@ -17193,7 +17241,7 @@ async function applyRecordsBulkAssignment() {
     if (situacionDestinoSinHoras) {
       const { error } = await supabase
         .from("registros")
-        .update({ ...updatePayload, horas: null, horas_nocturnas: null, facturar: false, abonar: false })
+        .update({ ...updatePayload, horas: null, horas_nocturnas: null, horas_diurnas: null, facturar: false, abonar: false })
         .in("id", ids);
       if (error) throw error;
     } else if (situacionFilasARestaurar.length) {
@@ -17225,6 +17273,7 @@ async function applyRecordsBulkAssignment() {
             ...updatePayload,
             horas: grupo.horas,
             horas_nocturnas: null,
+            horas_diurnas: null,
             facturar: true,
             abonar: true,
           })
@@ -17406,7 +17455,7 @@ async function withRecordSituacionSideEffects(row, patch) {
     return patch;
   }
   if (despues) {
-    return { ...patch, horas: null, horas_nocturnas: null, facturar: false, abonar: false };
+    return { ...patch, horas: null, horas_nocturnas: null, horas_diurnas: null, facturar: false, abonar: false };
   }
 
   const pick = (key) =>
@@ -17419,6 +17468,9 @@ async function withRecordSituacionSideEffects(row, patch) {
     // Nulo = lo recalcula el trigger en base con la franja del contrato. Aquí
     // dependía de un catálogo cargado en el navegador, que podía no estarlo.
     horas_nocturnas: null,
+    // horas_diurnas no tiene trigger propio; se vacía aquí para que no quede
+    // con el valor de antes de CAMB/LG (ver recordHours en facturacion.js).
+    horas_diurnas: null,
     facturar: true,
     abonar: true,
   };
@@ -17563,7 +17615,12 @@ async function loadRecordRelationOptions() {
           activo: r.activo,
         }));
         for (const key of keys) {
-          recordRelationOptionsCache[key] = options;
+          // BIN(7)/BOUT(8) ya no son tipo de hora seleccionable en registros:
+          // la bolsa de horas vive en registro_apuntes, no en tipo_hora_id.
+          // Se dejan en el catálogo (texto histórico) pero fuera del desplegable.
+          recordRelationOptionsCache[key] = key === "tipo_hora_id"
+            ? options.filter((o) => o.value !== 7 && o.value !== 8)
+            : options;
         }
       }),
       (async () => {
@@ -18910,6 +18967,148 @@ async function confirmRecordSubstitution() {
     setStatus(`Sustitución registrada (${reason.value}). Nueva fila del sustituto: ID ${data.id}.`, "success");
   } catch (error) {
     setStatus(`No se pudo registrar la sustitución: ${error.message}`, "error");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bolsa de horas: movimientos manuales desde un registro (registro_apuntes,
+// movimiento BOLSA_ENTRA/BOLSA_SALE). No se toca la fila de registros -- sus
+// horas/tipo_hora_id siguen intactos para facturación, jornada y nocturnidad;
+// el motor de nóminas resta/suma estos apuntes aparte (nomina_calculo.sql).
+// ---------------------------------------------------------------------------
+async function getBolsaSaldoActual(personalId) {
+  if (!personalId) return 0;
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase
+    .from("bolsa_horas_saldo")
+    .select("saldo")
+    .eq("personal_id", personalId)
+    .maybeSingle();
+  if (error) throw error;
+  return Number(data?.saldo ?? 0);
+}
+
+function updateRecordBolsaHelp() {
+  const row = recordDetailSnapshot;
+  if (!row || !recordBolsaMovimientoSelect) return;
+  const isEntrada = recordBolsaMovimientoSelect.value === "BOLSA_ENTRA";
+  if (recordBolsaHorasInput && !recordBolsaHorasInput.dataset.userEdited) {
+    recordBolsaHorasInput.value = isEntrada ? formatRecordHours(row.horas ?? 0) : "";
+  }
+  if (recordBolsaHelp) {
+    recordBolsaHelp.textContent = isEntrada
+      ? "Esas horas dejan de pagarse ahora (se difieren) aunque el turno se sigue facturando igual."
+      : "Esas horas se pagan ahora, sacadas del saldo de la bolsa.";
+  }
+}
+
+async function openRecordBolsaPanel() {
+  const row = recordDetailSnapshot;
+  if (!row?.id || !recordBolsaPanel) return;
+
+  if (recordBolsaInfo) {
+    const nombre = row.personal || `ID ${row.personal_id ?? "?"}`;
+    const fecha = formatRecordDisplayValue(row, getRecordColumn("fecha"));
+    const horario = row.hora_inicio || row.hora_fin
+      ? `${String(row.hora_inicio ?? "").slice(0, 5)}-${String(row.hora_fin ?? "").slice(0, 5)}`
+      : "sin horario";
+    recordBolsaInfo.textContent =
+      `${nombre} · ${fecha} · ${horario} · ${formatRecordHours(row.horas ?? 0)} h (${row.tipo_hora || "sin tipo"})`;
+  }
+  if (recordBolsaSaldoActual) {
+    recordBolsaSaldoActual.textContent = "Consultando saldo actual…";
+  }
+  if (recordBolsaMovimientoSelect) recordBolsaMovimientoSelect.value = "BOLSA_ENTRA";
+  if (recordBolsaHorasInput) {
+    delete recordBolsaHorasInput.dataset.userEdited;
+  }
+  if (recordBolsaNotaInput) recordBolsaNotaInput.value = "";
+  updateRecordBolsaHelp();
+  recordBolsaPanel.classList.remove("hidden");
+
+  try {
+    const saldo = await getBolsaSaldoActual(row.personal_id);
+    if (recordBolsaSaldoActual) {
+      recordBolsaSaldoActual.textContent = `Saldo actual de la bolsa: ${formatRecordHours(saldo)} h`;
+    }
+  } catch (error) {
+    if (recordBolsaSaldoActual) {
+      recordBolsaSaldoActual.textContent = "No se pudo consultar el saldo actual.";
+    }
+  }
+}
+
+function closeRecordBolsaPanel() {
+  recordBolsaPanel?.classList.add("hidden");
+}
+
+async function confirmRecordBolsaMovimiento() {
+  const row = recordDetailSnapshot;
+  if (!row?.id) return;
+
+  const movimiento = recordBolsaMovimientoSelect?.value || "BOLSA_ENTRA";
+  const horas = Number(recordBolsaHorasInput?.value || "");
+  if (!horas || horas <= 0) {
+    setStatus("Indica cuántas horas mover.", "error");
+    return;
+  }
+  const nota = (recordBolsaNotaInput?.value || "").trim() || null;
+
+  try {
+    if (movimiento === "BOLSA_ENTRA" && horas > Number(row.horas ?? 0)) {
+      if (!window.confirm(
+        `Vas a meter en la bolsa más horas (${formatRecordHours(horas)}) de las que tiene este registro ` +
+        `(${formatRecordHours(row.horas ?? 0)}). ¿Continuar de todas formas?`
+      )) {
+        return;
+      }
+    }
+    if (movimiento === "BOLSA_SALE") {
+      const saldoActual = await getBolsaSaldoActual(row.personal_id);
+      if (saldoActual - horas < 0 && !window.confirm(
+        `Esto deja la bolsa de ${row.personal || "esta persona"} en negativo ` +
+        `(${formatRecordHours(saldoActual)} h → ${formatRecordHours(saldoActual - horas)} h). ¿Continuar?`
+      )) {
+        return;
+      }
+    }
+
+    const insertData = movimiento === "BOLSA_ENTRA"
+      ? {
+          registro_id: row.id,
+          cantidad: horas,
+          concepto_id: row.tipo_hora_id ?? 1,
+          movimiento: "BOLSA_ENTRA",
+          abonar: false,
+          facturar: false,
+          auto: false,
+          nota,
+        }
+      : {
+          registro_id: row.id,
+          cantidad: -horas,
+          concepto_id: 1,
+          movimiento: "BOLSA_SALE",
+          abonar: true,
+          facturar: Boolean(row.facturar ?? true),
+          auto: false,
+          nota,
+        };
+
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.from("registro_apuntes").insert(insertData);
+    if (error) throw error;
+
+    closeRecordBolsaPanel();
+    await syncRecordsBolsaSaldo();
+    setStatus(
+      movimiento === "BOLSA_ENTRA"
+        ? `Metidas ${formatRecordHours(horas)} h en la bolsa de horas.`
+        : `Cubiertas ${formatRecordHours(horas)} h con la bolsa de horas.`,
+      "success"
+    );
+  } catch (error) {
+    setStatus(`No se pudo registrar el movimiento de bolsa: ${error.message}`, "error");
   }
 }
 
@@ -31149,6 +31348,18 @@ async function init() {
   });
   recordSubstitutionCancelButton?.addEventListener("click", closeRecordSubstitutionPanel);
   recordSubstitutionOverlay?.addEventListener("click", closeRecordSubstitutionPanel);
+  recordDetailBolsaButton?.addEventListener("click", () => {
+    void openRecordBolsaPanel();
+  });
+  recordBolsaMovimientoSelect?.addEventListener("change", updateRecordBolsaHelp);
+  recordBolsaHorasInput?.addEventListener("input", () => {
+    recordBolsaHorasInput.dataset.userEdited = "1";
+  });
+  recordBolsaConfirmButton?.addEventListener("click", () => {
+    void confirmRecordBolsaMovimiento();
+  });
+  recordBolsaCancelButton?.addEventListener("click", closeRecordBolsaPanel);
+  recordBolsaOverlay?.addEventListener("click", closeRecordBolsaPanel);
   recordsBulkSubstitutionButton?.addEventListener("click", openRecordsBulkSubstitutionPanel);
   recordsBulkSubstitutionCancelButton?.addEventListener("click", closeRecordsBulkSubstitutionPanel);
   recordsBulkSubstitutionOverlay?.addEventListener("click", closeRecordsBulkSubstitutionPanel);

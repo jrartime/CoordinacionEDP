@@ -370,6 +370,7 @@ declare
   v_dif numeric; v_exceso_reg numeric; v_aporta_extra numeric;
   v_pago_mont numeric; v_pago_hcomp numeric;
   v_movilidad_pct numeric; v_movilidad_detalle text;
+  v_horas_banked_reg numeric; v_horas_banked_mont numeric; v_horas_banked_hcomp numeric;
 begin
   select * into h from public.historiales_laborales where id = p_historial_id;
   if h.id is null then return; end if;
@@ -455,9 +456,8 @@ begin
   select coalesce(sum(x.horas) filter (where x.tipo_hora_id = 1), 0)::numeric,
          coalesce(sum(x.horas) filter (where x.tipo_hora_id = 5), 0)::numeric,
          coalesce(sum(x.horas) filter (where x.tipo_hora_id = 3), 0)::numeric,
-         coalesce(sum(x.horas) filter (where x.tipo_hora_id = 2), 0)::numeric,
-         coalesce(sum(x.horas) filter (where x.tipo_hora_id = 8), 0)::numeric
-    into v_horas_reg, v_horas_pnr, v_horas_mont, v_horas_hcomp, v_horas_bout
+         coalesce(sum(x.horas) filter (where x.tipo_hora_id = 2), 0)::numeric
+    into v_horas_reg, v_horas_pnr, v_horas_mont, v_horas_hcomp
   from (
     select r.horas, r.tipo_hora_id
     from public.registros r
@@ -469,6 +469,31 @@ begin
       and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
       and r.fecha >= v_desde and r.fecha <= v_hasta
   ) x;
+
+  -- Bolsa de horas (registro_apuntes, sustituye a registros.tipo_hora_id 7/8):
+  --   BOLSA_ENTRA resta del bucket de tarifa que la origino (concepto_id) -- ese
+  --   dia se sigue facturando/contando como jornada trabajada (la fila de
+  --   registros no se toca), pero el importe se difiere hasta que se saque de
+  --   la bolsa. BOLSA_SALE se paga como jornada cumplida (bout), igual que
+  --   antes hacia registros.tipo_hora_id=8, sin tocar los buckets de tarifa.
+  select coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 1), 0)::numeric,
+         coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 3), 0)::numeric,
+         coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 2), 0)::numeric,
+         coalesce(sum(abs(a.cantidad)) filter (where a.movimiento = 'BOLSA_SALE'), 0)::numeric
+    into v_horas_banked_reg, v_horas_banked_mont, v_horas_banked_hcomp, v_horas_bout
+  from public.registro_apuntes a
+  join public.registros r on r.id = a.registro_id
+  where r.personal_id = h.personal_id
+    and (r.puesto_id = h.puesto_id or (p_incluir_huerfanas
+         and r.tipo_hora_id not in (2, 3)
+         and public.es_puesto_sin_historial(r.personal_id, r.puesto_id, r.empresa_id, r.fecha)))
+    and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+    and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
+    and r.fecha >= v_desde and r.fecha <= v_hasta;
+
+  v_horas_reg   := v_horas_reg   - v_horas_banked_reg;
+  v_horas_mont  := v_horas_mont  - v_horas_banked_mont;
+  v_horas_hcomp := v_horas_hcomp - v_horas_banked_hcomp;
 
   v_modo := coalesce(nullif(trim(p_base_calculo), ''), v_conv.base_calculo, 'mensual');
 
@@ -573,12 +598,13 @@ begin
   --     el montaje se paga entero -> plus 93 141,72 y complemento 60 542,88.
   --
   -- PNR cuenta como jornada cumplida (se descuenta aparte en el 790).
-  -- BOUT (tipo 8, salida de bolsa) tambien: la persona libra gastando saldo de
-  -- su bolsa de horas, asi que ese dia esta cubierto. BIN (tipo 7, entrada) NO:
-  -- son horas que solo se apuntan al saldo para gastarlas mas adelante, no se
-  -- pagan ni cuentan como jornada.
-  -- Caso real (Javier Diaz Gonzalez, junio 2026): 84,5 h REG + 48 h BOUT con
-  -- situacion VAC (6 dias librados con la bolsa, bolsa_horas -8 cada uno).
+  -- BOLSA_SALE (apunte de registro_apuntes, antes tipo_hora_id=8/BOUT) tambien:
+  -- la persona libra gastando saldo de su bolsa de horas, asi que ese dia esta
+  -- cubierto. BOLSA_ENTRA (antes tipo_hora_id=7/BIN) NO: son horas que solo se
+  -- apuntan al saldo para gastarlas mas adelante (ya restadas de v_horas_reg/
+  -- mont/hcomp arriba), no se pagan ni cuentan como jornada ahora.
+  -- Caso real (Javier Diaz Gonzalez, junio 2026): 84,5 h REG + 48 h BOLSA_SALE
+  -- con situacion VAC (6 dias librados con la bolsa).
   v_horas_jornada := v_horas_reg + v_horas_pnr + v_horas_bout;
   v_horas_teoricas := public.horas_teoricas_jornada(v_desde, v_hasta, h.jornada);
   v_valor_jornada := v_base * (1 + v_extras / 12.0);

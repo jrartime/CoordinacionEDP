@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260806-5" />
+    <link rel="stylesheet" href="./styles.css?v=20260807-4" />
   </head>
   <body>
     <script>
@@ -875,6 +875,7 @@
                 <div class="results-toolbar section-summary-toolbar">
                   <div class="results-summary">
                     <p id="records-summary" class="summary-chip">Cargando registros...</p>
+                    <p id="records-bolsa-saldo" class="summary-chip hidden"></p>
                   </div>
                   <div id="records-period-summary" class="records-period-summary hidden" aria-live="polite">
                     <div id="records-period-summary-values" class="records-period-summary-values"></div>
@@ -1131,6 +1132,9 @@
                       <button id="record-detail-remove-substitution-button" type="button" class="secondary-button hidden">
                         Quitar sustitución
                       </button>
+                      <button id="record-detail-bolsa-button" type="button" class="warm-button">
+                        Bolsa de horas
+                      </button>
                       <button id="record-detail-duplicate-button" type="button" class="secondary-button">
                         Duplicar
                       </button>
@@ -1239,6 +1243,48 @@
                     <div class="detail-actions">
                       <button id="record-substitution-confirm-button" type="button">
                         Confirmar sustitución
+                      </button>
+                    </div>
+                  </div>
+                </aside>
+              </section>
+
+              <section id="record-bolsa-panel" class="detail-panel hidden">
+                <div id="record-bolsa-overlay" class="detail-overlay"></div>
+                <aside class="detail-drawer record-substitution-drawer" aria-labelledby="record-bolsa-title">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Registro</p>
+                      <h3 id="record-bolsa-title">Bolsa de horas</h3>
+                    </div>
+                    <button id="record-bolsa-cancel-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+
+                  <p id="record-bolsa-info" class="control-totals-filter-summary"></p>
+                  <p id="record-bolsa-saldo-actual" class="control-totals-filter-summary"></p>
+
+                  <div class="detail-form">
+                    <label>
+                      Movimiento
+                      <select id="record-bolsa-movimiento">
+                        <option value="BOLSA_ENTRA">Meter horas en la bolsa</option>
+                        <option value="BOLSA_SALE">Cubrir con la bolsa</option>
+                      </select>
+                    </label>
+                    <label>
+                      Horas
+                      <input id="record-bolsa-horas" type="number" step="0.25" min="0" />
+                    </label>
+                    <label>
+                      Nota (opcional)
+                      <input id="record-bolsa-nota" type="text" maxlength="200" />
+                    </label>
+                    <p id="record-bolsa-help" class="muted-text"></p>
+                    <div class="detail-actions">
+                      <button id="record-bolsa-confirm-button" type="button">
+                        Confirmar movimiento
                       </button>
                     </div>
                   </div>
@@ -4915,7 +4961,7 @@
                       <option value="all">Todos los contratos visibles</option>
                     </select>
                   </label>
-                  <label>Agrupar factura por
+                  <label class="facturacion-groupby-field">Agrupar factura por
                     <select id="facturacion-generation-groupby">
                       <option value="contrato" selected>Contrato completo</option>
                       <option value="servicio">Servicio (todas sus funciones)</option>
@@ -4965,7 +5011,7 @@
                 </div>
               </div>
               <div class="table-scroll card facturacion-table-card">
-                <table class="facturacion-table">
+                <table id="facturacion-preparations-table" class="facturacion-table">
                   <thead>
                     <tr>
                       <th><input id="facturacion-preparations-check-all" type="checkbox" aria-label="Marcar todas" /></th>
@@ -8615,6 +8661,6 @@
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260727-7" defer></script>
     <script src="./facturacion.js?v=20260807-12" defer></script>
-    <script src="./app.js?v=20260806-10" defer></script>
+    <script src="./app.js?v=20260811-1" defer></script>
   </body>
 </html>
