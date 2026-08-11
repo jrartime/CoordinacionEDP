@@ -521,12 +521,16 @@
     return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
   }
 
+  // Las diurnas se derivan siempre de horas-nocturnas: a diferencia de
+  // horas_nocturnas, la columna registros.horas_diurnas no tiene ningun
+  // trigger ni via de escritura que la mantenga sincronizada (p.ej. al pasar
+  // una fila a CAMB/LG se vacian horas y horas_nocturnas pero no esta), asi
+  // que fiarse de su valor guardado infla horas facturables con datos
+  // obsoletos. Ver memoria facturacion-horas-diurnas-desincronizadas.
   function recordHours(row) {
     const total = numeric(row.horas);
     const nocturnal = row.horas_nocturnas == null ? 0 : numeric(row.horas_nocturnas);
-    const diurnal = row.horas_diurnas == null
-      ? Math.max(0, total - nocturnal)
-      : numeric(row.horas_diurnas);
+    const diurnal = Math.max(0, total - nocturnal);
     return { total, diurnal, nocturnal };
   }
 

@@ -755,6 +755,11 @@ textarea {
   font-size: 1.3rem;
 }
 
+.summary-chip.negative {
+  color: var(--error);
+  border-color: var(--error);
+}
+
 .private-tab-panel .summary-chip strong {
   margin-top: 1px;
   font-size: 1rem;
@@ -4258,6 +4263,38 @@ th {
   min-width: 300px;
 }
 
+/* Los controles de filtro de Facturación usaban el tamaño de letra por
+   defecto (más grande que el resto de pestañas); se igualan al tamaño de
+   .filter-field (Personal, Contratos, Gestión, Contabilidad...). */
+.facturacion-header-actions label,
+.facturacion-generation-actions label,
+.facturacion-invoice-actions label {
+  gap: 4px;
+  font-size: 0.82rem;
+}
+
+.facturacion-header-actions label input,
+.facturacion-header-actions label select,
+.facturacion-generation-actions label input,
+.facturacion-generation-actions label select,
+.facturacion-invoice-actions label input {
+  padding: 7px 9px;
+  font-size: 0.84rem;
+}
+
+/* "Agrupar factura por" es la etiqueta más larga de la barra y el select se
+   ensancha para caber el texto de su opción más larga; a la mitad de ancho
+   el rótulo pasa a dos líneas y sobra sitio para que los botones de la
+   derecha ocupen dos líneas en vez de tres. */
+.facturacion-groupby-field {
+  flex: 0 0 110px;
+  width: 110px;
+}
+
+.facturacion-groupby-field select {
+  width: 100%;
+}
+
 .facturacion-contract-card {
   padding: 16px 18px;
   border: 1px solid #bfdbfe;
@@ -4462,9 +4499,15 @@ th {
 }
 
 .facturacion-preparation-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
   gap: 6px;
-  flex-wrap: wrap;
+}
+
+#facturacion-preparations-table th:nth-child(4),
+#facturacion-preparations-table td:nth-child(4) {
+  white-space: normal;
+  max-width: 130px;
 }
 
 .facturacion-table tr.facturacion-control-gap {
@@ -4619,9 +4662,11 @@ th {
 
   .facturacion-header-actions,
   .facturacion-header-actions label,
-  .facturacion-header-actions label:first-child {
+  .facturacion-header-actions label:first-child,
+  .facturacion-groupby-field {
     width: 100%;
     min-width: 0;
+    flex-basis: auto;
   }
 
   .facturacion-contract-card dl,
