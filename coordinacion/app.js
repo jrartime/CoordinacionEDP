@@ -19419,6 +19419,17 @@ async function deleteRecordBolsaMovimiento(apunteId, movimiento, cantidad) {
         .update({ horas: nuevasHoras })
         .eq("id", row.id);
       if (updateError) throw updateError;
+    } else {
+      // BOLSA_ENTRA lleva un apunte DEVOLUCION_HD compensatorio (ver
+      // confirmRecordBolsaMovimiento) que resta del abono sin tocar la
+      // factura. Si no se borra también, el registro se queda marcado "no
+      // abonado" para siempre sin ningún movimiento de bolsa que lo explique.
+      const { error: compensaError } = await supabase
+        .from("registro_apuntes")
+        .delete()
+        .eq("compensa_apunte_id", apunteId)
+        .eq("movimiento", "DEVOLUCION_HD");
+      if (compensaError) throw compensaError;
     }
 
     const { error: deleteError } = await supabase.from("registro_apuntes").delete().eq("id", apunteId);
@@ -19471,29 +19482,28 @@ async function confirmRecordBolsaMovimiento() {
       // No se toca la fila de registros: sigue facturando/contando como
       // jornada trabajada igual que antes; solo se difiere el pago (el motor
       // de nóminas resta estas horas de su bucket de tarifa aparte).
-      const { error } = await supabase.from("registro_apuntes").insert({
-        registro_id: row.id,
-        cantidad: horas,
-        concepto_id: row.tipo_hora_id ?? 1,
-        movimiento: "BOLSA_ENTRA",
-        abonar: false,
-        facturar: false,
-        auto: false,
-        nota,
-      });
+      const { data: entrada, error } = await supabase
+        .from("registro_apuntes")
+        .insert({
+          registro_id: row.id,
+          cantidad: horas,
+          concepto_id: row.tipo_hora_id ?? 1,
+          movimiento: "BOLSA_ENTRA",
+          abonar: false,
+          facturar: false,
+          auto: false,
+          nota,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
 
       // Compensatorio: resta del abono sin tocar la factura, igual que la
-      // devolución de PNR. Se enlaza al DEVENGO vigente de este registro
-      // (auto=true, lo mantiene el trigger sync_registro_apunte) para que
-      // quede trazado qué devengo compensa.
-      const { data: devengo } = await supabase
-        .from("registro_apuntes")
-        .select("id")
-        .eq("registro_id", row.id)
-        .eq("movimiento", "DEVENGO")
-        .eq("auto", true)
-        .maybeSingle();
+      // devolución de PNR. Se enlaza al propio apunte BOLSA_ENTRA (no al
+      // DEVENGO) para poder borrarlo en cascada: al quitar el movimiento de
+      // la bolsa (deleteRecordBolsaMovimiento) hay que borrar también su
+      // compensatorio, si no el registro se queda marcado "no abonado" para
+      // siempre sin ningún movimiento de bolsa que lo explique.
       const { error: devolucionError } = await supabase.from("registro_apuntes").insert({
         registro_id: row.id,
         cantidad: -horas,
@@ -19502,7 +19512,7 @@ async function confirmRecordBolsaMovimiento() {
         abonar: true,
         facturar: false,
         auto: false,
-        compensa_apunte_id: devengo?.id ?? null,
+        compensa_apunte_id: entrada.id,
         nota,
       });
       if (devolucionError) throw devolucionError;

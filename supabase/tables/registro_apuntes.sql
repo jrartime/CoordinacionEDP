@@ -96,7 +96,7 @@ comment on column public.registro_apuntes.cantidad is
 comment on column public.registro_apuntes.movimiento is
   'DEVENGO (hora trabajada), DEVOLUCION_HD (resta por PRN), BOLSA_ENTRA, BOLSA_SALE.';
 comment on column public.registro_apuntes.compensa_apunte_id is
-  'En una devolucion HD, apunta al apunte DEVENGO que compensa (par PRN: pagar + devolver).';
+  'En una devolucion HD por PRN, apunta al apunte DEVENGO que compensa (par PRN: pagar + devolver). En una devolucion HD compensatoria de BOLSA_ENTRA, apunta al propio apunte BOLSA_ENTRA (permite borrarlo en cascada, ver deleteRecordBolsaMovimiento en app.js).';
 
 -- ----------------------------------------------------------------------------
 --  Vista de detalle: cada apunte enriquecido con su jornada, persona y tarifa.
