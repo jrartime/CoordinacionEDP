@@ -52,6 +52,15 @@ language sql
 stable
 set search_path = public
 as $$
+  -- Las horas metidas en la bolsa (registro_apuntes, BOLSA_ENTRA) se difieren:
+  -- no se abonan este periodo, aunque la fila de registros conserve sus horas
+  -- intactas (siguen facturando/contando como jornada, ver
+  -- registro_apuntes_sync_trigger.sql). Este resumen es el que alimenta el
+  -- contador "Total: X h de Y h teóricas" de Gestión, que debe coincidir con
+  -- el chip "abona" de Registros -- por eso se resta aqui igual que alli
+  -- (registros_detalle_apuntes.sql), en vez de sumar r.horas en crudo. Las
+  -- horas sacadas de la bolsa (BOLSA_SALE) NO necesitan tratamiento aparte:
+  -- ya se escriben directamente en r.horas al confirmar el movimiento.
   select
     r.puesto_id,
     pu.puesto,
@@ -59,7 +68,7 @@ as $$
     s.situacion,
     r.tipo_hora_id,
     th.tipo_hora,
-    sum(r.horas) as total_horas
+    sum(r.horas - coalesce(banco.horas_banked, 0)) as total_horas
   from public.registros r
   join public.contratos c
     on c.id = r.contrato_id
@@ -67,6 +76,11 @@ as $$
   left join public.puestos pu on pu.id = r.puesto_id
   left join public.situaciones s on s.id = r.situacion_id
   left join public.tipo_horas th on th.id = r.tipo_hora_id
+  left join lateral (
+    select sum(a.cantidad) as horas_banked
+    from public.registro_apuntes a
+    where a.registro_id = r.id and a.movimiento = 'BOLSA_ENTRA'
+  ) banco on true
   where (p_desde is null or r.fecha >= p_desde)
     and (p_hasta is null or r.fecha <= p_hasta)
     and (p_personal_id is null or r.personal_id = p_personal_id)

@@ -114,7 +114,7 @@ const RECORD_COLUMNS = [
   { key: "tipo_hora_id", label: "Tipo hora", type: "number", relationLabelKey: "tipo_hora", sortable: true },
   { key: "sustitucion", label: "Sustitucion", type: "boolean" },
   { key: "facturar", label: "Facturar", type: "boolean" },
-  { key: "estado_facturacion", label: "Fact.", type: "text", readonly: true, sortable: true },
+  { key: "estado_facturacion", label: "Fact.", type: "text", derived: true, readonly: true, sortable: true },
   { key: "abonar", label: "Abonar", type: "boolean" },
   { key: "anio", label: "Anio", type: "number", hiddenInList: true },
   { key: "observacion", label: "Observacion", type: "textarea", hiddenInList: true },
@@ -160,6 +160,10 @@ const RECORD_DETAIL_LABEL_COLUMNS = [
 const RECORD_SELECT_COLUMNS = Array.from(
   new Set([...RECORD_COLUMNS.map((column) => column.key), ...RECORD_DETAIL_LABEL_COLUMNS])
 ).join(",");
+const RECORD_TABLE_SELECT_COLUMNS = RECORD_COLUMNS
+  .filter((column) => !column.derived)
+  .map((column) => column.key)
+  .join(",");
 const RECORDS_LOAD_LIMIT = 5000;
 const RECORDS_FETCH_PAGE_SIZE = 1000;
 const RECORD_REQUIRED_FIELDS = new Map([
@@ -15381,6 +15385,8 @@ function addRecordReportHours(target, row) {
     target.horas += horas;
   }
   target.noct += noct;
+  target.bolsaEntrada += Number(row.bolsa_entrada) || 0;
+  target.bolsaSalida += Number(row.bolsa_salida) || 0;
 }
 
 function formatRecordReportContractService(row) {
@@ -15419,6 +15425,8 @@ function buildRecordsReportGroups(rows = filteredRecordsRows) {
         hmon: 0,
         pnr: 0,
         noct: 0,
+        bolsaEntrada: 0,
+        bolsaSalida: 0,
       });
     }
     addRecordReportHours(person.rows.get(key), row);
@@ -15552,7 +15560,7 @@ function renderRecordsReportPreview(rows) {
 
   recordsReportPreviewContent.innerHTML = groups
     .map((group) => {
-      const totals = { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0, total: 0 };
+      const totals = { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0, total: 0, bolsaEntrada: 0, bolsaSalida: 0 };
       const rowsHtml = group.rows
         .map((row) => {
           const total = getReportRowTotal(row);
@@ -15563,6 +15571,8 @@ function renderRecordsReportPreview(rows) {
           totals.pnr += row.pnr;
           totals.noct += row.noct;
           totals.total += total;
+          totals.bolsaEntrada += row.bolsaEntrada || 0;
+          totals.bolsaSalida += row.bolsaSalida || 0;
           return `
             <tr>
               <td>${escapeHtml(row.contrato || "-")}</td>
@@ -15628,6 +15638,15 @@ function renderRecordsReportPreview(rows) {
               </tbody>
             </table>
           </div>
+          ${
+            totals.bolsaEntrada || totals.bolsaSalida
+              ? `<p class="records-report-preview-bolsa-note">Bolsa de horas del periodo:${
+                  totals.bolsaEntrada ? ` metidas ${escapeHtml(formatReportNumber(totals.bolsaEntrada))} h` : ""
+                }${totals.bolsaEntrada && totals.bolsaSalida ? " ·" : ""}${
+                  totals.bolsaSalida ? ` sacadas ${escapeHtml(formatReportNumber(totals.bolsaSalida))} h` : ""
+                }</p>`
+              : ""
+          }
         </section>
       `;
     })
@@ -15772,7 +15791,7 @@ async function exportRecordsReportPdf(previewRows = null) {
       y += 8;
       drawTableHeader();
 
-      const totals = { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0, total: 0 };
+      const totals = { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0, total: 0, bolsaEntrada: 0, bolsaSalida: 0 };
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.5);
       for (const row of group.rows) {
@@ -15789,6 +15808,8 @@ async function exportRecordsReportPdf(previewRows = null) {
         totals.pnr += row.pnr;
         totals.noct += row.noct;
         totals.total += total;
+        totals.bolsaEntrada += row.bolsaEntrada || 0;
+        totals.bolsaSalida += row.bolsaSalida || 0;
         const values = { ...row, total };
         columns.forEach((col) => {
           doc.rect(col.x, y, col.w, 6);
@@ -15806,6 +15827,16 @@ async function exportRecordsReportPdf(previewRows = null) {
         doc.text(formatReportNumber(totals[col.key]), col.x + col.w - 1.2, y, { align: "right" });
       });
       y += 8;
+      if (totals.bolsaEntrada || totals.bolsaSalida) {
+        ensureSpace(6);
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(7.5);
+        const bolsaParts = [];
+        if (totals.bolsaEntrada) bolsaParts.push(`metidas ${formatReportNumber(totals.bolsaEntrada)} h`);
+        if (totals.bolsaSalida) bolsaParts.push(`sacadas ${formatReportNumber(totals.bolsaSalida)} h`);
+        doc.text(`Bolsa de horas del periodo: ${bolsaParts.join(" · ")}`, 12, y);
+        y += 6;
+      }
     }
     drawRecordsReportFooter(doc, page);
 
@@ -15991,6 +16022,8 @@ function buildPersonReportData(rows) {
   const tipoHoraMap = new Map();
   const detailRows = [];
   let totalHoras = 0;
+  let bolsaEntrada = 0;
+  let bolsaSalida = 0;
 
   for (const row of sorted) {
     const horas = Number(row.horas) || 0;
@@ -16002,6 +16035,8 @@ function buildPersonReportData(rows) {
     puestoMap.set(puesto, (puestoMap.get(puesto) || 0) + horas);
     tipoHoraMap.set(tipoHora, (tipoHoraMap.get(tipoHora) || 0) + horas);
     totalHoras += horas;
+    bolsaEntrada += Number(row.bolsa_entrada) || 0;
+    bolsaSalida += Number(row.bolsa_salida) || 0;
 
     detailRows.push({
       fecha,
@@ -16027,6 +16062,8 @@ function buildPersonReportData(rows) {
     byPuesto: sumEntries(puestoMap),
     byTipoHora: sumEntries(tipoHoraMap),
     totalHoras,
+    bolsaEntrada,
+    bolsaSalida,
   };
 }
 
@@ -16044,9 +16081,13 @@ function renderRecordsPersonReportWeekdayMarker(fecha) {
 
 function renderPersonReportPreview(data, range) {
   if (recordsPersonReportSummary) {
+    const bolsaParts = [];
+    if (data.bolsaEntrada) bolsaParts.push(`${formatRecordHours(data.bolsaEntrada)} h metidas en la bolsa`);
+    if (data.bolsaSalida) bolsaParts.push(`${formatRecordHours(data.bolsaSalida)} h sacadas de la bolsa`);
     recordsPersonReportSummary.textContent =
       `${data.personName} · ${formatDisplayDate(range.from) || "-"} - ${formatDisplayDate(range.to) || "-"} · ` +
-      `${formatRecordHours(data.totalHoras)} h en ${data.daily.length} ${data.daily.length === 1 ? "día" : "días"}`;
+      `${formatRecordHours(data.totalHoras)} h en ${data.daily.length} ${data.daily.length === 1 ? "día" : "días"}` +
+      (bolsaParts.length ? ` · ${bolsaParts.join(" · ")}` : "");
   }
   if (!recordsPersonReportContent) {
     return;
@@ -16110,6 +16151,15 @@ function renderPersonReportPreview(data, range) {
           </tfoot>
         </table>
       </div>
+      ${
+        data.bolsaEntrada || data.bolsaSalida
+          ? `<p class="records-report-preview-bolsa-note">Bolsa de horas del periodo:${
+              data.bolsaEntrada ? ` metidas ${escapeHtml(formatRecordHours(data.bolsaEntrada))} h` : ""
+            }${data.bolsaEntrada && data.bolsaSalida ? " ·" : ""}${
+              data.bolsaSalida ? ` sacadas ${escapeHtml(formatRecordHours(data.bolsaSalida))} h` : ""
+            }</p>`
+          : ""
+      }
     </section>
     <section class="records-person-report-section">
       <h3>Detalle</h3>
@@ -16244,6 +16294,12 @@ function exportRecordsPersonReportCsv() {
         .join(",")
     ),
   ];
+  if (data.bolsaEntrada || data.bolsaSalida) {
+    lines.push("");
+    lines.push(["Bolsa de horas del periodo"].map(toCsvValue).join(","));
+    if (data.bolsaEntrada) lines.push(["Metidas en la bolsa", formatRecordHours(data.bolsaEntrada)].map(toCsvValue).join(","));
+    if (data.bolsaSalida) lines.push(["Sacadas de la bolsa", formatRecordHours(data.bolsaSalida)].map(toCsvValue).join(","));
+  }
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
   const suffix = sanitizeFileName(`${data.personName}-${range.from || "inicio"}-${range.to || "fin"}`);
   triggerDownload(blob, `informe-horas-${suffix}.csv`);
@@ -16363,6 +16419,23 @@ async function exportRecordsPersonReportPdf() {
         { label: "Total", horas: formatRecordHours(data.totalHoras), _seccion: "total" },
       ],
     });
+
+    if (data.bolsaEntrada || data.bolsaSalida) {
+      y += 8;
+      sectionTitle("Bolsa de horas del periodo");
+      y = drawNominaPdfTable(doc, {
+        ...tableDefaults,
+        y,
+        columns: [
+          { key: "label", label: "Movimiento", width: 100, align: "left" },
+          { key: "horas", label: "Horas", width: 30, align: "right" },
+        ],
+        rows: [
+          ...(data.bolsaEntrada ? [{ label: "Metidas en la bolsa", horas: formatRecordHours(data.bolsaEntrada) }] : []),
+          ...(data.bolsaSalida ? [{ label: "Sacadas de la bolsa", horas: formatRecordHours(data.bolsaSalida) }] : []),
+        ],
+      });
+    }
 
     const totalPages = doc.internal.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
@@ -16505,6 +16578,11 @@ function drawRecordsPersonReportImage(data, range) {
     { key: "label", label: "Tipo hora", width: 340 },
     { key: "horas", label: "Horas", width: 130 },
   ];
+  const bolsaColumns = [
+    { key: "label", label: "Movimiento", width: 340 },
+    { key: "horas", label: "Horas", width: 130 },
+  ];
+  const hasBolsa = Boolean(data.bolsaEntrada || data.bolsaSalida);
 
   const tableWidth = Math.max(
     dailyColumns.reduce((sum, column) => sum + column.width, 0),
@@ -16534,11 +16612,18 @@ function drawRecordsPersonReportImage(data, range) {
   }));
   const puestoRows = data.byPuesto.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) }));
   const tipoHoraRows = data.byTipoHora.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) }));
+  const bolsaRows = [
+    ...(data.bolsaEntrada ? [{ label: "Metidas en la bolsa", horas: formatRecordHours(data.bolsaEntrada) }] : []),
+    ...(data.bolsaSalida ? [{ label: "Sacadas de la bolsa", horas: formatRecordHours(data.bolsaSalida) }] : []),
+  ];
 
   const dailyLayouts = layoutCanvasTableRows(scratchContext, dailyColumns, dailyRows, layoutOptions);
   const detailLayouts = layoutCanvasTableRows(scratchContext, detailColumns, detailRows, layoutOptions);
   const puestoLayouts = layoutCanvasTableRows(scratchContext, puestoColumns, puestoRows, layoutOptions);
   const tipoHoraLayouts = layoutCanvasTableRows(scratchContext, tipoHoraColumns, tipoHoraRows, layoutOptions);
+  const bolsaLayouts = hasBolsa
+    ? layoutCanvasTableRows(scratchContext, bolsaColumns, bolsaRows, layoutOptions)
+    : [];
 
   const sectionHeight = (layouts, hasTotal) =>
     40 + headerHeight + layouts.reduce((sum, layout) => sum + layout.rowHeight, 0) + (hasTotal ? 46 : 0) + 32;
@@ -16549,6 +16634,7 @@ function drawRecordsPersonReportImage(data, range) {
     sectionHeight(detailLayouts, false) +
     sectionHeight(puestoLayouts, true) +
     sectionHeight(tipoHoraLayouts, true) +
+    (hasBolsa ? sectionHeight(bolsaLayouts, false) : 0) +
     footerHeight;
 
   const canvas = document.createElement("canvas");
@@ -16607,6 +16693,15 @@ function drawRecordsPersonReportImage(data, range) {
     totalLabel: "Total",
     totalValue: formatRecordHours(data.totalHoras),
   });
+  if (hasBolsa) {
+    y = drawCanvasTableSection(context, {
+      ...sectionDefaults,
+      y,
+      title: "Bolsa de horas del periodo",
+      columns: bolsaColumns,
+      rowLayouts: bolsaLayouts,
+    });
+  }
 
   context.fillStyle = "#64748b";
   context.font = "18px Arial";
@@ -18100,7 +18195,7 @@ async function editRecordFromChange(recordId) {
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from("registros")
-      .select(RECORD_SELECT_COLUMNS)
+      .select(RECORD_TABLE_SELECT_COLUMNS)
       .eq("id", recordId)
       .maybeSingle();
     if (error) throw error;
@@ -18744,7 +18839,7 @@ async function fetchRecordRowById(supabase, recordId) {
   if (!error && data) return data;
   const { data: base } = await supabase
     .from("registros")
-    .select(RECORD_COLUMNS.filter((column) => !column.derived).map((column) => column.key).join(","))
+    .select(RECORD_TABLE_SELECT_COLUMNS)
     .eq("id", recordId)
     .maybeSingle();
   return base ?? null;
@@ -19049,7 +19144,12 @@ function buildRecordSubstitutionInsert(titular, sustitutoId, tipoHoraId) {
   const derivedKeys = new Set(RECORD_DETAIL_LABEL_COLUMNS);
   const insertData = {};
   for (const column of RECORD_COLUMNS) {
-    if (excludeKeys.has(column.key) || derivedKeys.has(column.key) || column.derived) continue;
+    if (
+      excludeKeys.has(column.key) ||
+      derivedKeys.has(column.key) ||
+      column.derived ||
+      column.readonly
+    ) continue;
     if (titular[column.key] !== undefined) insertData[column.key] = titular[column.key];
   }
   insertData.personal_id = sustitutoId;
@@ -19165,6 +19265,11 @@ async function confirmRecordSubstitution() {
 // movimiento BOLSA_ENTRA/BOLSA_SALE). No se toca la fila de registros -- sus
 // horas/tipo_hora_id siguen intactos para facturación, jornada y nocturnidad;
 // el motor de nóminas resta/suma estos apuntes aparte (nomina_calculo.sql).
+// BOLSA_ENTRA además inserta un apunte DEVOLUCION_HD compensatorio (mismo
+// patrón que el par PNR: DEVENGO +horas / DEVOLUCION_HD -horas) para que las
+// horas guardadas dejen de contar como abonadas en registros_detalle sin
+// dejar de facturarse -- si no, el DEVENGO original seguía marcando esas
+// horas como abonadas y el chip resumen de Registros no reflejaba nada.
 // ---------------------------------------------------------------------------
 async function getBolsaSaldoActual(personalId) {
   if (!personalId) return 0;
@@ -19377,6 +19482,30 @@ async function confirmRecordBolsaMovimiento() {
         nota,
       });
       if (error) throw error;
+
+      // Compensatorio: resta del abono sin tocar la factura, igual que la
+      // devolución de PNR. Se enlaza al DEVENGO vigente de este registro
+      // (auto=true, lo mantiene el trigger sync_registro_apunte) para que
+      // quede trazado qué devengo compensa.
+      const { data: devengo } = await supabase
+        .from("registro_apuntes")
+        .select("id")
+        .eq("registro_id", row.id)
+        .eq("movimiento", "DEVENGO")
+        .eq("auto", true)
+        .maybeSingle();
+      const { error: devolucionError } = await supabase.from("registro_apuntes").insert({
+        registro_id: row.id,
+        cantidad: -horas,
+        concepto_id: row.tipo_hora_id ?? 1,
+        movimiento: "DEVOLUCION_HD",
+        abonar: true,
+        facturar: false,
+        auto: false,
+        compensa_apunte_id: devengo?.id ?? null,
+        nota,
+      });
+      if (devolucionError) throw devolucionError;
     } else {
       // Estas horas se pagan ahora, así que también se facturan: se escriben
       // en la propia fila de registros (sumadas a lo que ya tuviera) para que
