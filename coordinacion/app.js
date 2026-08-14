@@ -101,15 +101,7 @@ const RECORD_COLUMNS = [
   { key: "hora_inicio", label: "Inicio", type: "time", sortable: true, stackWith: "hora_fin" },
   { key: "hora_fin", label: "Fin", type: "time", sortable: true, hiddenInList: true },
   { key: "horas", label: "Horas", type: "decimal", sortable: true },
-  { key: "hc", label: "HC", type: "decimal", hiddenInList: true },
-  { key: "hf", label: "HF", type: "decimal", hiddenInList: true },
-  { key: "hm", label: "HM", type: "decimal", hiddenInList: true },
-  { key: "hd", label: "HD", type: "decimal", hiddenInList: true },
-  { key: "bolsa_horas", label: "Bolsa horas", type: "decimal", hiddenInList: true },
-  { key: "horas_diurnas", label: "H. diurnas", type: "decimal", hiddenInList: true },
   { key: "horas_nocturnas", label: "H. nocturnas", type: "decimal", hiddenInList: true },
-  { key: "clases", label: "Clases", type: "decimal", hiddenInList: true },
-  { key: "horas_2", label: "Horas 2", type: "decimal", hiddenInList: true },
   { key: "situacion_id", label: "Situacion", type: "number", relationLabelKey: "situacion", sortable: true },
   { key: "tipo_hora_id", label: "Tipo hora", type: "number", relationLabelKey: "tipo_hora", sortable: true },
   { key: "sustitucion", label: "Sustitucion", type: "boolean" },
@@ -176,12 +168,6 @@ const RECORD_DETAIL_HIDDEN_FIELDS = new Set([
   "id",
   "titular_personal_id",
   "categoria_id",
-  "hc",
-  "hf",
-  "hm",
-  "horas_diurnas",
-  "clases",
-  "horas_2",
   "anio",
 ]);
 const RECORD_EMPTY_FILTER_VALUE = "__record_filter_empty__";
@@ -17503,7 +17489,7 @@ async function applyRecordsBulkAssignment() {
     if (situacionDestinoSinHoras) {
       const { error } = await supabase
         .from("registros")
-        .update({ ...updatePayload, horas: null, horas_nocturnas: null, horas_diurnas: null, facturar: false, abonar: false })
+        .update({ ...updatePayload, horas: null, horas_nocturnas: null, facturar: false, abonar: false })
         .in("id", ids);
       if (error) throw error;
     } else if (situacionFilasARestaurar.length) {
@@ -17535,7 +17521,6 @@ async function applyRecordsBulkAssignment() {
             ...updatePayload,
             horas: grupo.horas,
             horas_nocturnas: null,
-            horas_diurnas: null,
             facturar: true,
             abonar: true,
           })
@@ -17717,7 +17702,7 @@ async function withRecordSituacionSideEffects(row, patch) {
     return patch;
   }
   if (despues) {
-    return { ...patch, horas: null, horas_nocturnas: null, horas_diurnas: null, facturar: false, abonar: false };
+    return { ...patch, horas: null, horas_nocturnas: null, facturar: false, abonar: false };
   }
 
   const pick = (key) =>
@@ -17730,9 +17715,6 @@ async function withRecordSituacionSideEffects(row, patch) {
     // Nulo = lo recalcula el trigger en base con la franja del contrato. Aquí
     // dependía de un catálogo cargado en el navegador, que podía no estarlo.
     horas_nocturnas: null,
-    // horas_diurnas no tiene trigger propio; se vacía aquí para que no quede
-    // con el valor de antes de CAMB/LG (ver recordHours en facturacion.js).
-    horas_diurnas: null,
     facturar: true,
     abonar: true,
   };
@@ -18724,7 +18706,10 @@ async function duplicateRecordDetail() {
 // --- Sustituciones ---
 // Motivos de ausencia del titular y como se marcan en su fila.
 // Regla de nomina acordada: VAC/IT/AP/PR se pagan y facturan (sin tocar horas);
-// PNR (permiso no retribuido) se marca como tipo de hora PNR y pone hd en negativo.
+// PNR (permiso no retribuido) se marca como tipo de hora PNR -- la devolucion
+// que resta de nomina sin tocar la factura la genera el trigger
+// sync_registro_apunte en registro_apuntes (par DEVENGO/DEVOLUCION_HD), no una
+// columna de registros.
 // CAMB y LG son situaciones SIN HORAS (ver withRecordSituacionSideEffects): el
 // titular no hace ese turno, asi que su fila se queda sin horas y sin ticks.
 // CAMB es el caso de quien esta haciendo tareas en otro sitio —en el mismo
@@ -18736,7 +18721,7 @@ const RECORD_SUBSTITUTION_REASONS = [
   { value: "PR", label: "Permiso retribuido (PR)", situacionCode: "PR" },
   { value: "CAMB", label: "Cambio de actividad (CAMB)", situacionCode: "CAMB" },
   { value: "LG", label: "Licencia (LG)", situacionCode: "LG" },
-  { value: "PNR", label: "Permiso no retribuido (PNR)", tipoHoraCode: "PNR", hdNegative: true },
+  { value: "PNR", label: "Permiso no retribuido (PNR)", tipoHoraCode: "PNR" },
 ];
 
 function findRecordRelationIdByLabel(field, label) {
@@ -19131,9 +19116,6 @@ async function buildRecordSubstitutionTitularPatch(titular, reason) {
     const tipoHoraId = findRecordRelationIdByLabel("tipo_hora_id", reason.tipoHoraCode);
     if (tipoHoraId != null) patch.tipo_hora_id = tipoHoraId;
   }
-  if (reason.hdNegative) {
-    patch.hd = -Math.abs(Number(titular.horas) || 0);
-  }
   return withRecordSituacionSideEffects(titular, patch);
 }
 
@@ -19156,7 +19138,6 @@ function buildRecordSubstitutionInsert(titular, sustitutoId, tipoHoraId) {
   insertData.sustitucion = true;
   insertData.facturar = true;
   insertData.abonar = true;
-  insertData.hd = 0;
   insertData.sustituye_registro_id = titular.id;
   const sustSituacionId = findRecordRelationIdByLabel("situacion_id", "SUST");
   if (sustSituacionId != null) insertData.situacion_id = sustSituacionId;
@@ -19612,7 +19593,7 @@ async function removeRecordSubstitution() {
   }
   const revertSituacionCode = titularRow.sustituye_registro_id ? "SUST" : "NORM";
   const revertSituacionId = findRecordRelationIdByLabel("situacion_id", revertSituacionCode);
-  const titularRevert = { hd: 0 };
+  const titularRevert = {};
   if (revertSituacionId != null) titularRevert.situacion_id = revertSituacionId;
   // Solo PNR toca el tipo de hora al marcar la ausencia, asi que solo PNR se
   // deshace: un montaje sustituido tiene que volver a ser montaje.
@@ -19879,8 +19860,8 @@ async function confirmRecordsBulkSubstitution() {
   try {
     const supabase = await getSupabaseClient();
 
-    // Los parches del titular solo difieren en hd (PNR lo pone en negativo segun
-    // las horas del turno), asi que se agrupan los identicos en un update.
+    // Los titulares con el mismo motivo suelen generar el mismo parche
+    // (situacion_id/tipo_hora_id), asi que se agrupan los identicos en un update.
     const grupos = new Map();
     for (const titular of aplicables) {
       const patch = await buildRecordSubstitutionTitularPatch(titular, reason);
@@ -29703,7 +29684,6 @@ async function generateEventRecords(button) {
       abonar: true,
       descanso: false,
       sustitucion: false,
-      festivo: false,
       anio: Number(String(row.fecha).slice(0, 4)),
       observacion: row.observacion,
     }));

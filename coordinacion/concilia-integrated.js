@@ -4882,7 +4882,6 @@
         abonar: !sinHoras,
         descanso: false,
         sustitucion: false,
-        festivo: false,
         anio: Number(date.slice(0, 4)),
         observacion: activity.observaciones || null,
         };
