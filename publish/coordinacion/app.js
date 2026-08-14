@@ -138,6 +138,8 @@ const RECORD_DETAIL_LABEL_COLUMNS = [
   "apunte_abonado",
   "apunte_facturado",
   "apunte_neto",
+  "bolsa_entrada",
+  "bolsa_salida",
   "facturacion_factura_id",
   "facturacion_preparacion_id",
   "facturacion_factura_serie",
@@ -1019,6 +1021,8 @@ const recordBolsaHelp = document.querySelector("#record-bolsa-help");
 const recordBolsaConfirmButton = document.querySelector("#record-bolsa-confirm-button");
 const recordBolsaCancelButton = document.querySelector("#record-bolsa-cancel-button");
 const recordsBolsaSaldoChip = document.querySelector("#records-bolsa-saldo");
+const recordBolsaExisting = document.querySelector("#record-bolsa-existing");
+const recordBolsaExistingList = document.querySelector("#record-bolsa-existing-list");
 const recordsBulkSubstitutionButton = document.querySelector("#records-bulk-substitution-button");
 const recordsBulkSubstitutionPanel = document.querySelector("#records-bulk-substitution-panel");
 const recordsBulkSubstitutionOverlay = document.querySelector("#records-bulk-substitution-overlay");
@@ -1638,6 +1642,8 @@ let recordsReportPreviewRows = null;
 let recordsPersonReportPayload = null;
 let currentRecordsPersonReportImageCanvas = null;
 let currentRecordsPersonReportImageFileName = "";
+let currentRecordsBolsaSummaryImageCanvas = null;
+let currentRecordsBolsaSummaryImageFileName = "";
 let recordsSort = { field: "fecha", direction: "desc" };
 // Facetas para los desplegables de filtro: valores distintos (contrato/servicio/
 // personal/instalacion) presentes en registros dentro del rango fecha/actividad.
@@ -14232,6 +14238,7 @@ async function syncRecordsBolsaSaldo() {
     if (error) throw error;
     const saldo = Number(data?.saldo ?? 0);
     recordsBolsaSaldoChip.textContent = `Bolsa de horas: ${formatRecordHours(saldo)} h`;
+    recordsBolsaSaldoChip.title = "Clic para ver un resumen del periodo filtrado (desde/hasta) como imagen";
     recordsBolsaSaldoChip.classList.toggle("negative", saldo < 0);
     recordsBolsaSaldoChip.classList.remove("hidden");
   } catch (err) {
@@ -14705,6 +14712,7 @@ function renderRecordsTable() {
                 aria-label="${escapeHtml(weekday.label)}"
               >${escapeHtml(weekday.letter)}</span>
             `;
+            content += renderRecordBolsaBadge(row);
           }
           if (column.stackWith) {
             const stackKeys = Array.isArray(column.stackWith) ? column.stackWith : [column.stackWith];
@@ -16663,6 +16671,157 @@ async function downloadRecordsPersonReportImage() {
   }
 }
 
+// --- Resumen de bolsa de horas (imagen), al pulsar el contador de Registros ---
+function getRecordsBolsaSummaryImageFileName(personName, dateFrom, dateTo) {
+  return `bolsa-horas-${sanitizeFileName(personName)}-${dateFrom || "sin-inicio"}-${dateTo || "sin-fin"}.png`;
+}
+
+function drawRecordsBolsaSummaryImage(data) {
+  const scale = 2;
+  const margin = 40;
+  const canvasWidth = 620;
+  const lineGap = 40;
+  const titleHeight = 140;
+  const rowsCount = 4; // saldo inicial, entrada, salida, saldo final
+  const footerHeight = 60;
+  const canvasHeight = titleHeight + rowsCount * lineGap + 24 + footerHeight;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth * scale;
+  canvas.height = canvasHeight * scale;
+  const context = canvas.getContext("2d");
+  context.scale(scale, scale);
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvasWidth, canvasHeight);
+  context.fillStyle = "#001f54";
+  context.font = "bold 34px Arial";
+  context.fillText("Bolsa de horas", margin, 46);
+  context.font = "bold 26px Arial";
+  context.fillText(data.personName, margin, 82);
+  context.font = "22px Arial";
+  context.fillText(
+    `Periodo: ${formatDisplayDate(data.desde) || "Sin fecha inicial"} - ${formatDisplayDate(data.hasta) || "Sin fecha final"}`,
+    margin,
+    114
+  );
+
+  let y = titleHeight;
+  const drawRow = (label, value, opts = {}) => {
+    context.font = opts.bold ? "bold 22px Arial" : "22px Arial";
+    context.fillStyle = opts.color || "#1f2937";
+    context.fillText(label, margin, y);
+    context.textAlign = "right";
+    context.fillText(value, canvasWidth - margin, y);
+    context.textAlign = "left";
+    y += lineGap;
+  };
+
+  drawRow(
+    `Saldo a ${formatDisplayDate(data.desde) || "inicio"}`,
+    `${formatRecordHours(data.saldoInicial)} h`
+  );
+  drawRow("Horas metidas en la bolsa", `+${formatRecordHours(data.entrada)} h`, { color: "#166534" });
+  drawRow("Horas pagadas con la bolsa", `-${formatRecordHours(data.salida)} h`, { color: "#92400e" });
+  y += 8;
+  context.strokeStyle = "#cbd5e1";
+  context.beginPath();
+  context.moveTo(margin, y - lineGap + 20);
+  context.lineTo(canvasWidth - margin, y - lineGap + 20);
+  context.stroke();
+  drawRow(
+    `Saldo a ${formatDisplayDate(data.hasta) || "fin"}`,
+    `${formatRecordHours(data.saldoFinal)} h`,
+    { bold: true }
+  );
+
+  context.fillStyle = "#64748b";
+  context.font = "18px Arial";
+  context.fillText(`Generado: ${new Date().toLocaleString("es-ES")}`, margin, canvasHeight - 12);
+
+  return canvas;
+}
+
+async function openRecordsBolsaSummaryImage() {
+  const filters = getRecordsFilterValues();
+  if (!filters.personalId || !filters.fechaDesde || !filters.fechaHasta) {
+    setStatus("Selecciona una persona y un intervalo completo (desde/hasta) para el resumen de la bolsa.", "error");
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const [{ data: resumenRows, error: resumenError }, { data: personalRow, error: personalError }] =
+      await Promise.all([
+        supabase.rpc("get_bolsa_resumen", {
+          p_personal_id: Number(filters.personalId),
+          p_desde: filters.fechaDesde,
+          p_hasta: filters.fechaHasta,
+        }),
+        supabase.from("personal").select("personal").eq("id", filters.personalId).maybeSingle(),
+      ]);
+    if (resumenError) throw resumenError;
+    const resumen = resumenRows?.[0] || { saldo_inicial: 0, entrada: 0, salida: 0, saldo_final: 0 };
+    if (personalError) throw personalError;
+
+    const data = {
+      personName: personalRow?.personal || `ID ${filters.personalId}`,
+      desde: filters.fechaDesde,
+      hasta: filters.fechaHasta,
+      saldoInicial: Number(resumen.saldo_inicial) || 0,
+      entrada: Number(resumen.entrada) || 0,
+      salida: Number(resumen.salida) || 0,
+      saldoFinal: Number(resumen.saldo_final) || 0,
+    };
+
+    currentRecordsBolsaSummaryImageCanvas = drawRecordsBolsaSummaryImage(data);
+    currentRecordsBolsaSummaryImageFileName = getRecordsBolsaSummaryImageFileName(
+      data.personName,
+      data.desde,
+      data.hasta
+    );
+    if (recordsBolsaSummaryImagePreview) {
+      recordsBolsaSummaryImagePreview.src = currentRecordsBolsaSummaryImageCanvas.toDataURL("image/png");
+    }
+    recordsBolsaSummaryImagePanel?.classList.remove("hidden");
+    setStatus("Resumen de la bolsa de horas generado.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo generar el resumen de la bolsa de horas.", "error");
+  }
+}
+
+function closeRecordsBolsaSummaryImagePanel() {
+  recordsBolsaSummaryImagePanel?.classList.add("hidden");
+}
+
+async function copyRecordsBolsaSummaryImageToClipboard() {
+  try {
+    if (!currentRecordsBolsaSummaryImageCanvas) {
+      throw new Error("Genera primero el resumen de la bolsa.");
+    }
+    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
+      throw new Error("El navegador no permite copiar imagenes al portapapeles.");
+    }
+    const blob = await canvasToBlob(currentRecordsBolsaSummaryImageCanvas);
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    setStatus("Imagen copiada al portapapeles.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo copiar la imagen.", "error");
+  }
+}
+
+async function downloadRecordsBolsaSummaryImage() {
+  try {
+    if (!currentRecordsBolsaSummaryImageCanvas) {
+      throw new Error("Genera primero el resumen de la bolsa.");
+    }
+    const blob = await canvasToBlob(currentRecordsBolsaSummaryImageCanvas);
+    triggerDownload(blob, currentRecordsBolsaSummaryImageFileName || "bolsa-horas.png");
+    setStatus("Imagen descargada correctamente.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo descargar la imagen.", "error");
+  }
+}
+
 const RECORD_BULK_FIELDS = {
   fecha: { label: "Fecha", type: "date" },
   empresa_id: { label: "Empresa", type: "select", source: "empresa_id" },
@@ -16729,6 +16888,14 @@ const closeRecordsPersonReportImageButton = document.querySelector("#close-recor
 const copyRecordsPersonReportImageButton = document.querySelector("#copy-records-person-report-image-button");
 const downloadRecordsPersonReportImageButton = document.querySelector(
   "#download-records-person-report-image-button"
+);
+const recordsBolsaSummaryImageBackdrop = document.querySelector("#records-bolsa-summary-image-backdrop");
+const recordsBolsaSummaryImagePanel = document.querySelector("#records-bolsa-summary-image-panel");
+const recordsBolsaSummaryImagePreview = document.querySelector("#records-bolsa-summary-image-preview");
+const closeRecordsBolsaSummaryImageButton = document.querySelector("#close-records-bolsa-summary-image-button");
+const copyRecordsBolsaSummaryImageButton = document.querySelector("#copy-records-bolsa-summary-image-button");
+const downloadRecordsBolsaSummaryImageButton = document.querySelector(
+  "#download-records-bolsa-summary-image-button"
 );
 let recordsBulkCurrentFilterActive = false;
 
@@ -18780,6 +18947,29 @@ function recordBillingStatusDetail(row) {
   return "Pendiente de facturar";
 }
 
+// Icono de bolsa de horas junto a la fecha: una flecha "hacia" la bolsa si el
+// registro metió horas (bolsa_entrada, ver registros_detalle_apuntes.sql), y
+// "desde" la bolsa si el registro se pagó con horas sacadas de ella
+// (bolsa_salida). Pueden darse los dos a la vez (raro, pero posible si el
+// mismo día tuvo ambos movimientos).
+function renderRecordBolsaBadge(row) {
+  const entra = Number(row.bolsa_entrada || 0);
+  const sale = Number(row.bolsa_salida || 0);
+  if (!entra && !sale) return "";
+  let html = "";
+  if (entra > 0) {
+    html += ` <span class="record-bolsa-badge record-bolsa-badge-entra" title="${escapeHtml(
+      `${formatRecordHours(entra)} h metidas en la bolsa de horas`
+    )}" aria-label="${escapeHtml(`${formatRecordHours(entra)} h metidas en la bolsa de horas`)}">→💰</span>`;
+  }
+  if (sale > 0) {
+    html += ` <span class="record-bolsa-badge record-bolsa-badge-sale" title="${escapeHtml(
+      `${formatRecordHours(sale)} h pagadas con la bolsa de horas`
+    )}" aria-label="${escapeHtml(`${formatRecordHours(sale)} h pagadas con la bolsa de horas`)}">💰→</span>`;
+  }
+  return html;
+}
+
 function renderRecordBillingBadge(row) {
   const estado = recordBillingStatus(row);
   const cls = RECORD_BILLING_BADGE_CLASS[estado] || "record-billing-badge-pendiente";
@@ -18998,7 +19188,7 @@ function updateRecordBolsaHelp() {
   if (recordBolsaHelp) {
     recordBolsaHelp.textContent = isEntrada
       ? "Esas horas dejan de pagarse ahora (se difieren) aunque el turno se sigue facturando igual."
-      : "Esas horas se pagan ahora, sacadas del saldo de la bolsa.";
+      : "Esas horas se pagan ahora, sacadas del saldo de la bolsa, y se suman a las horas de este registro para que también se facturen.";
   }
 }
 
@@ -19026,20 +19216,117 @@ async function openRecordBolsaPanel() {
   updateRecordBolsaHelp();
   recordBolsaPanel.classList.remove("hidden");
 
-  try {
-    const saldo = await getBolsaSaldoActual(row.personal_id);
-    if (recordBolsaSaldoActual) {
-      recordBolsaSaldoActual.textContent = `Saldo actual de la bolsa: ${formatRecordHours(saldo)} h`;
-    }
-  } catch (error) {
-    if (recordBolsaSaldoActual) {
-      recordBolsaSaldoActual.textContent = "No se pudo consultar el saldo actual.";
-    }
-  }
+  await Promise.all([
+    (async () => {
+      try {
+        const saldo = await getBolsaSaldoActual(row.personal_id);
+        if (recordBolsaSaldoActual) {
+          recordBolsaSaldoActual.textContent = `Saldo actual de la bolsa: ${formatRecordHours(saldo)} h`;
+        }
+      } catch (error) {
+        if (recordBolsaSaldoActual) {
+          recordBolsaSaldoActual.textContent = "No se pudo consultar el saldo actual.";
+        }
+      }
+    })(),
+    loadRecordBolsaExisting(row.id),
+  ]);
 }
 
 function closeRecordBolsaPanel() {
   recordBolsaPanel?.classList.add("hidden");
+}
+
+// Movimientos de bolsa ya registrados sobre ESTE registro, con botón para
+// borrarlos. Un registro normalmente tiene como mucho uno, pero nada lo
+// impide a nivel de datos (p.ej. una prueba), así que se listan todos.
+async function loadRecordBolsaExisting(registroId) {
+  if (!recordBolsaExisting || !recordBolsaExistingList) return;
+  recordBolsaExisting.classList.add("hidden");
+  recordBolsaExistingList.innerHTML = "";
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("registro_apuntes")
+      .select("id, movimiento, cantidad, nota, control")
+      .eq("registro_id", registroId)
+      .in("movimiento", ["BOLSA_ENTRA", "BOLSA_SALE"])
+      .order("control", { ascending: true });
+    if (error) throw error;
+    if (!data?.length) return;
+    recordBolsaExistingList.innerHTML = data
+      .map((mov) => {
+        const esEntrada = mov.movimiento === "BOLSA_ENTRA";
+        const etiqueta = esEntrada ? "Metidas en la bolsa" : "Pagadas con la bolsa";
+        const horas = formatRecordHours(Math.abs(Number(mov.cantidad) || 0));
+        const fecha = mov.control ? new Date(mov.control).toLocaleString("es-ES") : "";
+        return `
+          <li class="record-bolsa-existing-item">
+            <span class="record-bolsa-badge ${esEntrada ? "record-bolsa-badge-entra" : "record-bolsa-badge-sale"}">
+              ${esEntrada ? "→💰" : "💰→"}
+            </span>
+            <span class="record-bolsa-existing-detail">
+              ${escapeHtml(etiqueta)}: ${escapeHtml(horas)} h
+              ${mov.nota ? `· ${escapeHtml(mov.nota)}` : ""}
+              ${fecha ? `<br><span class="muted-text">${escapeHtml(fecha)}</span>` : ""}
+            </span>
+            <button
+              type="button"
+              class="compact-button danger-button"
+              data-bolsa-delete="${escapeHtml(mov.id)}"
+              data-bolsa-delete-movimiento="${escapeHtml(mov.movimiento)}"
+              data-bolsa-delete-cantidad="${escapeHtml(mov.cantidad)}"
+              title="Borrar este movimiento"
+            >&times;</button>
+          </li>
+        `;
+      })
+      .join("");
+    recordBolsaExisting.classList.remove("hidden");
+  } catch (error) {
+    console.error("No se pudieron cargar los movimientos de bolsa de este registro.", error);
+  }
+}
+
+async function deleteRecordBolsaMovimiento(apunteId, movimiento, cantidad) {
+  const row = recordDetailSnapshot;
+  if (!row?.id) return;
+
+  const esSalida = movimiento === "BOLSA_SALE";
+  const horas = Math.abs(Number(cantidad) || 0);
+  const mensaje = esSalida
+    ? `¿Borrar este movimiento? Se quitarán ${formatRecordHours(horas)} h de este registro ` +
+      `(se restan de sus horas, ya que se habían sumado al pagarlas con la bolsa).`
+    : `¿Borrar este movimiento? Las ${formatRecordHours(horas)} h vuelven a estar disponibles en la bolsa.`;
+  if (!window.confirm(mensaje)) return;
+
+  try {
+    const supabase = await getSupabaseClient();
+
+    if (esSalida) {
+      // Al confirmar "Cubrir con la bolsa" esas horas se sumaron a la fila de
+      // registros (para que se facturaran/abonaran con normalidad); al
+      // borrar el movimiento hay que deshacer esa suma o el registro se
+      // quedaría con horas que ya no tienen ningún apunte detrás.
+      const nuevasHoras = Math.max(0, Number(row.horas ?? 0) - horas);
+      const { error: updateError } = await supabase
+        .from("registros")
+        .update({ horas: nuevasHoras })
+        .eq("id", row.id);
+      if (updateError) throw updateError;
+    }
+
+    const { error: deleteError } = await supabase.from("registro_apuntes").delete().eq("id", apunteId);
+    if (deleteError) throw deleteError;
+
+    await loadRecordBolsaExisting(row.id);
+    await syncRecordsBolsaSaldo();
+    await loadRecords();
+    openRecordDetail(row.id);
+    setStatus("Movimiento de bolsa borrado.", "success");
+  } catch (error) {
+    setStatus(`No se pudo borrar el movimiento de bolsa: ${error.message}`, "error");
+  }
 }
 
 async function confirmRecordBolsaMovimiento() {
@@ -19073,38 +19360,60 @@ async function confirmRecordBolsaMovimiento() {
       }
     }
 
-    const insertData = movimiento === "BOLSA_ENTRA"
-      ? {
-          registro_id: row.id,
-          cantidad: horas,
-          concepto_id: row.tipo_hora_id ?? 1,
-          movimiento: "BOLSA_ENTRA",
-          abonar: false,
-          facturar: false,
-          auto: false,
-          nota,
-        }
-      : {
-          registro_id: row.id,
-          cantidad: -horas,
-          concepto_id: 1,
-          movimiento: "BOLSA_SALE",
-          abonar: true,
-          facturar: Boolean(row.facturar ?? true),
-          auto: false,
-          nota,
-        };
-
     const supabase = await getSupabaseClient();
-    const { error } = await supabase.from("registro_apuntes").insert(insertData);
-    if (error) throw error;
+
+    if (movimiento === "BOLSA_ENTRA") {
+      // No se toca la fila de registros: sigue facturando/contando como
+      // jornada trabajada igual que antes; solo se difiere el pago (el motor
+      // de nóminas resta estas horas de su bucket de tarifa aparte).
+      const { error } = await supabase.from("registro_apuntes").insert({
+        registro_id: row.id,
+        cantidad: horas,
+        concepto_id: row.tipo_hora_id ?? 1,
+        movimiento: "BOLSA_ENTRA",
+        abonar: false,
+        facturar: false,
+        auto: false,
+        nota,
+      });
+      if (error) throw error;
+    } else {
+      // Estas horas se pagan ahora, así que también se facturan: se escriben
+      // en la propia fila de registros (sumadas a lo que ya tuviera) para que
+      // Facturación, que lee registros.horas/facturar directamente y no sabe
+      // nada de la bolsa, las cuente con normalidad. Eso además regenera (vía
+      // trigger) el DEVENGO auto del registro con abonar/facturar=true, que es
+      // quien realmente aporta el abono/facturación — por eso el apunte de
+      // abajo va con abonar/facturar=false: es solo el asiento del saldo, y
+      // dejarlo en true lo duplicaría (o lo cancelaría) contra ese DEVENGO.
+      const nuevasHoras = Number(row.horas ?? 0) + horas;
+      const { error: updateError } = await supabase
+        .from("registros")
+        .update({ horas: nuevasHoras, facturar: true, abonar: true })
+        .eq("id", row.id);
+      if (updateError) throw updateError;
+
+      const { error: insertError } = await supabase.from("registro_apuntes").insert({
+        registro_id: row.id,
+        cantidad: -horas,
+        concepto_id: 1,
+        movimiento: "BOLSA_SALE",
+        abonar: false,
+        facturar: false,
+        auto: false,
+        nota,
+      });
+      if (insertError) throw insertError;
+    }
 
     closeRecordBolsaPanel();
     await syncRecordsBolsaSaldo();
+    await loadRecords();
+    openRecordDetail(row.id);
     setStatus(
       movimiento === "BOLSA_ENTRA"
         ? `Metidas ${formatRecordHours(horas)} h en la bolsa de horas.`
-        : `Cubiertas ${formatRecordHours(horas)} h con la bolsa de horas.`,
+        : `Cubiertas ${formatRecordHours(horas)} h con la bolsa de horas (registro actualizado y facturable).`,
       "success"
     );
   } catch (error) {
@@ -31207,6 +31516,17 @@ async function init() {
   downloadRecordsPersonReportImageButton?.addEventListener("click", () => {
     void downloadRecordsPersonReportImage();
   });
+  recordsBolsaSaldoChip?.addEventListener("click", () => {
+    void openRecordsBolsaSummaryImage();
+  });
+  closeRecordsBolsaSummaryImageButton?.addEventListener("click", closeRecordsBolsaSummaryImagePanel);
+  recordsBolsaSummaryImageBackdrop?.addEventListener("click", closeRecordsBolsaSummaryImagePanel);
+  copyRecordsBolsaSummaryImageButton?.addEventListener("click", () => {
+    void copyRecordsBolsaSummaryImageToClipboard();
+  });
+  downloadRecordsBolsaSummaryImageButton?.addEventListener("click", () => {
+    void downloadRecordsBolsaSummaryImage();
+  });
   recordsRefreshButton?.addEventListener("click", () => {
     void loadRecords({ force: true });
   });
@@ -31360,6 +31680,15 @@ async function init() {
   });
   recordBolsaCancelButton?.addEventListener("click", closeRecordBolsaPanel);
   recordBolsaOverlay?.addEventListener("click", closeRecordBolsaPanel);
+  recordBolsaExistingList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-bolsa-delete]");
+    if (!button) return;
+    void deleteRecordBolsaMovimiento(
+      button.dataset.bolsaDelete,
+      button.dataset.bolsaDeleteMovimiento,
+      button.dataset.bolsaDeleteCantidad
+    );
+  });
   recordsBulkSubstitutionButton?.addEventListener("click", openRecordsBulkSubstitutionPanel);
   recordsBulkSubstitutionCancelButton?.addEventListener("click", closeRecordsBulkSubstitutionPanel);
   recordsBulkSubstitutionOverlay?.addEventListener("click", closeRecordsBulkSubstitutionPanel);

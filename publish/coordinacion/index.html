@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260807-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260812-4" />
   </head>
   <body>
     <script>
@@ -1028,9 +1028,9 @@
                   </div>
                 </aside>
 
-                <section id="records-person-report-image-panel" class="detail-panel hidden">
+                <section id="records-person-report-image-panel" class="detail-panel detail-panel-floating hidden">
                   <div id="records-person-report-image-backdrop" class="detail-overlay"></div>
-                  <aside class="detail-drawer event-report-image-drawer">
+                  <div class="image-preview-dialog">
                     <div class="detail-header">
                       <div>
                         <p class="eyebrow">Registros</p>
@@ -1062,7 +1062,44 @@
                         alt="Vista previa del informe individual de registros"
                       />
                     </div>
-                  </aside>
+                  </div>
+                </section>
+
+                <section id="records-bolsa-summary-image-panel" class="detail-panel detail-panel-floating hidden">
+                  <div id="records-bolsa-summary-image-backdrop" class="detail-overlay"></div>
+                  <div class="image-preview-dialog">
+                    <div class="detail-header">
+                      <div>
+                        <p class="eyebrow">Bolsa de horas</p>
+                        <h3>Vista previa PNG</h3>
+                      </div>
+                      <button
+                        id="close-records-bolsa-summary-image-button"
+                        type="button"
+                        class="secondary-button"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                    <div class="event-report-image-actions">
+                      <button id="copy-records-bolsa-summary-image-button" type="button">
+                        Copiar imagen
+                      </button>
+                      <button
+                        id="download-records-bolsa-summary-image-button"
+                        class="secondary-button"
+                        type="button"
+                      >
+                        Descargar PNG
+                      </button>
+                    </div>
+                    <div class="event-report-image-preview">
+                      <img
+                        id="records-bolsa-summary-image-preview"
+                        alt="Resumen de la bolsa de horas del periodo"
+                      />
+                    </div>
+                  </div>
                 </section>
 
                 <div class="table-wrapper records-table-wrapper">
@@ -1264,6 +1301,11 @@
 
                   <p id="record-bolsa-info" class="control-totals-filter-summary"></p>
                   <p id="record-bolsa-saldo-actual" class="control-totals-filter-summary"></p>
+
+                  <div id="record-bolsa-existing" class="record-bolsa-existing hidden">
+                    <p class="eyebrow">Movimientos de este registro</p>
+                    <ul id="record-bolsa-existing-list" class="record-bolsa-existing-list"></ul>
+                  </div>
 
                   <div class="detail-form">
                     <label>
@@ -8661,6 +8703,6 @@
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260727-7" defer></script>
     <script src="./facturacion.js?v=20260807-12" defer></script>
-    <script src="./app.js?v=20260811-1" defer></script>
+    <script src="./app.js?v=20260812-3" defer></script>
   </body>
 </html>

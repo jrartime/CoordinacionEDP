@@ -760,6 +760,14 @@ textarea {
   border-color: var(--error);
 }
 
+#records-bolsa-saldo {
+  cursor: pointer;
+}
+
+#records-bolsa-saldo:hover {
+  background: #f1f5f9;
+}
+
 .private-tab-panel .summary-chip strong {
   margin-top: 1px;
   font-size: 1rem;
@@ -2837,6 +2845,56 @@ button.tag-chip.warm-button:hover {
   color: #5b21b6;
 }
 
+.record-bolsa-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: help;
+}
+
+/* Horas metidas en la bolsa: se guardan, en verde. */
+.record-bolsa-badge-entra {
+  background: #dcfce7;
+}
+
+/* Horas pagadas con la bolsa: salen de lo guardado, en ámbar. */
+.record-bolsa-badge-sale {
+  background: #fef3c7;
+}
+
+.record-bolsa-existing {
+  margin-bottom: 16px;
+}
+
+.record-bolsa-existing-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.record-bolsa-existing-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.record-bolsa-existing-detail {
+  flex: 1;
+  font-size: 0.85rem;
+}
+
 .records-table tr.record-row-sustituto > td {
   background: rgba(14, 165, 233, 0.06);
 }
@@ -3850,6 +3908,47 @@ th {
   font-family: inherit;
   font-size: 0.74rem;
   line-height: 1.2;
+}
+
+/* Vista previa PNG flotante (centrada, no un panel lateral): usada por el
+   informe individual de Registros y el resumen de la bolsa de horas. El resto
+   de vistas previas PNG de la app (Control personal, Eventos) siguen como
+   panel lateral -.detail-drawer / .event-report-image-drawer-, sin tocar. */
+.detail-panel-floating {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.detail-panel-floating.hidden {
+  display: none;
+}
+
+.image-preview-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(1100px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 24px 60px rgba(20, 40, 75, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.image-preview-dialog > .detail-header {
+  position: sticky;
+  top: -16px;
+  z-index: 12;
+  margin: -16px -16px 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
 }
 
 .event-report-image-drawer {
