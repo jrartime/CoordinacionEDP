@@ -197,6 +197,8 @@ declare
   v_manual_dias integer := 0; v_manual_horas numeric := 0;
   v_manual_total numeric := 0; v_manual_detalle text;
   v_todas text[] := array['comunes','mei','desempleo','formacion','irpf']::text[];
+  v_tope public.cotizacion_topes;
+  v_tope_dias integer; v_tope_min numeric; v_tope_max numeric;
   r record;
 begin
   select h.*, (least(coalesce(h.fecha_baja, p_hasta), p_hasta) - greatest(h.fecha_alta, p_desde) + 1) as dias_solape
@@ -544,6 +546,53 @@ begin
   v_bruto := v_dev_puestos + v_transporte + v_compl_total + v_extra_total + v_huerf_total
     + (case when coalesce(v_prorrateo, false) then v_pe_base + v_pe_compl else 0 end);
 
+  -- TOPES DE COTIZACION (2026-08-14). Bases minima/maxima por grupo de
+  -- cotizacion (BOE, cotizacion_topes), grupo del historial PREDOMINANTE (hp) --
+  -- mismo criterio que el resto de datos "de la persona" (tipos de cotizacion,
+  -- numero de pagas). Solo topan comunes/mei/desempleo/formacion; el IRPF
+  -- NUNCA se topa (no es una base de Seguridad Social).
+  --
+  -- "Dias de alta" para prorratear el tope = los mismos que ya usa el salario
+  -- base (dias_nomina: base 30 si el mes esta cubierto desde el dia 1, dias
+  -- reales si entra a mitad) -- decision del usuario, para no introducir un
+  -- tercer criterio de dias distinto de los dos que ya conviven en el motor.
+  -- Grupos 1-7 cotizan en €/mes (se prorratea /30 igual que el salario base);
+  -- grupos 8-11 en €/dia (el tope del periodo es la tarifa diaria x dias, sin
+  -- dividir entre 30).
+  --
+  -- Si el historial no tiene grupo_cotizacion asignado, NO se topa nada --
+  -- decision del usuario: no bloquear la nomina ni inventar un grupo, solo
+  -- avisar (linea 603 mas abajo). A 2026-08-14 el 60% de los historiales
+  -- vigentes no lo tienen asignado todavia.
+  if hp.grupo_cotizacion is not null then
+    select t.* into v_tope
+    from public.cotizacion_topes t
+    where t.grupo_cotizacion = hp.grupo_cotizacion
+      and t.vigente_desde <= p_hasta
+    order by t.vigente_desde desc
+    limit 1;
+
+    if v_tope.id is not null then
+      v_tope_dias := public.dias_nomina(
+        greatest(hp.fecha_alta, p_desde),
+        least(coalesce(hp.fecha_baja, p_hasta), p_hasta),
+        public.tiene_alta_continua_desde_inicio_mes(hp.personal_id, greatest(hp.fecha_alta, p_desde), hp.empresa_id));
+
+      if v_tope.unidad = 'mensual' then
+        v_tope_min := round(v_tope.base_minima_mensual * v_tope_dias / 30.0, 2);
+        v_tope_max := round(v_tope.base_maxima_mensual * v_tope_dias / 30.0, 2);
+      else
+        v_tope_min := round(v_tope.base_minima_diaria * v_tope_dias, 2);
+        v_tope_max := round(v_tope.base_maxima_diaria * v_tope_dias, 2);
+      end if;
+
+      v_b_comunes   := least(greatest(v_b_comunes,   v_tope_min), v_tope_max);
+      v_b_mei       := least(greatest(v_b_mei,       v_tope_min), v_tope_max);
+      v_b_desempleo := least(greatest(v_b_desempleo, v_tope_min), v_tope_max);
+      v_b_formacion := least(greatest(v_b_formacion, v_tope_min), v_tope_max);
+    end if;
+  end if;
+
   -- Las bases ya vienen sumadas concepto a concepto segun su cotiza_en.
   v_base_cc := v_b_comunes;
   v_base_cp := v_b_desempleo;
@@ -557,6 +606,11 @@ begin
   v_ded_total   := v_d_comunes + v_d_mei + v_d_desempleo + v_d_formacion + v_d_irpf;
 
   return query select 500, 'total'::text, 'Total devengado (bruto)'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_bruto,2), null::text, null::text[];
+  if hp.grupo_cotizacion is null then
+    return query select 603, 'base'::text, 'Grupo de cotización sin asignar'::text,
+      'Esta persona no tiene grupo de cotización en su historial laboral: no se han comprobado los topes de cotización de este periodo.'::text,
+      null::numeric, null::numeric, null::numeric, null::numeric, 0::numeric, null::text, null::text[];
+  end if;
   if not coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
     return query select 599, 'base'::text, 'P.P. pagas extra (solo cotiza)'::text,
       format('%s pagas/año · %s × 8,333%% · no se devenga, suma a la base de S.S.', v_pagas, v_extras),
