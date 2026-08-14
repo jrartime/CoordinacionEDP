@@ -362,7 +362,7 @@ declare
   v_extras integer; v_ajuste text; v_horas_pnr numeric;
   v_sit_excluidas integer[];
   v_modalidad text;
-  v_horas_jornada numeric; v_horas_bout numeric;
+  v_horas_jornada numeric;
   v_valor_jornada numeric; v_valor_reg numeric;
   v_horas_mont numeric; v_precio_mont numeric; v_valor_mont numeric;
   v_horas_hcomp numeric; v_precio_hcomp numeric; v_valor_hcomp numeric;
@@ -470,20 +470,27 @@ begin
       and r.fecha >= v_desde and r.fecha <= v_hasta
   ) x;
 
-  -- Bolsa de horas (registro_apuntes, sustituye a registros.tipo_hora_id 7/8):
-  --   BOLSA_ENTRA resta del bucket de tarifa que la origino (concepto_id) -- ese
-  --   dia se sigue facturando/contando como jornada trabajada (la fila de
-  --   registros no se toca), pero el importe se difiere hasta que se saque de
-  --   la bolsa. BOLSA_SALE se paga como jornada cumplida (bout), igual que
-  --   antes hacia registros.tipo_hora_id=8, sin tocar los buckets de tarifa.
+  -- Bolsa de horas, lado ENTRADA (registro_apuntes, BOLSA_ENTRA): resta del
+  -- bucket de tarifa que la origino (concepto_id) -- ese dia se sigue
+  -- facturando/contando como jornada trabajada (la fila de registros no se
+  -- toca), pero el importe se difiere hasta que se saque de la bolsa.
+  --
+  -- El lado SALIDA (BOLSA_SALE) NO se lee aqui via apunte: "Cubrir con la
+  -- bolsa" (app.js, confirmRecordBolsaMovimiento) escribe las horas pagadas
+  -- DIRECTAMENTE en registros.horas (tipo REG) para que Facturacion, que lee
+  -- registros.horas/facturar sin saber nada de registro_apuntes, las siga
+  -- facturando con normalidad. Esas horas ya entran en v_horas_reg mas arriba;
+  -- sumarlas tambien desde el apunte las pagaria dos veces. El apunte
+  -- BOLSA_SALE que se crea a la vez es solo el asiento del saldo (ver
+  -- bolsa_horas_saldo), no una fuente de horas para el motor.
   select coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 1), 0)::numeric,
          coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 3), 0)::numeric,
-         coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 2), 0)::numeric,
-         coalesce(sum(abs(a.cantidad)) filter (where a.movimiento = 'BOLSA_SALE'), 0)::numeric
-    into v_horas_banked_reg, v_horas_banked_mont, v_horas_banked_hcomp, v_horas_bout
+         coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 2), 0)::numeric
+    into v_horas_banked_reg, v_horas_banked_mont, v_horas_banked_hcomp
   from public.registro_apuntes a
   join public.registros r on r.id = a.registro_id
-  where r.personal_id = h.personal_id
+  where a.movimiento = 'BOLSA_ENTRA'
+    and r.personal_id = h.personal_id
     and (r.puesto_id = h.puesto_id or (p_incluir_huerfanas
          and r.tipo_hora_id not in (2, 3)
          and public.es_puesto_sin_historial(r.personal_id, r.puesto_id, r.empresa_id, r.fecha)))
@@ -597,15 +604,16 @@ begin
   --   * David Rodriguez Recio (hist 5345): las REG ya superan la jornada, asi que
   --     el montaje se paga entero -> plus 93 141,72 y complemento 60 542,88.
   --
-  -- PNR cuenta como jornada cumplida (se descuenta aparte en el 790).
-  -- BOLSA_SALE (apunte de registro_apuntes, antes tipo_hora_id=8/BOUT) tambien:
-  -- la persona libra gastando saldo de su bolsa de horas, asi que ese dia esta
-  -- cubierto. BOLSA_ENTRA (antes tipo_hora_id=7/BIN) NO: son horas que solo se
-  -- apuntan al saldo para gastarlas mas adelante (ya restadas de v_horas_reg/
-  -- mont/hcomp arriba), no se pagan ni cuentan como jornada ahora.
-  -- Caso real (Javier Diaz Gonzalez, junio 2026): 84,5 h REG + 48 h BOLSA_SALE
-  -- con situacion VAC (6 dias librados con la bolsa).
-  v_horas_jornada := v_horas_reg + v_horas_pnr + v_horas_bout;
+  -- PNR cuenta como jornada cumplida (se descuenta aparte en el 790). Las
+  -- horas pagadas con "Cubrir con la bolsa" tambien: ya vienen incluidas en
+  -- v_horas_reg (se escriben en registros.horas al confirmar el movimiento,
+  -- ver comentario mas arriba), asi que no hace falta sumarlas aparte aqui.
+  -- BOLSA_ENTRA (horas metidas en la bolsa) NO cuenta: ya se resto de
+  -- v_horas_reg/mont/hcomp arriba, no se paga ni cuenta como jornada ahora.
+  -- Caso real (Javier Diaz Gonzalez, junio 2026): 84,5 h REG + 48 h pagadas
+  -- con la bolsa (situacion VAC, 6 dias librados con la bolsa) = 132,5 h de
+  -- jornada, todo dentro de v_horas_reg.
+  v_horas_jornada := v_horas_reg + v_horas_pnr;
   v_horas_teoricas := public.horas_teoricas_jornada(v_desde, v_hasta, h.jornada);
   v_valor_jornada := v_base * (1 + v_extras / 12.0);
 

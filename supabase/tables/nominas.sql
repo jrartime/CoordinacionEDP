@@ -805,11 +805,10 @@ begin
          count(*)::integer,
          array_agg(r.id order by r.fecha, r.id),
          coalesce(s.situacion in ('CAMB', 'LG'), false),
-         (coalesce(r.tipo_hora_id in (1, 5), false)
-          or exists (
-              select 1 from public.registro_apuntes a
-              where a.registro_id = r.id and a.movimiento = 'BOLSA_SALE'
-            ))
+         -- Las horas pagadas con "Cubrir con la bolsa" ya llegan aqui como
+         -- REG normal (tipo_hora_id=1): confirmRecordBolsaMovimiento las
+         -- escribe en registros.horas para que Facturacion tambien las vea.
+         coalesce(r.tipo_hora_id in (1, 5), false)
            and coalesce(s.situacion not in ('CAMB', 'LG'), true),
          coalesce(s.situacion in ('NORM', 'SUST')
                   or (s.situacion = 'FEST' and th.tipo_hora = 'FTRAB'), false)
@@ -835,10 +834,15 @@ begin
   group by h.id, r.puesto_id, pu.puesto, r.tipo_hora_id, th.tipo_hora,
            th.codigo_nomina, r.situacion_id, s.situacion;
 
-  -- 4b) Movimientos de bolsa de horas (registro_apuntes) del mismo periodo, con
-  --     el mismo detalle por registro que antes daba registros.tipo_hora_id=7/8.
-  --     Se etiquetan con esos mismos ids de tipo_horas (BIN/BOUT) solo a efectos
-  --     de mostrarlo igual que antes: el dato real ya no vive en esa columna.
+  -- 4b) Horas metidas en la bolsa (registro_apuntes, BOLSA_ENTRA) del mismo
+  --     periodo -- solo el lado ENTRADA: esas horas siguen apareciendo en el
+  --     insert de arriba con su horas/tipo_hora reales (el registro no se
+  --     toca), asi que esta fila es la anotacion de "de esas horas, tantas se
+  --     difirieron a la bolsa" (no debe sumarse al total, solo informa).
+  --     El lado SALIDA (BOLSA_SALE) NO se repite aqui: ya llega via el insert
+  --     de arriba como REG normal (confirmRecordBolsaMovimiento escribe las
+  --     horas reales en registros.horas), y anadirlo tambien aqui duplicaria
+  --     el numero visible en el desglose sin cambiar ningun importe pagado.
   insert into public.nomina_horas (
     nomina_id, historial_id, puesto_id, puesto,
     tipo_hora_id, tipo_hora, tipo_hora_codigo_nomina,
@@ -853,11 +857,11 @@ begin
          count(*)::integer,
          array_agg(r.id order by r.fecha, r.id),
          false,
-         (a.movimiento = 'BOLSA_SALE'),
+         false,
          coalesce(s.situacion in ('NORM', 'SUST')
                   or (s.situacion = 'FEST' and false), false)
   from public.historiales_laborales h
-  join public.registro_apuntes a on a.movimiento in ('BOLSA_ENTRA', 'BOLSA_SALE')
+  join public.registro_apuntes a on a.movimiento = 'BOLSA_ENTRA'
   join public.registros r
     on r.id = a.registro_id
    and r.personal_id = h.personal_id
@@ -869,13 +873,13 @@ begin
    and r.fecha <= least(coalesce(h.fecha_baja, p_hasta), p_hasta)
   left join public.situaciones s on s.id = r.situacion_id
   left join public.puestos pu on pu.id = r.puesto_id
-  left join public.tipo_horas th on th.id = (case a.movimiento when 'BOLSA_ENTRA' then 7 else 8 end)
+  left join public.tipo_horas th on th.id = 7  -- BIN, solo como etiqueta legible
   where h.personal_id = p_personal_id
     and (p_empresa_id is null or h.empresa_id = p_empresa_id)
     and (v_ids = '{}'::bigint[] or h.id = any(v_ids))
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
   group by h.id, r.puesto_id, pu.puesto, th.id, th.tipo_hora, th.codigo_nomina,
-           r.situacion_id, s.situacion, a.movimiento;
+           r.situacion_id, s.situacion;
 
   -- Los totales se derivan de las lineas, no se copian de las lineas-resumen del
   -- motor: asi la cabecera cuadra con su propio desglose. Las filas con

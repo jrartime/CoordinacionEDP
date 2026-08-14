@@ -3,6 +3,11 @@
 --   apunte_abonado   = suma de apuntes con abonar=true
 --   apunte_facturado = suma de apuntes con facturar=true
 --   apunte_neto      = suma de todos los apuntes (un PNR da 0: +h y -h)
+--   bolsa_entrada    = horas metidas en la bolsa desde este registro (BOLSA_ENTRA)
+--   bolsa_salida     = horas de este registro pagadas con la bolsa (BOLSA_SALE)
+-- bolsa_entrada/salida NO van ponderadas por multiplicador (a diferencia de
+-- los apunte_*): son horas de bolsa, no importe economico, y sirven solo para
+-- pintar el icono de bolsa en el listado de Registros (renderRecordBolsaBadge).
 -- Es additivo: el resto de la vista no cambia. Sustituye la definicion previa
 -- de registros_detalle (ver registros.sql / registros_titular_sustituto_derivados.sql).
 --
@@ -49,6 +54,7 @@ select
   r.tipo_hora_id, th.tipo_hora, r.situacion_id, s.situacion,
   r.anio, r.observacion, r.control,
   ap.apunte_abonado, ap.apunte_facturado, ap.apunte_neto,
+  ap.bolsa_entrada, ap.bolsa_salida,
   case
     when fl.contrato_facturacion_id is not null then 'Facturado'
     when fl.preparacion_id is not null then 'En preparación'
@@ -91,7 +97,9 @@ left join lateral (
   select
     coalesce(sum(case when apx.abonar   then apx.cantidad * coalesce(thc.multiplicador,1) end),0) as apunte_abonado,
     coalesce(sum(case when apx.facturar then apx.cantidad * coalesce(thc.multiplicador,1) end),0) as apunte_facturado,
-    coalesce(sum(apx.cantidad * coalesce(thc.multiplicador,1)),0) as apunte_neto
+    coalesce(sum(apx.cantidad * coalesce(thc.multiplicador,1)),0) as apunte_neto,
+    coalesce(sum(case when apx.movimiento = 'BOLSA_ENTRA' then apx.cantidad end),0) as bolsa_entrada,
+    coalesce(sum(case when apx.movimiento = 'BOLSA_SALE' then abs(apx.cantidad) end),0) as bolsa_salida
   from public.registro_apuntes apx
   left join public.tipo_horas thc on thc.id = apx.concepto_id
   where apx.registro_id = r.id
