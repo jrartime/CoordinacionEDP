@@ -24587,6 +24587,8 @@ const historialClearFiltersButton = document.querySelector("#historial-clear-fil
 const historialNewButton = document.querySelector("#historial-new-button");
 const historialOpenCompaniesSettingsButton = document.querySelector("#historial-open-companies-settings-button");
 const historialOpenReportsSettingsButton = document.querySelector("#historial-open-reports-settings-button");
+const historialListadoReportPdfButton = document.querySelector("#historial-listado-report-pdf-button");
+const historialListadoReportImageButton = document.querySelector("#historial-listado-report-image-button");
 const historialDetailPanel = document.querySelector("#historial-detail-panel");
 const historialDetailOverlay = document.querySelector("#historial-detail-overlay");
 const historialDetailTitle = document.querySelector("#historial-detail-title");
@@ -26830,6 +26832,150 @@ async function loadHistorial() {
         '<tr><td colspan="14" class="empty-state">Error cargando el historial laboral.</td></tr>';
     }
     setStatus(`No se pudo cargar el historial laboral: ${error.message}`, "error");
+  }
+}
+
+// Informe del listado filtrado (no el informe PDF por persona de más abajo):
+// mismos campos que muestra la tabla, en el orden que el usuario tiene
+// aplicado. Filas compartidas por el export a PDF y a PNG.
+function buildHistorialListadoReportRows() {
+  return sortHistorialRows(historialRows).map((row) => ({
+    personal: row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : "-"),
+    tipo: row.tipo_contratacion || "-",
+    alta: formatDisplayDate(row.fecha_alta) || "-",
+    baja: formatDisplayDate(row.fecha_baja) || "-",
+    dias: row.dias_periodo ?? "-",
+    jornada: formatHistorialJornada(row) || "-",
+    enviado: row.enviado ? "Sí" : "",
+    gestionado: row.gestionado ? "Sí" : "",
+    contrato: row.contrato_laboral_clave || "-",
+    tramitado: row.tramitado ? "Sí" : "",
+    motivo: row.motivo_baja || "-",
+    activo: row.activo ? "Sí" : "",
+  }));
+}
+
+async function exportHistorialListadoReportPdf() {
+  try {
+    const rows = buildHistorialListadoReportRows();
+    if (!rows.length) {
+      alert("No hay periodos filtrados para generar el informe.");
+      return;
+    }
+    setStatus("Preparando informe PDF de historial laboral...");
+    const { jsPDF } = await getJsPdfClient();
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const bottomMargin = 12;
+    let y = margin;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text("Historial laboral", margin, y + 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`${rows.length} ${rows.length === 1 ? "periodo" : "periodos"}`, pageWidth - margin, y + 4, {
+      align: "right",
+    });
+    y += 12;
+
+    drawNominaPdfTable(doc, {
+      x: margin,
+      y,
+      margin,
+      pageHeight,
+      bottomMargin,
+      columns: [
+        { label: "Personal", key: "personal", width: 50 },
+        { label: "Tipo contratación", key: "tipo", width: 32 },
+        { label: "Fecha alta", key: "alta", width: 20 },
+        { label: "Fecha baja", key: "baja", width: 20 },
+        { label: "Días", key: "dias", width: 12, align: "center" },
+        { label: "Jornada", key: "jornada", width: 20, align: "right" },
+        { label: "Enviado", key: "enviado", width: 15, align: "center" },
+        { label: "Gestionado", key: "gestionado", width: 18, align: "center" },
+        { label: "Contrato", key: "contrato", width: 28 },
+        { label: "Tramitado", key: "tramitado", width: 16, align: "center" },
+        { label: "Motivo baja", key: "motivo", width: 28 },
+        { label: "Activo", key: "activo", width: 13, align: "center" },
+      ],
+      rows,
+    });
+
+    doc.save(`historial-laboral-${new Date().toISOString().slice(0, 10)}.pdf`);
+    setStatus("Informe PDF de historial laboral generado correctamente.", "success");
+  } catch (error) {
+    setStatus(`No se pudo generar el informe de historial laboral: ${error?.message ?? "error desconocido"}`, "error");
+  }
+}
+
+const HISTORIAL_LISTADO_IMAGE_MAX_ROWS = 200;
+
+async function copyHistorialListadoReportImage() {
+  try {
+    const rows = buildHistorialListadoReportRows();
+    if (!rows.length) {
+      throw new Error("No hay periodos filtrados para generar la imagen.");
+    }
+    if (rows.length > HISTORIAL_LISTADO_IMAGE_MAX_ROWS) {
+      throw new Error(
+        `Hay ${rows.length} periodos filtrados; la imagen solo admite hasta ${HISTORIAL_LISTADO_IMAGE_MAX_ROWS}. Acota los filtros (personal y fechas) o usa el informe PDF, que sí pagina.`
+      );
+    }
+
+    const columns = [
+      { label: "Personal", width: 260 },
+      { label: "Tipo contratación", width: 170 },
+      { label: "Fecha alta", width: 110 },
+      { label: "Fecha baja", width: 110 },
+      { label: "Días", width: 70 },
+      { label: "Jornada", width: 110 },
+      { label: "Enviado", width: 90 },
+      { label: "Gestionado", width: 100 },
+      { label: "Contrato", width: 170 },
+      { label: "Tramitado", width: 100 },
+      { label: "Motivo baja", width: 190 },
+      { label: "Activo", width: 80 },
+    ];
+    const tableRows = rows.map((row) => [
+      row.personal,
+      row.tipo,
+      row.alta,
+      row.baja,
+      row.dias,
+      row.jornada,
+      row.enviado,
+      row.gestionado,
+      row.contrato,
+      row.tramitado,
+      row.motivo,
+      row.activo,
+    ]);
+
+    const canvas = drawControlTotalsListingImage({
+      title: "Historial laboral",
+      subtitle: `${rows.length} ${rows.length === 1 ? "periodo filtrado" : "periodos filtrados"}`,
+      columns,
+      rows: tableRows,
+    });
+    const blob = await canvasToBlob(canvas);
+    const fileName = `historial-laboral-${new Date().toISOString().slice(0, 10)}.png`;
+
+    if (navigator.clipboard && typeof window.ClipboardItem !== "undefined") {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        setStatus("Imagen del historial laboral copiada al portapapeles.", "success");
+        return;
+      } catch (clipboardError) {
+        // El portapapeles puede fallar (permisos o foco): caemos a descarga.
+      }
+    }
+    triggerDownload(blob, fileName);
+    setStatus("No se pudo copiar al portapapeles; se ha descargado el PNG.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo generar la imagen del historial laboral.", "error");
   }
 }
 
@@ -30878,6 +31024,12 @@ async function init() {
   });
   historialOpenCompaniesSettingsButton?.addEventListener("click", openHistorialReportCompaniesSettings);
   historialOpenReportsSettingsButton?.addEventListener("click", openReportTemplateSettings);
+  historialListadoReportPdfButton?.addEventListener("click", () => {
+    void exportHistorialListadoReportPdf();
+  });
+  historialListadoReportImageButton?.addEventListener("click", () => {
+    void copyHistorialListadoReportImage();
+  });
   historialReportConfigDetails?.addEventListener("toggle", () => {
     if (historialReportConfigDetails.open) {
       void loadHistorialReportConfig();
