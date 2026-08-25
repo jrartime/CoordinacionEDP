@@ -1071,6 +1071,11 @@ using (public.is_coordinacion_admin());
 --     ya resuelto desde nomina_historiales. Alimenta la hoja "Por puesto" del
 --     Excel y el desglose del PDF cuando la nomina junta dos puestos.
 -- Mezclarlos duplicaria cada importe.
+-- `notas` se anadio a la firma de salida el 2026-08-25 para que el listado
+-- mensual (panel, Excel y PDF) pueda mostrar el comentario libre guardado con
+-- cada nomina. Cambiar el `returns table` exige dropear antes de recrear.
+drop function if exists public.get_nominas_listado(integer, integer, integer, boolean);
+
 create or replace function public.get_nominas_listado(
   p_ejercicio integer,
   p_mes integer,
@@ -1079,7 +1084,7 @@ create or replace function public.get_nominas_listado(
 )
 returns table (
   nomina_id bigint, personal_id integer, personal text, dni text,
-  empresa_id integer, empresa text, estado text, editada boolean,
+  empresa_id integer, empresa text, estado text, editada boolean, notas text,
   periodo_desde date, periodo_hasta date,
   total_devengado numeric, total_deducciones numeric, liquido numeric,
   ambito text, historial_id bigint, puesto text,
@@ -1094,7 +1099,7 @@ set search_path = public
 as $$
   select
     n.id, n.personal_id, p.personal, p.dni,
-    n.empresa_id, e.empresa, n.estado, n.editada,
+    n.empresa_id, e.empresa, n.estado, n.editada, n.notas,
     n.periodo_desde, n.periodo_hasta,
     n.total_devengado, n.total_deducciones, n.liquido,
     l.ambito, l.historial_id, nh.puesto,
