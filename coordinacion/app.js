@@ -22204,6 +22204,12 @@ function drawNominaPdfTable(doc, options) {
   const { x, columns, rows, margin, pageHeight, bottomMargin, headerFill = [235, 238, 242] } = options;
   let y = options.y;
   const rowH = options.rowHeight || 6;
+  // Interlineado de las filas: por defecto 4mm/línea + 2mm de aire (igual que
+  // siempre). El listado mensual lo aprieta para que quepan 3 nóminas por
+  // página; el resto de llamadas (recibo, resumen) no pasan estas opciones y
+  // se comportan exactamente igual que antes.
+  const lineHeight = options.lineHeight ?? 4;
+  const linePadding = options.linePadding ?? 2;
   const totalW = columns.reduce((sum, c) => sum + c.width, 0);
 
   const drawHeader = () => {
@@ -22231,7 +22237,7 @@ function drawNominaPdfTable(doc, options) {
       doc.splitTextToSize(String(row[col.key] ?? ""), col.width - 3)
     );
     const cellRows = Math.max(1, ...lines.map((l) => l.length));
-    const h = Math.max(rowH, cellRows * 4 + 2);
+    const h = Math.max(rowH, cellRows * lineHeight + linePadding);
     if (y + h > pageHeight - bottomMargin) {
       doc.addPage();
       y = margin;
@@ -22249,7 +22255,7 @@ function drawNominaPdfTable(doc, options) {
       const col = columns[i];
       const align = col.align || "left";
       const tx = align === "right" ? cx + col.width - 1.5 : align === "center" ? cx + col.width / 2 : cx + 1.5;
-      doc.text(lines[i], tx, y + 4, { align });
+      doc.text(lines[i], tx, y + lineHeight, { align });
       cx += col.width;
     }
     if (isTotal) doc.setFont("helvetica", "normal");
@@ -23321,7 +23327,7 @@ async function exportGestionNominaListadoPdf() {
   if (!data?.nominas.length) return;
   try {
     const { jsPDF } = await getJsPdfClient();
-    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 12;
@@ -23337,19 +23343,22 @@ async function exportGestionNominaListadoPdf() {
     doc.text(`${data.nominas.length} nóminas`, pageWidth - margin, y + 4, { align: "right" });
     y += 12;
 
-    // Resumen: una fila por nómina con los totales.
+    // Resumen: una fila por nómina con los totales. Las columnas fijas (124mm)
+    // ya no caben holgadas en el ancho vertical (186mm) como en apaisado: se
+    // reducen y "Persona" absorbe el resto, envolviendo en varias líneas si
+    // el nombre no cabe.
     const totalBruto = data.nominas.reduce((s, n) => s + Number(n.total_devengado || 0), 0);
     const totalDed = data.nominas.reduce((s, n) => s + Number(n.total_deducciones || 0), 0);
     const totalLiq = data.nominas.reduce((s, n) => s + Number(n.liquido || 0), 0);
     y = drawNominaPdfTable(doc, {
       x: margin, y, margin, pageHeight, bottomMargin,
       columns: [
-        { label: "Persona", key: "persona", width: contentWidth - 200 },
-        { label: "DNI", key: "dni", width: 36 },
-        { label: "Bruto €", key: "bruto", width: 38, align: "right" },
-        { label: "Deducciones €", key: "ded", width: 38, align: "right" },
-        { label: "Líquido €", key: "liq", width: 38, align: "right" },
-        { label: "Notas", key: "notas", width: 50 },
+        { label: "Persona", key: "persona", width: contentWidth - 124 },
+        { label: "DNI", key: "dni", width: 22 },
+        { label: "Bruto €", key: "bruto", width: 24, align: "right" },
+        { label: "Deducciones €", key: "ded", width: 24, align: "right" },
+        { label: "Líquido €", key: "liq", width: 24, align: "right" },
+        { label: "Notas", key: "notas", width: 30 },
       ],
       rows: [
         ...data.nominas.map((n) => ({
@@ -23363,26 +23372,44 @@ async function exportGestionNominaListadoPdf() {
         { _seccion: "total", persona: `TOTAL (${data.nominas.length})`, dni: "", bruto: nominaPdfMoney(totalBruto), ded: nominaPdfMoney(totalDed), liq: nominaPdfMoney(totalLiq), notas: "" },
       ],
     });
-    y += 8;
 
-    // Detalle: cada nómina con todos sus conceptos.
+    // El detalle siempre arranca en página nueva: mezclar el final del
+    // resumen con la primera nómina quedaba descolocado y con menos sitio
+    // para las tres que le tocan a esa página.
+    doc.addPage();
+    y = margin;
+
+    // Detalle: cada nómina con todos sus conceptos, tres por página con el
+    // interlineado apretado (drawNominaPdfTable con lineHeight/linePadding
+    // reducidos). El hueco disponible por nómina es pageHeight/3; con la
+    // mediana real de líneas por nómina (~16, hasta 19 en el peor caso
+    // normal) entra de sobra. El corte es por CONTEO, no por espacio
+    // sobrante, para que la agrupación de 3 sea siempre la misma; el aviso
+    // de "y + 12" es solo red de seguridad para el caso raro (nómina con dos
+    // vidas laborales) que no quepa en lo que queda de página.
+    let nominasEnPagina = 0;
     for (const n of data.nominas) {
-      if (y + 20 > pageHeight - bottomMargin) {
+      if (nominasEnPagina >= 3 || y + 12 > pageHeight - bottomMargin) {
         doc.addPage();
         y = margin;
+        nominasEnPagina = 0;
       }
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.text(`${n.personal || `#${n.nomina_id}`}${n.dni ? ` · ${n.dni}` : ""}`, margin, y + 3);
-      y += 6;
+      y += 4;
       // Se incluyen también las subfilas de desglose (las del prorrateo),
-      // indentadas: explican su línea padre, que es la que suma.
+      // indentadas: explican su línea padre, que es la que suma. "Detalle" va
+      // ancho (102mm): el texto fijo del prorrateo y el aviso de grupo de
+      // cotización sin asignar son los más largos y, si no caben, cada vez
+      // que envuelven a 2-3 líneas empujan nóminas fuera de su grupo de 3.
       y = drawNominaPdfTable(doc, {
-        x: margin, y, margin, pageHeight, bottomMargin, rowHeight: 5,
+        x: margin, y, margin, pageHeight, bottomMargin,
+        rowHeight: 4, lineHeight: 3.2, linePadding: 1,
         columns: [
-          { label: "Concepto", key: "concepto", width: contentWidth - 120 },
-          { label: "Detalle", key: "detalle", width: 60 },
-          { label: "Importe €", key: "importe", width: 32, align: "right" },
+          { label: "Concepto", key: "concepto", width: contentWidth - 132 },
+          { label: "Detalle", key: "detalle", width: 102 },
+          { label: "Importe €", key: "importe", width: 30, align: "right" },
         ],
         rows: n.lineas.map((l) => ({
           concepto: `${l.detalle_de ? "      " : ""}${formatGestionConceptoCodigo(
@@ -23394,28 +23421,30 @@ async function exportGestionNominaListadoPdf() {
           _seccion: !l.detalle_de && l.seccion === "total" ? "total" : undefined,
         })),
       });
-      y += 6;
+      y += 3;
 
       // Desglose por contrato, solo si la nómina junta dos puestos: en la
       // nómina de la persona esos importes van sumados en un solo concepto.
       const puestos = [...new Set(n.porPuesto.map((l) => l.historial_id))];
       if (puestos.length > 1) {
-        if (y + 16 > pageHeight - bottomMargin) {
+        if (y + 10 > pageHeight - bottomMargin) {
           doc.addPage();
           y = margin;
+          nominasEnPagina = 0;
         }
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.text("Desglose por puesto", margin, y + 3);
-        y += 5;
+        y += 4;
         y = drawNominaPdfTable(doc, {
-          x: margin, y, margin, pageHeight, bottomMargin, rowHeight: 5,
+          x: margin, y, margin, pageHeight, bottomMargin,
+          rowHeight: 4, lineHeight: 3.2, linePadding: 1,
           headerFill: [242, 244, 247],
           columns: [
-            { label: "Puesto", key: "puesto", width: 60 },
-            { label: "Concepto", key: "concepto", width: contentWidth - 152 },
-            { label: "Detalle", key: "detalle", width: 60 },
-            { label: "Importe €", key: "importe", width: 32, align: "right" },
+            { label: "Puesto", key: "puesto", width: 46 },
+            { label: "Concepto", key: "concepto", width: contentWidth - 46 - 90 - 30 },
+            { label: "Detalle", key: "detalle", width: 90 },
+            { label: "Importe €", key: "importe", width: 30, align: "right" },
           ],
           rows: n.porPuesto
             .filter((l) => !l.detalle_de)
@@ -23426,7 +23455,7 @@ async function exportGestionNominaListadoPdf() {
               importe: nominaPdfMoney(l.importe),
             })),
         });
-        y += 6;
+        y += 3;
       }
 
       // La nota va al final de cada nómina, tras su desglose.
@@ -23436,6 +23465,7 @@ async function exportGestionNominaListadoPdf() {
         if (y + notaHeight > pageHeight - bottomMargin) {
           doc.addPage();
           y = margin;
+          nominasEnPagina = 0;
         }
         doc.setFont("helvetica", "italic");
         doc.setFontSize(8);
@@ -23443,8 +23473,10 @@ async function exportGestionNominaListadoPdf() {
         doc.text(notaLines, margin, y + 3);
         doc.setTextColor(0, 0, 0);
         doc.setFont("helvetica", "normal");
-        y += notaHeight + 4;
+        y += notaHeight + 3;
       }
+
+      nominasEnPagina += 1;
     }
 
     stampPdfFooterPageNumbers(doc, margin);
