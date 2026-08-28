@@ -198,7 +198,7 @@ declare
   v_manual_total numeric := 0; v_manual_detalle text;
   v_todas text[] := array['comunes','mei','desempleo','formacion','irpf']::text[];
   v_tope public.cotizacion_topes;
-  v_tope_dias integer; v_tope_min numeric; v_tope_max numeric;
+  v_tope_dias integer; v_tope_min numeric; v_tope_max numeric; v_coef_jornada numeric;
   r record;
 begin
   select h.*, (least(coalesce(h.fecha_baja, p_hasta), p_hasta) - greatest(h.fecha_alta, p_desde) + 1) as dias_solape
@@ -564,6 +564,18 @@ begin
   -- decision del usuario: no bloquear la nomina ni inventar un grupo, solo
   -- avisar (linea 603 mas abajo). A 2026-08-14 el 60% de los historiales
   -- vigentes no lo tienen asignado todavia.
+  --
+  -- MINIMO Y JORNADA PARCIAL (2026-08-28). El minimo de cotizacion se reduce
+  -- en proporcion a la jornada realizada (coeficiente_temporalidad_miles, el
+  -- mismo que ya escala el salario en nomina_calculo.sql): un tiempo parcial
+  -- no tiene que cotizar por el minimo de un tiempo completo. El MAXIMO no se
+  -- prorratea por jornada -- es un techo unico del sistema (por eso el maximo
+  -- mensual de cotizacion_topes es identico en los grupos 1-7). Caso real:
+  -- Pelayo Fernandez (historial 4164, grupo 6, jornada 17/40 = 42,5%), agosto
+  -- 2026: bruto 701,29€. Sin el coeficiente el motor subia la base al minimo
+  -- de jornada completa (1424,40€); la nomina real de la empresa no topa nada
+  -- porque el minimo prorrateado (1424,40 x 0,425 = 605,37€) ya queda por
+  -- debajo del bruto.
   if hp.grupo_cotizacion is not null then
     select t.* into v_tope
     from public.cotizacion_topes t
@@ -577,12 +589,13 @@ begin
         greatest(hp.fecha_alta, p_desde),
         least(coalesce(hp.fecha_baja, p_hasta), p_hasta),
         public.tiene_alta_continua_desde_inicio_mes(hp.personal_id, greatest(hp.fecha_alta, p_desde), hp.empresa_id));
+      v_coef_jornada := coalesce(hp.coeficiente_temporalidad_miles, 1000) / 1000.0;
 
       if v_tope.unidad = 'mensual' then
-        v_tope_min := round(v_tope.base_minima_mensual * v_tope_dias / 30.0, 2);
+        v_tope_min := round(v_tope.base_minima_mensual * v_tope_dias / 30.0 * v_coef_jornada, 2);
         v_tope_max := round(v_tope.base_maxima_mensual * v_tope_dias / 30.0, 2);
       else
-        v_tope_min := round(v_tope.base_minima_diaria * v_tope_dias, 2);
+        v_tope_min := round(v_tope.base_minima_diaria * v_tope_dias * v_coef_jornada, 2);
         v_tope_max := round(v_tope.base_maxima_diaria * v_tope_dias, 2);
       end if;
 
