@@ -1242,6 +1242,17 @@ textarea {
   margin-top: 2px;
 }
 
+/* El de Eventos solo tiene Puesto + botón (los otros 3 huecos del grid de
+   Actividades quedan vacíos y todo el ancho sobrante se lo lleva la última
+   columna, dejando el select de Puesto colapsado a su min-content). */
+#events-records-generation-form {
+  grid-template-columns: minmax(220px, 320px) auto;
+}
+
+#events-records-generation-form select {
+  width: 100%;
+}
+
 .programming-unmatched-summary {
   margin: 12px 0;
   color: var(--muted);
@@ -4854,7 +4865,8 @@ th {
 
   .contracts-bulk-assignment-panel,
   .activities-bulk-assignment-panel,
-  .activities-records-generation-panel {
+  .activities-records-generation-panel,
+  #events-records-generation-form {
     grid-template-columns: 1fr;
     min-width: min(320px, calc(100vw - 48px));
   }
@@ -5228,6 +5240,31 @@ details[open] > .gestion-collapsible-header::before {
 
 .gestion-records-table-wrapper .records-table {
   min-width: 980px;
+}
+
+.gestion-nominas-recientes-panel {
+  inset: 28px;
+}
+
+.gestion-nominas-recientes-controls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.gestion-nominas-recientes-controls .filter-field {
+  width: 140px;
+}
+
+.gestion-nominas-recientes-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--muted);
 }
 
 @media (max-width: 900px) {

@@ -1156,12 +1156,15 @@ const eventsTableBody = document.querySelector("#events-table-body");
 // Generación de registros de montaje desde los eventos marcados (solo admin).
 const eventsRecordsZone = document.querySelector("#events-records-zone");
 const eventsRecordsForm = document.querySelector("#events-records-generation-form");
-const eventsSelectRecordsButton = document.querySelector("#events-select-records-button");
 const eventsRecordsPuesto = document.querySelector("#events-records-puesto");
-const eventsRecordsSelectionCount = document.querySelector("#events-records-selection-count");
 const eventsRecordsGenerationSummary = document.querySelector("#events-records-generation-summary");
 const eventsRecordsSelectHeader = document.querySelector("#events-records-select-header");
 const eventsRecordsSelectAllCheckbox = document.querySelector("#events-records-select-all-checkbox");
+// Selección de eventos, compartida por la generación de registros (admin) y el
+// informe resumen (todos): un único set de marcados sobre los eventos filtrados.
+const eventsSelectionToggleButton = document.querySelector("#events-select-summary-button");
+const eventsSelectionCountLabel = document.querySelector("#events-summary-selection-count");
+const eventsSummaryReportPdfButton = document.querySelector("#events-summary-report-pdf-button");
 const eventSchedulePanel = document.querySelector("#event-schedule-panel");
 const eventSchedulePanelBackdrop = document.querySelector("#event-schedule-panel-backdrop");
 const closeEventSchedulePanelButton = document.querySelector("#close-event-schedule-panel-button");
@@ -15493,8 +15496,11 @@ function formatReportNumber(value) {
   return n.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+// Las horas nocturnas no son una categoría propia: son una calificación de
+// horas ya contadas en horas/HC/HFest/HMon (según el tipo del registro), así
+// que no se suman al total o quedarían contadas dos veces.
 function getReportRowTotal(row) {
-  return row.horas + row.hc + row.hfest + row.hmon + row.pnr + row.noct;
+  return row.horas + row.hc + row.hfest + row.hmon + row.pnr;
 }
 
 function setRecordsReportPreviewDownloadsEnabled(enabled) {
@@ -15569,8 +15575,8 @@ function renderRecordsReportPreview(rows) {
               <td class="numeric-cell">${escapeHtml(formatReportNumber(row.hfest))}</td>
               <td class="numeric-cell">${escapeHtml(formatReportNumber(row.hmon))}</td>
               <td class="numeric-cell">${escapeHtml(formatReportNumber(row.pnr))}</td>
-              <td class="numeric-cell">${escapeHtml(formatReportNumber(row.noct))}</td>
               <td class="numeric-cell">${escapeHtml(formatReportNumber(total))}</td>
+              <td class="numeric-cell">${escapeHtml(formatReportNumber(row.noct))}</td>
             </tr>
           `;
         })
@@ -15605,8 +15611,8 @@ function renderRecordsReportPreview(rows) {
                   <th class="numeric-heading">HFest</th>
                   <th class="numeric-heading">HMon</th>
                   <th class="numeric-heading">PNR</th>
-                  <th class="numeric-heading">Noct</th>
                   <th class="numeric-heading">Total</th>
+                  <th class="numeric-heading">Noct</th>
                 </tr>
               </thead>
               <tbody>
@@ -15618,8 +15624,8 @@ function renderRecordsReportPreview(rows) {
                   <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.hfest))}</td>
                   <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.hmon))}</td>
                   <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.pnr))}</td>
-                  <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.noct))}</td>
                   <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.total))}</td>
+                  <td class="numeric-cell">${escapeHtml(formatReportNumber(totals.noct))}</td>
                 </tr>
               </tbody>
             </table>
@@ -15733,8 +15739,8 @@ async function exportRecordsReportPdf(previewRows = null) {
       { key: "hfest", label: "HFest", x: 115, w: 13, align: "right" },
       { key: "hmon", label: "HMon", x: 128, w: 13, align: "right" },
       { key: "pnr", label: "PNR", x: 141, w: 12, align: "right" },
-      { key: "noct", label: "Noct", x: 153, w: 12, align: "right" },
-      { key: "total", label: "Total", x: 165, w: 14, align: "right" },
+      { key: "total", label: "Total", x: 153, w: 14, align: "right" },
+      { key: "noct", label: "Noct", x: 167, w: 12, align: "right" },
       { key: "situacion", label: "Situacio", x: 179, w: 19, align: "left" },
     ];
 
@@ -15885,10 +15891,11 @@ async function exportRecordsCompactReportPdf(previewRows = null) {
       { key: "hfest", label: "HFest", x: 185, w: 16, align: "right" },
       { key: "hmon", label: "HMon", x: 201, w: 16, align: "right" },
       { key: "pnr", label: "PNR", x: 217, w: 16, align: "right" },
-      { key: "noct", label: "Noct", x: 233, w: 16, align: "right" },
-      { key: "total", label: "Total", x: 249, w: 18, align: "right" },
+      { key: "total", label: "Total", x: 233, w: 18, align: "right" },
+      { key: "noct", label: "Noct", x: 251, w: 16, align: "right" },
       { key: "despl", label: "Despl.", x: 267, w: 20, align: "right" },
     ];
+    const compactColumnByKey = Object.fromEntries(columns.map((col) => [col.key, col]));
 
     let page = 1;
     let y = 24;
@@ -15950,12 +15957,12 @@ async function exportRecordsCompactReportPdf(previewRows = null) {
         drawCell(columns[1], row.contrato, y);
         drawCell(columns[2], row.puesto, y);
         drawCell(columns[3], row.situacion, y);
-        ["horas", "hc", "hfest", "hmon", "pnr", "noct"].forEach((key, idx) => {
-          drawCell(columns[4 + idx], formatReportNumber(row[key]), y);
+        ["horas", "hc", "hfest", "hmon", "pnr", "noct"].forEach((key) => {
+          drawCell(compactColumnByKey[key], formatReportNumber(row[key]), y);
         });
-        drawCell(columns[10], formatReportNumber(total), y);
+        drawCell(compactColumnByKey.total, formatReportNumber(total), y);
         if (first) {
-          drawCell(columns[11], String(group.dates.size), y);
+          drawCell(compactColumnByKey.despl, String(group.dates.size), y);
         }
         y += 5.5;
         first = false;
@@ -15965,11 +15972,11 @@ async function exportRecordsCompactReportPdf(previewRows = null) {
       doc.setFillColor(245, 246, 248);
       doc.rect(10, y - 1, 277, 6, "F");
       drawCell(columns[0], `Subtotal ${group.name}`.slice(0, 42), y, true);
-      ["horas", "hc", "hfest", "hmon", "pnr", "noct"].forEach((key, idx) => {
-        drawCell(columns[4 + idx], formatReportNumber(personTotals[key]), y, true);
+      ["horas", "hc", "hfest", "hmon", "pnr", "noct"].forEach((key) => {
+        drawCell(compactColumnByKey[key], formatReportNumber(personTotals[key]), y, true);
       });
-      drawCell(columns[10], formatReportNumber(personTotals.total), y, true);
-      drawCell(columns[11], String(group.dates.size), y, true);
+      drawCell(compactColumnByKey.total, formatReportNumber(personTotals.total), y, true);
+      drawCell(compactColumnByKey.despl, String(group.dates.size), y, true);
       y += 7;
     }
 
@@ -15977,11 +15984,11 @@ async function exportRecordsCompactReportPdf(previewRows = null) {
     doc.setFillColor(218, 224, 235);
     doc.rect(10, y - 1, 277, 7, "F");
     drawCell(columns[0], "TOTAL GENERAL", y, true);
-    ["horas", "hc", "hfest", "hmon", "pnr", "noct"].forEach((key, idx) => {
-      drawCell(columns[4 + idx], formatReportNumber(grandTotals[key]), y, true);
+    ["horas", "hc", "hfest", "hmon", "pnr", "noct"].forEach((key) => {
+      drawCell(compactColumnByKey[key], formatReportNumber(grandTotals[key]), y, true);
     });
-    drawCell(columns[10], formatReportNumber(grandTotals.total), y, true);
-    drawCell(columns[11], String(grandTotals.desplazamientos), y, true);
+    drawCell(compactColumnByKey.total, formatReportNumber(grandTotals.total), y, true);
+    drawCell(compactColumnByKey.despl, String(grandTotals.desplazamientos), y, true);
 
     drawRecordsCompactReportFooter(doc, page);
     const suffix = `${range.from || "inicio"}-${range.to || "fin"}`.replaceAll("/", "-");
@@ -20211,6 +20218,20 @@ const GESTION_MANUAL_TRANSPORTE = "transporte";
 // asignados a la persona, cuya clave es el id de la asignación.
 const GESTION_MANUAL_CONCEPTO_PREFIJO = "concepto:";
 const gestionEditPersonalButton = document.querySelector("#gestion-edit-personal-button");
+const gestionNominasRecientesButton = document.querySelector("#gestion-nominas-recientes-button");
+const gestionNominasRecientesBackdrop = document.querySelector("#gestion-nominas-recientes-backdrop");
+const gestionNominasRecientesPanel = document.querySelector("#gestion-nominas-recientes-panel");
+const gestionNominasRecientesCloseButton = document.querySelector("#gestion-nominas-recientes-close-button");
+const gestionNominasRecientesCount = document.querySelector("#gestion-nominas-recientes-count");
+const gestionNominasRecientesPrevButton = document.querySelector("#gestion-nominas-recientes-prev");
+const gestionNominasRecientesNextButton = document.querySelector("#gestion-nominas-recientes-next");
+const gestionNominasRecientesPosition = document.querySelector("#gestion-nominas-recientes-position");
+const gestionNominasRecientesSummary = document.querySelector("#gestion-nominas-recientes-summary");
+const gestionNominasRecientesMeta = document.querySelector("#gestion-nominas-recientes-meta");
+const gestionNominasRecientesPreview = document.querySelector("#gestion-nominas-recientes-preview");
+const gestionNominasRecientesCopyButton = document.querySelector("#gestion-nominas-recientes-copy");
+const gestionNominasRecientesPngButton = document.querySelector("#gestion-nominas-recientes-png");
+const gestionNominasRecientesPdfButton = document.querySelector("#gestion-nominas-recientes-pdf");
 const gestionPersonalPanel = document.querySelector("#gestion-personal-panel");
 const gestionPersonalOverlay = document.querySelector("#gestion-personal-overlay");
 const gestionPersonalCloseButton = document.querySelector("#gestion-personal-close-button");
@@ -20236,6 +20257,14 @@ let gestionNominasPorHistorial = new Map();
 let gestionCoberturaNominasDisponible = false;
 let gestionHistorialSort = { field: "fecha_alta", direction: "desc" };
 let gestionHistorialSortCriteria = [gestionHistorialSort];
+
+// Panel "Últimas nóminas": las N más recientes de la persona seleccionada
+// (sin acotar al intervalo de Gestión), navegables una a una.
+let gestionNominasRecientesRows = [];
+let gestionNominasRecientesIndex = 0;
+const gestionNominasRecientesDataCache = new Map();
+let gestionNominasRecientesCanvas = null;
+let gestionNominasRecientesFileName = "";
 
 async function loadGestionEmpresaOptions() {
   if (gestionEmpresasLoaded || !gestionFilterEmpresa) {
@@ -20582,6 +20611,10 @@ function renderGestionPersonalOptions(rows) {
   gestionEditPersonalButton?.classList.toggle(
     "hidden",
     !gestionFilterPersonalHidden?.value || !currentAllowedPrivateTabs.has("personal")
+  );
+  gestionNominasRecientesButton?.classList.toggle(
+    "hidden",
+    !gestionFilterPersonalHidden?.value || !currentUserIsAccessAdmin
   );
   return map.size;
 }
@@ -21867,13 +21900,33 @@ async function loadGestionNominasEmitidas(personalId, desde, hasta, empresaId) {
     if (error) {
       throw error;
     }
-    renderGestionNominasEmitidas(data || []);
+    const rows = data || [];
+    // El periodo de cabecera (periodo_desde/hasta) es el rango que se estaba
+    // filtrando al emitir, no lo que esa nómina cubre: con dos vidas laborales
+    // en el mismo mes ambas quedan marcadas con el mes entero. El tramo real
+    // vive en nomina_historiales, así que se trae aparte por nómina.
+    const tramosPorNomina = new Map();
+    if (rows.length) {
+      const { data: tramoRows, error: tramoError } = await supabase
+        .from("nomina_historiales")
+        .select("nomina_id, tramo_desde, tramo_hasta")
+        .in("nomina_id", rows.map((row) => row.id));
+      if (tramoError) {
+        throw tramoError;
+      }
+      for (const tramoRow of tramoRows || []) {
+        const list = tramosPorNomina.get(tramoRow.nomina_id) || [];
+        list.push(tramoRow);
+        tramosPorNomina.set(tramoRow.nomina_id, list);
+      }
+    }
+    renderGestionNominasEmitidas(rows, tramosPorNomina);
   } catch (error) {
     gestionNominasEmitidasList.innerHTML = `<p class="panel-status-message error">No se pudieron cargar las nóminas emitidas: ${escapeHtml(error.message)}</p>`;
   }
 }
 
-function renderGestionNominasEmitidas(rows) {
+function renderGestionNominasEmitidas(rows, tramosPorNomina = new Map()) {
   if (!gestionNominasEmitidasList) {
     return;
   }
@@ -21891,7 +21944,8 @@ function renderGestionNominasEmitidas(rows) {
   gestionNominasEmitidasList.innerHTML = rows
     .map((row) => {
       const anulada = row.estado === "anulada";
-      const periodo = `${formatGestionDate(row.periodo_desde)} – ${formatGestionDate(row.periodo_hasta)}`;
+      const periodoEfectivo = getNominaPeriodoEfectivo(row, tramosPorNomina.get(row.id) || []);
+      const periodo = `${formatGestionDate(periodoEfectivo.desde)} – ${formatGestionDate(periodoEfectivo.hasta)}`;
       const emitida = row.emitida_en ? new Date(row.emitida_en).toLocaleString("es-ES") : "";
       const firma = [emitida, row.emitida_por_email].filter(Boolean).join(" · ");
       const meta = [
@@ -22122,6 +22176,27 @@ function nominaNombreMes(mes) {
   return GESTION_NOMINA_MESES[i] || "";
 }
 
+// `nomina.periodo_desde/hasta` es el intervalo que se filtraba en Gestión al
+// emitir, no lo que esa nómina cubre realmente: con dos vidas laborales en el
+// mismo mes, cada nómina lleva marcado el mes entero aunque su historial solo
+// abarque una parte (p.ej. 11-23 y 24-31 de agosto). El periodo real es la
+// unión de los `tramo_desde`/`tramo_hasta` que quedaron congelados en
+// nomina_historiales para esa nómina. Con historiales sin tramo (nóminas
+// antiguas o sin desglose a mano) se cae al periodo de la cabecera.
+function getNominaPeriodoEfectivo(nomina, historiales) {
+  const tramos = (historiales || []).filter((h) => h.tramo_desde && h.tramo_hasta);
+  if (!tramos.length) {
+    return { desde: nomina.periodo_desde, hasta: nomina.periodo_hasta };
+  }
+  let desde = tramos[0].tramo_desde;
+  let hasta = tramos[0].tramo_hasta;
+  for (const tramo of tramos) {
+    if (tramo.tramo_desde < desde) desde = tramo.tramo_desde;
+    if (tramo.tramo_hasta > hasta) hasta = tramo.tramo_hasta;
+  }
+  return { desde, hasta };
+}
+
 // Dibuja una tabla con salto de página. columns: [{label, width(mm), align, key}].
 // rows: objetos con las claves de columns, o {_seccion:'titulo'|'total', ...}
 // para bandas. Devuelve la Y final. Reutilizada por el recibo y el listado PDF.
@@ -22222,7 +22297,7 @@ async function fetchNominaReciboData(nominaId) {
       ? supabase.from("empresas").select("empresa, razon_social, cif, logo_url, logo_data_url, firma_data_url, firmante_nombre, firmante_cargo, ciudad_firma, direccion_pie, telefono_pie, email_pie, web_pie").eq("id", nomina.empresa_id).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from("nomina_lineas").select("orden, seccion, concepto, detalle, base, tipo, cantidad, precio, importe, detalle_de").eq("nomina_id", Number(nominaId)).eq("ambito", "persona").order("orden"),
-    supabase.from("nomina_historiales").select("puesto, convenio, grupo_cotizacion, fecha_alta, predominante").eq("nomina_id", Number(nominaId)).order("predominante", { ascending: false }),
+    supabase.from("nomina_historiales").select("puesto, convenio, grupo_cotizacion, fecha_alta, predominante, tramo_desde, tramo_hasta").eq("nomina_id", Number(nominaId)).order("predominante", { ascending: false }),
   ]);
   for (const res of [personalRes, confidencialRes, empresaRes, lineasRes, historialesRes]) {
     if (res.error) throw res.error;
@@ -22256,6 +22331,7 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
 
     const { nomina, personal, confidencial, empresa, lineas, historiales } = data;
     const predominante = historiales.find((h) => h.predominante) || historiales[0] || {};
+    const periodoEfectivo = getNominaPeriodoEfectivo(nomina, historiales);
 
     // --- Cabecera: logo + datos de empresa a la izquierda, título a la derecha.
     const logoDataUrl = empresa.logo_data_url || (await loadImageAsDataUrl(empresa.logo_url));
@@ -22281,7 +22357,7 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
     doc.setFontSize(8);
     doc.text(
       `${nominaNombreMes(nomina.mes)} ${nomina.ejercicio || ""}`.trim() ||
-        `${formatGestionDate(nomina.periodo_desde)} – ${formatGestionDate(nomina.periodo_hasta)}`,
+        `${formatGestionDate(periodoEfectivo.desde)} – ${formatGestionDate(periodoEfectivo.hasta)}`,
       pageWidth - margin,
       y + 9,
       { align: "right" }
@@ -22294,7 +22370,7 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
       ["Trabajador/a", nombre || "—", "DNI", personal.dni || "—"],
       ["Nº afiliación S.S.", confidencial.ss || "—", "Grupo cotización", predominante.grupo_cotizacion || personal.grupo_cotizacion || "—"],
       ["Puesto", predominante.puesto || "—", "Antigüedad", personal.antiguedad ? formatGestionDate(personal.antiguedad) : "—"],
-      ["Convenio", predominante.convenio || "—", "Periodo", `${formatGestionDate(nomina.periodo_desde)} – ${formatGestionDate(nomina.periodo_hasta)}`],
+      ["Convenio", predominante.convenio || "—", "Periodo", `${formatGestionDate(periodoEfectivo.desde)} – ${formatGestionDate(periodoEfectivo.hasta)}`],
     ];
     const boxTop = y;
     const rowH = 6;
@@ -22444,6 +22520,327 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
       triggerButton.textContent = original || "PDF";
     }
   }
+}
+
+// ============================================================================
+// Panel "Últimas nóminas" (junto a "Ver y editar persona" en Gestión). Muestra
+// las N nóminas más recientes de la persona seleccionada, sin acotar al
+// intervalo de fechas del filtro, navegables una a una como imagen PNG, con
+// descarga de esa misma imagen y del recibo real en PDF (exportNominaEmitidaPdf).
+// ============================================================================
+
+async function openGestionNominasRecientesPanel() {
+  const personalId = gestionFilterPersonalHidden?.value || "";
+  if (!personalId || !currentUserIsAccessAdmin) {
+    return;
+  }
+  gestionNominasRecientesPanel?.classList.remove("hidden");
+  gestionNominasRecientesBackdrop?.classList.remove("hidden");
+  await loadGestionNominasRecientes();
+}
+
+function closeGestionNominasRecientesPanel() {
+  gestionNominasRecientesPanel?.classList.add("hidden");
+  gestionNominasRecientesBackdrop?.classList.add("hidden");
+}
+
+async function loadGestionNominasRecientes() {
+  const personalId = gestionFilterPersonalHidden?.value || "";
+  if (!personalId || !gestionNominasRecientesPanel) {
+    return;
+  }
+  const limit = Math.max(1, Math.min(50, Number(gestionNominasRecientesCount?.value) || 5));
+  if (gestionNominasRecientesCount) {
+    gestionNominasRecientesCount.value = String(limit);
+  }
+  gestionNominasRecientesDataCache.clear();
+  gestionNominasRecientesRows = [];
+  gestionNominasRecientesIndex = 0;
+  const personName = personalPickers.get("gestion-filter")?.inputEl?.value?.trim() || `ID ${personalId}`;
+  if (gestionNominasRecientesSummary) {
+    gestionNominasRecientesSummary.textContent = `${personName} · cargando…`;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("nominas")
+      .select("id, periodo_desde, periodo_hasta, estado, liquido, total_devengado, total_deducciones, emitida_en, notas")
+      .eq("personal_id", Number(personalId))
+      .order("periodo_desde", { ascending: false })
+      .order("emitida_en", { ascending: false })
+      .limit(limit);
+    if (error) {
+      throw error;
+    }
+    gestionNominasRecientesRows = data || [];
+    if (gestionNominasRecientesSummary) {
+      gestionNominasRecientesSummary.textContent = gestionNominasRecientesRows.length
+        ? `${personName} · ${gestionNominasRecientesRows.length} nómina${gestionNominasRecientesRows.length !== 1 ? "s" : ""}`
+        : `${personName} · sin nóminas emitidas`;
+    }
+    await renderGestionNominaRecienteActual();
+  } catch (error) {
+    if (gestionNominasRecientesSummary) {
+      gestionNominasRecientesSummary.textContent = "No se pudieron cargar las nóminas.";
+    }
+    setStatus(`No se pudieron cargar las últimas nóminas: ${error.message}`, "error");
+  }
+}
+
+function updateGestionNominasRecientesNav() {
+  const total = gestionNominasRecientesRows.length;
+  if (gestionNominasRecientesPosition) {
+    gestionNominasRecientesPosition.textContent = total
+      ? `${gestionNominasRecientesIndex + 1} de ${total}`
+      : "—";
+  }
+  if (gestionNominasRecientesPrevButton) {
+    gestionNominasRecientesPrevButton.disabled = gestionNominasRecientesIndex <= 0;
+  }
+  if (gestionNominasRecientesNextButton) {
+    gestionNominasRecientesNextButton.disabled = gestionNominasRecientesIndex >= total - 1;
+  }
+}
+
+function setGestionNominasRecientesActionsEnabled(enabled) {
+  [gestionNominasRecientesCopyButton, gestionNominasRecientesPngButton, gestionNominasRecientesPdfButton].forEach(
+    (button) => {
+      if (button) button.disabled = !enabled;
+    }
+  );
+}
+
+async function renderGestionNominaRecienteActual() {
+  updateGestionNominasRecientesNav();
+  const row = gestionNominasRecientesRows[gestionNominasRecientesIndex];
+  gestionNominasRecientesCanvas = null;
+  setGestionNominasRecientesActionsEnabled(false);
+  if (!row) {
+    gestionNominasRecientesPreview?.removeAttribute("src");
+    if (gestionNominasRecientesMeta) gestionNominasRecientesMeta.textContent = "";
+    return;
+  }
+  if (gestionNominasRecientesMeta) {
+    gestionNominasRecientesMeta.textContent = "Cargando…";
+  }
+  try {
+    let data = gestionNominasRecientesDataCache.get(row.id);
+    if (!data) {
+      data = await fetchNominaReciboData(row.id);
+      gestionNominasRecientesDataCache.set(row.id, data);
+    }
+    gestionNominasRecientesCanvas = drawGestionNominaReciboImage(data);
+    gestionNominasRecientesFileName = getGestionNominaReciboImageFileName(data);
+    if (gestionNominasRecientesPreview) {
+      gestionNominasRecientesPreview.src = gestionNominasRecientesCanvas.toDataURL("image/png");
+    }
+    const periodo = getNominaPeriodoEfectivo(data.nomina, data.historiales);
+    const anulada = data.nomina.estado === "anulada";
+    if (gestionNominasRecientesMeta) {
+      gestionNominasRecientesMeta.textContent = [
+        `#${data.nomina.id}`,
+        `${formatGestionDate(periodo.desde)} – ${formatGestionDate(periodo.hasta)}`,
+        `Líquido ${formatGestionImporte(data.nomina.liquido)}`,
+        anulada ? "anulada" : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    }
+    setGestionNominasRecientesActionsEnabled(true);
+  } catch (error) {
+    if (gestionNominasRecientesMeta) {
+      gestionNominasRecientesMeta.textContent = `No se pudo generar el recibo: ${error.message}`;
+    }
+  }
+}
+
+function gestionNominasRecientesGoPrev() {
+  if (gestionNominasRecientesIndex <= 0) return;
+  gestionNominasRecientesIndex -= 1;
+  void renderGestionNominaRecienteActual();
+}
+
+function gestionNominasRecientesGoNext() {
+  if (gestionNominasRecientesIndex >= gestionNominasRecientesRows.length - 1) return;
+  gestionNominasRecientesIndex += 1;
+  void renderGestionNominaRecienteActual();
+}
+
+async function copyGestionNominaRecienteImage() {
+  try {
+    if (!gestionNominasRecientesCanvas) {
+      throw new Error("Genera primero el recibo.");
+    }
+    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
+      throw new Error("El navegador no permite copiar imagenes al portapapeles.");
+    }
+    const blob = await canvasToBlob(gestionNominasRecientesCanvas);
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    setStatus("Imagen copiada al portapapeles.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo copiar la imagen.", "error");
+  }
+}
+
+async function downloadGestionNominaRecienteImage() {
+  try {
+    if (!gestionNominasRecientesCanvas) {
+      throw new Error("Genera primero el recibo.");
+    }
+    const blob = await canvasToBlob(gestionNominasRecientesCanvas);
+    triggerDownload(blob, gestionNominasRecientesFileName || "nomina.png");
+    setStatus("Imagen descargada correctamente.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo descargar la imagen.", "error");
+  }
+}
+
+async function downloadGestionNominaRecientePdf(triggerButton) {
+  const row = gestionNominasRecientesRows[gestionNominasRecientesIndex];
+  if (!row) return;
+  await exportNominaEmitidaPdf(row.id, triggerButton);
+}
+
+function getGestionNominaReciboImageFileName(data) {
+  const nombre =
+    data.personal?.personal || [data.personal?.nombre, data.personal?.apellido].filter(Boolean).join(" ");
+  const periodo = getNominaPeriodoEfectivo(data.nomina, data.historiales);
+  return `nomina-${sanitizeFileName(nombre || `personal-${data.nomina.personal_id}`)}-${periodo.desde || "sin-inicio"}-${periodo.hasta || "sin-fin"}.png`;
+}
+
+// PNG del recibo, mismo patrón de canvas (layoutCanvasTableRows/drawCanvasTableSection)
+// que el informe individual de Registros. No pretende ser un facsímil del PDF
+// oficial: es una vista rápida para copiar/pegar o compartir sin descargar nada.
+function drawGestionNominaReciboImage(data) {
+  const { nomina, personal, empresa, lineas, historiales } = data;
+  const scale = 2;
+  const margin = 40;
+  const cellPadding = 10;
+  const lineHeight = 26;
+  const headerHeight = 42;
+  const minRowHeight = 46;
+  const titleHeight = 150;
+  const footerHeight = 60;
+
+  const devengoColumns = [
+    { key: "concepto", label: "Concepto", width: 420 },
+    { key: "cantidad", label: "Cantidad", width: 130 },
+    { key: "precio", label: "Precio", width: 150 },
+    { key: "importe", label: "Importe", width: 150 },
+  ];
+  const deduccionColumns = [
+    { key: "concepto", label: "Concepto", width: 420 },
+    { key: "base", label: "Base", width: 150 },
+    { key: "tipo", label: "%", width: 130 },
+    { key: "importe", label: "Importe", width: 150 },
+  ];
+  const tableWidth = devengoColumns.reduce((sum, column) => sum + column.width, 0);
+  const canvasWidth = tableWidth + margin * 2;
+
+  const scratchCanvas = document.createElement("canvas");
+  const scratchContext = scratchCanvas.getContext("2d");
+  scratchContext.font = "24px Arial";
+  const layoutOptions = { lineHeight, cellPadding, minRowHeight };
+
+  const devengos = lineas.filter((linea) => linea.seccion === "devengo" && !linea.detalle_de);
+  const deducciones = lineas.filter((linea) => linea.seccion === "deduccion" && !linea.detalle_de);
+
+  const devengoRows = devengos.map((linea) => ({
+    concepto: formatGestionConceptoCodigo(linea.concepto, linea.codigo_nomina),
+    cantidad:
+      linea.cantidad != null ? Number(linea.cantidad).toLocaleString("es-ES", { maximumFractionDigits: 2 }) : "-",
+    precio: linea.precio != null ? formatGestionImporte(linea.precio) : "-",
+    importe: formatGestionImporte(linea.importe),
+  }));
+  const deduccionRows = deducciones.map((linea) => ({
+    concepto: linea.concepto,
+    base: linea.base != null ? formatGestionImporte(linea.base) : "-",
+    tipo: linea.tipo != null ? `${(Number(linea.tipo) * 100).toLocaleString("es-ES", { maximumFractionDigits: 3 })} %` : "-",
+    importe: formatGestionImporte(linea.importe),
+  }));
+
+  const devengoLayouts = layoutCanvasTableRows(scratchContext, devengoColumns, devengoRows, layoutOptions);
+  const deduccionLayouts = layoutCanvasTableRows(scratchContext, deduccionColumns, deduccionRows, layoutOptions);
+
+  const sectionHeight = (layouts) =>
+    40 + headerHeight + layouts.reduce((sum, layout) => sum + layout.rowHeight, 0) + 46 + 32;
+  const liquidoHeight = 90;
+  const canvasHeight =
+    titleHeight + sectionHeight(devengoLayouts) + sectionHeight(deduccionLayouts) + liquidoHeight + footerHeight;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth * scale;
+  canvas.height = canvasHeight * scale;
+  const context = canvas.getContext("2d");
+  context.scale(scale, scale);
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvasWidth, canvasHeight);
+
+  const nombre =
+    personal.personal ||
+    [personal.nombre, personal.apellido].filter(Boolean).join(" ") ||
+    `Personal ${nomina.personal_id}`;
+  const periodo = getNominaPeriodoEfectivo(nomina, historiales);
+  const empresaNombre = empresa.razon_social || empresa.empresa || "";
+
+  context.fillStyle = "#001f54";
+  context.font = "bold 30px Arial";
+  context.fillText("Recibo de nómina", margin, 42);
+  context.font = "bold 24px Arial";
+  context.fillText(nombre, margin, 74);
+  context.font = "20px Arial";
+  context.fillText(
+    `${empresaNombre ? `${empresaNombre} · ` : ""}Periodo: ${formatGestionDate(periodo.desde) || "—"} - ${formatGestionDate(periodo.hasta) || "—"}`,
+    margin,
+    102
+  );
+  if (nomina.estado === "anulada") {
+    context.fillStyle = "#b91c1c";
+    context.font = "bold 20px Arial";
+    context.fillText("ANULADA", margin, 130);
+  }
+
+  let y = titleHeight;
+  const sectionDefaults = { x: margin, headerHeight, cellPadding, lineHeight };
+  y = drawCanvasTableSection(context, {
+    ...sectionDefaults,
+    y,
+    title: "Devengos",
+    columns: devengoColumns,
+    rowLayouts: devengoLayouts,
+    totalLabel: "Total devengado",
+    totalValue: formatGestionImporte(nomina.total_devengado),
+    valueColumnKey: "importe",
+  });
+  y = drawCanvasTableSection(context, {
+    ...sectionDefaults,
+    y,
+    title: "Deducciones",
+    columns: deduccionColumns,
+    rowLayouts: deduccionLayouts,
+    totalLabel: "Total deducciones",
+    totalValue: formatGestionImporte(nomina.total_deducciones),
+    valueColumnKey: "importe",
+  });
+
+  context.fillStyle = "#e2ede2";
+  context.fillRect(margin, y, tableWidth, 50);
+  context.strokeStyle = "#94a3b8";
+  context.strokeRect(margin, y, tableWidth, 50);
+  context.fillStyle = "#001f54";
+  context.font = "bold 26px Arial";
+  context.fillText("LÍQUIDO", margin + cellPadding, y + 33);
+  context.textAlign = "right";
+  context.fillText(formatGestionImporte(nomina.liquido), margin + tableWidth - cellPadding, y + 33);
+  context.textAlign = "left";
+  y += 50 + 20;
+
+  context.fillStyle = "#64748b";
+  context.font = "18px Arial";
+  context.fillText(`Generado: ${new Date().toLocaleString("es-ES")}`, margin, y);
+
+  return canvas;
 }
 
 // ---- Listado mensual ----
@@ -29195,6 +29592,280 @@ async function exportEventPersonnelReportToPdf() {
   }
 }
 
+// ============================================================================
+// Informe resumen de eventos: uno o varios eventos filtrados con el detalle de
+// su cronograma (pasos, horario, transporte y personal asignado). Reutiliza la
+// misma selección de la zona de generación de registros: si hay eventos
+// marcados, el informe se limita a ellos; si no, cubre todos los filtrados.
+// ============================================================================
+
+function getEventsForSummaryReport() {
+  const filtered = getSortedEvents(getFilteredEvents());
+  if (eventsRecordsSelectionMode && selectedEventRecordIds.size) {
+    const picked = filtered.filter((event) => selectedEventRecordIds.has(String(event.id)));
+    if (picked.length) {
+      return picked;
+    }
+  }
+  return filtered;
+}
+
+function getEventStepsForSummaryReport(eventId) {
+  return currentEventScheduleRows
+    .filter((row) => Number(row.evento_id) === Number(eventId))
+    .sort(
+      (a, b) =>
+        String(a.fecha).localeCompare(String(b.fecha), "es", { numeric: true }) ||
+        formatHourValue(a.hora_inicio).localeCompare(formatHourValue(b.hora_inicio), "es", { numeric: true })
+    );
+}
+
+// El horario del propio asignado manda si difiere del paso (igual que en la
+// generación de registros): puede haber entrado más tarde o salido antes.
+function getEventStepAssignmentMinutes(assignment, step) {
+  return calculateWorkedMinutes(
+    assignment.hora_inicio || step.hora_inicio,
+    assignment.hora_fin || step.hora_fin
+  );
+}
+
+function formatEventStepPersonnelEntry(assignment, step) {
+  const inicio = formatHourValue(assignment.hora_inicio || step.hora_inicio).slice(0, 5);
+  const fin = formatHourValue(assignment.hora_fin || step.hora_fin).slice(0, 5);
+  const minutes = getEventStepAssignmentMinutes(assignment, step);
+  const name = getEventPersonnelName(assignment.personal_id) || "Persona";
+  return `${name} (${inicio}-${fin}, ${formatMinutesAsHours(minutes)})`;
+}
+
+// Total de horas por persona, desglosado por evento, para el resumen final.
+function buildEventsSummaryPersonnelTotals(events) {
+  const totals = new Map();
+
+  events.forEach((eventRow) => {
+    getEventStepsForSummaryReport(eventRow.id).forEach((step) => {
+      currentEventSchedulePersonnelRows
+        .filter((item) => Number(item.cronograma_id) === Number(step.id))
+        .forEach((assignment) => {
+          const personalId = Number(assignment.personal_id);
+          const minutes = getEventStepAssignmentMinutes(assignment, step);
+          if (!totals.has(personalId)) {
+            totals.set(personalId, {
+              name: getEventPersonnelName(personalId) || "Persona",
+              perEvent: new Map(),
+              totalMinutes: 0,
+            });
+          }
+          const entry = totals.get(personalId);
+          entry.totalMinutes += minutes;
+          const eventId = Number(eventRow.id);
+          const eventEntry = entry.perEvent.get(eventId) || { nombre: eventRow.nombre, minutes: 0 };
+          eventEntry.minutes += minutes;
+          entry.perEvent.set(eventId, eventEntry);
+        });
+    });
+  });
+
+  return [...totals.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, "es", { sensitivity: "base", numeric: true })
+  );
+}
+
+async function exportEventsSummaryReportToPdf() {
+  try {
+    const events = getEventsForSummaryReport();
+    if (!events.length) {
+      setStatus("No hay eventos filtrados para generar el informe resumen.", "error");
+      return;
+    }
+
+    const { jsPDF } = await getJsPdfClient();
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const bottomMargin = 12;
+    const columns = [
+      { label: "Fecha", key: "fecha", width: 24 },
+      { label: "Horario", key: "horario", width: 30 },
+      { label: "Actividad", key: "actividad", width: 70 },
+      { label: "Transporte", key: "transporte", width: 32 },
+      { label: "Personal asignado", key: "personal", width: 0 },
+    ];
+    const fixedWidth = columns.reduce((total, column) => total + column.width, 0);
+    columns[columns.length - 1].width = pageWidth - margin * 2 - fixedWidth;
+    const tableWidth = pageWidth - margin * 2;
+    const headerRowHeight = 8;
+    const minRowHeight = 8;
+    const rowLineHeight = 3.8;
+    let y = margin;
+
+    const ensureSpace = (needed) => {
+      if (y + needed > pageHeight - bottomMargin) {
+        doc.addPage();
+        y = margin;
+      }
+    };
+
+    const drawStepsTableHeader = () => {
+      let x = margin;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      columns.forEach((column) => {
+        doc.setFillColor(225, 225, 225);
+        doc.setDrawColor(120, 120, 120);
+        doc.rect(x, y, column.width, headerRowHeight, "F");
+        doc.rect(x, y, column.width, headerRowHeight, "S");
+        doc.text(column.label, x + 2, y + 5.2);
+        x += column.width;
+      });
+      y += headerRowHeight;
+    };
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.text("Informe resumen de eventos", margin, y);
+    y += 7;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(
+      `${events.length} evento${events.length === 1 ? "" : "s"} · Generado: ${new Date().toLocaleString("es-ES")}`,
+      margin,
+      y
+    );
+    y += 8;
+
+    events.forEach((eventRow) => {
+      const steps = getEventStepsForSummaryReport(eventRow.id);
+
+      ensureSpace(20);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text(eventRow.nombre, margin, y);
+      y += 5.5;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const metaParts = [
+        eventRow.contrato_id ? `Contrato: ${getEventContractName(eventRow.contrato_id)}` : null,
+        `Instalación: ${getEventInstallationName(eventRow.instalacion_id)}`,
+        `Del ${formatDisplayDate(eventRow.fecha_inicio)} al ${formatDisplayDate(eventRow.fecha_fin)}`,
+      ].filter(Boolean);
+      doc.text(metaParts.join("  ·  "), margin, y);
+      y += 5;
+
+      if (eventRow.observaciones) {
+        const obsLines = doc.splitTextToSize(eventRow.observaciones, tableWidth);
+        ensureSpace(obsLines.length * rowLineHeight + 2);
+        doc.setFont("helvetica", "italic");
+        doc.text(obsLines, margin, y);
+        y += obsLines.length * rowLineHeight + 2;
+      }
+
+      if (!steps.length) {
+        ensureSpace(minRowHeight);
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(9);
+        doc.text("Este evento no tiene pasos registrados.", margin, y + 4);
+        y += minRowHeight;
+      } else {
+        ensureSpace(headerRowHeight + minRowHeight);
+        drawStepsTableHeader();
+
+        steps.forEach((step) => {
+          const personnelNames =
+            currentEventSchedulePersonnelRows
+              .filter((item) => Number(item.cronograma_id) === Number(step.id))
+              .map((item) => formatEventStepPersonnelEntry(item, step))
+              .join("\n") || "Sin personal asignado";
+
+          const values = {
+            fecha: formatDisplayDate(step.fecha),
+            horario: `${formatHourValue(step.hora_inicio).slice(0, 5)} - ${formatHourValue(step.hora_fin).slice(0, 5)}`,
+            actividad: step.actividad || "-",
+            transporte: step.necesita_transporte ? step.transporte_detalle || "Necesario" : "-",
+            personal: personnelNames,
+          };
+          const cellLines = columns.map((column) =>
+            doc.splitTextToSize(String(values[column.key] || "-"), column.width - 4)
+          );
+          const rowHeight = Math.max(minRowHeight, ...cellLines.map((lines) => lines.length * rowLineHeight + 4));
+
+          if (y + rowHeight > pageHeight - bottomMargin) {
+            doc.addPage();
+            y = margin;
+            drawStepsTableHeader();
+          }
+
+          let x = margin;
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setDrawColor(210, 219, 231);
+          columns.forEach((column, columnIndex) => {
+            doc.rect(x, y, column.width, rowHeight);
+            doc.text(cellLines[columnIndex], x + 2, y + 5, { maxWidth: column.width - 4 });
+            x += column.width;
+          });
+          y += rowHeight;
+        });
+      }
+
+      y += 6;
+    });
+
+    const personnelTotals = buildEventsSummaryPersonnelTotals(events);
+    if (personnelTotals.length) {
+      doc.addPage();
+      y = margin;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text("Resumen de horas por personal", margin, y);
+      y += 8;
+
+      const grandTotalMinutes = personnelTotals.reduce((total, person) => total + person.totalMinutes, 0);
+
+      personnelTotals.forEach((person) => {
+        const eventLines = [...person.perEvent.values()].sort((a, b) =>
+          a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base", numeric: true })
+        );
+
+        ensureSpace(10);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text(person.name, margin, y);
+        y += 5;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        eventLines.forEach((eventEntry) => {
+          ensureSpace(5);
+          doc.text(`${eventEntry.nombre}: ${formatMinutesAsHours(eventEntry.minutes)}`, margin + 6, y);
+          y += 4.6;
+        });
+
+        ensureSpace(7);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.text(`Total ${person.name}: ${formatMinutesAsHours(person.totalMinutes)}`, margin + 6, y);
+        y += 7;
+      });
+
+      ensureSpace(9);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(`Total general: ${formatMinutesAsHours(grandTotalMinutes)}`, margin, y);
+      y += 6;
+    }
+
+    doc.save(`informe-eventos-resumen-${new Date().toISOString().slice(0, 10)}.pdf`);
+    setStatus(
+      `Informe resumen de eventos generado correctamente (${events.length} evento${events.length === 1 ? "" : "s"}).`,
+      "success"
+    );
+  } catch (error) {
+    setStatus(`No se pudo generar el informe resumen de eventos: ${error?.message ?? "error desconocido"}`, "error");
+  }
+}
+
 function getEventSortValue(event, field) {
   if (field === "instalacion") {
     return normalizeSearchText(getEventInstallationName(event.instalacion_id));
@@ -29315,7 +29986,7 @@ function renderEventsTable() {
               ? `<td class="control-select-cell">
                    <input type="checkbox" data-event-record-pick="${event.id}"
                      ${selectedEventRecordIds.has(String(event.id)) ? "checked" : ""}
-                     aria-label="Incluir este evento al generar registros" />
+                     aria-label="Incluir este evento en el informe o la generación de registros" />
                  </td>`
               : ""
           }
@@ -29702,22 +30373,21 @@ function getSelectedEventRecordIds() {
 }
 
 function syncEventsRecordsUi() {
-  // La zona entera es admin-only: genera datos de nómina.
+  // La generación de registros es admin-only: crea datos de nómina. La
+  // selección en sí (y el informe resumen que la reutiliza) es de todos.
   eventsRecordsZone?.classList.toggle("hidden", !currentUserIsAccessAdmin);
-  if (!currentUserIsAccessAdmin) {
-    return;
-  }
+
   const visibles = getSortedEvents(getFilteredEvents()).length;
   const marcados = getSelectedEventRecordIds().length;
-  if (eventsSelectRecordsButton) {
-    eventsSelectRecordsButton.textContent = eventsRecordsSelectionMode
+  if (eventsSelectionToggleButton) {
+    eventsSelectionToggleButton.textContent = eventsRecordsSelectionMode
       ? "Cancelar selección"
       : "Seleccionar eventos";
   }
-  if (eventsRecordsSelectionCount) {
-    eventsRecordsSelectionCount.textContent = eventsRecordsSelectionMode
+  if (eventsSelectionCountLabel) {
+    eventsSelectionCountLabel.textContent = eventsRecordsSelectionMode
       ? `${marcados} seleccionados de ${visibles}`
-      : "Activa la selección para marcar eventos";
+      : "Activa la selección para elegir eventos del informe";
   }
   eventsRecordsSelectHeader?.classList.toggle("hidden", !eventsRecordsSelectionMode);
   if (eventsRecordsSelectAllCheckbox) {
@@ -30872,6 +31542,9 @@ async function init() {
     void exportEventPersonnelReportToPdf();
   });
   eventPersonnelReportImageButton?.addEventListener("click", showEventPersonnelReportImage);
+  eventsSummaryReportPdfButton?.addEventListener("click", () => {
+    void exportEventsSummaryReportToPdf();
+  });
   closeEventReportImageButton?.addEventListener("click", closeEventReportImagePanel);
   eventReportImageBackdrop?.addEventListener("click", closeEventReportImagePanel);
   copyEventReportImageButton?.addEventListener("click", () => {
@@ -30894,12 +31567,14 @@ async function init() {
 
     resetSingleEventFilter(resetButton.dataset.resetEventFilter);
   });
-  eventsSelectRecordsButton?.addEventListener("click", () => {
+  eventsSelectionToggleButton?.addEventListener("click", () => {
     eventsRecordsSelectionMode = !eventsRecordsSelectionMode;
     if (!eventsRecordsSelectionMode) {
       selectedEventRecordIds.clear();
     }
-    void renderEventRecordPuestoOptions();
+    if (currentUserIsAccessAdmin) {
+      void renderEventRecordPuestoOptions();
+    }
     renderEventsTable();
   });
   eventsRecordsSelectAllCheckbox?.addEventListener("change", (event) => {
@@ -31221,6 +31896,25 @@ async function init() {
   });
   gestionEditPersonalButton?.addEventListener("click", () => {
     void openGestionPersonalDetail();
+  });
+  gestionNominasRecientesButton?.addEventListener("click", () => {
+    void openGestionNominasRecientesPanel();
+  });
+  gestionNominasRecientesCloseButton?.addEventListener("click", closeGestionNominasRecientesPanel);
+  gestionNominasRecientesBackdrop?.addEventListener("click", closeGestionNominasRecientesPanel);
+  gestionNominasRecientesCount?.addEventListener("change", () => {
+    void loadGestionNominasRecientes();
+  });
+  gestionNominasRecientesPrevButton?.addEventListener("click", gestionNominasRecientesGoPrev);
+  gestionNominasRecientesNextButton?.addEventListener("click", gestionNominasRecientesGoNext);
+  gestionNominasRecientesCopyButton?.addEventListener("click", () => {
+    void copyGestionNominaRecienteImage();
+  });
+  gestionNominasRecientesPngButton?.addEventListener("click", () => {
+    void downloadGestionNominaRecienteImage();
+  });
+  gestionNominasRecientesPdfButton?.addEventListener("click", () => {
+    void downloadGestionNominaRecientePdf(gestionNominasRecientesPdfButton);
   });
   gestionPersonalCloseButton?.addEventListener("click", () => {
     void closeGestionPersonalDetail();

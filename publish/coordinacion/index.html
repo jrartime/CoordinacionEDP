@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260812-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260828-2" />
   </head>
   <body>
     <script>
@@ -1995,6 +1995,9 @@
                     <button id="gestion-edit-personal-button" type="button" class="secondary-button hidden">
                       Ver y editar persona
                     </button>
+                    <button id="gestion-nominas-recientes-button" type="button" class="secondary-button hidden">
+                      Últimas nóminas
+                    </button>
                   </div>
                 </div>
 
@@ -2277,6 +2280,48 @@
                       <thead><tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Horas</th><th>Contrato / Servicio</th><th>Puesto</th><th>Situación</th><th>Tipo hora</th></tr></thead>
                       <tbody id="gestion-records-table-body"><tr><td colspan="8" class="empty-state">Abre el detalle para cargar registros.</td></tr></tbody>
                     </table>
+                  </div>
+                </aside>
+
+                <div id="gestion-nominas-recientes-backdrop" class="panel-backdrop hidden"></div>
+                <aside id="gestion-nominas-recientes-panel" class="report-panel gestion-nominas-recientes-panel hidden">
+                  <div class="side-panel-header">
+                    <div class="section-heading">
+                      <p class="eyebrow">Gestión</p>
+                      <h2>Últimas nóminas</h2>
+                      <p id="gestion-nominas-recientes-summary">—</p>
+                    </div>
+                    <button id="gestion-nominas-recientes-close-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+                  <div class="gestion-nominas-recientes-controls">
+                    <label class="filter-field">
+                      Mostrar últimas
+                      <input id="gestion-nominas-recientes-count" type="number" min="1" max="50" value="5" />
+                    </label>
+                    <div class="gestion-nominas-recientes-nav">
+                      <button id="gestion-nominas-recientes-prev" type="button" class="secondary-button" disabled>
+                        &larr; Anterior
+                      </button>
+                      <span id="gestion-nominas-recientes-position">—</span>
+                      <button id="gestion-nominas-recientes-next" type="button" class="secondary-button" disabled>
+                        Siguiente &rarr;
+                      </button>
+                    </div>
+                  </div>
+                  <p id="gestion-nominas-recientes-meta" class="muted-text gestion-nomina-emitida-meta"></p>
+                  <div class="event-report-image-actions">
+                    <button id="gestion-nominas-recientes-copy" type="button" disabled>Copiar imagen</button>
+                    <button id="gestion-nominas-recientes-png" type="button" class="secondary-button" disabled>
+                      Descargar PNG
+                    </button>
+                    <button id="gestion-nominas-recientes-pdf" type="button" class="secondary-button" disabled>
+                      Descargar PDF
+                    </button>
+                  </div>
+                  <div class="event-report-image-preview">
+                    <img id="gestion-nominas-recientes-preview" alt="Recibo de la nómina seleccionada" />
                   </div>
                 </aside>
               </section>
@@ -3628,6 +3673,15 @@
                     >
                       Ver PNG
                     </button>
+                    <button id="events-select-summary-button" type="button" class="secondary-button">
+                      Seleccionar eventos
+                    </button>
+                    <span id="events-summary-selection-count" class="control-selected-delete-count">
+                      Activa la selección para elegir eventos del informe
+                    </span>
+                    <button id="events-summary-report-pdf-button" class="secondary-button" type="button">
+                      Informe resumen PDF
+                    </button>
                   </div>
                 </div>
 
@@ -3726,9 +3780,6 @@
                 <details id="events-records-zone" class="programming-panel-zone activities-records-zone hidden">
                   <summary>Generación de registros</summary>
                   <form id="events-records-generation-form" class="activities-records-generation-panel">
-                    <button id="events-select-records-button" type="button" class="secondary-button">
-                      Seleccionar eventos
-                    </button>
                     <label>
                       Puesto
                       <select id="events-records-puesto" name="puesto_id" required></select>
@@ -3736,11 +3787,8 @@
                     <button id="events-generate-records-button" type="submit">
                       Generar registros
                     </button>
-                    <span id="events-records-selection-count" class="control-selected-delete-count">
-                      Activa la selección para marcar eventos
-                    </span>
                     <span id="events-records-generation-summary" class="control-selected-delete-count activities-records-generation-summary">
-                      Las horas salen del cronograma; el tipo de hora es Montaje y la situación Normal.
+                      Usa "Seleccionar eventos" arriba para marcar los eventos. Las horas salen del cronograma; el tipo de hora es Montaje y la situación Normal.
                     </span>
                   </form>
                 </details>
@@ -8709,6 +8757,6 @@
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260814-1" defer></script>
     <script src="./facturacion.js?v=20260807-12" defer></script>
-    <script src="./app.js?v=20260814-5" defer></script>
+    <script src="./app.js?v=20260828-1" defer></script>
   </body>
 </html>
