@@ -21196,6 +21196,10 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
       ${
         currentUserIsAccessAdmin
           ? `<div class="gestion-nomina-emitir">
+              <label class="filter-field gestion-nomina-emitir-notas">
+                Notas
+                <input type="text" id="gestion-nomina-emitir-notas" placeholder="Comentario sobre esta nómina (opcional)" />
+              </label>
               <button type="button" class="secondary-button" data-gestion-nomina-emitir="${escapeHtml(personalId)}">Emitir nómina</button>
               <!-- icon-text: la decoración automática deja "Editar…" en icono
                    suelto, y aquí tiene que leerse junto a "Emitir nómina". -->
@@ -21438,6 +21442,8 @@ async function emitirGestionNomina(personalId, button) {
     window.alert("Selecciona el intervalo de fechas de la nómina.");
     return;
   }
+  const notasInput = document.querySelector("#gestion-nomina-emitir-notas");
+  payload.p_notas = notasInput?.value.trim() || null;
   const original = button?.textContent;
   if (button) {
     button.disabled = true;
@@ -21457,6 +21463,9 @@ async function emitirGestionNomina(personalId, button) {
     }
     if (error) {
       throw error;
+    }
+    if (notasInput) {
+      notasInput.value = "";
     }
     await loadGestionNominasEmitidas(personalId, payload.p_desde, payload.p_hasta, payload.p_empresa_id);
     gestionNominasEmitidasBlock?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -21507,16 +21516,22 @@ async function abrirGestionNominaEditor(personalId, nominaId = null) {
   gestionNominaEditorPanel.innerHTML = '<p class="muted-text">Preparando el editor…</p>';
   try {
     let lineas;
+    let notas = "";
     if (nominaId) {
       const supabase = await getSupabaseClient();
-      const { data, error } = await supabase
-        .from("nomina_lineas")
-        .select("orden, seccion, concepto, detalle, base, tipo, cantidad, precio, importe, detalle_de")
-        .eq("nomina_id", Number(nominaId))
-        .eq("ambito", "persona")
-        .order("orden");
-      if (error) throw error;
-      lineas = data || [];
+      const [lineasRes, nominaRes] = await Promise.all([
+        supabase
+          .from("nomina_lineas")
+          .select("orden, seccion, concepto, detalle, base, tipo, cantidad, precio, importe, detalle_de")
+          .eq("nomina_id", Number(nominaId))
+          .eq("ambito", "persona")
+          .order("orden"),
+        supabase.from("nominas").select("notas").eq("id", Number(nominaId)).single(),
+      ]);
+      if (lineasRes.error) throw lineasRes.error;
+      if (nominaRes.error) throw nominaRes.error;
+      lineas = lineasRes.data || [];
+      notas = nominaRes.data?.notas || "";
     } else {
       lineas = await obtenerGestionNominaTotal(personalId);
     }
@@ -21528,7 +21543,7 @@ async function abrirGestionNominaEditor(personalId, nominaId = null) {
         '<p class="empty-state">No hay ninguna línea que editar.</p>';
       return;
     }
-    gestionNominaEditor = { personalId: String(personalId), nominaId, lineas: filtradas };
+    gestionNominaEditor = { personalId: String(personalId), nominaId, lineas: filtradas, notas };
     renderGestionNominaEditor();
     gestionNominaEditorPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (error) {
@@ -21701,7 +21716,7 @@ function renderGestionNominaEditor() {
       <button type="button" class="secondary-button" data-nomina-anadir>+ Añadir concepto</button>
       <label class="filter-field gestion-nomina-editor-notas">
         Notas
-        <input type="text" id="gestion-nomina-editor-notas" placeholder="Por qué se ajusta a mano" />
+        <input type="text" id="gestion-nomina-editor-notas" placeholder="Por qué se ajusta a mano" value="${escapeHtml(gestionNominaEditor.notas || "")}" />
       </label>
       <span class="gestion-nomina-editor-resumen">
         Bruto ${escapeHtml(formatGestionImporte(totales.bruto))} ·
@@ -21886,6 +21901,7 @@ function renderGestionNominasEmitidas(rows) {
         row.editada ? "conceptos editados a mano" : "",
         row.sustituye_a ? `reemplaza a #${row.sustituye_a}` : "",
         anulada && row.anulada_motivo ? `anulada: ${row.anulada_motivo}` : "",
+        row.notas ? `nota: ${row.notas}` : "",
       ]
         .filter(Boolean)
         .join(" · ");
@@ -22170,6 +22186,24 @@ function drawNominaPdfTable(doc, options) {
   return y;
 }
 
+// Pie de página con la fecha de generación y "Página X de Y" en cada página.
+// Se llama al final, cuando ya se conoce el total de páginas (jsPDF no lo sabe
+// hasta que se ha añadido todo el contenido).
+function stampPdfFooterPageNumbers(doc, margin = 12) {
+  const totalPages = doc.internal.getNumberOfPages();
+  const fecha = new Date().toLocaleString("es-ES");
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`Generado el ${fecha}`, margin, pageHeight - 4);
+    doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, pageHeight - 4, { align: "right" });
+  }
+}
+
 // Trae todo lo necesario para el recibo de UNA nómina emitida: cabecera,
 // persona (con datos confidenciales, admin), empresa (logo/pies) e historiales.
 async function fetchNominaReciboData(nominaId) {
@@ -22362,6 +22396,22 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
     if (empresa.firmante_nombre) doc.text(String(empresa.firmante_nombre), margin, y);
     doc.text(`En ${empresa.ciudad_firma || "Oviedo"}, a ${formatGestionDate(nomina.emitida_en || getTodayIsoDate())}`, pageWidth - margin - 45, y);
 
+    // --- Nota, al final de la nómina.
+    if (nomina.notas) {
+      y += 10;
+      const notaLines = doc.splitTextToSize(`Nota: ${nomina.notas}`, contentWidth);
+      if (y + notaLines.length * 4 > pageHeight - bottomMargin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.setTextColor(90, 90, 90);
+      doc.text(notaLines, margin, y);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "normal");
+    }
+
     // --- Pie de empresa.
     const footerParts = [
       ...new Set(
@@ -22375,6 +22425,8 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
       doc.setTextColor(120, 120, 120);
       doc.text(doc.splitTextToSize(footerParts.join(" · "), contentWidth), pageWidth / 2, pageHeight - 8, { align: "center" });
     }
+
+    stampPdfFooterPageNumbers(doc, margin);
 
     const filename = [
       String(nombre || `nomina-${nomina.id}`).replace(/[^\p{L}\p{N} ._-]/gu, "").trim(),
@@ -22577,6 +22629,7 @@ function buildGestionNominaListado(rows, meta, horasRows = [], emisiones = new M
         empresa: row.empresa,
         estado: row.estado,
         editada: row.editada,
+        notas: row.notas || null,
         emitida_en: emisiones.get(String(row.nomina_id)) || null,
         periodo_desde: row.periodo_desde,
         periodo_hasta: row.periodo_hasta,
@@ -22767,6 +22820,7 @@ async function exportGestionNominaListadoExcel() {
       "DNI",
       "Empresa",
       "Estado",
+      "Notas",
       ...data.tiposHora.map((tipoHora) => `Horas ${tipoHora}`),
       "Desplazamientos",
       ...data.columnas.map((c) => formatGestionConceptoCodigo(c.concepto, c.codigo_nomina)),
@@ -22777,12 +22831,13 @@ async function exportGestionNominaListadoExcel() {
       n.dni || "",
       n.empresa || "",
       n.estado,
+      n.notas || "",
       ...data.tiposHora.map((tipoHora) => num(n.horasTipo.get(tipoHora) || 0)),
       num(n.desplazamientos),
       ...data.columnas.map((c) => num(n.valores.get(c.concepto))),
     ]);
     const totalRow = [
-      "", `TOTAL (${data.nominas.length})`, "", "", "",
+      "", `TOTAL (${data.nominas.length})`, "", "", "", "",
       ...data.tiposHora.map((tipoHora) =>
         data.nominas.reduce(
           (sum, nomina) => sum + Number(nomina.horasTipo.get(tipoHora) || 0),
@@ -22799,6 +22854,7 @@ async function exportGestionNominaListadoExcel() {
       { wch: 12 },
       { wch: 16 },
       { wch: 10 },
+      { wch: 30 },
       ...data.tiposHora.map(() => ({ wch: 12 })),
       { wch: 16 },
       ...data.columnas.map(() => ({ wch: 13 })),
@@ -22891,11 +22947,12 @@ async function exportGestionNominaListadoPdf() {
     y = drawNominaPdfTable(doc, {
       x: margin, y, margin, pageHeight, bottomMargin,
       columns: [
-        { label: "Persona", key: "persona", width: contentWidth - 150 },
+        { label: "Persona", key: "persona", width: contentWidth - 200 },
         { label: "DNI", key: "dni", width: 36 },
         { label: "Bruto €", key: "bruto", width: 38, align: "right" },
         { label: "Deducciones €", key: "ded", width: 38, align: "right" },
         { label: "Líquido €", key: "liq", width: 38, align: "right" },
+        { label: "Notas", key: "notas", width: 50 },
       ],
       rows: [
         ...data.nominas.map((n) => ({
@@ -22904,8 +22961,9 @@ async function exportGestionNominaListadoPdf() {
           bruto: nominaPdfMoney(n.total_devengado),
           ded: nominaPdfMoney(n.total_deducciones),
           liq: nominaPdfMoney(n.liquido),
+          notas: n.notas || "",
         })),
-        { _seccion: "total", persona: `TOTAL (${data.nominas.length})`, dni: "", bruto: nominaPdfMoney(totalBruto), ded: nominaPdfMoney(totalDed), liq: nominaPdfMoney(totalLiq) },
+        { _seccion: "total", persona: `TOTAL (${data.nominas.length})`, dni: "", bruto: nominaPdfMoney(totalBruto), ded: nominaPdfMoney(totalDed), liq: nominaPdfMoney(totalLiq), notas: "" },
       ],
     });
     y += 8;
@@ -22973,8 +23031,26 @@ async function exportGestionNominaListadoPdf() {
         });
         y += 6;
       }
+
+      // La nota va al final de cada nómina, tras su desglose.
+      if (n.notas) {
+        const notaLines = doc.splitTextToSize(`Nota: ${n.notas}`, contentWidth);
+        const notaHeight = notaLines.length * 4 + 2;
+        if (y + notaHeight > pageHeight - bottomMargin) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8);
+        doc.setTextColor(90, 90, 90);
+        doc.text(notaLines, margin, y + 3);
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("helvetica", "normal");
+        y += notaHeight + 4;
+      }
     }
 
+    stampPdfFooterPageNumbers(doc, margin);
     doc.save(`nominas-${data.ejercicio}-${String(data.mes).padStart(2, "0")}.pdf`);
     setStatus("Listado exportado a PDF.", "success");
   } catch (error) {
@@ -31343,13 +31419,21 @@ async function init() {
     if (!gestionNominaEditor) {
       return;
     }
+    // Añadir/quitar líneas repinta el editor entero: se guarda antes lo que
+    // llevara tecleado en Notas para no perderlo en el repintado.
+    const sincronizarNotas = () => {
+      const input = document.querySelector("#gestion-nomina-editor-notas");
+      if (input) gestionNominaEditor.notas = input.value;
+    };
     const quitar = event.target.closest("[data-nomina-quitar]");
     if (quitar) {
+      sincronizarNotas();
       gestionNominaEditor.lineas.splice(Number(quitar.dataset.nominaQuitar), 1);
       renderGestionNominaEditor();
       return;
     }
     if (event.target.closest("[data-nomina-anadir]")) {
+      sincronizarNotas();
       // Orden 400: después de los complementos (100+) y antes de los totales.
       gestionNominaEditor.lineas.push({
         orden: 400 + gestionNominaEditor.lineas.filter((row) => Number(row.orden) >= 400 && Number(row.orden) < 500).length,

@@ -3628,6 +3628,15 @@
                     >
                       Ver PNG
                     </button>
+                    <button id="events-select-summary-button" type="button" class="secondary-button">
+                      Seleccionar eventos
+                    </button>
+                    <span id="events-summary-selection-count" class="control-selected-delete-count">
+                      Activa la selección para elegir eventos del informe
+                    </span>
+                    <button id="events-summary-report-pdf-button" class="secondary-button" type="button">
+                      Informe resumen PDF
+                    </button>
                   </div>
                 </div>
 
@@ -3726,9 +3735,6 @@
                 <details id="events-records-zone" class="programming-panel-zone activities-records-zone hidden">
                   <summary>Generación de registros</summary>
                   <form id="events-records-generation-form" class="activities-records-generation-panel">
-                    <button id="events-select-records-button" type="button" class="secondary-button">
-                      Seleccionar eventos
-                    </button>
                     <label>
                       Puesto
                       <select id="events-records-puesto" name="puesto_id" required></select>
@@ -3736,11 +3742,8 @@
                     <button id="events-generate-records-button" type="submit">
                       Generar registros
                     </button>
-                    <span id="events-records-selection-count" class="control-selected-delete-count">
-                      Activa la selección para marcar eventos
-                    </span>
                     <span id="events-records-generation-summary" class="control-selected-delete-count activities-records-generation-summary">
-                      Las horas salen del cronograma; el tipo de hora es Montaje y la situación Normal.
+                      Usa "Seleccionar eventos" arriba para marcar los eventos. Las horas salen del cronograma; el tipo de hora es Montaje y la situación Normal.
                     </span>
                   </form>
                 </details>
@@ -8709,6 +8712,6 @@
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260814-1" defer></script>
     <script src="./facturacion.js?v=20260807-12" defer></script>
-    <script src="./app.js?v=20260814-5" defer></script>
+    <script src="./app.js?v=20260827-2" defer></script>
   </body>
 </html>

@@ -5761,6 +5761,11 @@ details[open] > .gestion-collapsible-header::before {
   padding: 5px 12px;
 }
 
+.gestion-nomina-emitir-notas {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+
 .gestion-nomina-emitida-meta {
   margin: 0;
   padding: 0 10px 8px 34px;

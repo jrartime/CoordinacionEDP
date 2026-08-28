@@ -1156,12 +1156,15 @@ const eventsTableBody = document.querySelector("#events-table-body");
 // Generación de registros de montaje desde los eventos marcados (solo admin).
 const eventsRecordsZone = document.querySelector("#events-records-zone");
 const eventsRecordsForm = document.querySelector("#events-records-generation-form");
-const eventsSelectRecordsButton = document.querySelector("#events-select-records-button");
 const eventsRecordsPuesto = document.querySelector("#events-records-puesto");
-const eventsRecordsSelectionCount = document.querySelector("#events-records-selection-count");
 const eventsRecordsGenerationSummary = document.querySelector("#events-records-generation-summary");
 const eventsRecordsSelectHeader = document.querySelector("#events-records-select-header");
 const eventsRecordsSelectAllCheckbox = document.querySelector("#events-records-select-all-checkbox");
+// Selección de eventos, compartida por la generación de registros (admin) y el
+// informe resumen (todos): un único set de marcados sobre los eventos filtrados.
+const eventsSelectionToggleButton = document.querySelector("#events-select-summary-button");
+const eventsSelectionCountLabel = document.querySelector("#events-summary-selection-count");
+const eventsSummaryReportPdfButton = document.querySelector("#events-summary-report-pdf-button");
 const eventSchedulePanel = document.querySelector("#event-schedule-panel");
 const eventSchedulePanelBackdrop = document.querySelector("#event-schedule-panel-backdrop");
 const closeEventSchedulePanelButton = document.querySelector("#close-event-schedule-panel-button");
@@ -29195,6 +29198,280 @@ async function exportEventPersonnelReportToPdf() {
   }
 }
 
+// ============================================================================
+// Informe resumen de eventos: uno o varios eventos filtrados con el detalle de
+// su cronograma (pasos, horario, transporte y personal asignado). Reutiliza la
+// misma selección de la zona de generación de registros: si hay eventos
+// marcados, el informe se limita a ellos; si no, cubre todos los filtrados.
+// ============================================================================
+
+function getEventsForSummaryReport() {
+  const filtered = getSortedEvents(getFilteredEvents());
+  if (eventsRecordsSelectionMode && selectedEventRecordIds.size) {
+    const picked = filtered.filter((event) => selectedEventRecordIds.has(String(event.id)));
+    if (picked.length) {
+      return picked;
+    }
+  }
+  return filtered;
+}
+
+function getEventStepsForSummaryReport(eventId) {
+  return currentEventScheduleRows
+    .filter((row) => Number(row.evento_id) === Number(eventId))
+    .sort(
+      (a, b) =>
+        String(a.fecha).localeCompare(String(b.fecha), "es", { numeric: true }) ||
+        formatHourValue(a.hora_inicio).localeCompare(formatHourValue(b.hora_inicio), "es", { numeric: true })
+    );
+}
+
+// El horario del propio asignado manda si difiere del paso (igual que en la
+// generación de registros): puede haber entrado más tarde o salido antes.
+function getEventStepAssignmentMinutes(assignment, step) {
+  return calculateWorkedMinutes(
+    assignment.hora_inicio || step.hora_inicio,
+    assignment.hora_fin || step.hora_fin
+  );
+}
+
+function formatEventStepPersonnelEntry(assignment, step) {
+  const inicio = formatHourValue(assignment.hora_inicio || step.hora_inicio).slice(0, 5);
+  const fin = formatHourValue(assignment.hora_fin || step.hora_fin).slice(0, 5);
+  const minutes = getEventStepAssignmentMinutes(assignment, step);
+  const name = getEventPersonnelName(assignment.personal_id) || "Persona";
+  return `${name} (${inicio}-${fin}, ${formatMinutesAsHours(minutes)})`;
+}
+
+// Total de horas por persona, desglosado por evento, para el resumen final.
+function buildEventsSummaryPersonnelTotals(events) {
+  const totals = new Map();
+
+  events.forEach((eventRow) => {
+    getEventStepsForSummaryReport(eventRow.id).forEach((step) => {
+      currentEventSchedulePersonnelRows
+        .filter((item) => Number(item.cronograma_id) === Number(step.id))
+        .forEach((assignment) => {
+          const personalId = Number(assignment.personal_id);
+          const minutes = getEventStepAssignmentMinutes(assignment, step);
+          if (!totals.has(personalId)) {
+            totals.set(personalId, {
+              name: getEventPersonnelName(personalId) || "Persona",
+              perEvent: new Map(),
+              totalMinutes: 0,
+            });
+          }
+          const entry = totals.get(personalId);
+          entry.totalMinutes += minutes;
+          const eventId = Number(eventRow.id);
+          const eventEntry = entry.perEvent.get(eventId) || { nombre: eventRow.nombre, minutes: 0 };
+          eventEntry.minutes += minutes;
+          entry.perEvent.set(eventId, eventEntry);
+        });
+    });
+  });
+
+  return [...totals.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, "es", { sensitivity: "base", numeric: true })
+  );
+}
+
+async function exportEventsSummaryReportToPdf() {
+  try {
+    const events = getEventsForSummaryReport();
+    if (!events.length) {
+      setStatus("No hay eventos filtrados para generar el informe resumen.", "error");
+      return;
+    }
+
+    const { jsPDF } = await getJsPdfClient();
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const bottomMargin = 12;
+    const columns = [
+      { label: "Fecha", key: "fecha", width: 24 },
+      { label: "Horario", key: "horario", width: 30 },
+      { label: "Actividad", key: "actividad", width: 70 },
+      { label: "Transporte", key: "transporte", width: 32 },
+      { label: "Personal asignado", key: "personal", width: 0 },
+    ];
+    const fixedWidth = columns.reduce((total, column) => total + column.width, 0);
+    columns[columns.length - 1].width = pageWidth - margin * 2 - fixedWidth;
+    const tableWidth = pageWidth - margin * 2;
+    const headerRowHeight = 8;
+    const minRowHeight = 8;
+    const rowLineHeight = 3.8;
+    let y = margin;
+
+    const ensureSpace = (needed) => {
+      if (y + needed > pageHeight - bottomMargin) {
+        doc.addPage();
+        y = margin;
+      }
+    };
+
+    const drawStepsTableHeader = () => {
+      let x = margin;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      columns.forEach((column) => {
+        doc.setFillColor(225, 225, 225);
+        doc.setDrawColor(120, 120, 120);
+        doc.rect(x, y, column.width, headerRowHeight, "F");
+        doc.rect(x, y, column.width, headerRowHeight, "S");
+        doc.text(column.label, x + 2, y + 5.2);
+        x += column.width;
+      });
+      y += headerRowHeight;
+    };
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.text("Informe resumen de eventos", margin, y);
+    y += 7;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(
+      `${events.length} evento${events.length === 1 ? "" : "s"} · Generado: ${new Date().toLocaleString("es-ES")}`,
+      margin,
+      y
+    );
+    y += 8;
+
+    events.forEach((eventRow) => {
+      const steps = getEventStepsForSummaryReport(eventRow.id);
+
+      ensureSpace(20);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text(eventRow.nombre, margin, y);
+      y += 5.5;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const metaParts = [
+        eventRow.contrato_id ? `Contrato: ${getEventContractName(eventRow.contrato_id)}` : null,
+        `Instalación: ${getEventInstallationName(eventRow.instalacion_id)}`,
+        `Del ${formatDisplayDate(eventRow.fecha_inicio)} al ${formatDisplayDate(eventRow.fecha_fin)}`,
+      ].filter(Boolean);
+      doc.text(metaParts.join("  ·  "), margin, y);
+      y += 5;
+
+      if (eventRow.observaciones) {
+        const obsLines = doc.splitTextToSize(eventRow.observaciones, tableWidth);
+        ensureSpace(obsLines.length * rowLineHeight + 2);
+        doc.setFont("helvetica", "italic");
+        doc.text(obsLines, margin, y);
+        y += obsLines.length * rowLineHeight + 2;
+      }
+
+      if (!steps.length) {
+        ensureSpace(minRowHeight);
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(9);
+        doc.text("Este evento no tiene pasos registrados.", margin, y + 4);
+        y += minRowHeight;
+      } else {
+        ensureSpace(headerRowHeight + minRowHeight);
+        drawStepsTableHeader();
+
+        steps.forEach((step) => {
+          const personnelNames =
+            currentEventSchedulePersonnelRows
+              .filter((item) => Number(item.cronograma_id) === Number(step.id))
+              .map((item) => formatEventStepPersonnelEntry(item, step))
+              .join("\n") || "Sin personal asignado";
+
+          const values = {
+            fecha: formatDisplayDate(step.fecha),
+            horario: `${formatHourValue(step.hora_inicio).slice(0, 5)} - ${formatHourValue(step.hora_fin).slice(0, 5)}`,
+            actividad: step.actividad || "-",
+            transporte: step.necesita_transporte ? step.transporte_detalle || "Necesario" : "-",
+            personal: personnelNames,
+          };
+          const cellLines = columns.map((column) =>
+            doc.splitTextToSize(String(values[column.key] || "-"), column.width - 4)
+          );
+          const rowHeight = Math.max(minRowHeight, ...cellLines.map((lines) => lines.length * rowLineHeight + 4));
+
+          if (y + rowHeight > pageHeight - bottomMargin) {
+            doc.addPage();
+            y = margin;
+            drawStepsTableHeader();
+          }
+
+          let x = margin;
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setDrawColor(210, 219, 231);
+          columns.forEach((column, columnIndex) => {
+            doc.rect(x, y, column.width, rowHeight);
+            doc.text(cellLines[columnIndex], x + 2, y + 5, { maxWidth: column.width - 4 });
+            x += column.width;
+          });
+          y += rowHeight;
+        });
+      }
+
+      y += 6;
+    });
+
+    const personnelTotals = buildEventsSummaryPersonnelTotals(events);
+    if (personnelTotals.length) {
+      doc.addPage();
+      y = margin;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text("Resumen de horas por personal", margin, y);
+      y += 8;
+
+      const grandTotalMinutes = personnelTotals.reduce((total, person) => total + person.totalMinutes, 0);
+
+      personnelTotals.forEach((person) => {
+        const eventLines = [...person.perEvent.values()].sort((a, b) =>
+          a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base", numeric: true })
+        );
+
+        ensureSpace(10);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text(person.name, margin, y);
+        y += 5;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        eventLines.forEach((eventEntry) => {
+          ensureSpace(5);
+          doc.text(`${eventEntry.nombre}: ${formatMinutesAsHours(eventEntry.minutes)}`, margin + 6, y);
+          y += 4.6;
+        });
+
+        ensureSpace(7);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.text(`Total ${person.name}: ${formatMinutesAsHours(person.totalMinutes)}`, margin + 6, y);
+        y += 7;
+      });
+
+      ensureSpace(9);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(`Total general: ${formatMinutesAsHours(grandTotalMinutes)}`, margin, y);
+      y += 6;
+    }
+
+    doc.save(`informe-eventos-resumen-${new Date().toISOString().slice(0, 10)}.pdf`);
+    setStatus(
+      `Informe resumen de eventos generado correctamente (${events.length} evento${events.length === 1 ? "" : "s"}).`,
+      "success"
+    );
+  } catch (error) {
+    setStatus(`No se pudo generar el informe resumen de eventos: ${error?.message ?? "error desconocido"}`, "error");
+  }
+}
+
 function getEventSortValue(event, field) {
   if (field === "instalacion") {
     return normalizeSearchText(getEventInstallationName(event.instalacion_id));
@@ -29315,7 +29592,7 @@ function renderEventsTable() {
               ? `<td class="control-select-cell">
                    <input type="checkbox" data-event-record-pick="${event.id}"
                      ${selectedEventRecordIds.has(String(event.id)) ? "checked" : ""}
-                     aria-label="Incluir este evento al generar registros" />
+                     aria-label="Incluir este evento en el informe o la generación de registros" />
                  </td>`
               : ""
           }
@@ -29702,22 +29979,21 @@ function getSelectedEventRecordIds() {
 }
 
 function syncEventsRecordsUi() {
-  // La zona entera es admin-only: genera datos de nómina.
+  // La generación de registros es admin-only: crea datos de nómina. La
+  // selección en sí (y el informe resumen que la reutiliza) es de todos.
   eventsRecordsZone?.classList.toggle("hidden", !currentUserIsAccessAdmin);
-  if (!currentUserIsAccessAdmin) {
-    return;
-  }
+
   const visibles = getSortedEvents(getFilteredEvents()).length;
   const marcados = getSelectedEventRecordIds().length;
-  if (eventsSelectRecordsButton) {
-    eventsSelectRecordsButton.textContent = eventsRecordsSelectionMode
+  if (eventsSelectionToggleButton) {
+    eventsSelectionToggleButton.textContent = eventsRecordsSelectionMode
       ? "Cancelar selección"
       : "Seleccionar eventos";
   }
-  if (eventsRecordsSelectionCount) {
-    eventsRecordsSelectionCount.textContent = eventsRecordsSelectionMode
+  if (eventsSelectionCountLabel) {
+    eventsSelectionCountLabel.textContent = eventsRecordsSelectionMode
       ? `${marcados} seleccionados de ${visibles}`
-      : "Activa la selección para marcar eventos";
+      : "Activa la selección para elegir eventos del informe";
   }
   eventsRecordsSelectHeader?.classList.toggle("hidden", !eventsRecordsSelectionMode);
   if (eventsRecordsSelectAllCheckbox) {
@@ -30872,6 +31148,9 @@ async function init() {
     void exportEventPersonnelReportToPdf();
   });
   eventPersonnelReportImageButton?.addEventListener("click", showEventPersonnelReportImage);
+  eventsSummaryReportPdfButton?.addEventListener("click", () => {
+    void exportEventsSummaryReportToPdf();
+  });
   closeEventReportImageButton?.addEventListener("click", closeEventReportImagePanel);
   eventReportImageBackdrop?.addEventListener("click", closeEventReportImagePanel);
   copyEventReportImageButton?.addEventListener("click", () => {
@@ -30894,12 +31173,14 @@ async function init() {
 
     resetSingleEventFilter(resetButton.dataset.resetEventFilter);
   });
-  eventsSelectRecordsButton?.addEventListener("click", () => {
+  eventsSelectionToggleButton?.addEventListener("click", () => {
     eventsRecordsSelectionMode = !eventsRecordsSelectionMode;
     if (!eventsRecordsSelectionMode) {
       selectedEventRecordIds.clear();
     }
-    void renderEventRecordPuestoOptions();
+    if (currentUserIsAccessAdmin) {
+      void renderEventRecordPuestoOptions();
+    }
     renderEventsTable();
   });
   eventsRecordsSelectAllCheckbox?.addEventListener("change", (event) => {
