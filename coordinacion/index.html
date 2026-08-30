@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260829-15" />
+    <link rel="stylesheet" href="./styles.css?v=20260830-1" />
   </head>
   <body>
     <script>
@@ -1878,22 +1878,20 @@
                   </div>
 
                   <div class="table-scroll personal-import-table-wrap">
-                    <table class="records-table personal-import-table">
+                    <table class="records-table personal-import-table historial-report-activities-table">
                       <thead>
                         <tr>
                           <th>Incluir</th>
                           <th>Puesto</th>
                           <th>Instalación</th>
-                          <th>Inicio</th>
-                          <th>Fin</th>
-                          <th>Días</th>
+                          <th>Horario</th>
                           <th>Horas</th>
                           <th>Servicio</th>
                         </tr>
                       </thead>
                       <tbody id="historial-report-activities-table-body">
                         <tr>
-                          <td colspan="8" class="empty-state">Selecciona un periodo para revisar actividades.</td>
+                          <td colspan="6" class="empty-state">Selecciona un periodo para revisar actividades.</td>
                         </tr>
                       </tbody>
                     </table>
@@ -6698,16 +6696,16 @@
               </label>
 
               <fieldset class="weekday-fieldset">
-                <legend>Dias y horario personalizado (opcional)</legend>
+                <legend>Dias y horario</legend>
                 <div class="weekday-schedule-heading"><span>Dia</span><span>Inicio</span><span>Fin</span></div>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="1" /> Lunes</span><input type="time" data-weekday-start="1" aria-label="Inicio personalizado del lunes" /><input type="time" data-weekday-end="1" aria-label="Fin personalizado del lunes" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="2" /> Martes</span><input type="time" data-weekday-start="2" aria-label="Inicio personalizado del martes" /><input type="time" data-weekday-end="2" aria-label="Fin personalizado del martes" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="3" /> Miercoles</span><input type="time" data-weekday-start="3" aria-label="Inicio personalizado del miercoles" /><input type="time" data-weekday-end="3" aria-label="Fin personalizado del miercoles" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="4" /> Jueves</span><input type="time" data-weekday-start="4" aria-label="Inicio personalizado del jueves" /><input type="time" data-weekday-end="4" aria-label="Fin personalizado del jueves" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="5" /> Viernes</span><input type="time" data-weekday-start="5" aria-label="Inicio personalizado del viernes" /><input type="time" data-weekday-end="5" aria-label="Fin personalizado del viernes" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="6" /> Sabado</span><input type="time" data-weekday-start="6" aria-label="Inicio personalizado del sabado" /><input type="time" data-weekday-end="6" aria-label="Fin personalizado del sabado" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="7" /> Domingo</span><input type="time" data-weekday-start="7" aria-label="Inicio personalizado del domingo" /><input type="time" data-weekday-end="7" aria-label="Fin personalizado del domingo" /></label>
-                <small>Si un dia queda sin horas se aplicara el horario general indicado debajo.</small>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="1" /> Lunes</span><input type="time" data-weekday-start="1" aria-label="Inicio del lunes" /><input type="time" data-weekday-end="1" aria-label="Fin del lunes" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="2" /> Martes</span><input type="time" data-weekday-start="2" aria-label="Inicio del martes" /><input type="time" data-weekday-end="2" aria-label="Fin del martes" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="3" /> Miercoles</span><input type="time" data-weekday-start="3" aria-label="Inicio del miercoles" /><input type="time" data-weekday-end="3" aria-label="Fin del miercoles" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="4" /> Jueves</span><input type="time" data-weekday-start="4" aria-label="Inicio del jueves" /><input type="time" data-weekday-end="4" aria-label="Fin del jueves" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="5" /> Viernes</span><input type="time" data-weekday-start="5" aria-label="Inicio del viernes" /><input type="time" data-weekday-end="5" aria-label="Fin del viernes" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="6" /> Sabado</span><input type="time" data-weekday-start="6" aria-label="Inicio del sabado" /><input type="time" data-weekday-end="6" aria-label="Fin del sabado" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="7" /> Domingo</span><input type="time" data-weekday-start="7" aria-label="Inicio del domingo" /><input type="time" data-weekday-end="7" aria-label="Fin del domingo" /></label>
+                <small>Indica el horario de cada dia marcado.</small>
               </fieldset>
 
               <label>
@@ -6718,16 +6716,6 @@
               <label>
                 Fecha fin
                 <input id="activity-fecha-fin" name="fecha_fin" type="date" required />
-              </label>
-
-              <label>
-                Hora inicio
-                <input id="activity-hora-inicio" name="hora_inicio" type="time" required />
-              </label>
-
-              <label>
-                Hora fin
-                <input id="activity-hora-fin" name="hora_fin" type="time" required />
               </label>
 
               <label class="activity-notes-field">
@@ -6952,8 +6940,6 @@
                   <select id="activities-bulk-field">
                     <option value="fecha_inicio">Fecha inicio</option>
                     <option value="fecha_fin">Fecha fin</option>
-                    <option value="hora_inicio">Hora inicio</option>
-                    <option value="hora_fin">Hora fin</option>
                     <option value="contrato_id">Contrato</option>
                     <option value="servicio_id">Servicio</option>
                     <option value="personal_id">Personal</option>
@@ -7201,16 +7187,16 @@
               </label>
 
               <fieldset class="weekday-fieldset">
-                <legend>Dias y horario personalizado (opcional)</legend>
+                <legend>Dias y horario</legend>
                 <div class="weekday-schedule-heading"><span>Dia</span><span>Inicio</span><span>Fin</span></div>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="1" /> Lunes</span><input type="time" data-weekday-start="1" aria-label="Inicio personalizado del lunes" /><input type="time" data-weekday-end="1" aria-label="Fin personalizado del lunes" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="2" /> Martes</span><input type="time" data-weekday-start="2" aria-label="Inicio personalizado del martes" /><input type="time" data-weekday-end="2" aria-label="Fin personalizado del martes" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="3" /> Miercoles</span><input type="time" data-weekday-start="3" aria-label="Inicio personalizado del miercoles" /><input type="time" data-weekday-end="3" aria-label="Fin personalizado del miercoles" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="4" /> Jueves</span><input type="time" data-weekday-start="4" aria-label="Inicio personalizado del jueves" /><input type="time" data-weekday-end="4" aria-label="Fin personalizado del jueves" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="5" /> Viernes</span><input type="time" data-weekday-start="5" aria-label="Inicio personalizado del viernes" /><input type="time" data-weekday-end="5" aria-label="Fin personalizado del viernes" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="6" /> Sabado</span><input type="time" data-weekday-start="6" aria-label="Inicio personalizado del sabado" /><input type="time" data-weekday-end="6" aria-label="Fin personalizado del sabado" /></label>
-                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="7" /> Domingo</span><input type="time" data-weekday-start="7" aria-label="Inicio personalizado del domingo" /><input type="time" data-weekday-end="7" aria-label="Fin personalizado del domingo" /></label>
-                <small>Si un dia queda sin horas se aplicara el horario general indicado debajo.</small>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="1" /> Lunes</span><input type="time" data-weekday-start="1" aria-label="Inicio del lunes" /><input type="time" data-weekday-end="1" aria-label="Fin del lunes" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="2" /> Martes</span><input type="time" data-weekday-start="2" aria-label="Inicio del martes" /><input type="time" data-weekday-end="2" aria-label="Fin del martes" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="3" /> Miercoles</span><input type="time" data-weekday-start="3" aria-label="Inicio del miercoles" /><input type="time" data-weekday-end="3" aria-label="Fin del miercoles" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="4" /> Jueves</span><input type="time" data-weekday-start="4" aria-label="Inicio del jueves" /><input type="time" data-weekday-end="4" aria-label="Fin del jueves" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="5" /> Viernes</span><input type="time" data-weekday-start="5" aria-label="Inicio del viernes" /><input type="time" data-weekday-end="5" aria-label="Fin del viernes" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="6" /> Sabado</span><input type="time" data-weekday-start="6" aria-label="Inicio del sabado" /><input type="time" data-weekday-end="6" aria-label="Fin del sabado" /></label>
+                <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="7" /> Domingo</span><input type="time" data-weekday-start="7" aria-label="Inicio del domingo" /><input type="time" data-weekday-end="7" aria-label="Fin del domingo" /></label>
+                <small>Indica el horario de cada dia marcado.</small>
               </fieldset>
 
               <label>
@@ -7221,16 +7207,6 @@
               <label>
                 Fecha fin
                 <input id="edit-activity-fecha-fin" name="fecha_fin" type="date" required />
-              </label>
-
-              <label>
-                Hora inicio
-                <input id="edit-activity-hora-inicio" name="hora_inicio" type="time" required />
-              </label>
-
-              <label>
-                Hora fin
-                <input id="edit-activity-hora-fin" name="hora_fin" type="time" required />
               </label>
 
               <label class="activity-notes-field">
@@ -8806,8 +8782,8 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260814-1" defer></script>
+    <script src="./concilia-integrated.js?v=20260830-4" defer></script>
     <script src="./facturacion.js?v=20260807-12" defer></script>
-    <script src="./app.js?v=20260829-2" defer></script>
+    <script src="./app.js?v=20260830-4" defer></script>
   </body>
 </html>
