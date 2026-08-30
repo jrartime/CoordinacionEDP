@@ -887,6 +887,202 @@ textarea {
   text-transform: uppercase;
 }
 
+/* --- Control personal: vista por persona --- */
+
+.control-view-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f1f5f9;
+  margin-right: 4px;
+}
+
+.control-view-toggle-button {
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  line-height: 1.15;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.control-view-toggle-button.active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-weight: 600;
+}
+
+.control-person-view.hidden {
+  display: none;
+}
+
+.control-person-kpis {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.control-person-kpi-card {
+  min-width: 126px;
+  flex: 0 1 126px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f9fafb;
+}
+
+.control-person-kpi-card-accent {
+  background: #ecfdf3;
+  border-color: #b8e6c9;
+}
+
+.control-person-kpi-card-accent strong {
+  color: var(--success);
+}
+
+.control-person-kpi-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.control-person-kpi-card strong {
+  display: block;
+  margin-top: 1px;
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+.control-person-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.control-person-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--panel);
+  max-height: 70vh;
+}
+
+.control-person-list-panel input {
+  width: 100%;
+}
+
+.control-person-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.control-person-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.control-person-list-item:hover {
+  background: #f1f5f9;
+}
+
+.control-person-list-item.active {
+  background: var(--text);
+  color: #fff;
+}
+
+.control-person-list-item.active .control-person-list-meta,
+.control-person-list-item.active .control-person-list-email {
+  color: #d1d5dc;
+}
+
+.control-person-list-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.control-person-list-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.control-person-list-email {
+  font-size: 0.72rem;
+  color: var(--muted-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.control-person-detail-panel {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--panel);
+  min-height: 200px;
+}
+
+.control-person-detail-header h4 {
+  margin: 0 0 2px;
+  font-size: 1.05rem;
+}
+
+.control-person-detail-email {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.control-person-detail-kpis {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+.control-person-detail-kpis .control-person-kpi-card {
+  min-width: 120px;
+}
+
+.control-person-detail-row {
+  cursor: pointer;
+}
+
+.control-person-detail-row:hover {
+  background: #f1f5f9;
+}
+
+@media (max-width: 860px) {
+  .control-person-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .control-person-list-panel {
+    max-height: 320px;
+  }
+}
+
 .control-danger-zone {
   position: relative;
   margin-left: auto;
@@ -2288,6 +2484,13 @@ button.tag-chip.warm-button:hover {
   grid-template-columns: 145px 145px 150px 90px 90px 90px minmax(190px, 1fr) auto;
 }
 
+/* Control personal: fechas al mismo ancho que Historial laboral (145px,
+   el mínimo con el que la fecha completa entra con el padding genérico),
+   Personal más estrecho y Centro/Puesto (un 50% más anchos que antes). */
+.private-tab-panel #control-filters-form.records-filters-compact {
+  grid-template-columns: 145px 145px minmax(110px, 1fr) 225px 225px;
+}
+
 /* Gestión solo tiene cuatro filtros, así que la rejilla de ocho columnas que
    comparte con Registros le venía grande: Personal caía en la columna de 90px.
    Personal lleva ancho fijo y el sobrante se lo come una última columna vacía:
@@ -3559,6 +3762,7 @@ th {
   right: 20px;
   width: 16px;
 }
+
 #programming-filters-form .filter-control-row > input[type="text"],
 #programming-filters-form .filter-control-row > input[type="search"],
 #control-filters-form .filter-control-row > input[type="text"],
@@ -3592,6 +3796,19 @@ th {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Control personal: x e icono nativo del calendario 5px mas a la izquierda
+   que el valor generico (24px), a modo de prueba. Va DESPUES del bloque
+   generico de arriba porque comparte su misma especificidad y si va antes
+   la cascada lo pisa (ver #records-filters-form, que sufre el mismo bug:
+   su override de la linea 3761 nunca llega a aplicarse). */
+#control-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button {
+  right: 29px;
+}
+
+#control-filters-form input[type="date"]::-webkit-calendar-picker-indicator {
+  margin-right: 5px;
 }
 
 /* Los campos de texto/búsqueda no tienen icono nativo: la ✕ va pegada al borde. */
@@ -4001,9 +4218,18 @@ th {
 }
 
 .control-detail-drawer {
-  width: min(460px, 100%);
-  padding: 14px;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  width: min(560px, calc(100% - 32px));
+  height: auto;
+  max-height: min(94vh, 800px);
+  padding: 16px;
   gap: 10px;
+  overflow-x: hidden;
+  transform: translate(-50%, -50%);
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(20, 40, 75, 0.2);
 }
 
 .control-detail-drawer .detail-form {
@@ -4192,6 +4418,18 @@ th {
 .detail-form {
   display: grid;
   gap: 14px;
+}
+
+/* Los hijos de un grid tienen min-width:auto por defecto, que en un <select>
+   se resuelve al ancho de su opcion mas larga e ignora el width:100% del
+   campo, forzando el grid (y el panel flotante que lo contiene) a ensancharse
+   con barra de desplazamiento horizontal. min-width:0 hace que el campo
+   respete el ancho de su columna en vez del de su contenido. */
+.detail-form > label,
+.detail-form > fieldset,
+.detail-form > .detail-field-row,
+.detail-field-row > label {
+  min-width: 0;
 }
 
 .detail-checkbox-grid {

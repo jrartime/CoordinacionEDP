@@ -57,6 +57,16 @@ end $$;
 alter table public.registros_horarios
   add column if not exists control timestamp;
 
+-- Campos de los fichajes digitales (app de control horario), sin
+-- equivalente previo: ausentismo/teletrabajo son por fichaje, no por
+-- persona; desplazamiento_fichaje se distingue del `desplazamiento` de
+-- `personal` (que es un flag fijo de la ficha, no del día concreto).
+alter table public.registros_horarios
+  add column if not exists ausentismo boolean not null default false,
+  add column if not exists teletrabajo boolean not null default false,
+  add column if not exists desplazamiento_fichaje boolean not null default false,
+  add column if not exists horas_extra numeric(5, 2);
+
 create index if not exists registros_horarios_fecha_hora_id_idx
 on public.registros_horarios (fecha desc, hora_inicio asc, id asc);
 

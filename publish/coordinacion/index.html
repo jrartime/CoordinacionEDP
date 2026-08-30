@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260828-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260829-15" />
   </head>
   <body>
     <script>
@@ -3308,6 +3308,24 @@
                     </div>
 
                     <div class="control-primary-actions">
+                      <div class="control-view-toggle" role="group" aria-label="Vista de Control personal">
+                        <button
+                          id="control-view-table-button"
+                          type="button"
+                          class="control-view-toggle-button active"
+                          data-control-view="table"
+                        >
+                          Vista tabla
+                        </button>
+                        <button
+                          id="control-view-person-button"
+                          type="button"
+                          class="control-view-toggle-button"
+                          data-control-view="person"
+                        >
+                          Vista por persona
+                        </button>
+                      </div>
                       <button
                         id="control-import-csv-button"
                         type="button"
@@ -3328,7 +3346,7 @@
 
                 <form
                   id="control-filters-form"
-                  class="filters-grid control-filters-grid"
+                  class="filters-grid control-filters-grid records-filters-compact"
                   autocomplete="off"
                 >
                   <label class="filter-field">
@@ -3431,6 +3449,7 @@
                   </label>
                 </form>
 
+                <div id="control-table-view">
                 <details id="control-bulk-zone" class="programming-panel-zone">
                   <summary>Asignación/borrado masivo</summary>
                   <div class="activities-bulk-assignment-panel">
@@ -3619,6 +3638,38 @@
                         </tr>
                       </tbody>
                     </table>
+                  </div>
+                </div>
+                </div>
+
+                <div id="control-person-view" class="control-person-view hidden">
+                  <div class="control-person-kpis">
+                    <article class="control-person-kpi-card">
+                      <span class="control-person-kpi-label">Personal</span>
+                      <strong id="control-person-kpi-people">0</strong>
+                    </article>
+                    <article class="control-person-kpi-card">
+                      <span class="control-person-kpi-label">Fichajes</span>
+                      <strong id="control-person-kpi-records">0</strong>
+                    </article>
+                  </div>
+
+                  <div class="control-person-layout">
+                    <div class="control-person-list-panel">
+                      <input
+                        id="control-person-search"
+                        type="text"
+                        placeholder="Buscar empleado..."
+                        autocomplete="off"
+                      />
+                      <div id="control-person-list" class="control-person-list">
+                        <p class="empty-state">No hay personal para los filtros seleccionados.</p>
+                      </div>
+                    </div>
+
+                    <div id="control-person-detail-panel" class="control-person-detail-panel">
+                      <p class="empty-state">Selecciona una persona de la lista para ver su detalle.</p>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -8757,6 +8808,6 @@
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260814-1" defer></script>
     <script src="./facturacion.js?v=20260807-12" defer></script>
-    <script src="./app.js?v=20260828-3" defer></script>
+    <script src="./app.js?v=20260829-2" defer></script>
   </body>
 </html>

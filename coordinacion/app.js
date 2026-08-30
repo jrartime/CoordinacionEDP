@@ -1099,6 +1099,15 @@ const controlPageCount = document.querySelector("#control-page-count");
 const controlTotalHours = document.querySelector("#control-total-hours");
 const controlSummaryTableBody = document.querySelector("#control-summary-table-body");
 const controlRecordsTableBody = document.querySelector("#control-records-table-body");
+const controlViewToggleTableButton = document.querySelector("#control-view-table-button");
+const controlViewTogglePersonButton = document.querySelector("#control-view-person-button");
+const controlTableViewContainer = document.querySelector("#control-table-view");
+const controlPersonViewContainer = document.querySelector("#control-person-view");
+const controlPersonKpiPeople = document.querySelector("#control-person-kpi-people");
+const controlPersonKpiRecords = document.querySelector("#control-person-kpi-records");
+const controlPersonSearchInput = document.querySelector("#control-person-search");
+const controlPersonListContainer = document.querySelector("#control-person-list");
+const controlPersonDetailPanel = document.querySelector("#control-person-detail-panel");
 const controlPaginationSummary = document.querySelector("#control-pagination-summary");
 const controlPaginationPageIndicator = document.querySelector("#control-pagination-page-indicator");
 const controlPreviousPageButton = document.querySelector("#control-previous-page-button");
@@ -1612,6 +1621,10 @@ let controlResultsTruncated = false;
 let controlCurrentPage = 1;
 let controlPageSize = Number(controlPageSizeSelect?.value || 25);
 let controlSummaryRows = [];
+let controlViewMode = "table";
+let controlPersonViewRecords = [];
+let controlPersonGroups = [];
+let selectedControlPersonKey = "";
 let controlSelectiveDeleteMode = false;
 let controlBulkSourceRows = [];
 let controlBulkSourceKey = "";
@@ -3346,6 +3359,199 @@ function closeControlTotalsPanel() {
   controlTotalsPanel?.classList.add("hidden");
 }
 
+// --- Control personal: vista por persona ---
+
+function getControlPersonGroupKey(row) {
+  const dni = normalizeControlDni(row?.dni);
+  if (dni) {
+    return `dni:${dni}`;
+  }
+  const name = String(row?.personal_resolved ?? getResolvedControlPersonal(row)).trim();
+  return `name:${name || "sin-nombre"}`;
+}
+
+function buildControlPersonGroups(rows) {
+  const groups = new Map();
+
+  rows.forEach((row) => {
+    const key = getControlPersonGroupKey(row);
+    const name = String(row.personal_resolved ?? getResolvedControlPersonal(row)).trim() || "Sin nombre";
+
+    if (!groups.has(key)) {
+      groups.set(key, { key, name, minutes: 0, count: 0, rows: [] });
+    }
+
+    const group = groups.get(key);
+    group.minutes += calculateWorkedMinutes(row.hora_inicio, row.hora_fin);
+    group.count += 1;
+    group.rows.push(row);
+  });
+
+  return [...groups.values()].sort((left, right) =>
+    left.name.localeCompare(right.name, "es", { sensitivity: "base" })
+  );
+}
+
+function renderControlPersonKpis(rows, groups) {
+  if (!controlPersonKpiPeople) {
+    return;
+  }
+
+  controlPersonKpiPeople.textContent = String(groups.length);
+  controlPersonKpiRecords.textContent = String(rows.length);
+}
+
+function renderControlPersonList() {
+  if (!controlPersonListContainer) {
+    return;
+  }
+
+  const query = normalizeSearchText(controlPersonSearchInput?.value ?? "");
+  const filtered = controlPersonGroups.filter(
+    (group) => !query || normalizeSearchText(group.name).includes(query)
+  );
+
+  if (!filtered.length) {
+    controlPersonListContainer.innerHTML = `<p class="empty-state">No hay personal para los filtros seleccionados.</p>`;
+    return;
+  }
+
+  controlPersonListContainer.innerHTML = filtered
+    .map(
+      (group) => `
+        <button
+          type="button"
+          class="control-person-list-item ${group.key === selectedControlPersonKey ? "active" : ""}"
+          data-control-person-key="${escapeHtml(group.key)}"
+        >
+          <span class="control-person-list-name">${escapeHtml(group.name)}</span>
+          <span class="control-person-list-meta">${escapeHtml(formatMinutesAsHours(group.minutes))} · ${group.count} fich.</span>
+        </button>
+      `
+    )
+    .join("");
+}
+
+function renderControlPersonDetail() {
+  if (!controlPersonDetailPanel) {
+    return;
+  }
+
+  const group = controlPersonGroups.find((item) => item.key === selectedControlPersonKey);
+
+  if (!group) {
+    controlPersonDetailPanel.innerHTML = `<p class="empty-state">Selecciona una persona de la lista para ver su detalle.</p>`;
+    return;
+  }
+
+  const sortedRows = [...group.rows].sort((left, right) => {
+    const dateCompare = String(right.fecha ?? "").localeCompare(String(left.fecha ?? ""));
+    if (dateCompare !== 0) {
+      return dateCompare;
+    }
+    return String(left.hora_inicio ?? "").localeCompare(String(right.hora_inicio ?? ""));
+  });
+
+  const tableRows = sortedRows
+    .map((row) => {
+      const weekday = getControlWeekdayInfo(row.fecha);
+      return `
+        <tr class="${escapeHtml(weekday.className)} control-person-detail-row" data-control-edit-id="${escapeHtml(row.id)}">
+          <td class="weekday-marker-cell">
+            <span
+              class="weekday-marker"
+              title="${escapeHtml(`${weekday.label} - ${formatDisplayDate(row.fecha)}`)}"
+              aria-label="${escapeHtml(weekday.label)}"
+            >${escapeHtml(weekday.letter)}</span>
+          </td>
+          <td>${escapeHtml(formatDisplayDate(row.fecha))}</td>
+          <td>${escapeHtml(row.centro || "")}</td>
+          <td>${escapeHtml(formatHourValue(row.hora_inicio))}</td>
+          <td>${escapeHtml(formatHourValue(row.hora_fin))}</td>
+          <td>${escapeHtml(calculateWorkedHours(row.hora_inicio, row.hora_fin))}</td>
+          <td>${escapeHtml(row.observacion || "")}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  controlPersonDetailPanel.innerHTML = `
+    <div class="control-person-detail-header">
+      <h4>${escapeHtml(group.name)}</h4>
+    </div>
+    <div class="control-person-detail-kpis">
+      <article class="control-person-kpi-card">
+        <span class="control-person-kpi-label">Jornadas</span>
+        <strong>${group.count}</strong>
+      </article>
+      <article class="control-person-kpi-card control-person-kpi-card-accent">
+        <span class="control-person-kpi-label">Horas trabajadas</span>
+        <strong>${escapeHtml(formatMinutesAsHours(group.minutes))}</strong>
+      </article>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Fecha</th>
+            <th>Centro</th>
+            <th>Entrada</th>
+            <th>Salida</th>
+            <th>Horas</th>
+            <th>Notas</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function selectControlPerson(key) {
+  selectedControlPersonKey = key;
+  renderControlPersonList();
+  renderControlPersonDetail();
+}
+
+async function loadControlPersonView() {
+  if (!controlPersonListContainer) {
+    return;
+  }
+
+  controlPersonDetailPanel.innerHTML = `<p class="empty-state">Cargando...</p>`;
+
+  try {
+    const rows = await fetchAllFilteredControlRecordsForBulk();
+    controlPersonViewRecords = rows;
+    controlPersonGroups = buildControlPersonGroups(rows);
+
+    if (!controlPersonGroups.some((group) => group.key === selectedControlPersonKey)) {
+      selectedControlPersonKey = controlPersonGroups[0]?.key ?? "";
+    }
+
+    renderControlPersonKpis(rows, controlPersonGroups);
+    renderControlPersonList();
+    renderControlPersonDetail();
+  } catch (error) {
+    controlPersonListContainer.innerHTML = `<p class="empty-state">No se pudo cargar el listado: ${escapeHtml(error.message)}</p>`;
+    controlPersonDetailPanel.innerHTML = "";
+  }
+}
+
+function setControlViewMode(mode) {
+  controlViewMode = mode;
+  const isPersonView = mode === "person";
+  controlViewToggleTableButton?.classList.toggle("active", !isPersonView);
+  controlViewTogglePersonButton?.classList.toggle("active", isPersonView);
+  controlTableViewContainer?.classList.toggle("hidden", isPersonView);
+  controlPersonViewContainer?.classList.toggle("hidden", !isPersonView);
+
+  if (isPersonView) {
+    void loadControlPersonView();
+  }
+}
+
 function updateControlPaginationUi(totalItems, visibleItems) {
   const totalPages = Math.max(1, Math.ceil(totalItems / controlPageSize));
   const hasItems = totalItems > 0;
@@ -3373,6 +3579,34 @@ function buildControlFilters() {
     centro: controlCentroInput.value.trim(),
     puesto: controlPuestoInput.value.trim(),
   };
+}
+
+function formatDateInputValue(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function applyDefaultControlDateRangeIfEmpty() {
+  if (!controlDateFromInput || !controlDateToInput) {
+    return;
+  }
+
+  const now = new Date();
+  let changed = false;
+
+  if (!controlDateFromInput.value) {
+    controlDateFromInput.value = formatDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
+    changed = true;
+  }
+
+  if (!controlDateToInput.value) {
+    controlDateToInput.value = formatDateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    changed = true;
+  }
+
+  if (changed) {
+    syncFilterResetButtons(controlFiltersForm);
+  }
 }
 
 function applyControlFiltersToQuery(query, filters, options = {}) {
@@ -9764,6 +9998,7 @@ function findControlRecordById(recordId) {
   const normalizedId = Number(recordId);
   return filteredControlRecords.find((row) => Number(row.id) === normalizedId)
     ?? currentControlRecords.find((row) => Number(row.id) === normalizedId)
+    ?? controlPersonViewRecords.find((row) => Number(row.id) === normalizedId)
     ?? null;
 }
 
@@ -10225,6 +10460,9 @@ async function fetchControlRecords() {
         "error"
       );
     }
+    if (controlViewMode === "person") {
+      void loadControlPersonView();
+    }
     return currentControlRecords;
   }
 
@@ -10293,6 +10531,9 @@ async function fetchControlRecords() {
       `Listado paginado cargado. Ejecuta la funcion get_control_records_summary en Supabase para ver totales completos.`,
       "error"
     );
+  }
+  if (controlViewMode === "person") {
+    void loadControlPersonView();
   }
   return currentControlRecords;
 }
@@ -28560,6 +28801,7 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
   }
 
   if (normalizedTarget === "control") {
+    applyDefaultControlDateRangeIfEmpty();
     await fetchControlFilterOptions();
     await fetchControlRecords();
     return;
@@ -33015,6 +33257,29 @@ async function init() {
   controlRefreshButton?.addEventListener("click", () => {
     controlCurrentPage = 1;
     void fetchControlFilterOptions().then(() => fetchControlRecords());
+  });
+  controlViewToggleTableButton?.addEventListener("click", () => {
+    setControlViewMode("table");
+  });
+  controlViewTogglePersonButton?.addEventListener("click", () => {
+    setControlViewMode("person");
+  });
+  controlPersonSearchInput?.addEventListener("input", () => {
+    renderControlPersonList();
+  });
+  controlPersonListContainer?.addEventListener("click", (event) => {
+    const personKey = event.target.closest("[data-control-person-key]")?.dataset.controlPersonKey;
+    if (!personKey) {
+      return;
+    }
+    selectControlPerson(personKey);
+  });
+  controlPersonDetailPanel?.addEventListener("click", (event) => {
+    const editId = event.target.closest("[data-control-edit-id]")?.dataset.controlEditId;
+    if (!editId) {
+      return;
+    }
+    void openControlDetail(editId);
   });
   programmingLoadBundledButton?.addEventListener("click", () => {
     void loadProgrammingFromSupabase();

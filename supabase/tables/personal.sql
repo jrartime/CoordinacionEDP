@@ -67,6 +67,12 @@ create table if not exists public.personal (
   apellido text
 );
 
+-- Id de usuario en la app externa de fichajes/control horario digital
+-- (usuarioGuid de sus exports). Es una referencia de ese sistema, no de
+-- Supabase Auth.
+alter table public.personal
+  add column if not exists fichajes_usuario_guid uuid;
+
 -- Los campos confidenciales (cuenta_corriente, ss, irpf, complementos
 -- salariales, direccion, codigo_postal, fecha_nacimiento y contactos de
 -- urgencia) viven en public.personal_confidencial con RLS admin-only.
