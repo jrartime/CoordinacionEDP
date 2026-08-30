@@ -2166,6 +2166,28 @@ button:hover,
   line-height: 1.35;
 }
 
+/* Tabla de actividades del informe de Historial laboral: solo 6 columnas
+   compactas (Incluir/Puesto/Instalacion/Horario/Horas/Servicio), muy por
+   debajo de los min-width de .records-table (1800px) y .personal-import-table
+   (900px) pensados para tablas con muchas mas columnas. El selector de
+   elemento (table.) sube la especificidad para que gane sin depender del
+   orden de aparicion en la hoja de estilos. */
+table.historial-report-activities-table {
+  min-width: 0;
+  width: 100%;
+}
+
+table.historial-report-activities-table th:nth-child(4),
+table.historial-report-activities-table td:nth-child(4) {
+  width: 170px;
+}
+
+table.historial-report-activities-table th:nth-child(5),
+table.historial-report-activities-table td:nth-child(5) {
+  width: 70px;
+  text-align: right;
+}
+
 .access-users-table th,
 .access-users-table td {
   vertical-align: top;

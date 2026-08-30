@@ -25519,7 +25519,7 @@ const HISTORIAL_REPORT_TEMPLATE_TEXT_BLOCKS = [
 ];
 const HISTORIAL_REPORT_ACTIVITY_SELECT =
   "id, personal_id, personal, dni, empresa_id, empresa, servicio, instalacion, puesto, dias_semana, " +
-  "fecha_inicio, fecha_fin, hora_inicio, hora_fin, observaciones";
+  "horarios_personalizados, fecha_inicio, fecha_fin, hora_inicio, hora_fin, observaciones";
 const HISTORIAL_REPORT_WEEKDAY_LABELS = {
   1: "Lunes",
   2: "Martes",
@@ -26088,7 +26088,41 @@ function countHistorialReportDays(value) {
   return normalized.split(",").filter((item) => item.trim()).length || 1;
 }
 
+function getHistorialActivityScheduleSummary(row) {
+  return (
+    window.CoordinacionActividades?.scheduleSummary(row) ||
+    [formatHourValue(row.hora_inicio).slice(0, 5), formatHourValue(row.hora_fin).slice(0, 5)]
+      .filter(Boolean)
+      .join(" - ")
+  );
+}
+
+// Describe el horario de una actividad para la prosa de la carta (placeholder
+// {{horarios}}): agrupa los dias por rango horario y usa nombres de dia
+// completos, ej. "Lunes, Martes, Miercoles, Jueves, Viernes 15:00-23:00".
+function describeHistorialActivitySchedule(row) {
+  const groups = window.CoordinacionActividades?.scheduleRangeGroups(row);
+  if (groups && groups.length) {
+    return groups
+      .map((group) => {
+        const range = [formatHourValue(group.hora_inicio).slice(0, 5), formatHourValue(group.hora_fin).slice(0, 5)]
+          .filter(Boolean)
+          .join("-");
+        return [normalizeHistorialReportDays(group.days), range].filter(Boolean).join(" ");
+      })
+      .join("; ");
+  }
+  const range = [formatHourValue(row.hora_inicio).slice(0, 5), formatHourValue(row.hora_fin).slice(0, 5)]
+    .filter(Boolean)
+    .join("-");
+  return [normalizeHistorialReportDays(row.dias_semana), range].filter(Boolean).join(" ");
+}
+
 function getHistorialReportActivityWeeklyHours(row) {
+  const weeklyHours = window.CoordinacionActividades?.scheduleWeeklyHours(row);
+  if (weeklyHours != null) {
+    return weeklyHours ? formatMinutesAsHours(Math.round(weeklyHours * 60)) : "";
+  }
   const minutes = calculateWorkedMinutes(row.hora_inicio, row.hora_fin) * countHistorialReportDays(row.dias_semana);
   return minutes ? formatMinutesAsHours(minutes) : "";
 }
@@ -26124,7 +26158,7 @@ function renderHistorialReportActivities(rows = []) {
   if (!historialReportActivitiesTableBody) return;
   if (!rows.length) {
     historialReportActivitiesTableBody.innerHTML =
-      '<tr><td colspan="8" class="empty-state">No hay actividades solapadas con el historial laboral.</td></tr>';
+      '<tr><td colspan="6" class="empty-state">No hay actividades solapadas con el historial laboral.</td></tr>';
     return;
   }
   historialReportActivitiesTableBody.innerHTML = rows
@@ -26138,9 +26172,7 @@ function renderHistorialReportActivities(rows = []) {
         </td>
         <td>${escapeHtml(row.puesto || "")}</td>
         <td>${escapeHtml(row.instalacion || "")}</td>
-        <td>${escapeHtml(formatHourValue(row.hora_inicio).slice(0, 5))}</td>
-        <td>${escapeHtml(formatHourValue(row.hora_fin).slice(0, 5))}</td>
-        <td>${escapeHtml(normalizeHistorialReportDays(row.dias_semana))}</td>
+        <td>${escapeHtml(getHistorialActivityScheduleSummary(row))}</td>
         <td>${escapeHtml(getHistorialReportActivityWeeklyHours(row))}</td>
         <td>${escapeHtml(row.servicio || "")}</td>
       </tr>`;
@@ -26292,12 +26324,7 @@ function buildHistorialReportPlaceholders({ historialRow, company, personal, act
   ));
   const puesto = activityPuestos.join(", ");
   const horarios = historialRow.horarios || activities
-    .map((row) => {
-      const range = [formatHourValue(row.hora_inicio).slice(0, 5), formatHourValue(row.hora_fin).slice(0, 5)]
-        .filter(Boolean)
-        .join("-");
-      return [normalizeHistorialReportDays(row.dias_semana), range, row.instalacion].filter(Boolean).join(" ");
-    })
+    .map((row) => [describeHistorialActivitySchedule(row), row.instalacion].filter(Boolean).join(" "))
     .filter(Boolean)
     .join("; ");
   return {
@@ -26793,10 +26820,9 @@ function drawHistorialReportActivitiesTable(doc, options) {
   if (!rows.length) return;
   let y = getY() + 1;
   const columns = [
-    { label: "Horario", key: "range", width: 23 },
+    { label: "Horario", key: "range", width: 34 },
     { label: "Puesto", key: "puesto", width: 32 },
-    { label: "Instalacion", key: "instalacion", width: 38 },
-    { label: "Dias", key: "dias", width: 22 },
+    { label: "Instalacion", key: "instalacion", width: 39 },
     { label: "H. Sem.", key: "horas", width: 18 },
     { label: "Inicio", key: "fecha_inicio", width: 20 },
     { label: "Fin", key: "fecha_fin", width: 21 },
@@ -26830,12 +26856,9 @@ function drawHistorialReportActivitiesTable(doc, options) {
   drawHeader();
   rows.forEach((row) => {
     const values = {
-      range: [formatHourValue(row.hora_inicio).slice(0, 5), formatHourValue(row.hora_fin).slice(0, 5)]
-        .filter(Boolean)
-        .join("-"),
+      range: getHistorialActivityScheduleSummary(row),
       puesto: row.puesto || "",
       instalacion: row.instalacion || "",
-      dias: normalizeHistorialReportDays(row.dias_semana),
       horas: getHistorialReportActivityWeeklyHours(row),
       fecha_inicio: formatDisplayDate(row.fecha_inicio),
       fecha_fin: row.fecha_fin ? formatDisplayDate(row.fecha_fin) : "",
@@ -27403,15 +27426,12 @@ function renderHistorialActivitiesPanel(historialId) {
       const fechas = `${formatDisplayDate(act.fecha_inicio)} – ${
         act.fecha_fin ? formatDisplayDate(act.fecha_fin) : "…"
       }`;
-      const horario = `${formatHourValue(act.hora_inicio).slice(0, 5)} - ${formatHourValue(
-        act.hora_fin
-      ).slice(0, 5)}`;
-      const dias = normalizeHistorialReportDays(act.dias_semana);
+      const horario = getHistorialActivityScheduleSummary(act);
       return `<tr>
           <td>${escapeHtml(act.instalacion || "")}</td>
           <td>${escapeHtml(act.puesto || "")}</td>
           <td>${escapeHtml(fechas)}</td>
-          <td>${escapeHtml(horario)}${dias ? ` <span class="muted-text">(${escapeHtml(dias)})</span>` : ""}</td>
+          <td>${escapeHtml(horario)}</td>
         </tr>`;
     })
     .join("");
@@ -27584,6 +27604,20 @@ async function loadHistorial() {
 // Informe del listado filtrado (no el informe PDF por persona de más abajo):
 // mismos campos que muestra la tabla, en el orden que el usuario tiene
 // aplicado. Filas compartidas por el export a PDF y a PNG.
+// Mismo criterio que la columna "Coef. ‰" de Gestión: usa el coeficiente
+// guardado y, si falta, lo calcula desde jornada/jornada_maxima.
+function getHistorialCoeficienteTemporalidad(row) {
+  if (row.coeficiente_temporalidad_miles != null) {
+    return String(row.coeficiente_temporalidad_miles);
+  }
+  const jornada = Number(row.jornada);
+  const maxima = Number(row.jornada_maxima);
+  if (Number.isFinite(jornada) && Number.isFinite(maxima) && maxima > 0) {
+    return String(Math.round((jornada / maxima) * 1000));
+  }
+  return "-";
+}
+
 function buildHistorialListadoReportRows() {
   return sortHistorialRows(historialRows).map((row) => ({
     personal: row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : "-"),
@@ -27592,6 +27626,7 @@ function buildHistorialListadoReportRows() {
     baja: formatDisplayDate(row.fecha_baja) || "-",
     dias: row.dias_periodo ?? "-",
     jornada: formatHistorialJornada(row) || "-",
+    coeficiente: getHistorialCoeficienteTemporalidad(row),
     enviado: row.enviado ? "Sí" : "",
     gestionado: row.gestionado ? "Sí" : "",
     contrato: row.contrato_laboral_clave || "-",
@@ -27634,17 +27669,18 @@ async function exportHistorialListadoReportPdf() {
       pageHeight,
       bottomMargin,
       columns: [
-        { label: "Personal", key: "personal", width: 50 },
-        { label: "Tipo contratación", key: "tipo", width: 32 },
+        { label: "Personal", key: "personal", width: 45 },
+        { label: "Tipo contratación", key: "tipo", width: 27 },
         { label: "Fecha alta", key: "alta", width: 20 },
         { label: "Fecha baja", key: "baja", width: 20 },
         { label: "Días", key: "dias", width: 12, align: "center" },
         { label: "Jornada", key: "jornada", width: 20, align: "right" },
+        { label: "Coef. ‰", key: "coeficiente", width: 15, align: "right" },
         { label: "Enviado", key: "enviado", width: 15, align: "center" },
         { label: "Gestionado", key: "gestionado", width: 18, align: "center" },
         { label: "Contrato", key: "contrato", width: 28 },
         { label: "Tramitado", key: "tramitado", width: 16, align: "center" },
-        { label: "Motivo baja", key: "motivo", width: 28 },
+        { label: "Motivo baja", key: "motivo", width: 24 },
         { label: "Activo", key: "activo", width: 13, align: "center" },
       ],
       rows,
@@ -27678,6 +27714,7 @@ async function copyHistorialListadoReportImage() {
       { label: "Fecha baja", width: 110 },
       { label: "Días", width: 70 },
       { label: "Jornada", width: 110 },
+      { label: "Coef. ‰", width: 70 },
       { label: "Enviado", width: 90 },
       { label: "Gestionado", width: 100 },
       { label: "Contrato", width: 170 },
@@ -27692,6 +27729,7 @@ async function copyHistorialListadoReportImage() {
       row.baja,
       row.dias,
       row.jornada,
+      row.coeficiente,
       row.enviado,
       row.gestionado,
       row.contrato,

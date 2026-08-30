@@ -463,8 +463,6 @@
   const ACTIVITY_BULK_FIELDS = {
     fecha_inicio: { label: "Fecha inicio", type: "date" },
     fecha_fin: { label: "Fecha fin", type: "date" },
-    hora_inicio: { label: "Hora inicio", type: "time" },
-    hora_fin: { label: "Hora fin", type: "time" },
     contrato_id: { label: "Contrato", type: "select", source: "contrato" },
     servicio_id: { label: "Servicio", type: "select", source: "servicio", nullable: true },
     personal_id: { label: "Personal", type: "select", source: "personal" },
@@ -1923,22 +1921,6 @@
     return day === 0 ? 7 : day;
   }
 
-  function formatWeekdays(days) {
-    const labels = {
-      1: "L",
-      2: "M",
-      3: "X",
-      4: "J",
-      5: "V",
-      6: "S",
-      7: "D",
-    };
-
-    return Array.isArray(days) && days.length
-      ? days.map((day) => labels[day] || day).join(", ")
-      : "-";
-  }
-
   function getPersonalName(personalId) {
     const person = assignmentPersonalRows.find((row) => Number(row.id) === Number(personalId));
     return person?.personal || `ID ${personalId}`;
@@ -2667,28 +2649,26 @@
     const selected = new Set(selectedDays.map(Number));
     const schedules = {};
     for (let day = 1; day <= 7; day += 1) {
+      if (!selected.has(day)) continue;
       const start = form.querySelector(`[data-weekday-start="${day}"]`)?.value || "";
       const end = form.querySelector(`[data-weekday-end="${day}"]`)?.value || "";
-      if (!selected.has(day)) continue;
-      if (Boolean(start) !== Boolean(end)) {
+      if (!start || !end) {
         showActivityValidationError(
           form,
-          "completa la hora de inicio y fin del horario personalizado.",
+          "indica la hora de inicio y fin de cada dia marcado.",
           start ? form.querySelector(`[data-weekday-end="${day}"]`) : form.querySelector(`[data-weekday-start="${day}"]`)
         );
         return null;
       }
-      if (start && start === end) {
+      if (start === end) {
         showActivityValidationError(
           form,
-          "el inicio y el fin del horario personalizado no pueden ser iguales.",
+          "el inicio y el fin del horario no pueden ser iguales.",
           form.querySelector(`[data-weekday-end="${day}"]`)
         );
         return null;
       }
-      if (start && end) {
-        schedules[day] = { hora_inicio: start, hora_fin: end };
-      }
+      schedules[day] = { hora_inicio: start, hora_fin: end };
     }
     return schedules;
   }
@@ -2708,8 +2688,8 @@
       activity.horarios_personalizados?.[weekday] ||
       activity.horarios_personalizados?.[String(weekday)];
     return {
-      hora_inicio: custom?.hora_inicio || activity.hora_inicio,
-      hora_fin: custom?.hora_fin || activity.hora_fin,
+      hora_inicio: custom?.hora_inicio,
+      hora_fin: custom?.hora_fin,
     };
   }
 
@@ -2754,21 +2734,11 @@
     }
   }
 
-  function isEndAfterStart(fechaInicio, fechaFin, horaInicio, horaFin) {
-    if (fechaFin > fechaInicio) {
-      return true;
-    }
-
-    return fechaFin === fechaInicio && horaFin > horaInicio;
-  }
-
   function getActivityPayload(form) {
     clearActivityValidationError(form);
     const formData = new FormData(form);
     const fechaInicio = String(formData.get("fecha_inicio") || "");
     const fechaFin = String(formData.get("fecha_fin") || "");
-    const horaInicio = String(formData.get("hora_inicio") || "");
-    const horaFin = String(formData.get("hora_fin") || "");
     const diasSemana = getSelectedWeekdays(form);
 
     const requiredFields = [
@@ -2782,8 +2752,6 @@
       ["tipo_hora_id", "selecciona un tipo de hora."],
       ["fecha_inicio", "indica la fecha de inicio."],
       ["fecha_fin", "indica la fecha de fin."],
-      ["hora_inicio", "indica la hora de inicio general."],
-      ["hora_fin", "indica la hora de fin general."],
     ];
     const missingField = requiredFields.find(([name]) => !String(formData.get(name) || "").trim());
     if (missingField) {
@@ -2835,13 +2803,27 @@
       return null;
     }
 
-    if (!isEndAfterStart(fechaInicio, fechaFin, horaInicio, horaFin)) {
+    if (fechaFin < fechaInicio) {
       showActivityValidationError(
         form,
-        "la fecha y hora de fin deben ser posteriores al inicio.",
+        "la fecha de fin debe ser posterior o igual a la de inicio.",
         form.elements.fecha_fin
       );
       return null;
+    }
+
+    if (fechaFin === fechaInicio) {
+      const invalidDay = Object.entries(horariosPersonalizados).find(
+        ([, schedule]) => !(schedule.hora_fin > schedule.hora_inicio)
+      );
+      if (invalidDay) {
+        showActivityValidationError(
+          form,
+          "con fecha de inicio y fin iguales, el horario de cada dia debe terminar despues de empezar.",
+          form.querySelector(`[data-weekday-end="${invalidDay[0]}"]`)
+        );
+        return null;
+      }
     }
 
     return {
@@ -2860,8 +2842,6 @@
       horarios_personalizados: horariosPersonalizados,
       fecha_inicio: fechaInicio,
       fecha_fin: fechaFin,
-      hora_inicio: horaInicio,
-      hora_fin: horaFin,
       observaciones: String(formData.get("observaciones") || "").trim() || null,
     };
   }
@@ -2977,8 +2957,7 @@
               <span class="muted-text">${escapeHtml(formatDate(activity.fecha_fin))}</span>
             </td>
             <td class="activity-schedule-column">
-              ${escapeHtml(formatActivityScheduleSummary(activity))}<br />
-              <span class="muted-text">${escapeHtml(formatWeekdays(activity.dias_semana))}</span>
+              ${escapeHtml(formatActivityScheduleSummary(activity))}
             </td>
           </tr>
         `
@@ -2993,7 +2972,8 @@
     }
 
     if (field === "horario") {
-      return [activity.hora_inicio, activity.hora_fin];
+      const earliest = getActivityEarliestSchedule(activity);
+      return [earliest?.hora_inicio || "", earliest?.hora_fin || ""];
     }
 
     if (field === "funcion") {
@@ -3694,16 +3674,17 @@
     const newValue = normalizeActivityBulkValue(getActivityBulkControlValue("new"), config);
     const invalidSchedule = matches.some((activity) => {
       const next = { ...activity, [field]: newValue };
-      return !isEndAfterStart(
-        String(next.fecha_inicio || ""),
-        String(next.fecha_fin || ""),
-        formatTime(next.hora_inicio),
-        formatTime(next.hora_fin)
+      const nextFechaInicio = String(next.fecha_inicio || "");
+      const nextFechaFin = String(next.fecha_fin || "");
+      if (nextFechaFin < nextFechaInicio) return true;
+      if (nextFechaFin !== nextFechaInicio) return false;
+      return Object.values(activity.horarios_personalizados || {}).some(
+        (schedule) => !(formatTime(schedule.hora_fin) > formatTime(schedule.hora_inicio))
       );
     });
 
     if (invalidSchedule) {
-      setStatus("El cambio dejaria alguna actividad con fin anterior o igual al inicio.", "error");
+      setStatus("El cambio dejaria alguna actividad con fecha de fin anterior a la de inicio, o con el horario de algun dia sin sentido para una fecha unica.", "error");
       return;
     }
 
@@ -4233,7 +4214,9 @@
               sensitivity: "base",
             }),
             String(left.fecha_inicio || "").localeCompare(String(right.fecha_inicio || "")),
-            String(left.hora_inicio || "").localeCompare(String(right.hora_inicio || "")),
+            String(getActivityEarliestSchedule(left)?.hora_inicio || "").localeCompare(
+              String(getActivityEarliestSchedule(right)?.hora_inicio || "")
+            ),
             String(left.instalacion || "").localeCompare(String(right.instalacion || ""), "es", {
               sensitivity: "base",
             }),
@@ -4243,20 +4226,6 @@
       .sort((left, right) =>
         String(left.person).localeCompare(String(right.person), "es", { sensitivity: "base" })
       );
-  }
-
-  function getActivityScheduleWeekdays(activity) {
-    const labels = {
-      1: "L",
-      2: "M",
-      3: "X",
-      4: "J",
-      5: "V",
-      6: "S",
-      7: "D",
-    };
-    const days = Array.isArray(activity.dias_semana) ? activity.dias_semana : [];
-    return days.length ? days.map((day) => labels[Number(day)] || day).join("") : "-";
   }
 
   function getActivityScheduleEntries(activity) {
@@ -4275,11 +4244,20 @@
       });
   }
 
+  // Entrada de horario mas temprana entre los dias marcados; util como clave
+  // de orden ahora que ya no hay un horario general unico por actividad.
+  function getActivityEarliestSchedule(activity) {
+    const entries = getActivityScheduleEntries(activity);
+    if (!entries.length) return null;
+    return entries.reduce((min, entry) =>
+      String(entry.hora_inicio || "") < String(min.hora_inicio || "") ? entry : min
+    );
+  }
+
   function formatActivityScheduleSummary(activity) {
     const entries = getActivityScheduleEntries(activity);
-    const defaultRange = `${formatTime(activity.hora_inicio)} - ${formatTime(activity.hora_fin)}`;
-    if (!entries.some((entry) => activity.horarios_personalizados?.[String(entry.day)])) {
-      return defaultRange;
+    if (!entries.length) {
+      return "-";
     }
     const byRange = new Map();
     entries.forEach((entry) => {
@@ -4307,11 +4285,10 @@
       contrato: formatActivityContractServiceLabel(activity),
       inicio: formatDate(activity.fecha_inicio),
       fin: formatDate(activity.fecha_fin),
-      dias: getActivityScheduleWeekdays(activity),
       horario: formatActivityScheduleSummary(activity),
       puesto: activity.puesto || "-",
       instalacion: activity.instalacion || "-",
-      horas: dailyHours || formatHours(getActivityGeneratedHours(activity)),
+      horas: dailyHours || formatHours(0),
       horasSemana: formatHours(weeklyHours),
       weeklyHours,
     };
@@ -4344,7 +4321,6 @@
                 <td>${escapeHtml(row.contrato)}</td>
                 <td>${escapeHtml(row.inicio)}</td>
                 <td>${escapeHtml(row.fin)}</td>
-                <td>${escapeHtml(row.dias)}</td>
                 <td>${escapeHtml(row.horario)}</td>
                 <td>${escapeHtml(row.puesto)}</td>
                 <td>${escapeHtml(row.instalacion)}</td>
@@ -4368,7 +4344,6 @@
                     <th>Contrato / Servicio</th>
                     <th>Inicio</th>
                     <th>Fin</th>
-                    <th>Dias</th>
                     <th>Horario</th>
                     <th>Puesto</th>
                     <th>Instalacion</th>
@@ -4379,7 +4354,7 @@
                 <tbody>
                   ${rows}
                   <tr class="report-totals-row">
-                    <th colspan="8" scope="row">Total semanal</th>
+                    <th colspan="7" scope="row">Total semanal</th>
                     <td class="numeric-cell">${escapeHtml(formatHours(groupWeeklyTotal))}</td>
                   </tr>
                 </tbody>
@@ -4423,10 +4398,9 @@
         { key: "contrato", label: "Contrato / Servicio", width: 45 },
         { key: "inicio", label: "Inicio", width: 18 },
         { key: "fin", label: "Fin", width: 18 },
-        { key: "dias", label: "Dias", width: 13 },
-        { key: "horario", label: "Horario", width: 23 },
-        { key: "puesto", label: "Puesto", width: 35 },
-        { key: "instalacion", label: "Instalacion", width: 80 },
+        { key: "horario", label: "Horario", width: 30 },
+        { key: "puesto", label: "Puesto", width: 40 },
+        { key: "instalacion", label: "Instalacion", width: 86 },
         { key: "horas", label: "Horas", width: 14 },
         { key: "horasSemana", label: "H. Se", width: 15 },
       ];
@@ -4506,8 +4480,8 @@
               13,
               Math.max(
                 doc.splitTextToSize(String(row.contrato), columns[0].width - 2).length,
-                doc.splitTextToSize(String(row.puesto), columns[5].width - 2).length,
-                doc.splitTextToSize(String(row.instalacion), columns[6].width - 2).length
+                doc.splitTextToSize(String(row.puesto), columns[4].width - 2).length,
+                doc.splitTextToSize(String(row.instalacion), columns[5].width - 2).length
               ) * lineHeight
             )
           );
@@ -4842,6 +4816,23 @@
         return 0;
       }
       return getActivityNightHours({ hora_inicio: horaInicio, hora_fin: horaFin }, config);
+    },
+    scheduleSummary(activity) {
+      return formatActivityScheduleSummary(activity);
+    },
+    scheduleWeeklyHours(activity) {
+      return getActivityScheduleWeeklyHours(activity);
+    },
+    scheduleRangeGroups(activity) {
+      const byRange = new Map();
+      getActivityScheduleEntries(activity).forEach((entry) => {
+        const key = `${entry.hora_inicio}-${entry.hora_fin}`;
+        if (!byRange.has(key)) {
+          byRange.set(key, { hora_inicio: entry.hora_inicio, hora_fin: entry.hora_fin, days: [] });
+        }
+        byRange.get(key).days.push(entry.day);
+      });
+      return Array.from(byRange.values());
     },
   };
 
@@ -5215,8 +5206,6 @@
     );
     activityEditForm.elements.fecha_inicio.value = activity.fecha_inicio || "";
     activityEditForm.elements.fecha_fin.value = activity.fecha_fin || "";
-    activityEditForm.elements.hora_inicio.value = formatTime(activity.hora_inicio);
-    activityEditForm.elements.hora_fin.value = formatTime(activity.hora_fin);
     activityEditForm.elements.observaciones.value = activity.observaciones || "";
     activityEditForm.elements.activo.checked = activity.activo !== false;
     setSelectedWeekdays(activityEditForm, activity.dias_semana);
@@ -5294,8 +5283,6 @@
       activityTipoHora.value = editActivityTipoHora.value;
       activityForm.elements.fecha_inicio.value = activityEditForm.elements.fecha_inicio.value;
       activityForm.elements.fecha_fin.value = activityEditForm.elements.fecha_fin.value;
-      activityForm.elements.hora_inicio.value = activityEditForm.elements.hora_inicio.value;
-      activityForm.elements.hora_fin.value = activityEditForm.elements.hora_fin.value;
       activityForm.elements.observaciones.value = activityEditForm.elements.observaciones.value;
       activityForm.elements.activo.checked = activityEditForm.elements.activo.checked;
       setSelectedWeekdays(activityForm, getSelectedWeekdays(activityEditForm));
