@@ -565,17 +565,26 @@ begin
   -- avisar (linea 603 mas abajo). A 2026-08-14 el 60% de los historiales
   -- vigentes no lo tienen asignado todavia.
   --
-  -- MINIMO Y JORNADA PARCIAL (2026-08-28). El minimo de cotizacion se reduce
-  -- en proporcion a la jornada realizada (coeficiente_temporalidad_miles, el
-  -- mismo que ya escala el salario en nomina_calculo.sql): un tiempo parcial
-  -- no tiene que cotizar por el minimo de un tiempo completo. El MAXIMO no se
-  -- prorratea por jornada -- es un techo unico del sistema (por eso el maximo
-  -- mensual de cotizacion_topes es identico en los grupos 1-7). Caso real:
-  -- Pelayo Fernandez (historial 4164, grupo 6, jornada 17/40 = 42,5%), agosto
-  -- 2026: bruto 701,29€. Sin el coeficiente el motor subia la base al minimo
-  -- de jornada completa (1424,40€); la nomina real de la empresa no topa nada
-  -- porque el minimo prorrateado (1424,40 x 0,425 = 605,37€) ya queda por
-  -- debajo del bruto.
+  -- MINIMO Y JORNADA PARCIAL (2026-08-28, corregido 2026-08-31). El maximo no
+  -- se prorratea por jornada -- es un techo unico del sistema (por eso el
+  -- maximo mensual de cotizacion_topes es identico en los grupos 1-7).
+  --
+  -- El minimo si distingue tiempo completo de tiempo parcial, pero NO con un
+  -- prorrateo simple del minimo mensual por el coeficiente de jornada -- la
+  -- SS fija para tiempo parcial una tarifa MINIMA POR HORA propia (BOE,
+  -- columna "Tiempo Parcial", cotizacion_topes.tiempo_parcial_hora), sobre las
+  -- horas teoricas del periodo (horas_teoricas_jornada, la misma funcion que
+  -- ya usa el ajuste de jornada en nomina_calculo.sql) redondeadas al entero
+  -- mas cercano. La primera version (coeficiente_temporalidad_miles) parecia
+  -- correcta con Pelayo Fernandez (historial 4164, grupo 6, 17h/40h, agosto
+  -- 2026: bruto 701,29€ > minimo prorrateado 605,37€, no topa en ningun caso)
+  -- pero ese caso no discrimina entre formulas -- ambas dan "no topa". La
+  -- diferencia aparecio y se verifico al centimo contra el a3nom real con
+  -- Vanesa Garcia Isidro (historial 5482, 7,5h/40h: horas teoricas 31,5 -> 32h
+  -- x 8,58€ = 274,56€), Santiago Puerta (historial 4882, 28,5h/40h: 119,7 ->
+  -- 120h x 8,58€ = 1.029,60€) y Maria Eugenia de Ugarriza (historial 5913,
+  -- 32h/40h: 134,4 -> 134h x 8,58€ = 1.149,72€) -- las tres coincidian con el
+  -- coeficiente y solo la formula por horas daba el importe real.
   if hp.grupo_cotizacion is not null then
     select t.* into v_tope
     from public.cotizacion_topes t
@@ -592,9 +601,21 @@ begin
       v_coef_jornada := coalesce(hp.coeficiente_temporalidad_miles, 1000) / 1000.0;
 
       if v_tope.unidad = 'mensual' then
-        v_tope_min := round(v_tope.base_minima_mensual * v_tope_dias / 30.0 * v_coef_jornada, 2);
+        if v_coef_jornada < 1 and v_tope.tiempo_parcial_hora is not null then
+          v_tope_min := round(v_tope.tiempo_parcial_hora * round(public.horas_teoricas_jornada(
+            greatest(hp.fecha_alta, p_desde),
+            least(coalesce(hp.fecha_baja, p_hasta), p_hasta),
+            hp.jornada
+          )), 2);
+        else
+          v_tope_min := round(v_tope.base_minima_mensual * v_tope_dias / 30.0, 2);
+        end if;
         v_tope_max := round(v_tope.base_maxima_mensual * v_tope_dias / 30.0, 2);
       else
+        -- Grupos 8-11 (unidad diaria): sin caso real verificado todavia, se
+        -- mantiene el prorrateo por coeficiente de jornada de la version
+        -- anterior. Revisar si aparece un caso real de tiempo parcial en
+        -- estos grupos.
         v_tope_min := round(v_tope.base_minima_diaria * v_tope_dias * v_coef_jornada, 2);
         v_tope_max := round(v_tope.base_maxima_diaria * v_tope_dias, 2);
       end if;

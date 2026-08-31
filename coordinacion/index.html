@@ -4681,16 +4681,20 @@
                 </label>
               </div>
               <p id="personal-list-summary" class="muted-text">0 personas</p>
-              <select id="personal-list" class="personal-listbox" size="20" aria-label="Listado de personal">
-                <option value="">No hay personal cargado.</option>
-              </select>
+              <div id="personal-list" class="personal-list" role="listbox" aria-label="Listado de personal">
+                <p class="empty-state">No hay personal cargado.</p>
+              </div>
             </aside>
 
             <section class="personal-detail-panel">
-              <div class="section-heading-row compact-heading-row">
-                <div>
-                  <p class="eyebrow">Ficha</p>
-                  <h3 id="personal-form-title">Ficha de personal</h3>
+              <div class="section-heading-row compact-heading-row personal-detail-heading">
+                <div class="personal-detail-identity">
+                  <span id="personal-detail-avatar" class="personal-detail-avatar" aria-hidden="true"></span>
+                  <div>
+                    <p class="eyebrow">Ficha</p>
+                    <h3 id="personal-form-title">Ficha de personal</h3>
+                    <div id="personal-detail-meta" class="personal-detail-meta"></div>
+                  </div>
                 </div>
                 <div class="toolbar-actions">
                   <button

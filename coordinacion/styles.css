@@ -430,6 +430,92 @@ legend {
   min-width: 0;
 }
 
+.personal-detail-heading {
+  align-items: flex-start;
+}
+
+.personal-detail-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.personal-detail-avatar {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: #eef2ff;
+  color: #364152;
+  box-shadow: inset 0 0 0 2px rgba(16, 24, 40, 0.06);
+}
+
+.personal-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 4px;
+}
+
+.personal-detail-meta-item {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.personal-vinc-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.personal-vinc-badge.personal-vinc-activo,
+.personal-detail-avatar.personal-vinc-activo {
+  background: rgba(0, 129, 56, 0.14);
+  color: #05572a;
+}
+
+.personal-vinc-badge.personal-vinc-noactivo,
+.personal-detail-avatar.personal-vinc-noactivo {
+  background: #f1f2f4;
+  color: #4b5563;
+}
+
+.personal-vinc-badge.personal-vinc-pendiente,
+.personal-detail-avatar.personal-vinc-pendiente {
+  background: rgba(249, 156, 0, 0.16);
+  color: var(--accent-warm-dark);
+}
+
+.personal-vinc-badge.personal-vinc-nopertenece,
+.personal-detail-avatar.personal-vinc-nopertenece {
+  background: rgba(191, 0, 15, 0.1);
+  color: var(--error);
+}
+
+.personal-vinc-badge.personal-vinc-desconocido,
+.personal-detail-avatar.personal-vinc-desconocido {
+  background: #eef2ff;
+  color: #364152;
+}
+
+.personal-detail-avatar.personal-vinc-activo,
+.personal-detail-avatar.personal-vinc-noactivo,
+.personal-detail-avatar.personal-vinc-pendiente,
+.personal-detail-avatar.personal-vinc-nopertenece,
+.personal-detail-avatar.personal-vinc-desconocido {
+  box-shadow: none;
+}
+
 .private-tab-panel .filters-grid.personal-list-filters {
   width: 100%;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -448,14 +534,134 @@ legend {
   box-sizing: border-box;
 }
 
-.personal-listbox {
-  width: 100%;
-  min-height: 520px;
-  overflow: auto;
+.personal-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.personal-listbox option {
-  padding: 6px 8px;
+.personal-list {
+  width: 100%;
+  min-height: 520px;
+  max-height: 70vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+  background: var(--panel);
+}
+
+.personal-list .empty-state {
+  margin: auto;
+  text-align: center;
+}
+
+.personal-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.personal-list-item:hover {
+  background: #f1f5f9;
+}
+
+.personal-list-item.active {
+  background: var(--text);
+  color: #fff;
+}
+
+.personal-list-item.active .personal-list-item-meta {
+  color: #d1d5dc;
+}
+
+.personal-list-item.active .personal-list-avatar {
+  background: #ffffff;
+  color: #101828;
+}
+
+.personal-list-avatar {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #eef2ff;
+  color: #364152;
+  letter-spacing: 0.02em;
+}
+
+.personal-list-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.personal-list-item-name {
+  font-weight: 600;
+  font-size: 0.86rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.personal-list-item-meta {
+  font-size: 0.76rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.personal-list-badge {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.personal-list-item:not(.active) .personal-list-badge-inactive {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.personal-list-item:not(.active) .personal-list-badge-no-pert {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.personal-list-item.active .personal-list-badge {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.personal-list-item:not(.active) .personal-list-avatar-inactivo {
+  background: rgba(249, 156, 0, 0.16);
+  color: var(--accent-warm-dark);
+}
+
+.personal-list-item:not(.active) .personal-list-avatar-nopertenece {
+  background: #f1f2f4;
+  color: #4b5563;
 }
 
 .personal-form {
@@ -474,42 +680,63 @@ legend {
   gap: 4px;
 }
 
-#personal-form-fields > .checkbox-item {
+#private-tab-panel-personal .personal-form-section-grid > .checkbox-item {
   min-height: 31px;
   padding: 4px 6px;
   gap: 6px;
   justify-content: flex-start;
 }
 
-#personal-form-fields > .checkbox-item span {
+#private-tab-panel-personal .personal-form-section-grid > .checkbox-item span {
   white-space: nowrap;
   line-height: 1.1;
   min-width: max-content;
 }
 
-#personal-form-fields > .checkbox-item input {
+#private-tab-panel-personal .personal-form-section-grid > .checkbox-item input {
   width: 14px;
   height: 14px;
   flex: 0 0 auto;
 }
 
 #personal-form-fields {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.personal-form-section {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px 14px;
+  background: #ffffff;
+  border-left: 3px solid var(--line-strong);
+}
+
+.personal-form-section legend {
+  padding: 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.personal-form-section-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
 .personal-checks-fieldset {
-  border: 1px solid var(--line);
-  border-radius: 6px;
   padding: 3px 8px 5px;
-  background: #ffffff;
 }
 
 .personal-checks-fieldset legend {
   padding: 0 6px;
-  font-size: 0.82rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   font-weight: 700;
-  color: #344054;
+  color: var(--muted);
 }
 
 #private-tab-panel-personal .personal-checks-grid {
@@ -1818,6 +2045,18 @@ button:hover,
 
 .danger-button:hover {
   background: #982b38;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+button:focus-visible,
+.button-link:focus-visible,
+.action-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .muted-text {
@@ -5161,6 +5400,7 @@ th {
   .records-detail-form .detail-field-row,
   .personal-management-layout,
   #personal-form-fields,
+  .personal-form-section-grid,
   .toolbar {
     grid-template-columns: 1fr;
   }

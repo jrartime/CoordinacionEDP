@@ -175,6 +175,20 @@ button:hover,
   color: #101828;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+button:focus-visible,
+.hero-link:focus-visible,
+.secondary-button:focus-visible,
+.icon-link:focus-visible,
+.brand-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .icon-link {
   display: inline-flex;
   align-items: center;

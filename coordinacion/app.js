@@ -628,44 +628,59 @@ const PERSONAL_IMPORT_DATE_FIELDS = new Set(["antiguedad", "fecha_nacimiento", "
 const PERSONAL_IMPORT_COLUMNS = Array.from(new Set(Object.values(PERSONAL_IMPORT_HEADER_MAP)));
 const PERSONAL_IMPORT_SELECT_COLUMNS = PERSONAL_IMPORT_COLUMNS.join(", ");
 const PERSONAL_FIELDS = [
-  { key: "id", label: "ID", type: "integer" },
-  { key: "activo", label: "Activo", type: "boolean" },
-  { key: "pert_empresa", label: "Pertenece a empresa", type: "boolean" },
-  { key: "vinculacion_id", label: "Vinculacion", type: "select", options: PERSONAL_VINCULACION_OPTIONS },
-  { key: "personal", label: "Personal", type: "text", required: true },
-  { key: "genero", label: "Genero", type: "text" },
-  { key: "antiguedad", label: "Antiguedad", type: "date" },
-  { key: "dni", label: "DNI", type: "text" },
-  { key: "fecha_nacimiento", label: "Fecha nacimiento", type: "date", confidential: true },
-  { key: "ss", label: "SS", type: "text", confidential: true },
-  { key: "email", label: "Email", type: "email" },
-  { key: "movil", label: "Movil", type: "text" },
-  { key: "telefono", label: "Telefono", type: "text" },
-  { key: "direccion", label: "Direccion", type: "text", confidential: true },
-  { key: "codigo_postal", label: "Codigo postal", type: "integer", confidential: true },
-  { key: "localidad", label: "Localidad", type: "text" },
-  { key: "municipio", label: "Municipio", type: "text" },
-  { key: "provincia", label: "Provincia", type: "text" },
-  { key: "cuenta_corriente", label: "Cuenta corriente", type: "text", confidential: true },
-  { key: "observacion", label: "Observacion", type: "textarea" },
-  { key: "carpeta", label: "Carpeta", type: "text" },
-  { key: "cv", label: "CV", type: "boolean" },
-  { key: "da", label: "DA", type: "boolean" },
-  { key: "ds", label: "DS", type: "boolean" },
-  { key: "prev_riesgos", label: "Prevencion riesgos", type: "date" },
-  { key: "epi", label: "EPI", type: "boolean" },
-  { key: "titulos", label: "Titulos", type: "boolean" },
-  { key: "ig_ac", label: "IG AC", type: "boolean" },
-  { key: "uniforme", label: "Uniforme", type: "boolean" },
-  { key: "med_emerg", label: "Med. emerg", type: "boolean" },
-  { key: "ens", label: "ENS", type: "boolean" },
-  { key: "prorrateo_pagas", label: "Prorrateo pagas", type: "boolean", confidential: true },
-  { key: "num_pagas_extra", label: "Num. pagas extra", type: "integer", confidential: true },
-  { key: "persona", label: "Persona", type: "boolean" },
-  { key: "irpf", label: "IRPF", type: "numeric", confidential: true },
-  { key: "nombre", label: "Nombre", type: "text" },
-  { key: "apellido", label: "Apellido", type: "text" },
+  { key: "id", label: "ID", type: "integer", group: "identidad" },
+  { key: "personal", label: "Personal", type: "text", required: true, group: "identidad" },
+  { key: "nombre", label: "Nombre", type: "text", group: "identidad" },
+  { key: "apellido", label: "Apellido", type: "text", group: "identidad" },
+  { key: "genero", label: "Genero", type: "text", group: "identidad" },
+  { key: "dni", label: "DNI", type: "text", group: "identidad" },
+  { key: "fecha_nacimiento", label: "Fecha nacimiento", type: "date", confidential: true, group: "identidad" },
+  { key: "antiguedad", label: "Antiguedad", type: "date", group: "identidad" },
+  { key: "activo", label: "Activo", type: "boolean", group: "estado" },
+  { key: "vinculacion_id", label: "Vinculacion", type: "select", options: PERSONAL_VINCULACION_OPTIONS, group: "estado" },
+  { key: "pert_empresa", label: "Pertenece a empresa", type: "boolean", group: "estado" },
+  { key: "persona", label: "Persona", type: "boolean", group: "estado" },
+  { key: "email", label: "Email", type: "email", group: "contacto" },
+  { key: "movil", label: "Movil", type: "text", group: "contacto" },
+  { key: "telefono", label: "Telefono", type: "text", group: "contacto" },
+  { key: "direccion", label: "Direccion", type: "text", confidential: true, group: "direccion" },
+  { key: "codigo_postal", label: "Codigo postal", type: "integer", confidential: true, group: "direccion" },
+  { key: "localidad", label: "Localidad", type: "text", group: "direccion" },
+  { key: "municipio", label: "Municipio", type: "text", group: "direccion" },
+  { key: "provincia", label: "Provincia", type: "text", group: "direccion" },
+  { key: "cv", label: "CV", type: "boolean", group: "documentacion" },
+  { key: "da", label: "DA", type: "boolean", group: "documentacion" },
+  { key: "ds", label: "DS", type: "boolean", group: "documentacion" },
+  { key: "prev_riesgos", label: "Prevencion riesgos", type: "date", group: "documentacion" },
+  { key: "epi", label: "EPI", type: "boolean", group: "documentacion" },
+  { key: "titulos", label: "Titulos", type: "boolean", group: "documentacion" },
+  { key: "ig_ac", label: "IG AC", type: "boolean", group: "documentacion" },
+  { key: "uniforme", label: "Uniforme", type: "boolean", group: "documentacion" },
+  { key: "med_emerg", label: "Med. emerg", type: "boolean", group: "documentacion" },
+  { key: "ens", label: "ENS", type: "boolean", group: "documentacion" },
+  { key: "ss", label: "SS", type: "text", confidential: true, group: "economico" },
+  { key: "cuenta_corriente", label: "Cuenta corriente", type: "text", confidential: true, group: "economico" },
+  { key: "prorrateo_pagas", label: "Prorrateo pagas", type: "boolean", confidential: true, group: "economico" },
+  { key: "num_pagas_extra", label: "Num. pagas extra", type: "integer", confidential: true, group: "economico" },
+  { key: "irpf", label: "IRPF", type: "numeric", confidential: true, group: "economico" },
+  { key: "carpeta", label: "Carpeta", type: "text", group: "otros" },
+  { key: "observacion", label: "Observacion", type: "textarea", group: "otros" },
 ];
+const PERSONAL_FIELD_GROUPS = [
+  { key: "identidad", label: "Identificación" },
+  { key: "estado", label: "Estado y vinculación" },
+  { key: "contacto", label: "Contacto" },
+  { key: "direccion", label: "Dirección" },
+  { key: "documentacion", label: "Documentación y equipamiento" },
+  { key: "economico", label: "Datos económicos" },
+  { key: "otros", label: "Otros" },
+];
+const PERSONAL_VINCULACION_TONE = {
+  1: "activo",
+  2: "noactivo",
+  3: "pendiente",
+  4: "nopertenece",
+};
 const PERSONAL_SELECT_COLUMNS = PERSONAL_FIELDS.map((field) => field.key).join(", ");
 const COORDINATION_HOST = "coordinacion.edpsl.es";
 const INITIAL_AUTH_URL_TYPE = (() => {
@@ -1392,6 +1407,8 @@ const personalList = document.querySelector("#personal-list");
 const personalListSummary = document.querySelector("#personal-list-summary");
 const personalStatus = document.querySelector("#personal-status");
 const personalFormTitle = document.querySelector("#personal-form-title");
+const personalDetailAvatar = document.querySelector("#personal-detail-avatar");
+const personalDetailMeta = document.querySelector("#personal-detail-meta");
 const personalForm = document.querySelector("#personal-form");
 const personalFormFields = document.querySelector("#personal-form-fields");
 const personalEditButton = document.querySelector("#personal-edit-button");
@@ -10876,25 +10893,66 @@ function getPersonalFieldInput(fieldKey) {
   return personalForm?.querySelector(`[name="${fieldKey}"]`) || null;
 }
 
+function renderPersonalFieldControl(field) {
+  const required = field.required ? " required" : "";
+  if (field.type === "boolean") {
+    return `
+      <label class="checkbox-item with-label">
+        <input name="${escapeHtml(field.key)}" type="checkbox" disabled />
+        <span>${escapeHtml(field.label)}</span>
+      </label>
+    `;
+  }
+
+  if (field.type === "textarea") {
+    return `
+      <label class="full-width">
+        ${escapeHtml(field.label)}
+        <textarea name="${escapeHtml(field.key)}" rows="3" disabled${required}></textarea>
+      </label>
+    `;
+  }
+
+  if (field.type === "select") {
+    const options = (field.options || [])
+      .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+      .join("");
+    return `
+      <label>
+        ${escapeHtml(field.label)}
+        <select name="${escapeHtml(field.key)}" disabled${required}>
+          <option value="">Sin vinculacion</option>
+          ${options}
+        </select>
+      </label>
+    `;
+  }
+
+  const inputType =
+    field.type === "integer" || field.type === "numeric"
+      ? "number"
+      : field.type === "date"
+        ? "date"
+        : field.type === "email"
+          ? "email"
+          : "text";
+  const step = field.type === "integer" ? ' step="1"' : field.type === "numeric" ? ' step="0.0001"' : "";
+  return `
+    <label>
+      ${escapeHtml(field.label)}
+      <input name="${escapeHtml(field.key)}" type="${inputType}"${step} disabled${required} />
+    </label>
+  `;
+}
+
 function renderPersonalFormFields() {
   if (!personalFormFields) {
     return;
   }
 
-  let documentationGroupRendered = false;
-  personalFormFields.innerHTML = PERSONAL_FIELDS
-    .map((field) => {
-      // Los campos confidenciales solo se muestran al rol admin. El resto de
-      // usuarios ni los ve ni los envia (la vista los devuelve NULL y la
-      // funcion de guardado ignora la escritura confidencial para no-admin).
-      if (field.confidential && !currentUserIsAccessAdmin) {
-        return "";
-      }
-      if (PERSONAL_DOCUMENTATION_FIELD_KEYS.has(field.key)) {
-        if (documentationGroupRendered) {
-          return "";
-        }
-        documentationGroupRendered = true;
+  personalFormFields.innerHTML = PERSONAL_FIELD_GROUPS
+    .map((groupDef) => {
+      if (groupDef.key === "documentacion") {
         const checkboxes = PERSONAL_FIELDS
           .filter((item) => PERSONAL_DOCUMENTATION_FIELD_KEYS.has(item.key))
           .map(
@@ -10907,8 +10965,8 @@ function renderPersonalFormFields() {
           )
           .join("");
         return `
-          <fieldset class="full-width personal-checks-fieldset">
-            <legend>Documentación y equipamiento</legend>
+          <fieldset class="full-width personal-form-section personal-checks-fieldset">
+            <legend>${escapeHtml(groupDef.label)}</legend>
             <div class="checkbox-grid personal-checks-grid">
               ${checkboxes}
             </div>
@@ -10916,57 +10974,73 @@ function renderPersonalFormFields() {
         `;
       }
 
-      const required = field.required ? " required" : "";
-      if (field.type === "boolean") {
-        return `
-          <label class="checkbox-item with-label">
-            <input name="${escapeHtml(field.key)}" type="checkbox" disabled />
-            <span>${escapeHtml(field.label)}</span>
-          </label>
-        `;
+      // Los campos confidenciales solo se muestran al rol admin. El resto de
+      // usuarios ni los ve ni los envia (la vista los devuelve NULL y la
+      // funcion de guardado ignora la escritura confidencial para no-admin).
+      const visibleFields = PERSONAL_FIELDS.filter(
+        (field) => field.group === groupDef.key && !(field.confidential && !currentUserIsAccessAdmin)
+      );
+      if (!visibleFields.length) {
+        return "";
       }
 
-      if (field.type === "textarea") {
-        return `
-          <label class="full-width">
-            ${escapeHtml(field.label)}
-            <textarea name="${escapeHtml(field.key)}" rows="3" disabled${required}></textarea>
-          </label>
-        `;
-      }
-
-      if (field.type === "select") {
-        const options = (field.options || [])
-          .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
-          .join("");
-        return `
-          <label>
-            ${escapeHtml(field.label)}
-            <select name="${escapeHtml(field.key)}" disabled${required}>
-              <option value="">Sin vinculacion</option>
-              ${options}
-            </select>
-          </label>
-        `;
-      }
-
-      const inputType =
-        field.type === "integer" || field.type === "numeric"
-          ? "number"
-          : field.type === "date"
-            ? "date"
-            : field.type === "email"
-              ? "email"
-              : "text";
-      const step = field.type === "integer" ? ' step="1"' : field.type === "numeric" ? ' step="0.0001"' : "";
       return `
-        <label>
-          ${escapeHtml(field.label)}
-          <input name="${escapeHtml(field.key)}" type="${inputType}"${step} disabled${required} />
-        </label>
+        <fieldset class="full-width personal-form-section">
+          <legend>${escapeHtml(groupDef.label)}</legend>
+          <div class="form-grid personal-form-section-grid">
+            ${visibleFields.map((field) => renderPersonalFieldControl(field)).join("")}
+          </div>
+        </fieldset>
       `;
     })
     .join("");
+}
+
+function getPersonalVinculacionInfo(vinculacionId) {
+  const key = vinculacionId === null || vinculacionId === undefined ? "" : String(vinculacionId);
+  const option = PERSONAL_VINCULACION_OPTIONS.find((item) => item.value === key);
+  return {
+    label: option?.label || "Sin vinculación",
+    tone: PERSONAL_VINCULACION_TONE[key] || "desconocido",
+  };
+}
+
+function formatPersonalDateShort(value) {
+  const iso = formatNullableDate(value);
+  if (!iso) {
+    return "";
+  }
+  const [year, month, day] = iso.split("-");
+  return year && month && day ? `${day}/${month}/${year}` : "";
+}
+
+function renderPersonalDetailHeader(row) {
+  if (!personalDetailAvatar || !personalDetailMeta) {
+    return;
+  }
+  if (!row) {
+    personalDetailAvatar.textContent = "";
+    personalDetailAvatar.className = "personal-detail-avatar";
+    personalDetailMeta.innerHTML = "";
+    return;
+  }
+
+  const vinc = getPersonalVinculacionInfo(row.vinculacion_id);
+  personalDetailAvatar.textContent = getPersonalInitials(row);
+  personalDetailAvatar.className = `personal-detail-avatar personal-vinc-${vinc.tone}`;
+
+  const items = [`<span class="personal-vinc-badge personal-vinc-${vinc.tone}">${escapeHtml(vinc.label)}</span>`];
+  if (row.dni) {
+    items.push(`<span class="personal-detail-meta-item">${escapeHtml(row.dni)}</span>`);
+  }
+  const altaLabel = formatPersonalDateShort(row.antiguedad);
+  if (altaLabel) {
+    items.push(`<span class="personal-detail-meta-item">Alta ${escapeHtml(altaLabel)}</span>`);
+  }
+  if (row.pert_empresa === false) {
+    items.push(`<span class="personal-detail-meta-item">Sin empresa</span>`);
+  }
+  personalDetailMeta.innerHTML = items.join("");
 }
 
 function setPersonalFormEditing(isEditing) {
@@ -11119,23 +11193,48 @@ function applyPersonalFilters() {
   renderPersonalList();
 }
 
+function getPersonalInitials(row) {
+  const parts = getPersonalDisplayName(row).trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] || "";
+  const second = parts.length > 1 ? parts[1][0] : parts[0]?.[1] || "";
+  return (first + second).toUpperCase();
+}
+
 function renderPersonalList() {
   if (!personalList) {
     return;
   }
 
   if (!filteredPersonalRows.length) {
-    personalList.innerHTML = '<option value="">No hay personal para mostrar</option>';
-    personalList.disabled = true;
+    personalList.innerHTML = '<p class="empty-state">No hay personal para mostrar</p>';
   } else {
-    personalList.disabled = false;
     personalList.innerHTML = filteredPersonalRows
       .map((row) => {
-        const selected = String(row.id) === currentSelectedPersonalId ? " selected" : "";
-        const dni = row.dni ? ` - ${row.dni}` : "";
-        const statusLabel =
-          Number(row.vinculacion_id) === 4 ? " (no pert.)" : row.activo ? "" : " (inactivo)";
-        return `<option value="${escapeHtml(row.id)}"${selected}>${escapeHtml(getPersonalDisplayName(row))}${escapeHtml(dni)}${escapeHtml(statusLabel)}</option>`;
+        const isSelected = String(row.id) === currentSelectedPersonalId;
+        const isNoPert = Number(row.vinculacion_id) === 4;
+        const isInactive = !isNoPert && !row.activo;
+        const tone = isNoPert ? "nopertenece" : isInactive ? "inactivo" : "ok";
+        const badge = isNoPert
+          ? '<span class="personal-list-badge personal-list-badge-no-pert">No pertenece</span>'
+          : isInactive
+            ? '<span class="personal-list-badge personal-list-badge-inactive">Inactivo</span>'
+            : "";
+        return `
+          <button
+            type="button"
+            class="personal-list-item${isSelected ? " active" : ""}"
+            data-personal-id="${escapeHtml(row.id)}"
+            role="option"
+            aria-selected="${isSelected}"
+          >
+            <span class="personal-list-avatar personal-list-avatar-${tone}">${escapeHtml(getPersonalInitials(row))}</span>
+            <span class="personal-list-item-body">
+              <span class="personal-list-item-name">${escapeHtml(getPersonalDisplayName(row))}</span>
+              <span class="personal-list-item-meta">${escapeHtml(row.dni || "Sin DNI")}</span>
+            </span>
+            ${badge}
+          </button>
+        `;
       })
       .join("");
   }
@@ -11153,6 +11252,7 @@ function selectPersonal(personalId) {
     personalFormTitle.textContent = row ? getPersonalDisplayName(row) : "Ficha de personal";
   }
   fillPersonalForm(row);
+  renderPersonalDetailHeader(row);
   setPersonalFormEditing(false);
   renderPersonalList();
   void refreshPersonalComplementosPanel();
@@ -11164,6 +11264,7 @@ function startNewPersonal() {
   if (personalFormTitle) {
     personalFormTitle.textContent = "Nueva persona";
   }
+  renderPersonalDetailHeader(null);
   clearPersonalForm();
   setPersonalFormEditing(true);
   getPersonalFieldInput("personal")?.focus();
@@ -12194,6 +12295,7 @@ async function loadPersonalManagement(preferredPersonalId = currentSelectedPerso
     if (personalFormTitle) {
       personalFormTitle.textContent = "Ficha de personal";
     }
+    renderPersonalDetailHeader(null);
     clearPersonalForm();
     setPersonalFormEditing(false);
   }
@@ -21901,6 +22003,10 @@ function recalcularGestionNominaEditor() {
     row.base = base;
     if (!row._manual) {
       row.importe = round2(base * num(row.tipo));
+      // El "Detalle" es una descripcion en prosa ("X% sobre Y€"), no un
+      // numero que recalcule solo: si no se regenera aqui queda congelado
+      // con la base de antes de editar, aunque el importe ya haya cambiado.
+      row.detalle = `${round2(num(row.tipo) * 100)}% sobre ${round2(base)}€`;
     }
     deducciones += num(row.importe);
   }
@@ -22022,6 +22128,14 @@ function actualizarGestionNominaEditorTotales() {
       );
       if (input && document.activeElement !== input) {
         input.value = row.importe ?? "";
+      }
+      if (row.seccion === "deduccion") {
+        const detalleInput = gestionNominaEditorPanel.querySelector(
+          `[data-nomina-edit="${idx}"][data-nomina-campo="detalle"]`
+        );
+        if (detalleInput && document.activeElement !== detalleInput) {
+          detalleInput.value = row.detalle ?? "";
+        }
       }
     }
   }
@@ -31581,8 +31695,12 @@ async function init() {
   });
   personalVinculacionFilter?.addEventListener("change", applyPersonalFilters);
   personalTextFilter?.addEventListener("input", debounce(applyPersonalFilters, 160));
-  personalList?.addEventListener("change", () => {
-    selectPersonal(personalList.value);
+  personalList?.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-personal-id]");
+    if (!item) {
+      return;
+    }
+    selectPersonal(item.dataset.personalId);
   });
   personalEditButton?.addEventListener("click", startEditPersonal);
   personalCancelButton?.addEventListener("click", () => {
