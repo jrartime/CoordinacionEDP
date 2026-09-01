@@ -371,7 +371,6 @@ declare
   v_pago_mont numeric; v_pago_hcomp numeric;
   v_movilidad_pct numeric; v_movilidad_detalle text;
   v_horas_banked_reg numeric; v_horas_banked_mont numeric; v_horas_banked_hcomp numeric;
-  v_horas_bolsa_sale numeric;
   v_horas_jornada_bruta numeric; v_exceso_antes_banco numeric; v_deficit_banco_reg numeric;
 begin
   select * into h from public.historiales_laborales where id = p_historial_id;
@@ -455,6 +454,15 @@ begin
       and r.fecha >= v_desde and r.fecha <= v_hasta
   ) x;
 
+  -- Bolsa de horas -- salida (BOLSA_SALE): a efectos de este recuento el
+  -- registro NO recibe ningun trato especial. Si al "Cubrir con la bolsa" el
+  -- registro es HCOMP, cuenta como HCOMP (paga Horas complementarias); si es
+  -- MONT, como MONT; si es FTRAB (mas abajo, fuera de esta query), como
+  -- FTRAB; si es REG, como REG (jornada normal, sin linea aparte). El apunte
+  -- BOLSA_SALE es solo el asiento del saldo (bolsa_horas_saldo) y no cambia
+  -- como se paga el registro. Ver "Bolsa de horas en modalidad Jornada" mas
+  -- abajo para el porque de NO generar ninguna linea "Horas pagadas con la
+  -- bolsa".
   select coalesce(sum(x.horas) filter (where x.tipo_hora_id = 1), 0)::numeric,
          coalesce(sum(x.horas) filter (where x.tipo_hora_id = 5), 0)::numeric,
          coalesce(sum(x.horas) filter (where x.tipo_hora_id = 3), 0)::numeric,
@@ -481,25 +489,16 @@ begin
   -- resta por si sola NO tiene efecto -- ver el bloque "Bolsa de horas en
   -- modalidad Jornada" mas abajo, que es quien realmente lo cobra ahi.
   --
-  -- El lado SALIDA (BOLSA_SALE) tambien se lee aqui (v_horas_bolsa_sale),
-  -- pero SOLO para poder valorarlo en modalidad Jornada mas abajo: "Cubrir
-  -- con la bolsa" (app.js, confirmRecordBolsaMovimiento) ya escribe esas
-  -- horas DIRECTAMENTE en registros.horas (tipo REG) para que Facturacion,
-  -- que lee registros.horas/facturar sin saber nada de registro_apuntes, las
-  -- siga facturando con normalidad -- y en modalidad Horas totales esas horas
-  -- ya entran en v_horas_reg mas arriba y se pagan solas via v_horas_jornada,
-  -- asi que v_horas_bolsa_sale NO se vuelve a sumar ahi (se pagaria dos
-  -- veces). El apunte BOLSA_SALE en si es solo el asiento del saldo (ver
-  -- bolsa_horas_saldo), no una fuente de horas para el motor salvo en el
-  -- caso Jornada de mas abajo.
+  -- El lado SALIDA (BOLSA_SALE) NO se lee aqui: no tiene ningun trato
+  -- especial en el motor (ver el comentario junto al recuento de horas mas
+  -- arriba), asi que no hace falta ninguna cifra aparte para el.
   select coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 1), 0)::numeric,
          coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 3), 0)::numeric,
-         coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 2), 0)::numeric,
-         coalesce(sum(abs(a.cantidad)) filter (where a.movimiento = 'BOLSA_SALE'), 0)::numeric
-    into v_horas_banked_reg, v_horas_banked_mont, v_horas_banked_hcomp, v_horas_bolsa_sale
+         coalesce(sum(a.cantidad) filter (where a.movimiento = 'BOLSA_ENTRA' and a.concepto_id = 2), 0)::numeric
+    into v_horas_banked_reg, v_horas_banked_mont, v_horas_banked_hcomp
   from public.registro_apuntes a
   join public.registros r on r.id = a.registro_id
-  where a.movimiento in ('BOLSA_ENTRA', 'BOLSA_SALE')
+  where a.movimiento = 'BOLSA_ENTRA'
     and r.personal_id = h.personal_id
     and (r.puesto_id = h.puesto_id or (p_incluir_huerfanas
          and r.tipo_hora_id not in (2, 3)
@@ -664,24 +663,24 @@ begin
     v_exceso_antes_banco := greatest(v_horas_jornada_bruta - coalesce(v_horas_teoricas, 0), 0);
     v_deficit_banco_reg := greatest(v_horas_banked_reg - v_exceso_antes_banco, 0);
 
-    if coalesce(v_precio_jornada, 0) > 0 then
-      if v_deficit_banco_reg > 0 then
-        return query select 63, 'Horas metidas en la bolsa'::text,
-          format('%s h × %s€/h teórica%s',
-                 round(v_deficit_banco_reg, 2), round(v_precio_jornada, 4),
-                 case when v_horas_banked_reg > v_deficit_banco_reg
-                      then format(' (de %s h bancarizadas, %s ya eran de sobre jornada y no se descuentan)',
-                                  round(v_horas_banked_reg, 2), round(v_horas_banked_reg - v_deficit_banco_reg, 2))
-                      else '' end),
-          null::numeric, round(v_deficit_banco_reg, 2), round(v_precio_jornada, 4),
-          round(-1 * v_deficit_banco_reg * v_precio_jornada, 2), null::text;
-      end if;
-      if v_horas_bolsa_sale > 0 then
-        return query select 68, 'Horas pagadas con la bolsa'::text,
-          format('%s h × %s€/h teórica', round(v_horas_bolsa_sale, 2), round(v_precio_jornada, 4)),
-          null::numeric, round(v_horas_bolsa_sale, 2), round(v_precio_jornada, 4),
-          round(v_horas_bolsa_sale * v_precio_jornada, 2), null::text;
-      end if;
+    -- Nota: NO hay linea "Horas pagadas con la bolsa" para el lado SALIDA.
+    -- Ver el comentario junto al recuento de horas mas arriba -- un registro
+    -- "Cubierto con la bolsa" se paga con el mecanismo normal de su propio
+    -- tipo_hora_id (REG/HCOMP/MONT/FTRAB), no con una linea especifica de
+    -- bolsa. En Jornada+mensual/diario esto significa que sacar horas REG de
+    -- la bolsa no genera pago (igual que cualquier hora REG en esa
+    -- modalidad); si lo que se saca es HCOMP/MONT/FTRAB, sí se paga, vía las
+    -- líneas 66/67/80 de mas abajo, igual que cualquier registro de ese tipo.
+    if coalesce(v_precio_jornada, 0) > 0 and v_deficit_banco_reg > 0 then
+      return query select 63, 'Horas metidas en la bolsa'::text,
+        format('%s h × %s€/h teórica%s',
+               round(v_deficit_banco_reg, 2), round(v_precio_jornada, 4),
+               case when v_horas_banked_reg > v_deficit_banco_reg
+                    then format(' (de %s h bancarizadas, %s ya eran de sobre jornada y no se descuentan)',
+                                round(v_horas_banked_reg, 2), round(v_horas_banked_reg - v_deficit_banco_reg, 2))
+                    else '' end),
+        null::numeric, round(v_deficit_banco_reg, 2), round(v_precio_jornada, 4),
+        round(-1 * v_deficit_banco_reg * v_precio_jornada, 2), null::text;
     end if;
   else
     v_valor_reg := round(v_precio_jornada * v_horas_jornada, 2);

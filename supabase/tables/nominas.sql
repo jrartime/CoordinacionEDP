@@ -88,6 +88,12 @@ create table if not exists public.nominas (
   base_cp numeric(12, 2) not null default 0,
   base_irpf numeric(12, 2) not null default 0,
   total_deducciones numeric(12, 2) not null default 0,
+  -- Ajustes directos al líquido (seccion='ajuste' en nomina_lineas): anticipos,
+  -- reintegros y similares que NO cotizan ni tributan -- no entran en
+  -- total_devengado (no inflarían las bases 600/601/602) ni en
+  -- total_deducciones (esa cifra es solo la deducción "oficial"). Positivo
+  -- suma al líquido, negativo resta. Ver la línea `liquido` más abajo.
+  total_ajustes numeric(12, 2) not null default 0,
   liquido numeric(12, 2) not null default 0,
 
   estado text not null default 'emitida',
@@ -518,6 +524,10 @@ begin
     h.cotizacion_desempleo_pct, h.cotizacion_formacion_pct
   from (
     -- Mismas exclusiones que el motor: CAMB y LG no son trabajo de esta persona.
+    -- Un registro "Cubierto con la bolsa" (BOLSA_SALE) NO recibe trato
+    -- especial aqui: cuenta segun su propio tipo_hora_id, igual que en
+    -- calcular_nomina_devengos -- ver el comentario junto al recuento de
+    -- horas en esa funcion.
     select
       coalesce(sum(rg.horas) filter (where rg.tipo_hora_id = 1), 0)::numeric as horas_reg,
       coalesce(sum(rg.horas) filter (where rg.tipo_hora_id = 5), 0)::numeric as horas_pnr,
@@ -908,6 +918,13 @@ begin
       select sum(l.importe) from public.nomina_lineas l
       where l.nomina_id = n.id and l.ambito = 'persona'
         and l.seccion = 'deduccion' and l.detalle_de is null), 0),
+    -- Ajustes directos al líquido (anticipos/reintegros, seccion='ajuste'):
+    -- no cotizan ni tributan, así que quedan fuera de total_devengado y de
+    -- total_deducciones -- solo afectan a `liquido`, más abajo.
+    total_ajustes = coalesce((
+      select sum(l.importe) from public.nomina_lineas l
+      where l.nomina_id = n.id and l.ambito = 'persona'
+        and l.seccion = 'ajuste' and l.detalle_de is null), 0),
     base_cc = coalesce((
       select l.importe from public.nomina_lineas l
       where l.nomina_id = n.id and l.ambito = 'persona' and l.orden = 600), 0),
@@ -920,7 +937,7 @@ begin
   where n.id = v_id;
 
   update public.nominas
-  set liquido = round(total_devengado - total_deducciones, 2)
+  set liquido = round(total_devengado - total_deducciones + total_ajustes, 2)
   where id = v_id;
 
   return v_id;
@@ -966,6 +983,7 @@ grant execute on function public.anular_nomina(bigint, text) to authenticated;
 -- Migracion para bases ya creadas: el create table de arriba no la anade.
 alter table public.nominas add column if not exists horas_otros_puestos boolean not null default true;
 alter table public.nominas add column if not exists aplicar_topes_cotizacion boolean not null default true;
+alter table public.nominas add column if not exists total_ajustes numeric(12, 2) not null default 0;
 
 alter table public.nominas enable row level security;
 alter table public.nomina_lineas enable row level security;

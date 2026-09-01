@@ -6409,6 +6409,36 @@ details[open] > .gestion-collapsible-header::before {
   color: #7d2620;
 }
 
+.gestion-nomina-editor-nueva {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.gestion-nomina-editor-nueva-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gestion-nomina-editor-nueva-form select,
+.gestion-nomina-editor-nueva-form input {
+  height: 28px;
+  padding: 3px 6px;
+  font-size: 0.74rem;
+}
+
+.gestion-nomina-editor-nueva-form select {
+  max-width: 220px;
+}
+
+.gestion-nomina-editor-nueva-form input[data-nomina-nueva-concepto] {
+  width: 160px;
+}
+
 .gestion-nomina-editor-acciones {
   display: flex;
   align-items: flex-end;

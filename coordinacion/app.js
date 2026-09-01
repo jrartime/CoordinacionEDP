@@ -21926,7 +21926,17 @@ async function abrirGestionNominaEditor(personalId, nominaId = null) {
         '<p class="empty-state">No hay ninguna línea que editar.</p>';
       return;
     }
-    gestionNominaEditor = { personalId: String(personalId), nominaId, lineas: filtradas, notas };
+    gestionNominaEditor = {
+      personalId: String(personalId),
+      nominaId,
+      lineas: filtradas,
+      notas,
+      _nuevaAbierta: false,
+      _nuevaTipo: "devengo",
+    };
+    // Catálogo de Complementos y pluses para el desplegable "+ Añadir
+    // concepto" -- misma caché que el panel "Añadir complemento" de Gestión.
+    await loadGestionExtraCatalogo();
     renderGestionNominaEditor();
     gestionNominaEditorPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (error) {
@@ -22019,14 +22029,29 @@ function recalcularGestionNominaEditor() {
     deducciones += num(row.importe);
   }
 
+  // Ajustes directos al líquido (anticipos/reintegros): no cotizan ni
+  // tributan, así que no tocan bruto/bases ni el total de deducciones
+  // "oficial" -- se suman o restan solo al líquido, siempre a mano (no hay
+  // ninguna fórmula que los derive de otra cosa).
+  let ajustes = 0;
+  for (const row of lineas) {
+    if (row.seccion !== "ajuste") continue;
+    ajustes += num(row.importe);
+  }
+
   const totalBruto = porOrden(500);
   if (totalBruto) totalBruto.importe = round2(bruto);
   const totalDed = porOrden(800);
   if (totalDed) totalDed.importe = round2(deducciones);
   const liquido = porOrden(810);
-  if (liquido) liquido.importe = round2(bruto - deducciones);
+  if (liquido) liquido.importe = round2(bruto - deducciones + ajustes);
 
-  return { bruto: round2(bruto), deducciones: round2(deducciones), liquido: round2(bruto - deducciones) };
+  return {
+    bruto: round2(bruto),
+    deducciones: round2(deducciones),
+    ajustes: round2(ajustes),
+    liquido: round2(bruto - deducciones + ajustes),
+  };
 }
 
 function round2(value) {
@@ -22057,6 +22082,7 @@ function renderGestionNominaEditor() {
       const seccion = String(row.seccion || "");
       const calculada = seccion === "total";
       const esDeduccion = seccion === "deduccion";
+      const esAjuste = seccion === "ajuste";
       const codigoNomina = getGestionCodigoNomina(row.concepto, row.codigo_nomina);
       return `<tr class="gestion-nomina-edit-row gestion-nomina-${escapeHtml(seccion)}">
         <td>${calculada
@@ -22068,18 +22094,45 @@ function renderGestionNominaEditor() {
             }${campo(idx, "concepto", row.concepto)}`
         }</td>
         <td>${calculada ? escapeHtml(row.detalle || "") : campo(idx, "detalle", row.detalle)}</td>
-        <td class="num">${calculada || esDeduccion ? "" : campo(idx, "cantidad", row.cantidad)}</td>
-        <td class="num">${calculada || esDeduccion ? "" : campo(idx, "precio", row.precio)}</td>
+        <td class="num">${calculada || esDeduccion || esAjuste ? "" : campo(idx, "cantidad", row.cantidad)}</td>
+        <td class="num">${calculada || esDeduccion || esAjuste ? "" : campo(idx, "precio", row.precio)}</td>
         <td class="num">${esDeduccion ? campo(idx, "tipo", row.tipo) : ""}</td>
         <td class="num">${calculada ? `<strong data-nomina-total="${escapeHtml(row.orden)}">${escapeHtml(formatGestionImporte(row.importe))}</strong>` : campo(idx, "importe", row.importe)}</td>
         <td class="num">${
-          seccion === "devengo"
+          // Los devengos siempre se pueden quitar (ya era así). Una
+          // deducción solo si NO es una de las 5 retenciones oficiales que
+          // recalcula el propio editor (700-704, ver
+          // GESTION_NOMINA_BASE_DE_DEDUCCION); un ajuste, siempre, porque no
+          // hay ninguno que genere el motor. Se deriva del orden/sección en
+          // vez de un flag de sesión para que siga funcionando al reabrir
+          // una nómina ya guardada con estos conceptos.
+          seccion === "devengo" ||
+          esAjuste ||
+          (esDeduccion && !(Number(row.orden) in GESTION_NOMINA_BASE_DE_DEDUCCION))
             ? `<button type="button" class="gestion-nomina-edit-quitar" data-nomina-quitar="${idx}" title="Quitar este concepto">✕</button>`
             : ""
         }</td>
       </tr>`;
     })
     .join("");
+
+  // "+ Añadir concepto" abre un formulario compacto de una sola línea (no
+  // engorda la tabla con columnas nuevas): elegir un concepto del catálogo de
+  // Complementos y pluses o escribir uno libre, y decidir si es un devengo,
+  // una deducción o un ajuste directo al líquido (no cotiza ni tributa, p.ej.
+  // un anticipo o un reintegro). Colapsado por defecto; el estado abierto se
+  // guarda en el propio editor para sobrevivir a los repintados.
+  const catalogoOptions = gestionExtraCatalogo
+    .map(
+      (row) =>
+        `<option value="${escapeHtml(row.id)}" data-nombre="${escapeHtml(row.nombre)}">${escapeHtml(
+          formatGestionConceptoCodigo(row.nombre, row.codigo_nomina)
+        )}</option>`
+    )
+    .join("");
+  const nuevaTipo = gestionNominaEditor._nuevaTipo || "devengo";
+  const tipoOption = (value, label) =>
+    `<option value="${value}" ${nuevaTipo === value ? "selected" : ""}>${label}</option>`;
 
   gestionNominaEditorPanel.innerHTML = `
     <div class="gestion-nomina-editor-head">
@@ -22100,20 +22153,41 @@ function renderGestionNominaEditor() {
         <tbody>${filas}</tbody>
       </table>
     </div>
+    <div class="gestion-nomina-editor-nueva">
+      <button type="button" class="secondary-button" data-nomina-anadir-toggle>+ Añadir concepto</button>
+      <div class="gestion-nomina-editor-nueva-form${gestionNominaEditor._nuevaAbierta ? "" : " hidden"}">
+        <select data-nomina-nueva-catalogo>
+          <option value="">— Personalizado —</option>
+          ${catalogoOptions}
+        </select>
+        <input type="text" data-nomina-nueva-concepto placeholder="Nombre del concepto" />
+        <select data-nomina-nueva-tipo>
+          ${tipoOption("devengo", "Devengo (suma al bruto)")}
+          ${tipoOption("deduccion", "Deducción (resta del líquido)")}
+          ${tipoOption("ajuste", "Ajuste del líquido (no cotiza ni tributa)")}
+        </select>
+        <button type="button" class="secondary-button" data-nomina-nueva-confirmar>Añadir</button>
+      </div>
+    </div>
     <div class="gestion-nomina-editor-acciones">
-      <button type="button" class="secondary-button" data-nomina-anadir>+ Añadir concepto</button>
       <label class="filter-field gestion-nomina-editor-notas">
         Notas
         <input type="text" id="gestion-nomina-editor-notas" placeholder="Por qué se ajusta a mano" value="${escapeHtml(gestionNominaEditor.notas || "")}" />
       </label>
-      <span class="gestion-nomina-editor-resumen">
-        Bruto ${escapeHtml(formatGestionImporte(totales.bruto))} ·
-        deducciones ${escapeHtml(formatGestionImporte(totales.deducciones))} ·
-        <strong>líquido ${escapeHtml(formatGestionImporte(totales.liquido))}</strong>
-      </span>
+      <span class="gestion-nomina-editor-resumen">${buildGestionNominaEditorResumenHtml(totales)}</span>
       <button type="button" class="primary-button" data-nomina-guardar>Emitir nómina editada</button>
       <button type="button" class="secondary-button" data-nomina-cancelar>Cancelar</button>
     </div>`;
+}
+
+// Compartido entre el render inicial y el refresco en caliente al teclear.
+function buildGestionNominaEditorResumenHtml(totales) {
+  const ajustesSegment = totales.ajustes
+    ? ` · ajustes ${escapeHtml(formatGestionImporte(totales.ajustes))}`
+    : "";
+  return `Bruto ${escapeHtml(formatGestionImporte(totales.bruto))} ·
+    deducciones ${escapeHtml(formatGestionImporte(totales.deducciones))}${ajustesSegment} ·
+    <strong>líquido ${escapeHtml(formatGestionImporte(totales.liquido))}</strong>`;
 }
 
 // Al teclear solo se refrescan los números derivados: repintar la tabla entera
@@ -22149,9 +22223,7 @@ function actualizarGestionNominaEditorTotales() {
   }
   const resumen = gestionNominaEditorPanel.querySelector(".gestion-nomina-editor-resumen");
   if (resumen) {
-    resumen.innerHTML = `Bruto ${escapeHtml(formatGestionImporte(totales.bruto))} ·
-      deducciones ${escapeHtml(formatGestionImporte(totales.deducciones))} ·
-      <strong>líquido ${escapeHtml(formatGestionImporte(totales.liquido))}</strong>`;
+    resumen.innerHTML = buildGestionNominaEditorResumenHtml(totales);
   }
 }
 
@@ -22801,7 +22873,28 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
         { _seccion: "total", concepto: "B. TOTAL A DEDUCIR", base: "", tipo: "", importe: money(nomina.total_deducciones) },
       ],
     });
-    y += 6;
+    y += 4;
+
+    // --- Ajustes (anticipos, reintegros...): no cotizan ni tributan, así que
+    // van fuera de devengos/deducciones. Solo se imprime si la nómina tiene
+    // alguno -- la mayoría no, y no hay que ensuciar el recibo por defecto.
+    const ajustes = lineas.filter((l) => l.seccion === "ajuste" && !l.detalle_de);
+    if (ajustes.length) {
+      y = drawNominaPdfTable(doc, {
+        x: margin, y, margin, pageHeight, bottomMargin,
+        columns: [
+          { label: "AJUSTES (no cotizan ni tributan)", key: "concepto", width: contentWidth - 32 },
+          { label: "Importe €", key: "importe", width: 32, align: "right" },
+        ],
+        rows: [
+          ...ajustes.map((l) => ({ concepto: l.concepto, importe: money(l.importe) })),
+          { _seccion: "total", concepto: "C. TOTAL AJUSTES", importe: money(nomina.total_ajustes) },
+        ],
+      });
+      y += 6;
+    } else {
+      y += 2;
+    }
 
     // --- Líquido.
     doc.setFillColor(232, 240, 232);
@@ -22810,7 +22903,11 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
     doc.rect(margin, y, contentWidth, 9);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text("LÍQUIDO TOTAL A PERCIBIR (A − B)", margin + 2, y + 6);
+    doc.text(
+      ajustes.length ? "LÍQUIDO TOTAL A PERCIBIR (A − B ± C)" : "LÍQUIDO TOTAL A PERCIBIR (A − B)",
+      margin + 2,
+      y + 6
+    );
     doc.text(`${nominaPdfMoney(nomina.liquido)} €`, pageWidth - margin - 2, y + 6, { align: "right" });
     y += 13;
 
@@ -23103,6 +23200,12 @@ function drawGestionNominaReciboImage(data) {
     { key: "tipo", label: "%", width: 130 },
     { key: "importe", label: "Importe", width: 150 },
   ];
+  // Ajustes (anticipos, reintegros...): no cotizan ni tributan. Solo se
+  // dibuja si la nómina tiene alguno.
+  const ajusteColumns = [
+    { key: "concepto", label: "Concepto (no cotiza ni tributa)", width: 700 },
+    { key: "importe", label: "Importe", width: 150 },
+  ];
   const tableWidth = devengoColumns.reduce((sum, column) => sum + column.width, 0);
   const canvasWidth = tableWidth + margin * 2;
 
@@ -23113,6 +23216,7 @@ function drawGestionNominaReciboImage(data) {
 
   const devengos = lineas.filter((linea) => linea.seccion === "devengo" && !linea.detalle_de);
   const deducciones = lineas.filter((linea) => linea.seccion === "deduccion" && !linea.detalle_de);
+  const ajustes = lineas.filter((linea) => linea.seccion === "ajuste" && !linea.detalle_de);
 
   const devengoRows = devengos.map((linea) => ({
     concepto: formatGestionConceptoCodigo(linea.concepto, linea.codigo_nomina),
@@ -23127,15 +23231,27 @@ function drawGestionNominaReciboImage(data) {
     tipo: linea.tipo != null ? `${(Number(linea.tipo) * 100).toLocaleString("es-ES", { maximumFractionDigits: 3 })} %` : "-",
     importe: formatGestionImporte(linea.importe),
   }));
+  const ajusteRows = ajustes.map((linea) => ({
+    concepto: linea.concepto,
+    importe: formatGestionImporte(linea.importe),
+  }));
 
   const devengoLayouts = layoutCanvasTableRows(scratchContext, devengoColumns, devengoRows, layoutOptions);
   const deduccionLayouts = layoutCanvasTableRows(scratchContext, deduccionColumns, deduccionRows, layoutOptions);
+  const ajusteLayouts = ajustes.length
+    ? layoutCanvasTableRows(scratchContext, ajusteColumns, ajusteRows, layoutOptions)
+    : [];
 
   const sectionHeight = (layouts) =>
     40 + headerHeight + layouts.reduce((sum, layout) => sum + layout.rowHeight, 0) + 46 + 32;
   const liquidoHeight = 90;
   const canvasHeight =
-    titleHeight + sectionHeight(devengoLayouts) + sectionHeight(deduccionLayouts) + liquidoHeight + footerHeight;
+    titleHeight +
+    sectionHeight(devengoLayouts) +
+    sectionHeight(deduccionLayouts) +
+    (ajustes.length ? sectionHeight(ajusteLayouts) : 0) +
+    liquidoHeight +
+    footerHeight;
 
   const canvas = document.createElement("canvas");
   canvas.width = canvasWidth * scale;
@@ -23192,6 +23308,18 @@ function drawGestionNominaReciboImage(data) {
     totalValue: formatGestionImporte(nomina.total_deducciones),
     valueColumnKey: "importe",
   });
+  if (ajustes.length) {
+    y = drawCanvasTableSection(context, {
+      ...sectionDefaults,
+      y,
+      title: "Ajustes (no cotizan ni tributan)",
+      columns: ajusteColumns,
+      rowLayouts: ajusteLayouts,
+      totalLabel: "Total ajustes",
+      totalValue: formatGestionImporte(nomina.total_ajustes),
+      valueColumnKey: "importe",
+    });
+  }
 
   context.fillStyle = "#e2ede2";
   context.fillRect(margin, y, tableWidth, 50);
@@ -32551,6 +32679,26 @@ async function init() {
     actualizarGestionNominaEditorTotales();
   });
 
+  // "+ Añadir concepto": elegir un concepto del catálogo prellena el nombre
+  // (sigue siendo editable); no repinta el editor entero, solo el input de
+  // texto, para no perder lo que llevara tecleado en Notas.
+  gestionNominaEditorPanel?.addEventListener("change", (event) => {
+    if (!gestionNominaEditor) {
+      return;
+    }
+    const catalogoSelect = event.target.closest("[data-nomina-nueva-catalogo]");
+    if (catalogoSelect) {
+      const nombre = catalogoSelect.options[catalogoSelect.selectedIndex]?.dataset.nombre || "";
+      const conceptoInput = gestionNominaEditorPanel.querySelector("[data-nomina-nueva-concepto]");
+      if (conceptoInput) conceptoInput.value = nombre;
+      return;
+    }
+    const tipoSelect = event.target.closest("[data-nomina-nueva-tipo]");
+    if (tipoSelect) {
+      gestionNominaEditor._nuevaTipo = tipoSelect.value;
+    }
+  });
+
   gestionNominaEditorPanel?.addEventListener("click", (event) => {
     if (!gestionNominaEditor) {
       return;
@@ -32568,19 +32716,71 @@ async function init() {
       renderGestionNominaEditor();
       return;
     }
-    if (event.target.closest("[data-nomina-anadir]")) {
+    if (event.target.closest("[data-nomina-anadir-toggle]")) {
       sincronizarNotas();
-      // Orden 400: después de los complementos (100+) y antes de los totales.
-      gestionNominaEditor.lineas.push({
-        orden: 400 + gestionNominaEditor.lineas.filter((row) => Number(row.orden) >= 400 && Number(row.orden) < 500).length,
-        seccion: "devengo",
-        concepto: "",
-        detalle: null,
-        cantidad: null,
-        precio: null,
-        importe: 0,
-        _manual: true,
-      });
+      gestionNominaEditor._nuevaAbierta = !gestionNominaEditor._nuevaAbierta;
+      renderGestionNominaEditor();
+      return;
+    }
+    if (event.target.closest("[data-nomina-nueva-confirmar]")) {
+      sincronizarNotas();
+      const conceptoInput = gestionNominaEditorPanel.querySelector("[data-nomina-nueva-concepto]");
+      const tipoSelect = gestionNominaEditorPanel.querySelector("[data-nomina-nueva-tipo]");
+      const nombre = (conceptoInput?.value || "").trim();
+      if (!nombre) {
+        setStatus("Escribe o elige un concepto para añadirlo.", "error");
+        return;
+      }
+      const tipo = tipoSelect?.value || "devengo";
+      gestionNominaEditor._nuevaTipo = tipo;
+      // Cada tipo va en su propio rango de `orden` para no chocar con lo que
+      // ya emite el motor (devengos 10-300+, bases 599-603, deducciones
+      // oficiales 700-704, totales 500/800/810): devengo 400+ (como ya
+      // hacía), deducción 720-799 (antes del total 800), ajuste 801-809
+      // (entre el total de deducciones y el líquido, para que salga ahí al
+      // ordenar por `orden`).
+      let nuevaLinea;
+      if (tipo === "deduccion") {
+        const usados = gestionNominaEditor.lineas.filter(
+          (row) => row.seccion === "deduccion" && Number(row.orden) >= 720 && Number(row.orden) < 800
+        ).length;
+        nuevaLinea = {
+          orden: 720 + usados,
+          seccion: "deduccion",
+          concepto: nombre,
+          detalle: null,
+          base: null,
+          tipo: null,
+          importe: 0,
+          _manual: true,
+        };
+      } else if (tipo === "ajuste") {
+        const usados = gestionNominaEditor.lineas.filter((row) => row.seccion === "ajuste").length;
+        nuevaLinea = {
+          orden: 801 + usados,
+          seccion: "ajuste",
+          concepto: nombre,
+          detalle: null,
+          importe: 0,
+          _manual: true,
+        };
+      } else {
+        const usados = gestionNominaEditor.lineas.filter(
+          (row) => Number(row.orden) >= 400 && Number(row.orden) < 500
+        ).length;
+        nuevaLinea = {
+          orden: 400 + usados,
+          seccion: "devengo",
+          concepto: nombre,
+          detalle: null,
+          cantidad: null,
+          precio: null,
+          importe: 0,
+          _manual: true,
+        };
+      }
+      gestionNominaEditor.lineas.push(nuevaLinea);
+      gestionNominaEditor._nuevaAbierta = false;
       renderGestionNominaEditor();
       return;
     }
