@@ -516,6 +516,27 @@ legend {
   box-shadow: none;
 }
 
+/* Insignia de excepcion reutilizada en las tablas de Configuración y en el
+   estado de usuario de Accesos: solo marca "No"/"Inactivo" (el valor normal
+   se deja como texto plano, sin insignia — mismo criterio que el badge de
+   vinculacion del listado de Personal, que tampoco colorea el caso activo).
+   Mismo tono ambar que personal-list-badge-inactive: es una baja
+   administrativa reversible, no una exclusion dura como "no pertenece". */
+.settings-bool-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.settings-bool-badge-no {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .private-tab-panel .filters-grid.personal-list-filters {
   width: 100%;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1901,7 +1922,7 @@ textarea {
 
 .report-template-compact-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(150px, 190px) minmax(320px, 1fr);
+  grid-template-columns: minmax(220px, 280px) minmax(170px, 210px) minmax(320px, 1fr);
   gap: 12px;
   align-items: start;
   margin-top: 8px;
@@ -1914,16 +1935,41 @@ textarea {
   gap: 8px;
 }
 
-.report-template-list-column select {
+.report-template-list-column .settings-report-list {
   min-height: 174px;
 }
 
 .report-template-options-column {
   padding-top: 18px;
+  gap: 4px;
 }
 
 .report-template-options-column .with-label {
   margin-top: 0;
+}
+
+/* Checks del formulario de plantillas: mismo tamaño ligero que un control de
+   filtro (records-filters-compact), en vez del checkbox-item genérico
+   (padding 8/10 + 0.88rem), que aquí obligaba el texto a partirse en dos
+   líneas dentro de la columna estrecha. */
+.report-template-options-column .checkbox-item {
+  box-sizing: border-box;
+  height: 28px;
+  padding: 4px 8px;
+  gap: 6px;
+  font-size: 0.78rem;
+  border-radius: 6px;
+}
+
+.report-template-options-column .checkbox-item input {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.report-template-options-column .checkbox-item span {
+  white-space: nowrap;
 }
 
 .report-template-main-fields {
@@ -1942,6 +1988,30 @@ textarea {
 
 .report-template-text-fields {
   margin-top: 12px;
+}
+
+/* Todos los campos de Informes con el mismo estilo ligero que los checks de
+   arriba: texto y relleno mas pequeños que el input/select/textarea
+   genérico (0.78rem en vez del tamaño de cuerpo normal). */
+#historial-report-template-form label {
+  font-size: 0.78rem;
+  gap: 4px;
+}
+
+#historial-report-template-form input,
+#historial-report-template-form select,
+#historial-report-template-form textarea {
+  padding: 6px 8px;
+  font-size: 0.78rem;
+}
+
+/* Código, Nombre, Tipo documento y Tipo contratación: mismo alto que los
+   campos de tipo check (28px), no el alto por defecto de un input de texto. */
+.report-template-main-fields input,
+.report-template-main-fields select {
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 8px;
 }
 
 #historial-report-config-status:not(.error) {
@@ -4302,33 +4372,50 @@ th {
   grid-template-columns: repeat(12, minmax(0, 1fr));
 }
 
-.records-detail-form .record-detail-field--personal_id { grid-area: 1 / 1 / auto / 5; }
-.records-detail-form .record-detail-field--fecha { grid-area: 1 / 5 / auto / 9; }
-.records-detail-form .record-detail-field--actividad_id { grid-area: 1 / 9 / auto / 13; }
-.records-detail-form .record-detail-field--empresa_id { grid-area: 2 / 1 / auto / 5; }
-.records-detail-form .record-detail-field--contrato_id { grid-area: 2 / 5 / auto / 9; }
-.records-detail-form .record-detail-field--servicio_id { grid-area: 2 / 9 / auto / 13; }
-.records-detail-form .record-detail-field--sustituto_personal_id { grid-area: 3 / 1 / auto / 6; }
-.records-detail-form .record-detail-field--sustituye_registro_id { grid-area: 3 / 6 / auto / 11; }
-.records-detail-form .record-detail-field--sustitucion { grid-area: 3 / 11 / auto / 13; }
-.records-detail-form .record-detail-field--instalacion_id { grid-area: 4 / 1 / auto / 7; }
-.records-detail-form .record-detail-field--puesto_id { grid-area: 4 / 7 / auto / 13; }
-.records-detail-form .record-detail-field--funcion_id { grid-area: 5 / 1 / auto / 7; }
-.records-detail-form .record-detail-field--modalidad_id { grid-area: 5 / 7 / auto / 13; }
-.records-detail-form .record-detail-field--hora_inicio { grid-area: 6 / 1 / auto / 5; }
-.records-detail-form .record-detail-field--hora_fin { grid-area: 6 / 5 / auto / 9; }
-.records-detail-form .record-detail-field--horas { grid-area: 6 / 9 / auto / 13; }
-.records-detail-form .record-detail-field--hd { grid-area: 7 / 1 / auto / 5; }
-.records-detail-form .record-detail-field--bolsa_horas { grid-area: 7 / 5 / auto / 9; }
-.records-detail-form .record-detail-field--horas_nocturnas { grid-area: 7 / 9 / auto / 13; }
-.records-detail-form .record-detail-field--facturar { grid-area: 8 / 1 / auto / 4; }
-.records-detail-form .record-detail-field--abonar { grid-area: 8 / 4 / auto / 7; }
-.records-detail-form .record-detail-field--tipo_hora_id { grid-area: 8 / 7 / auto / 10; }
-.records-detail-form .record-detail-field--situacion_id { grid-area: 8 / 10 / auto / 13; }
-.records-detail-form .record-detail-field--nota { grid-area: 9 / 1 / auto / 13; }
-.records-detail-form .record-detail-field--observacion { grid-area: 10 / 1 / auto / 13; }
-.records-detail-form .record-detail-field--control { grid-area: 11 / 1 / auto / 7; }
-.records-detail-form .record-detail-field--factura { grid-area: 11 / 7 / auto / 13; }
+/* Componente reutilizable de secciones con caja+legend para cajones de
+   detalle (.detail-drawer): mismo patron que .settings-detail-fields-box /
+   .personal-form-section, ahora genérico para cualquier formulario que
+   agrupe sus campos por bloques con nombre en vez de una lista plana. Antes
+   el registro de Registros posicionaba cada campo a mano con grid-area sobre
+   una rejilla de 12 columnas (record-detail-field--<key>): frágil (una
+   columna nueva en RECORD_COLUMNS quedaba sin sitio hasta añadir su propia
+   regla) y ya desincronizada del array real (grid-area para "hd"/"bolsa_horas"
+   /"factura", que ya no existen, y ninguna para "estado_facturacion", que sí). */
+.detail-form-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-form-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px 10px;
+  background: #ffffff;
+  border-left: 3px solid var(--line-strong);
+  margin: 0;
+}
+
+/* .detail-drawer fieldset { gap: 1px } (mas especifico por el selector de
+   tipo "fieldset") deja la leyenda pegada a la rejilla si no se sube aqui. */
+.detail-drawer .detail-form-section {
+  gap: 6px;
+}
+
+.detail-form-section legend {
+  padding: 0 4px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.detail-form-section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px 10px;
+}
 
 .detail-drawer label,
 .detail-drawer fieldset {
@@ -4758,6 +4845,135 @@ th {
   background: #f3f4f6 !important;
   color: var(--text) !important;
   outline: none;
+}
+
+/* Ficha del registro en el cajón de Configuración: misma caja con acento
+   izquierdo y legend que las secciones de la ficha de Personal
+   (personal-form-section) — el acento marca un grupo con nombre, no decora
+   una caja vacía de significado. */
+.settings-detail-fields-box {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px 14px;
+  background: #ffffff;
+  border-left: 3px solid var(--line-strong);
+  margin: 0;
+}
+
+.settings-detail-fields-box legend {
+  padding: 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+/* Listado de plantillas de Informes (Configuración), mismo patrón que
+   personal-list/personal-list-item: fila con avatar, cuerpo y badge. */
+.settings-report-list {
+  width: 100%;
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+  background: var(--panel);
+}
+
+.settings-report-list .empty-state {
+  margin: auto;
+  text-align: center;
+}
+
+.settings-report-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.settings-report-item:hover {
+  background: #f1f5f9;
+}
+
+.settings-report-item.active {
+  background: var(--text);
+  color: #fff;
+}
+
+.settings-report-item.active .settings-report-item-meta {
+  color: #d1d5dc;
+}
+
+.settings-report-item.active .settings-report-avatar {
+  background: #ffffff;
+  color: #101828;
+}
+
+.settings-report-avatar {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #eef2ff;
+  color: #364152;
+  letter-spacing: 0.02em;
+}
+
+.settings-report-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.settings-report-item-name {
+  font-weight: 600;
+  font-size: 0.86rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-report-item-meta {
+  font-size: 0.76rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-report-badge-inactive {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.settings-report-item.active .settings-report-badge-inactive {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
 }
 
 .settings-table td:last-child {
@@ -5318,6 +5534,66 @@ th {
   .report-template-main-fields {
     grid-template-columns: 1fr;
   }
+
+  /* Por debajo de este ancho el layout ya es de una columna (tactil): los
+     12.48px/28px que funcionan bien con raton fuerzan el zoom automatico de
+     iOS Safari al enfocar un campo (se dispara por debajo de 16px) y quedan
+     cortos del tamaño de objetivo tactil recomendado (~44px, Apple HIG /
+     WCAG 2.5.5). Se agranda solo aqui, el compacto de escritorio no cambia. */
+  #historial-report-template-form input,
+  #historial-report-template-form select,
+  #historial-report-template-form textarea {
+    font-size: 16px;
+  }
+
+  .report-template-main-fields input,
+  .report-template-main-fields select {
+    height: 44px;
+  }
+
+  .report-template-options-column {
+    gap: 8px;
+  }
+
+  /* #historial-report-template-form (id) prefijado a proposito: la regla
+     "#historial-report-template-form label" de mas arriba tiene mas
+     especificidad que .report-template-options-column .checkbox-item solo,
+     y ganaba pese a venir antes en el archivo. */
+  #historial-report-template-form .report-template-options-column .checkbox-item {
+    height: 44px;
+    font-size: 0.95rem;
+  }
+
+  .report-template-options-column .checkbox-item input {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Mismo criterio que arriba, extendido a TODOS los cajones de la app que
+     comparten el sistema compacto de .detail-drawer (Registros, Contratos,
+     Personal, Historial laboral, Eventos, Configuración...): sin esto, tocar
+     un campo en movil dispara el zoom de iOS y los objetivos quedan por
+     debajo del minimo tactil recomendado, en cualquier cajon, no solo en
+     Configuración. */
+  .detail-drawer input,
+  .detail-drawer select,
+  .detail-drawer textarea {
+    font-size: 16px;
+  }
+
+  .detail-drawer input:not([type="checkbox"]):not([type="file"]),
+  .detail-drawer select:not([multiple]) {
+    height: 44px;
+  }
+
+  .detail-drawer .checkbox-item {
+    min-height: 44px;
+  }
+
+  .detail-drawer .checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -5401,12 +5677,9 @@ th {
   .personal-management-layout,
   #personal-form-fields,
   .personal-form-section-grid,
+  .detail-form-section-grid,
   .toolbar {
     grid-template-columns: 1fr;
-  }
-
-  .records-detail-form .record-detail-field {
-    grid-area: auto;
   }
 
   .private-tab-panel .filters-grid.personal-list-filters {
@@ -6407,6 +6680,36 @@ details[open] > .gestion-collapsible-header::before {
 .gestion-nomina-edit-quitar:hover {
   background: transparent;
   color: #7d2620;
+}
+
+.gestion-nomina-editor-nueva {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.gestion-nomina-editor-nueva-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gestion-nomina-editor-nueva-form select,
+.gestion-nomina-editor-nueva-form input {
+  height: 28px;
+  padding: 3px 6px;
+  font-size: 0.74rem;
+}
+
+.gestion-nomina-editor-nueva-form select {
+  max-width: 220px;
+}
+
+.gestion-nomina-editor-nueva-form input[data-nomina-nueva-concepto] {
+  width: 160px;
 }
 
 .gestion-nomina-editor-acciones {

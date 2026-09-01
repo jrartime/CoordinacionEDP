@@ -83,34 +83,43 @@ let ACCESS_ASSIGNABLE_TABS = [
 const ACCESS_ASSIGNABLE_TABS_FALLBACK = [...ACCESS_ASSIGNABLE_TABS];
 const RECORD_COLUMNS = [
   { key: "id", label: "ID", type: "number", readonly: true, hiddenInList: true },
-  { key: "personal_id", label: "Personal", type: "number", relationLabelKey: "personal", sortable: true },
-  { key: "fecha", label: "Fecha", type: "date", sortable: true },
-  { key: "actividad_id", label: "Actividad", type: "number", hiddenInList: true },
-  { key: "empresa_id", label: "Empresa", type: "number", relationLabelKey: "empresa", sortable: true, hiddenInList: true },
-  { key: "contrato_id", label: "Contrato", type: "number", relationLabelKey: "contrato", sortable: true, stackWith: ["servicio_id", "instalacion_id"] },
-  { key: "servicio_id", label: "Servicio", type: "number", relationLabelKey: "servicio", sortable: true, hiddenInList: true },
+  { key: "personal_id", label: "Personal", type: "number", relationLabelKey: "personal", sortable: true, group: "identificacion" },
+  { key: "fecha", label: "Fecha", type: "date", sortable: true, group: "identificacion" },
+  { key: "actividad_id", label: "Actividad", type: "number", hiddenInList: true, group: "identificacion" },
+  { key: "empresa_id", label: "Empresa", type: "number", relationLabelKey: "empresa", sortable: true, hiddenInList: true, group: "contrato" },
+  { key: "contrato_id", label: "Contrato", type: "number", relationLabelKey: "contrato", sortable: true, stackWith: ["servicio_id", "instalacion_id"], group: "contrato" },
+  { key: "servicio_id", label: "Servicio", type: "number", relationLabelKey: "servicio", sortable: true, hiddenInList: true, group: "contrato" },
   { key: "titular_personal_id", label: "Titular", type: "number", relationLabelKey: "titular_personal", derived: true, readonly: true, hiddenInList: true },
-  { key: "sustituto_personal_id", label: "Sustituto", type: "number", relationLabelKey: "sustituto_personal", derived: true, readonly: true, hiddenInList: true },
-  { key: "sustituye_registro_id", label: "Sustituye a registro", type: "number", readonly: true, hiddenInList: true },
-  { key: "instalacion_id", label: "Instalacion", type: "number", relationLabelKey: "instalacion", sortable: true, shortLabelKey: "instalacion_siglas", hiddenInList: true },
+  { key: "sustituto_personal_id", label: "Sustituto", type: "number", relationLabelKey: "sustituto_personal", derived: true, readonly: true, hiddenInList: true, group: "sustitucion" },
+  { key: "sustituye_registro_id", label: "Sustituye a registro", type: "number", readonly: true, hiddenInList: true, group: "sustitucion" },
+  { key: "instalacion_id", label: "Instalacion", type: "number", relationLabelKey: "instalacion", sortable: true, shortLabelKey: "instalacion_siglas", hiddenInList: true, group: "puesto" },
   { key: "categoria_id", label: "Categoria", type: "number", hiddenInList: true },
-  { key: "puesto_id", label: "Puesto", type: "number", relationLabelKey: "puesto", sortable: true, stackWith: ["funcion_id", "modalidad_id"] },
-  { key: "funcion_id", label: "Funcion", type: "number", relationLabelKey: "funcion", hiddenInList: true },
-  { key: "modalidad_id", label: "Modalidad", type: "number", relationLabelKey: "modalidad", sortable: true, hiddenInList: true },
-  { key: "nota", label: "Nota", type: "text", hiddenInList: true },
-  { key: "hora_inicio", label: "Inicio", type: "time", sortable: true, stackWith: "hora_fin" },
-  { key: "hora_fin", label: "Fin", type: "time", sortable: true, hiddenInList: true },
-  { key: "horas", label: "Horas", type: "decimal", sortable: true },
-  { key: "horas_nocturnas", label: "H. nocturnas", type: "decimal", hiddenInList: true },
-  { key: "situacion_id", label: "Situacion", type: "number", relationLabelKey: "situacion", sortable: true },
-  { key: "tipo_hora_id", label: "Tipo hora", type: "number", relationLabelKey: "tipo_hora", sortable: true },
-  { key: "sustitucion", label: "Sustitucion", type: "boolean" },
-  { key: "facturar", label: "Facturar", type: "boolean" },
-  { key: "estado_facturacion", label: "Fact.", type: "text", derived: true, readonly: true, sortable: true },
-  { key: "abonar", label: "Abonar", type: "boolean" },
+  { key: "puesto_id", label: "Puesto", type: "number", relationLabelKey: "puesto", sortable: true, stackWith: ["funcion_id", "modalidad_id"], group: "puesto" },
+  { key: "funcion_id", label: "Funcion", type: "number", relationLabelKey: "funcion", hiddenInList: true, group: "puesto" },
+  { key: "modalidad_id", label: "Modalidad", type: "number", relationLabelKey: "modalidad", sortable: true, hiddenInList: true, group: "puesto" },
+  { key: "nota", label: "Nota", type: "text", hiddenInList: true, group: "notas" },
+  { key: "hora_inicio", label: "Inicio", type: "time", sortable: true, stackWith: "hora_fin", group: "horario" },
+  { key: "hora_fin", label: "Fin", type: "time", sortable: true, hiddenInList: true, group: "horario" },
+  { key: "horas", label: "Horas", type: "decimal", sortable: true, group: "horario" },
+  { key: "horas_nocturnas", label: "H. nocturnas", type: "decimal", hiddenInList: true, group: "horario" },
+  { key: "situacion_id", label: "Situacion", type: "number", relationLabelKey: "situacion", sortable: true, group: "facturacion" },
+  { key: "tipo_hora_id", label: "Tipo hora", type: "number", relationLabelKey: "tipo_hora", sortable: true, group: "facturacion" },
+  { key: "sustitucion", label: "Sustitucion", type: "boolean", group: "sustitucion" },
+  { key: "facturar", label: "Facturar", type: "boolean", group: "facturacion" },
+  { key: "estado_facturacion", label: "Fact.", type: "text", derived: true, readonly: true, sortable: true, group: "facturacion" },
+  { key: "abonar", label: "Abonar", type: "boolean", group: "facturacion" },
   { key: "anio", label: "Anio", type: "number", hiddenInList: true },
-  { key: "observacion", label: "Observacion", type: "textarea", hiddenInList: true },
-  { key: "control", label: "Control", type: "datetime", hiddenInList: true },
+  { key: "observacion", label: "Observacion", type: "textarea", hiddenInList: true, group: "notas" },
+  { key: "control", label: "Control", type: "datetime", hiddenInList: true, group: "notas" },
+];
+const RECORD_DETAIL_FIELD_GROUPS = [
+  { key: "identificacion", label: "Identificación" },
+  { key: "contrato", label: "Contrato y servicio" },
+  { key: "sustitucion", label: "Sustitución" },
+  { key: "puesto", label: "Instalación y puesto" },
+  { key: "horario", label: "Horario y horas" },
+  { key: "facturacion", label: "Facturación" },
+  { key: "notas", label: "Notas y control" },
 ];
 const RECORD_DETAIL_LABEL_COLUMNS = [
   "empresa",
@@ -13186,11 +13195,18 @@ function renderSettingsTable() {
           ${listFields
             .map((field, index) => {
               const raw = config.cellValue ? config.cellValue(row, field) : row[field];
-              const value = escapeHtml(formatSettingsCell(raw));
               if (index === 0) {
+                const value = escapeHtml(formatSettingsCell(raw));
                 return `<td><button type="button" class="row-name-button" data-settings-edit="${escapeHtml(row.id)}" aria-label="Editar registro">${value}</button></td>`;
               }
-              return `<td>${value}</td>`;
+              if (typeof raw === "boolean") {
+                // La insignia marca la excepcion (inactivo), no el valor normal:
+                // en una columna casi siempre "Si", colorear tambien el "Si"
+                // solo añade ruido sin aportar señal (mismo criterio que el
+                // badge de vinculacion en el listado de Personal).
+                return raw ? "<td>Sí</td>" : '<td><span class="settings-bool-badge settings-bool-badge-no">No</span></td>';
+              }
+              return `<td>${escapeHtml(formatSettingsCell(raw))}</td>`;
             })
             .join("")}
         </tr>
@@ -13952,7 +13968,7 @@ function renderAccessUsers() {
             <span class="muted-block">${escapeHtml(user.user_id)}</span>
           </td>
           <td>${escapeHtml(user.rol)}</td>
-          <td>${escapeHtml(user.activo ? "Activo" : "Inactivo")}</td>
+          <td>${user.activo ? "Activo" : '<span class="settings-bool-badge settings-bool-badge-no">Inactivo</span>'}</td>
           <td>${escapeHtml(tabSummary)}</td>
           <td>${escapeHtml(contractSummary)}</td>
         </tr>
@@ -18350,6 +18366,59 @@ function reorderRecordDetailRelationSelects(contractId) {
   }
 }
 
+function renderRecordDetailFieldControl(column, row) {
+  const value = row[column.key];
+  const name = escapeHtml(column.key);
+  const label = escapeHtml(column.label);
+  const fieldClass = `record-detail-field record-detail-field--${name}`;
+
+  if (column.type === "boolean") {
+    return `<label class="checkbox-item ${fieldClass}"><input name="${name}" type="checkbox" ${
+      value ? "checked" : ""
+    } ${column.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
+  }
+
+  if (column.type === "textarea") {
+    return `<label class="full-width ${fieldClass}">${label}<textarea name="${name}" rows="3" ${
+      column.readonly ? "readonly" : ""
+    }>${escapeHtml(value ?? "")}</textarea></label>`;
+  }
+
+  if (RECORD_RELATION_TABLES[column.key]) {
+    const options = getRecordRelationOptionsForContract(column.key, row.contrato_id, value);
+    return `<label class="${fieldClass}">${label}${renderRecordRelationSelect(
+      name,
+      value,
+      options,
+      column.readonly
+    )}</label>`;
+  }
+
+  const inputType =
+    column.type === "date"
+      ? "date"
+      : column.type === "time"
+        ? "time"
+        : column.type === "datetime"
+          ? "datetime-local"
+          : RECORD_NUMERIC_FIELDS.has(column.key)
+            ? "number"
+            : "text";
+  const step = column.type === "decimal" ? ' step="0.01"' : "";
+  const inputValue =
+    column.type === "time"
+      ? String(value ?? "").slice(0, 5)
+      : column.type === "datetime" && value
+        ? String(value).slice(0, 16)
+        : value ?? "";
+
+  return `<label class="${fieldClass}">${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
+    inputValue
+  )}" ${RECORD_REQUIRED_FIELDS.has(column.key) ? "required" : ""} ${
+    column.readonly ? "readonly" : ""
+  } /></label>`;
+}
+
 function renderRecordDetailForm(row) {
   if (!recordDetailFields || !recordDetailTitle) {
     return;
@@ -18359,59 +18428,20 @@ function renderRecordDetailForm(row) {
   // Punto de partida para syncRecordDetailSituacionEffects: el "antes" con el que
   // comparar cada cambio de situacion dentro del panel.
   recordDetailLastSituacionId = row.situacion_id ?? null;
-  recordDetailFields.innerHTML = RECORD_COLUMNS.filter(
-    (column) => !RECORD_DETAIL_HIDDEN_FIELDS.has(column.key)
-  ).map((column) => {
-    const value = row[column.key];
-    const name = escapeHtml(column.key);
-    const label = escapeHtml(column.label);
-    const fieldClass = `record-detail-field record-detail-field--${name}`;
-
-    if (column.type === "boolean") {
-      return `<label class="checkbox-item ${fieldClass}"><input name="${name}" type="checkbox" ${
-        value ? "checked" : ""
-      } ${column.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
+  const visibleColumns = RECORD_COLUMNS.filter((column) => !RECORD_DETAIL_HIDDEN_FIELDS.has(column.key));
+  recordDetailFields.innerHTML = RECORD_DETAIL_FIELD_GROUPS.map((groupDef) => {
+    const columns = visibleColumns.filter((column) => column.group === groupDef.key);
+    if (!columns.length) {
+      return "";
     }
-
-    if (column.type === "textarea") {
-      return `<label class="full-width ${fieldClass}">${label}<textarea name="${name}" rows="3" ${
-        column.readonly ? "readonly" : ""
-      }>${escapeHtml(value ?? "")}</textarea></label>`;
-    }
-
-    if (RECORD_RELATION_TABLES[column.key]) {
-      const options = getRecordRelationOptionsForContract(column.key, row.contrato_id, value);
-      return `<label class="${fieldClass}">${label}${renderRecordRelationSelect(
-        name,
-        value,
-        options,
-        column.readonly
-      )}</label>`;
-    }
-
-    const inputType =
-      column.type === "date"
-        ? "date"
-        : column.type === "time"
-          ? "time"
-          : column.type === "datetime"
-            ? "datetime-local"
-            : RECORD_NUMERIC_FIELDS.has(column.key)
-              ? "number"
-              : "text";
-    const step = column.type === "decimal" ? ' step="0.01"' : "";
-    const inputValue =
-      column.type === "time"
-        ? String(value ?? "").slice(0, 5)
-        : column.type === "datetime" && value
-          ? String(value).slice(0, 16)
-          : value ?? "";
-
-    return `<label class="${fieldClass}">${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
-      inputValue
-    )}" ${RECORD_REQUIRED_FIELDS.has(column.key) ? "required" : ""} ${
-      column.readonly ? "readonly" : ""
-    } /></label>`;
+    return `
+      <fieldset class="detail-form-section">
+        <legend>${escapeHtml(groupDef.label)}</legend>
+        <div class="detail-form-section-grid">
+          ${columns.map((column) => renderRecordDetailFieldControl(column, row)).join("")}
+        </div>
+      </fieldset>
+    `;
   }).join("");
 }
 
@@ -21926,7 +21956,17 @@ async function abrirGestionNominaEditor(personalId, nominaId = null) {
         '<p class="empty-state">No hay ninguna línea que editar.</p>';
       return;
     }
-    gestionNominaEditor = { personalId: String(personalId), nominaId, lineas: filtradas, notas };
+    gestionNominaEditor = {
+      personalId: String(personalId),
+      nominaId,
+      lineas: filtradas,
+      notas,
+      _nuevaAbierta: false,
+      _nuevaTipo: "devengo",
+    };
+    // Catálogo de Complementos y pluses para el desplegable "+ Añadir
+    // concepto" -- misma caché que el panel "Añadir complemento" de Gestión.
+    await loadGestionExtraCatalogo();
     renderGestionNominaEditor();
     gestionNominaEditorPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (error) {
@@ -22019,14 +22059,29 @@ function recalcularGestionNominaEditor() {
     deducciones += num(row.importe);
   }
 
+  // Ajustes directos al líquido (anticipos/reintegros): no cotizan ni
+  // tributan, así que no tocan bruto/bases ni el total de deducciones
+  // "oficial" -- se suman o restan solo al líquido, siempre a mano (no hay
+  // ninguna fórmula que los derive de otra cosa).
+  let ajustes = 0;
+  for (const row of lineas) {
+    if (row.seccion !== "ajuste") continue;
+    ajustes += num(row.importe);
+  }
+
   const totalBruto = porOrden(500);
   if (totalBruto) totalBruto.importe = round2(bruto);
   const totalDed = porOrden(800);
   if (totalDed) totalDed.importe = round2(deducciones);
   const liquido = porOrden(810);
-  if (liquido) liquido.importe = round2(bruto - deducciones);
+  if (liquido) liquido.importe = round2(bruto - deducciones + ajustes);
 
-  return { bruto: round2(bruto), deducciones: round2(deducciones), liquido: round2(bruto - deducciones) };
+  return {
+    bruto: round2(bruto),
+    deducciones: round2(deducciones),
+    ajustes: round2(ajustes),
+    liquido: round2(bruto - deducciones + ajustes),
+  };
 }
 
 function round2(value) {
@@ -22057,6 +22112,7 @@ function renderGestionNominaEditor() {
       const seccion = String(row.seccion || "");
       const calculada = seccion === "total";
       const esDeduccion = seccion === "deduccion";
+      const esAjuste = seccion === "ajuste";
       const codigoNomina = getGestionCodigoNomina(row.concepto, row.codigo_nomina);
       return `<tr class="gestion-nomina-edit-row gestion-nomina-${escapeHtml(seccion)}">
         <td>${calculada
@@ -22068,18 +22124,45 @@ function renderGestionNominaEditor() {
             }${campo(idx, "concepto", row.concepto)}`
         }</td>
         <td>${calculada ? escapeHtml(row.detalle || "") : campo(idx, "detalle", row.detalle)}</td>
-        <td class="num">${calculada || esDeduccion ? "" : campo(idx, "cantidad", row.cantidad)}</td>
-        <td class="num">${calculada || esDeduccion ? "" : campo(idx, "precio", row.precio)}</td>
+        <td class="num">${calculada || esDeduccion || esAjuste ? "" : campo(idx, "cantidad", row.cantidad)}</td>
+        <td class="num">${calculada || esDeduccion || esAjuste ? "" : campo(idx, "precio", row.precio)}</td>
         <td class="num">${esDeduccion ? campo(idx, "tipo", row.tipo) : ""}</td>
         <td class="num">${calculada ? `<strong data-nomina-total="${escapeHtml(row.orden)}">${escapeHtml(formatGestionImporte(row.importe))}</strong>` : campo(idx, "importe", row.importe)}</td>
         <td class="num">${
-          seccion === "devengo"
+          // Los devengos siempre se pueden quitar (ya era así). Una
+          // deducción solo si NO es una de las 5 retenciones oficiales que
+          // recalcula el propio editor (700-704, ver
+          // GESTION_NOMINA_BASE_DE_DEDUCCION); un ajuste, siempre, porque no
+          // hay ninguno que genere el motor. Se deriva del orden/sección en
+          // vez de un flag de sesión para que siga funcionando al reabrir
+          // una nómina ya guardada con estos conceptos.
+          seccion === "devengo" ||
+          esAjuste ||
+          (esDeduccion && !(Number(row.orden) in GESTION_NOMINA_BASE_DE_DEDUCCION))
             ? `<button type="button" class="gestion-nomina-edit-quitar" data-nomina-quitar="${idx}" title="Quitar este concepto">✕</button>`
             : ""
         }</td>
       </tr>`;
     })
     .join("");
+
+  // "+ Añadir concepto" abre un formulario compacto de una sola línea (no
+  // engorda la tabla con columnas nuevas): elegir un concepto del catálogo de
+  // Complementos y pluses o escribir uno libre, y decidir si es un devengo,
+  // una deducción o un ajuste directo al líquido (no cotiza ni tributa, p.ej.
+  // un anticipo o un reintegro). Colapsado por defecto; el estado abierto se
+  // guarda en el propio editor para sobrevivir a los repintados.
+  const catalogoOptions = gestionExtraCatalogo
+    .map(
+      (row) =>
+        `<option value="${escapeHtml(row.id)}" data-nombre="${escapeHtml(row.nombre)}">${escapeHtml(
+          formatGestionConceptoCodigo(row.nombre, row.codigo_nomina)
+        )}</option>`
+    )
+    .join("");
+  const nuevaTipo = gestionNominaEditor._nuevaTipo || "devengo";
+  const tipoOption = (value, label) =>
+    `<option value="${value}" ${nuevaTipo === value ? "selected" : ""}>${label}</option>`;
 
   gestionNominaEditorPanel.innerHTML = `
     <div class="gestion-nomina-editor-head">
@@ -22100,20 +22183,41 @@ function renderGestionNominaEditor() {
         <tbody>${filas}</tbody>
       </table>
     </div>
+    <div class="gestion-nomina-editor-nueva">
+      <button type="button" class="secondary-button" data-nomina-anadir-toggle>+ Añadir concepto</button>
+      <div class="gestion-nomina-editor-nueva-form${gestionNominaEditor._nuevaAbierta ? "" : " hidden"}">
+        <select data-nomina-nueva-catalogo>
+          <option value="">— Personalizado —</option>
+          ${catalogoOptions}
+        </select>
+        <input type="text" data-nomina-nueva-concepto placeholder="Nombre del concepto" />
+        <select data-nomina-nueva-tipo>
+          ${tipoOption("devengo", "Devengo (suma al bruto)")}
+          ${tipoOption("deduccion", "Deducción (resta del líquido)")}
+          ${tipoOption("ajuste", "Ajuste del líquido (no cotiza ni tributa)")}
+        </select>
+        <button type="button" class="secondary-button" data-nomina-nueva-confirmar>Añadir</button>
+      </div>
+    </div>
     <div class="gestion-nomina-editor-acciones">
-      <button type="button" class="secondary-button" data-nomina-anadir>+ Añadir concepto</button>
       <label class="filter-field gestion-nomina-editor-notas">
         Notas
         <input type="text" id="gestion-nomina-editor-notas" placeholder="Por qué se ajusta a mano" value="${escapeHtml(gestionNominaEditor.notas || "")}" />
       </label>
-      <span class="gestion-nomina-editor-resumen">
-        Bruto ${escapeHtml(formatGestionImporte(totales.bruto))} ·
-        deducciones ${escapeHtml(formatGestionImporte(totales.deducciones))} ·
-        <strong>líquido ${escapeHtml(formatGestionImporte(totales.liquido))}</strong>
-      </span>
+      <span class="gestion-nomina-editor-resumen">${buildGestionNominaEditorResumenHtml(totales)}</span>
       <button type="button" class="primary-button" data-nomina-guardar>Emitir nómina editada</button>
       <button type="button" class="secondary-button" data-nomina-cancelar>Cancelar</button>
     </div>`;
+}
+
+// Compartido entre el render inicial y el refresco en caliente al teclear.
+function buildGestionNominaEditorResumenHtml(totales) {
+  const ajustesSegment = totales.ajustes
+    ? ` · ajustes ${escapeHtml(formatGestionImporte(totales.ajustes))}`
+    : "";
+  return `Bruto ${escapeHtml(formatGestionImporte(totales.bruto))} ·
+    deducciones ${escapeHtml(formatGestionImporte(totales.deducciones))}${ajustesSegment} ·
+    <strong>líquido ${escapeHtml(formatGestionImporte(totales.liquido))}</strong>`;
 }
 
 // Al teclear solo se refrescan los números derivados: repintar la tabla entera
@@ -22149,9 +22253,7 @@ function actualizarGestionNominaEditorTotales() {
   }
   const resumen = gestionNominaEditorPanel.querySelector(".gestion-nomina-editor-resumen");
   if (resumen) {
-    resumen.innerHTML = `Bruto ${escapeHtml(formatGestionImporte(totales.bruto))} ·
-      deducciones ${escapeHtml(formatGestionImporte(totales.deducciones))} ·
-      <strong>líquido ${escapeHtml(formatGestionImporte(totales.liquido))}</strong>`;
+    resumen.innerHTML = buildGestionNominaEditorResumenHtml(totales);
   }
 }
 
@@ -22801,7 +22903,28 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
         { _seccion: "total", concepto: "B. TOTAL A DEDUCIR", base: "", tipo: "", importe: money(nomina.total_deducciones) },
       ],
     });
-    y += 6;
+    y += 4;
+
+    // --- Ajustes (anticipos, reintegros...): no cotizan ni tributan, así que
+    // van fuera de devengos/deducciones. Solo se imprime si la nómina tiene
+    // alguno -- la mayoría no, y no hay que ensuciar el recibo por defecto.
+    const ajustes = lineas.filter((l) => l.seccion === "ajuste" && !l.detalle_de);
+    if (ajustes.length) {
+      y = drawNominaPdfTable(doc, {
+        x: margin, y, margin, pageHeight, bottomMargin,
+        columns: [
+          { label: "AJUSTES (no cotizan ni tributan)", key: "concepto", width: contentWidth - 32 },
+          { label: "Importe €", key: "importe", width: 32, align: "right" },
+        ],
+        rows: [
+          ...ajustes.map((l) => ({ concepto: l.concepto, importe: money(l.importe) })),
+          { _seccion: "total", concepto: "C. TOTAL AJUSTES", importe: money(nomina.total_ajustes) },
+        ],
+      });
+      y += 6;
+    } else {
+      y += 2;
+    }
 
     // --- Líquido.
     doc.setFillColor(232, 240, 232);
@@ -22810,7 +22933,11 @@ async function exportNominaEmitidaPdf(nominaId, triggerButton) {
     doc.rect(margin, y, contentWidth, 9);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text("LÍQUIDO TOTAL A PERCIBIR (A − B)", margin + 2, y + 6);
+    doc.text(
+      ajustes.length ? "LÍQUIDO TOTAL A PERCIBIR (A − B ± C)" : "LÍQUIDO TOTAL A PERCIBIR (A − B)",
+      margin + 2,
+      y + 6
+    );
     doc.text(`${nominaPdfMoney(nomina.liquido)} €`, pageWidth - margin - 2, y + 6, { align: "right" });
     y += 13;
 
@@ -23103,6 +23230,12 @@ function drawGestionNominaReciboImage(data) {
     { key: "tipo", label: "%", width: 130 },
     { key: "importe", label: "Importe", width: 150 },
   ];
+  // Ajustes (anticipos, reintegros...): no cotizan ni tributan. Solo se
+  // dibuja si la nómina tiene alguno.
+  const ajusteColumns = [
+    { key: "concepto", label: "Concepto (no cotiza ni tributa)", width: 700 },
+    { key: "importe", label: "Importe", width: 150 },
+  ];
   const tableWidth = devengoColumns.reduce((sum, column) => sum + column.width, 0);
   const canvasWidth = tableWidth + margin * 2;
 
@@ -23113,6 +23246,7 @@ function drawGestionNominaReciboImage(data) {
 
   const devengos = lineas.filter((linea) => linea.seccion === "devengo" && !linea.detalle_de);
   const deducciones = lineas.filter((linea) => linea.seccion === "deduccion" && !linea.detalle_de);
+  const ajustes = lineas.filter((linea) => linea.seccion === "ajuste" && !linea.detalle_de);
 
   const devengoRows = devengos.map((linea) => ({
     concepto: formatGestionConceptoCodigo(linea.concepto, linea.codigo_nomina),
@@ -23127,15 +23261,27 @@ function drawGestionNominaReciboImage(data) {
     tipo: linea.tipo != null ? `${(Number(linea.tipo) * 100).toLocaleString("es-ES", { maximumFractionDigits: 3 })} %` : "-",
     importe: formatGestionImporte(linea.importe),
   }));
+  const ajusteRows = ajustes.map((linea) => ({
+    concepto: linea.concepto,
+    importe: formatGestionImporte(linea.importe),
+  }));
 
   const devengoLayouts = layoutCanvasTableRows(scratchContext, devengoColumns, devengoRows, layoutOptions);
   const deduccionLayouts = layoutCanvasTableRows(scratchContext, deduccionColumns, deduccionRows, layoutOptions);
+  const ajusteLayouts = ajustes.length
+    ? layoutCanvasTableRows(scratchContext, ajusteColumns, ajusteRows, layoutOptions)
+    : [];
 
   const sectionHeight = (layouts) =>
     40 + headerHeight + layouts.reduce((sum, layout) => sum + layout.rowHeight, 0) + 46 + 32;
   const liquidoHeight = 90;
   const canvasHeight =
-    titleHeight + sectionHeight(devengoLayouts) + sectionHeight(deduccionLayouts) + liquidoHeight + footerHeight;
+    titleHeight +
+    sectionHeight(devengoLayouts) +
+    sectionHeight(deduccionLayouts) +
+    (ajustes.length ? sectionHeight(ajusteLayouts) : 0) +
+    liquidoHeight +
+    footerHeight;
 
   const canvas = document.createElement("canvas");
   canvas.width = canvasWidth * scale;
@@ -23192,6 +23338,18 @@ function drawGestionNominaReciboImage(data) {
     totalValue: formatGestionImporte(nomina.total_deducciones),
     valueColumnKey: "importe",
   });
+  if (ajustes.length) {
+    y = drawCanvasTableSection(context, {
+      ...sectionDefaults,
+      y,
+      title: "Ajustes (no cotizan ni tributan)",
+      columns: ajusteColumns,
+      rowLayouts: ajusteLayouts,
+      totalLabel: "Total ajustes",
+      totalValue: formatGestionImporte(nomina.total_ajustes),
+      valueColumnKey: "importe",
+    });
+  }
 
   context.fillStyle = "#e2ede2";
   context.fillRect(margin, y, tableWidth, 50);
@@ -25485,7 +25643,8 @@ const historialReportConfigDetails = document.querySelector("#historial-reports-
 const historialReportOpenCompaniesButton = document.querySelector("#historial-report-open-companies-button");
 const historialReportConfigRefreshButton = document.querySelector("#historial-report-config-refresh-button");
 const historialReportConfigStatus = document.querySelector("#historial-report-config-status");
-const historialReportTemplateSelect = document.querySelector("#historial-report-template-select");
+const historialReportTemplateList = document.querySelector("#historial-report-template-list");
+let currentHistorialReportTemplateId = "";
 const historialReportTemplateForm = document.querySelector("#historial-report-template-form");
 const historialReportTemplateSaveButton = document.querySelector("#historial-report-template-save-button");
 const historialReportTemplateNewButton = document.querySelector("#historial-report-template-new-button");
@@ -25548,43 +25707,46 @@ const HISTORIAL_RELATION_TABLES = {
 
 // Campos editables del periodo. dias_periodo y coeficiente se calculan por trigger (solo lectura).
 const HISTORIAL_FORM_FIELDS = [
-  { key: "personal_id", label: "Personal", type: "relation" },
-  { key: "empresa_id", label: "Empresa", type: "relation" },
-  { key: "fecha_alta", label: "Fecha alta", type: "date" },
-  { key: "fecha_baja", label: "Fecha baja", type: "date" },
-  { key: "jornada", label: "Jornada", type: "decimal" },
-  { key: "jornada_maxima", label: "Jornada máxima", type: "decimal" },
-  { key: "dias_periodo", label: "Días periodo", type: "number", readonly: true },
-  { key: "coeficiente_temporalidad_miles", label: "Coef. temporalidad (‰)", type: "number", readonly: true },
-  { key: "puesto_id", label: "Puesto", type: "relation" },
-  { key: "puesto_texto", label: "Puesto (texto libre)", type: "text" },
-  { key: "contrato_laboral_id", label: "Contrato", type: "relation" },
-  { key: "modalidad_pago_id", label: "Modalidad de pago", type: "relation" },
-  { key: "tipo_contratacion_id", label: "Tipo contratación", type: "relation" },
-  { key: "motivo_baja_id", label: "Motivo baja", type: "relation" },
-  { key: "grupo_cotizacion", label: "Grupo cotización", type: "number" },
-  { key: "movimiento", label: "Movimiento", type: "text" },
-  { key: "salario_jornada_completa", label: "Salario jornada completa", type: "decimal" },
-  { key: "importe_horas_complementarias", label: "Importe horas complementarias", type: "decimal" },
-  { key: "complemento", label: "Complemento", type: "decimal" },
-  { key: "cotizacion_comunes_pct", label: "Cotización comunes (%)", type: "decimal", step: "0.000001" },
-  { key: "cotizacion_mei_pct", label: "Cotización MEI (%)", type: "decimal", step: "0.000001" },
-  { key: "cotizacion_formacion_pct", label: "Cotización formación (%)", type: "decimal", step: "0.000001" },
-  { key: "cotizacion_desempleo_pct", label: "Cotización desempleo (%)", type: "decimal", step: "0.000001" },
-  { key: "horarios", label: "Horarios", type: "text" },
-  { key: "activo", label: "Activo", type: "boolean" },
-  { key: "enviado", label: "Enviado", type: "boolean" },
-  { key: "gestionado", label: "Gestionado", type: "boolean" },
-  { key: "tramitado", label: "Tramitado", type: "boolean" },
-  { key: "tiene_complemento", label: "Tiene complemento", type: "boolean" },
-  { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean" },
-  { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean" },
-  { key: "tiene_plus_transporte", label: "Plus transporte", type: "boolean" },
-  { key: "tiene_nocturnidad", label: "Nocturnidad", type: "boolean" },
-  { key: "tiene_antiguedad", label: "Antigüedad", type: "boolean" },
-  { key: "lenguaje_inclusivo", label: "Lenguaje inclusivo", type: "boolean" },
-  { key: "observaciones", label: "Observaciones", type: "textarea" },
-  { key: "notas", label: "Notas", type: "textarea" },
+  { key: "personal_id", label: "Personal", type: "relation", group: "identificacion" },
+  { key: "empresa_id", label: "Empresa", type: "relation", group: "identificacion" },
+  { key: "puesto_id", label: "Puesto", type: "relation", group: "identificacion" },
+  { key: "fecha_alta", label: "Fecha alta", type: "date", group: "periodo" },
+  { key: "fecha_baja", label: "Fecha baja", type: "date", group: "periodo" },
+  { key: "jornada", label: "Jornada", type: "decimal", group: "periodo" },
+  { key: "jornada_maxima", label: "Jornada máxima", type: "decimal", group: "periodo" },
+  { key: "dias_periodo", label: "Días periodo", type: "number", readonly: true, group: "periodo" },
+  { key: "coeficiente_temporalidad_miles", label: "Coef. temporalidad (‰)", type: "number", readonly: true, group: "periodo" },
+  { key: "contrato_laboral_id", label: "Contrato", type: "relation", group: "contrato" },
+  { key: "modalidad_pago_id", label: "Modalidad de pago", type: "relation", group: "contrato" },
+  { key: "tipo_contratacion_id", label: "Tipo contratación", type: "relation", group: "contrato" },
+  { key: "motivo_baja_id", label: "Motivo baja", type: "relation", group: "contrato" },
+  { key: "movimiento", label: "Movimiento", type: "text", group: "contrato" },
+  { key: "grupo_cotizacion", label: "Grupo cotización", type: "number", group: "cotizacion" },
+  { key: "cotizacion_comunes_pct", label: "Cotización comunes (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
+  { key: "cotizacion_mei_pct", label: "Cotización MEI (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
+  { key: "cotizacion_formacion_pct", label: "Cotización formación (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
+  { key: "cotizacion_desempleo_pct", label: "Cotización desempleo (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
+  { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean", group: "salario" },
+  { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean", group: "salario" },
+  { key: "tiene_plus_transporte", label: "Plus transporte", type: "boolean", group: "salario" },
+  { key: "tiene_nocturnidad", label: "Nocturnidad", type: "boolean", group: "salario" },
+  { key: "horarios", label: "Horarios", type: "text", group: "estado" },
+  { key: "activo", label: "Activo", type: "boolean", group: "estado" },
+  { key: "enviado", label: "Enviado", type: "boolean", group: "estado" },
+  { key: "gestionado", label: "Gestionado", type: "boolean", group: "estado" },
+  { key: "tramitado", label: "Tramitado", type: "boolean", group: "estado" },
+  { key: "lenguaje_inclusivo", label: "Lenguaje inclusivo", type: "boolean", group: "estado" },
+  { key: "observaciones", label: "Observaciones", type: "textarea", group: "notas" },
+  { key: "notas", label: "Notas", type: "textarea", group: "notas" },
+];
+const HISTORIAL_DETAIL_FIELD_GROUPS = [
+  { key: "identificacion", label: "Identificación" },
+  { key: "periodo", label: "Periodo" },
+  { key: "contrato", label: "Contrato y modalidad" },
+  { key: "cotizacion", label: "Cotización" },
+  { key: "salario", label: "Salario y complementos" },
+  { key: "estado", label: "Estado y gestión" },
+  { key: "notas", label: "Notas" },
 ];
 const HISTORIAL_FIELD_BY_KEY = new Map(HISTORIAL_FORM_FIELDS.map((field) => [field.key, field]));
 const HISTORIAL_NUMERIC_TYPES = new Set(["number", "decimal", "relation"]);
@@ -25944,21 +26106,57 @@ function renderHistorialReportTemplateTipoContratacionOptions(selectedValue = ""
   select.value = selectedValue == null ? "" : String(selectedValue);
 }
 
+function getHistorialReportTemplateInitials(row) {
+  const parts = String(row.nombre || row.codigo || "").trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] || "";
+  const second = parts.length > 1 ? parts[1][0] : parts[0]?.[1] || "";
+  return (first + second).toUpperCase();
+}
+
 function renderHistorialReportTemplateSelect() {
-  if (!historialReportTemplateSelect) return;
-  const previous = historialReportTemplateSelect.value;
-  historialReportTemplateSelect.innerHTML =
-    '<option value="">Seleccionar plantilla</option>' +
-    historialReportTemplateRows
-      .map((row) => {
-        const label = `${row.nombre || row.codigo}${row.activo ? "" : " (inactiva)"}`;
-        return `<option value="${escapeHtml(row.id)}">${escapeHtml(label)}</option>`;
-      })
-      .join("");
-  historialReportTemplateSelect.value =
-    previous && historialReportTemplateRows.some((row) => String(row.id) === previous)
-      ? previous
-      : String(historialReportTemplateRows[0]?.id || "");
+  if (!historialReportTemplateList) return;
+  if (
+    currentHistorialReportTemplateId &&
+    !historialReportTemplateRows.some((row) => String(row.id) === currentHistorialReportTemplateId)
+  ) {
+    currentHistorialReportTemplateId = "";
+  }
+  if (!currentHistorialReportTemplateId && historialReportTemplateRows.length) {
+    currentHistorialReportTemplateId = String(historialReportTemplateRows[0].id);
+  }
+
+  if (!historialReportTemplateRows.length) {
+    historialReportTemplateList.innerHTML = '<p class="empty-state">No hay plantillas.</p>';
+    return;
+  }
+
+  historialReportTemplateList.innerHTML = historialReportTemplateRows
+    .map((row) => {
+      const isSelected = String(row.id) === currentHistorialReportTemplateId;
+      return `
+        <button
+          type="button"
+          class="settings-report-item${isSelected ? " active" : ""}"
+          data-historial-report-template-id="${escapeHtml(row.id)}"
+          role="option"
+          aria-selected="${isSelected}"
+        >
+          <span class="settings-report-avatar">${escapeHtml(getHistorialReportTemplateInitials(row))}</span>
+          <span class="settings-report-item-body">
+            <span class="settings-report-item-name">${escapeHtml(row.nombre || row.codigo)}</span>
+            <span class="settings-report-item-meta">${escapeHtml(getHistorialReportTypeLabel(row.tipo_documento))}</span>
+          </span>
+          ${row.activo ? "" : '<span class="settings-report-badge-inactive">Inactiva</span>'}
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function selectHistorialReportTemplate(templateId) {
+  currentHistorialReportTemplateId = templateId ? String(templateId) : "";
+  renderHistorialReportTemplateSelect();
+  syncHistorialReportConfigForms();
 }
 
 function getDefaultHistorialReportTemplate() {
@@ -26000,7 +26198,7 @@ function fillHistorialReportTemplateForm(row = getDefaultHistorialReportTemplate
 
 function syncHistorialReportConfigForms() {
   const template = historialReportTemplateRows.find(
-    (row) => String(row.id) === String(historialReportTemplateSelect?.value || "")
+    (row) => String(row.id) === currentHistorialReportTemplateId
   );
   fillHistorialReportTemplateForm(template || getDefaultHistorialReportTemplate());
 }
@@ -26109,8 +26307,9 @@ async function saveHistorialReportTemplateConfig() {
   try {
     historialReportTemplateSaveButton?.setAttribute("disabled", "true");
     const payload = collectHistorialReportTemplatePayload();
-    const selectedId = historialReportTemplateSelect?.value || "";
-    const existing = historialReportTemplateRows.find((row) => String(row.id) === String(selectedId));
+    const existing = historialReportTemplateRows.find(
+      (row) => String(row.id) === currentHistorialReportTemplateId
+    );
     const supabase = await getSupabaseClient();
     const result = existing
       ? await supabase.from("historial_laboral_informe_plantillas").update(payload).eq("id", existing.id)
@@ -26127,7 +26326,11 @@ async function saveHistorialReportTemplateConfig() {
 }
 
 function startNewHistorialReportTemplate() {
-  if (historialReportTemplateSelect) historialReportTemplateSelect.value = "";
+  currentHistorialReportTemplateId = "";
+  historialReportTemplateList?.querySelectorAll(".settings-report-item.active").forEach((item) => {
+    item.classList.remove("active");
+    item.setAttribute("aria-selected", "false");
+  });
   fillHistorialReportTemplateForm(getDefaultHistorialReportTemplate());
   historialReportTemplateForm?.elements.codigo?.focus();
 }
@@ -27905,38 +28108,53 @@ function renderHistorialRelationSelect(field, value, readonly) {
   return `<select name="${field.key}" ${readonly ? "disabled" : ""}>${html}</select>`;
 }
 
+function renderHistorialDetailFieldControl(field, row) {
+  const value = row[field.key];
+  const name = escapeHtml(field.key);
+  const label = escapeHtml(field.label);
+
+  if (field.type === "boolean") {
+    return `<label class="checkbox-item"><input name="${name}" type="checkbox" ${
+      value ? "checked" : ""
+    } ${field.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
+  }
+
+  if (field.type === "textarea") {
+    return `<label class="full-width">${label}<textarea name="${name}" rows="3" ${
+      field.readonly ? "readonly" : ""
+    }>${escapeHtml(value ?? "")}</textarea></label>`;
+  }
+
+  if (field.type === "relation") {
+    return `<label>${label}${renderHistorialRelationSelect(field, value, field.readonly)}</label>`;
+  }
+
+  const inputType =
+    field.type === "date" ? "date" : HISTORIAL_NUMERIC_TYPES.has(field.type) ? "number" : "text";
+  const step = field.type === "decimal" ? ` step="${field.step || "0.0001"}"` : "";
+  return `<label>${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
+    value ?? ""
+  )}" ${field.readonly ? "readonly" : ""} /></label>`;
+}
+
 function renderHistorialDetailForm(row) {
   if (!historialDetailFields) {
     return;
   }
 
-  historialDetailFields.innerHTML = HISTORIAL_FORM_FIELDS.map((field) => {
-    const value = row[field.key];
-    const name = escapeHtml(field.key);
-    const label = escapeHtml(field.label);
-
-    if (field.type === "boolean") {
-      return `<label class="checkbox-item"><input name="${name}" type="checkbox" ${
-        value ? "checked" : ""
-      } ${field.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
+  historialDetailFields.innerHTML = HISTORIAL_DETAIL_FIELD_GROUPS.map((groupDef) => {
+    const fields = HISTORIAL_FORM_FIELDS.filter((field) => field.group === groupDef.key);
+    if (!fields.length) {
+      return "";
     }
-
-    if (field.type === "textarea") {
-      return `<label class="full-width">${label}<textarea name="${name}" rows="3" ${
-        field.readonly ? "readonly" : ""
-      }>${escapeHtml(value ?? "")}</textarea></label>`;
-    }
-
-    if (field.type === "relation") {
-      return `<label>${label}${renderHistorialRelationSelect(field, value, field.readonly)}</label>`;
-    }
-
-    const inputType =
-      field.type === "date" ? "date" : HISTORIAL_NUMERIC_TYPES.has(field.type) ? "number" : "text";
-    const step = field.type === "decimal" ? ` step="${field.step || "0.0001"}"` : "";
-    return `<label>${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
-      value ?? ""
-    )}" ${field.readonly ? "readonly" : ""} /></label>`;
+    return `
+      <fieldset class="detail-form-section">
+        <legend>${escapeHtml(groupDef.label)}</legend>
+        <div class="detail-form-section-grid">
+          ${fields.map((field) => renderHistorialDetailFieldControl(field, row)).join("")}
+        </div>
+      </fieldset>
+    `;
   }).join("");
 }
 
@@ -32231,7 +32449,13 @@ async function init() {
   historialReportConfigRefreshButton?.addEventListener("click", () => {
     void loadHistorialReportConfig({ force: true });
   });
-  historialReportTemplateSelect?.addEventListener("change", syncHistorialReportConfigForms);
+  historialReportTemplateList?.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-historial-report-template-id]");
+    if (!item) {
+      return;
+    }
+    selectHistorialReportTemplate(item.dataset.historialReportTemplateId);
+  });
   historialReportOpenCompaniesButton?.addEventListener("click", openHistorialReportCompaniesSettings);
   historialReportTemplateSaveButton?.addEventListener("click", () => {
     void saveHistorialReportTemplateConfig();
@@ -32551,6 +32775,26 @@ async function init() {
     actualizarGestionNominaEditorTotales();
   });
 
+  // "+ Añadir concepto": elegir un concepto del catálogo prellena el nombre
+  // (sigue siendo editable); no repinta el editor entero, solo el input de
+  // texto, para no perder lo que llevara tecleado en Notas.
+  gestionNominaEditorPanel?.addEventListener("change", (event) => {
+    if (!gestionNominaEditor) {
+      return;
+    }
+    const catalogoSelect = event.target.closest("[data-nomina-nueva-catalogo]");
+    if (catalogoSelect) {
+      const nombre = catalogoSelect.options[catalogoSelect.selectedIndex]?.dataset.nombre || "";
+      const conceptoInput = gestionNominaEditorPanel.querySelector("[data-nomina-nueva-concepto]");
+      if (conceptoInput) conceptoInput.value = nombre;
+      return;
+    }
+    const tipoSelect = event.target.closest("[data-nomina-nueva-tipo]");
+    if (tipoSelect) {
+      gestionNominaEditor._nuevaTipo = tipoSelect.value;
+    }
+  });
+
   gestionNominaEditorPanel?.addEventListener("click", (event) => {
     if (!gestionNominaEditor) {
       return;
@@ -32568,19 +32812,72 @@ async function init() {
       renderGestionNominaEditor();
       return;
     }
-    if (event.target.closest("[data-nomina-anadir]")) {
+    if (event.target.closest("[data-nomina-anadir-toggle]")) {
       sincronizarNotas();
-      // Orden 400: después de los complementos (100+) y antes de los totales.
-      gestionNominaEditor.lineas.push({
-        orden: 400 + gestionNominaEditor.lineas.filter((row) => Number(row.orden) >= 400 && Number(row.orden) < 500).length,
-        seccion: "devengo",
-        concepto: "",
-        detalle: null,
-        cantidad: null,
-        precio: null,
-        importe: 0,
-        _manual: true,
-      });
+      gestionNominaEditor._nuevaAbierta = !gestionNominaEditor._nuevaAbierta;
+      renderGestionNominaEditor();
+      return;
+    }
+    if (event.target.closest("[data-nomina-nueva-confirmar]")) {
+      sincronizarNotas();
+      const conceptoInput = gestionNominaEditorPanel.querySelector("[data-nomina-nueva-concepto]");
+      const tipoSelect = gestionNominaEditorPanel.querySelector("[data-nomina-nueva-tipo]");
+      const nombre = (conceptoInput?.value || "").trim();
+      if (!nombre) {
+        setStatus("Escribe o elige un concepto para añadirlo.", "error");
+        return;
+      }
+      const tipo = tipoSelect?.value || "devengo";
+      gestionNominaEditor._nuevaTipo = tipo;
+      // Cada tipo va en su propio rango de `orden` para no chocar con lo que
+      // ya emite el motor (devengos 10-300+, bases 599-603, deducciones
+      // oficiales 700-704, totales 500/800/810): devengo 400+ (como ya
+      // hacía), deducción 690-699 (justo ENCIMA de Contingencias
+      // comunes/MEI/Desempleo/Formación profesional, para que salga
+      // agrupada con ellas al ordenar por `orden`, no después de IRPF),
+      // ajuste 801-809 (entre el total de deducciones y el líquido).
+      let nuevaLinea;
+      if (tipo === "deduccion") {
+        const usados = gestionNominaEditor.lineas.filter(
+          (row) => row.seccion === "deduccion" && Number(row.orden) >= 690 && Number(row.orden) < 700
+        ).length;
+        nuevaLinea = {
+          orden: 690 + usados,
+          seccion: "deduccion",
+          concepto: nombre,
+          detalle: null,
+          base: null,
+          tipo: null,
+          importe: 0,
+          _manual: true,
+        };
+      } else if (tipo === "ajuste") {
+        const usados = gestionNominaEditor.lineas.filter((row) => row.seccion === "ajuste").length;
+        nuevaLinea = {
+          orden: 801 + usados,
+          seccion: "ajuste",
+          concepto: nombre,
+          detalle: null,
+          importe: 0,
+          _manual: true,
+        };
+      } else {
+        const usados = gestionNominaEditor.lineas.filter(
+          (row) => Number(row.orden) >= 400 && Number(row.orden) < 500
+        ).length;
+        nuevaLinea = {
+          orden: 400 + usados,
+          seccion: "devengo",
+          concepto: nombre,
+          detalle: null,
+          cantidad: null,
+          precio: null,
+          importe: 0,
+          _manual: true,
+        };
+      }
+      gestionNominaEditor.lineas.push(nuevaLinea);
+      gestionNominaEditor._nuevaAbierta = false;
       renderGestionNominaEditor();
       return;
     }
