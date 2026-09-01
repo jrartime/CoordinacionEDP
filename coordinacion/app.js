@@ -83,34 +83,43 @@ let ACCESS_ASSIGNABLE_TABS = [
 const ACCESS_ASSIGNABLE_TABS_FALLBACK = [...ACCESS_ASSIGNABLE_TABS];
 const RECORD_COLUMNS = [
   { key: "id", label: "ID", type: "number", readonly: true, hiddenInList: true },
-  { key: "personal_id", label: "Personal", type: "number", relationLabelKey: "personal", sortable: true },
-  { key: "fecha", label: "Fecha", type: "date", sortable: true },
-  { key: "actividad_id", label: "Actividad", type: "number", hiddenInList: true },
-  { key: "empresa_id", label: "Empresa", type: "number", relationLabelKey: "empresa", sortable: true, hiddenInList: true },
-  { key: "contrato_id", label: "Contrato", type: "number", relationLabelKey: "contrato", sortable: true, stackWith: ["servicio_id", "instalacion_id"] },
-  { key: "servicio_id", label: "Servicio", type: "number", relationLabelKey: "servicio", sortable: true, hiddenInList: true },
+  { key: "personal_id", label: "Personal", type: "number", relationLabelKey: "personal", sortable: true, group: "identificacion" },
+  { key: "fecha", label: "Fecha", type: "date", sortable: true, group: "identificacion" },
+  { key: "actividad_id", label: "Actividad", type: "number", hiddenInList: true, group: "identificacion" },
+  { key: "empresa_id", label: "Empresa", type: "number", relationLabelKey: "empresa", sortable: true, hiddenInList: true, group: "contrato" },
+  { key: "contrato_id", label: "Contrato", type: "number", relationLabelKey: "contrato", sortable: true, stackWith: ["servicio_id", "instalacion_id"], group: "contrato" },
+  { key: "servicio_id", label: "Servicio", type: "number", relationLabelKey: "servicio", sortable: true, hiddenInList: true, group: "contrato" },
   { key: "titular_personal_id", label: "Titular", type: "number", relationLabelKey: "titular_personal", derived: true, readonly: true, hiddenInList: true },
-  { key: "sustituto_personal_id", label: "Sustituto", type: "number", relationLabelKey: "sustituto_personal", derived: true, readonly: true, hiddenInList: true },
-  { key: "sustituye_registro_id", label: "Sustituye a registro", type: "number", readonly: true, hiddenInList: true },
-  { key: "instalacion_id", label: "Instalacion", type: "number", relationLabelKey: "instalacion", sortable: true, shortLabelKey: "instalacion_siglas", hiddenInList: true },
+  { key: "sustituto_personal_id", label: "Sustituto", type: "number", relationLabelKey: "sustituto_personal", derived: true, readonly: true, hiddenInList: true, group: "sustitucion" },
+  { key: "sustituye_registro_id", label: "Sustituye a registro", type: "number", readonly: true, hiddenInList: true, group: "sustitucion" },
+  { key: "instalacion_id", label: "Instalacion", type: "number", relationLabelKey: "instalacion", sortable: true, shortLabelKey: "instalacion_siglas", hiddenInList: true, group: "puesto" },
   { key: "categoria_id", label: "Categoria", type: "number", hiddenInList: true },
-  { key: "puesto_id", label: "Puesto", type: "number", relationLabelKey: "puesto", sortable: true, stackWith: ["funcion_id", "modalidad_id"] },
-  { key: "funcion_id", label: "Funcion", type: "number", relationLabelKey: "funcion", hiddenInList: true },
-  { key: "modalidad_id", label: "Modalidad", type: "number", relationLabelKey: "modalidad", sortable: true, hiddenInList: true },
-  { key: "nota", label: "Nota", type: "text", hiddenInList: true },
-  { key: "hora_inicio", label: "Inicio", type: "time", sortable: true, stackWith: "hora_fin" },
-  { key: "hora_fin", label: "Fin", type: "time", sortable: true, hiddenInList: true },
-  { key: "horas", label: "Horas", type: "decimal", sortable: true },
-  { key: "horas_nocturnas", label: "H. nocturnas", type: "decimal", hiddenInList: true },
-  { key: "situacion_id", label: "Situacion", type: "number", relationLabelKey: "situacion", sortable: true },
-  { key: "tipo_hora_id", label: "Tipo hora", type: "number", relationLabelKey: "tipo_hora", sortable: true },
-  { key: "sustitucion", label: "Sustitucion", type: "boolean" },
-  { key: "facturar", label: "Facturar", type: "boolean" },
-  { key: "estado_facturacion", label: "Fact.", type: "text", derived: true, readonly: true, sortable: true },
-  { key: "abonar", label: "Abonar", type: "boolean" },
+  { key: "puesto_id", label: "Puesto", type: "number", relationLabelKey: "puesto", sortable: true, stackWith: ["funcion_id", "modalidad_id"], group: "puesto" },
+  { key: "funcion_id", label: "Funcion", type: "number", relationLabelKey: "funcion", hiddenInList: true, group: "puesto" },
+  { key: "modalidad_id", label: "Modalidad", type: "number", relationLabelKey: "modalidad", sortable: true, hiddenInList: true, group: "puesto" },
+  { key: "nota", label: "Nota", type: "text", hiddenInList: true, group: "notas" },
+  { key: "hora_inicio", label: "Inicio", type: "time", sortable: true, stackWith: "hora_fin", group: "horario" },
+  { key: "hora_fin", label: "Fin", type: "time", sortable: true, hiddenInList: true, group: "horario" },
+  { key: "horas", label: "Horas", type: "decimal", sortable: true, group: "horario" },
+  { key: "horas_nocturnas", label: "H. nocturnas", type: "decimal", hiddenInList: true, group: "horario" },
+  { key: "situacion_id", label: "Situacion", type: "number", relationLabelKey: "situacion", sortable: true, group: "facturacion" },
+  { key: "tipo_hora_id", label: "Tipo hora", type: "number", relationLabelKey: "tipo_hora", sortable: true, group: "facturacion" },
+  { key: "sustitucion", label: "Sustitucion", type: "boolean", group: "sustitucion" },
+  { key: "facturar", label: "Facturar", type: "boolean", group: "facturacion" },
+  { key: "estado_facturacion", label: "Fact.", type: "text", derived: true, readonly: true, sortable: true, group: "facturacion" },
+  { key: "abonar", label: "Abonar", type: "boolean", group: "facturacion" },
   { key: "anio", label: "Anio", type: "number", hiddenInList: true },
-  { key: "observacion", label: "Observacion", type: "textarea", hiddenInList: true },
-  { key: "control", label: "Control", type: "datetime", hiddenInList: true },
+  { key: "observacion", label: "Observacion", type: "textarea", hiddenInList: true, group: "notas" },
+  { key: "control", label: "Control", type: "datetime", hiddenInList: true, group: "notas" },
+];
+const RECORD_DETAIL_FIELD_GROUPS = [
+  { key: "identificacion", label: "Identificación" },
+  { key: "contrato", label: "Contrato y servicio" },
+  { key: "sustitucion", label: "Sustitución" },
+  { key: "puesto", label: "Instalación y puesto" },
+  { key: "horario", label: "Horario y horas" },
+  { key: "facturacion", label: "Facturación" },
+  { key: "notas", label: "Notas y control" },
 ];
 const RECORD_DETAIL_LABEL_COLUMNS = [
   "empresa",
@@ -13186,11 +13195,18 @@ function renderSettingsTable() {
           ${listFields
             .map((field, index) => {
               const raw = config.cellValue ? config.cellValue(row, field) : row[field];
-              const value = escapeHtml(formatSettingsCell(raw));
               if (index === 0) {
+                const value = escapeHtml(formatSettingsCell(raw));
                 return `<td><button type="button" class="row-name-button" data-settings-edit="${escapeHtml(row.id)}" aria-label="Editar registro">${value}</button></td>`;
               }
-              return `<td>${value}</td>`;
+              if (typeof raw === "boolean") {
+                // La insignia marca la excepcion (inactivo), no el valor normal:
+                // en una columna casi siempre "Si", colorear tambien el "Si"
+                // solo añade ruido sin aportar señal (mismo criterio que el
+                // badge de vinculacion en el listado de Personal).
+                return raw ? "<td>Sí</td>" : '<td><span class="settings-bool-badge settings-bool-badge-no">No</span></td>';
+              }
+              return `<td>${escapeHtml(formatSettingsCell(raw))}</td>`;
             })
             .join("")}
         </tr>
@@ -13952,7 +13968,7 @@ function renderAccessUsers() {
             <span class="muted-block">${escapeHtml(user.user_id)}</span>
           </td>
           <td>${escapeHtml(user.rol)}</td>
-          <td>${escapeHtml(user.activo ? "Activo" : "Inactivo")}</td>
+          <td>${user.activo ? "Activo" : '<span class="settings-bool-badge settings-bool-badge-no">Inactivo</span>'}</td>
           <td>${escapeHtml(tabSummary)}</td>
           <td>${escapeHtml(contractSummary)}</td>
         </tr>
@@ -18350,6 +18366,59 @@ function reorderRecordDetailRelationSelects(contractId) {
   }
 }
 
+function renderRecordDetailFieldControl(column, row) {
+  const value = row[column.key];
+  const name = escapeHtml(column.key);
+  const label = escapeHtml(column.label);
+  const fieldClass = `record-detail-field record-detail-field--${name}`;
+
+  if (column.type === "boolean") {
+    return `<label class="checkbox-item ${fieldClass}"><input name="${name}" type="checkbox" ${
+      value ? "checked" : ""
+    } ${column.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
+  }
+
+  if (column.type === "textarea") {
+    return `<label class="full-width ${fieldClass}">${label}<textarea name="${name}" rows="3" ${
+      column.readonly ? "readonly" : ""
+    }>${escapeHtml(value ?? "")}</textarea></label>`;
+  }
+
+  if (RECORD_RELATION_TABLES[column.key]) {
+    const options = getRecordRelationOptionsForContract(column.key, row.contrato_id, value);
+    return `<label class="${fieldClass}">${label}${renderRecordRelationSelect(
+      name,
+      value,
+      options,
+      column.readonly
+    )}</label>`;
+  }
+
+  const inputType =
+    column.type === "date"
+      ? "date"
+      : column.type === "time"
+        ? "time"
+        : column.type === "datetime"
+          ? "datetime-local"
+          : RECORD_NUMERIC_FIELDS.has(column.key)
+            ? "number"
+            : "text";
+  const step = column.type === "decimal" ? ' step="0.01"' : "";
+  const inputValue =
+    column.type === "time"
+      ? String(value ?? "").slice(0, 5)
+      : column.type === "datetime" && value
+        ? String(value).slice(0, 16)
+        : value ?? "";
+
+  return `<label class="${fieldClass}">${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
+    inputValue
+  )}" ${RECORD_REQUIRED_FIELDS.has(column.key) ? "required" : ""} ${
+    column.readonly ? "readonly" : ""
+  } /></label>`;
+}
+
 function renderRecordDetailForm(row) {
   if (!recordDetailFields || !recordDetailTitle) {
     return;
@@ -18359,59 +18428,20 @@ function renderRecordDetailForm(row) {
   // Punto de partida para syncRecordDetailSituacionEffects: el "antes" con el que
   // comparar cada cambio de situacion dentro del panel.
   recordDetailLastSituacionId = row.situacion_id ?? null;
-  recordDetailFields.innerHTML = RECORD_COLUMNS.filter(
-    (column) => !RECORD_DETAIL_HIDDEN_FIELDS.has(column.key)
-  ).map((column) => {
-    const value = row[column.key];
-    const name = escapeHtml(column.key);
-    const label = escapeHtml(column.label);
-    const fieldClass = `record-detail-field record-detail-field--${name}`;
-
-    if (column.type === "boolean") {
-      return `<label class="checkbox-item ${fieldClass}"><input name="${name}" type="checkbox" ${
-        value ? "checked" : ""
-      } ${column.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
+  const visibleColumns = RECORD_COLUMNS.filter((column) => !RECORD_DETAIL_HIDDEN_FIELDS.has(column.key));
+  recordDetailFields.innerHTML = RECORD_DETAIL_FIELD_GROUPS.map((groupDef) => {
+    const columns = visibleColumns.filter((column) => column.group === groupDef.key);
+    if (!columns.length) {
+      return "";
     }
-
-    if (column.type === "textarea") {
-      return `<label class="full-width ${fieldClass}">${label}<textarea name="${name}" rows="3" ${
-        column.readonly ? "readonly" : ""
-      }>${escapeHtml(value ?? "")}</textarea></label>`;
-    }
-
-    if (RECORD_RELATION_TABLES[column.key]) {
-      const options = getRecordRelationOptionsForContract(column.key, row.contrato_id, value);
-      return `<label class="${fieldClass}">${label}${renderRecordRelationSelect(
-        name,
-        value,
-        options,
-        column.readonly
-      )}</label>`;
-    }
-
-    const inputType =
-      column.type === "date"
-        ? "date"
-        : column.type === "time"
-          ? "time"
-          : column.type === "datetime"
-            ? "datetime-local"
-            : RECORD_NUMERIC_FIELDS.has(column.key)
-              ? "number"
-              : "text";
-    const step = column.type === "decimal" ? ' step="0.01"' : "";
-    const inputValue =
-      column.type === "time"
-        ? String(value ?? "").slice(0, 5)
-        : column.type === "datetime" && value
-          ? String(value).slice(0, 16)
-          : value ?? "";
-
-    return `<label class="${fieldClass}">${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
-      inputValue
-    )}" ${RECORD_REQUIRED_FIELDS.has(column.key) ? "required" : ""} ${
-      column.readonly ? "readonly" : ""
-    } /></label>`;
+    return `
+      <fieldset class="detail-form-section">
+        <legend>${escapeHtml(groupDef.label)}</legend>
+        <div class="detail-form-section-grid">
+          ${columns.map((column) => renderRecordDetailFieldControl(column, row)).join("")}
+        </div>
+      </fieldset>
+    `;
   }).join("");
 }
 
@@ -25613,7 +25643,8 @@ const historialReportConfigDetails = document.querySelector("#historial-reports-
 const historialReportOpenCompaniesButton = document.querySelector("#historial-report-open-companies-button");
 const historialReportConfigRefreshButton = document.querySelector("#historial-report-config-refresh-button");
 const historialReportConfigStatus = document.querySelector("#historial-report-config-status");
-const historialReportTemplateSelect = document.querySelector("#historial-report-template-select");
+const historialReportTemplateList = document.querySelector("#historial-report-template-list");
+let currentHistorialReportTemplateId = "";
 const historialReportTemplateForm = document.querySelector("#historial-report-template-form");
 const historialReportTemplateSaveButton = document.querySelector("#historial-report-template-save-button");
 const historialReportTemplateNewButton = document.querySelector("#historial-report-template-new-button");
@@ -25676,43 +25707,46 @@ const HISTORIAL_RELATION_TABLES = {
 
 // Campos editables del periodo. dias_periodo y coeficiente se calculan por trigger (solo lectura).
 const HISTORIAL_FORM_FIELDS = [
-  { key: "personal_id", label: "Personal", type: "relation" },
-  { key: "empresa_id", label: "Empresa", type: "relation" },
-  { key: "fecha_alta", label: "Fecha alta", type: "date" },
-  { key: "fecha_baja", label: "Fecha baja", type: "date" },
-  { key: "jornada", label: "Jornada", type: "decimal" },
-  { key: "jornada_maxima", label: "Jornada máxima", type: "decimal" },
-  { key: "dias_periodo", label: "Días periodo", type: "number", readonly: true },
-  { key: "coeficiente_temporalidad_miles", label: "Coef. temporalidad (‰)", type: "number", readonly: true },
-  { key: "puesto_id", label: "Puesto", type: "relation" },
-  { key: "puesto_texto", label: "Puesto (texto libre)", type: "text" },
-  { key: "contrato_laboral_id", label: "Contrato", type: "relation" },
-  { key: "modalidad_pago_id", label: "Modalidad de pago", type: "relation" },
-  { key: "tipo_contratacion_id", label: "Tipo contratación", type: "relation" },
-  { key: "motivo_baja_id", label: "Motivo baja", type: "relation" },
-  { key: "grupo_cotizacion", label: "Grupo cotización", type: "number" },
-  { key: "movimiento", label: "Movimiento", type: "text" },
-  { key: "salario_jornada_completa", label: "Salario jornada completa", type: "decimal" },
-  { key: "importe_horas_complementarias", label: "Importe horas complementarias", type: "decimal" },
-  { key: "complemento", label: "Complemento", type: "decimal" },
-  { key: "cotizacion_comunes_pct", label: "Cotización comunes (%)", type: "decimal", step: "0.000001" },
-  { key: "cotizacion_mei_pct", label: "Cotización MEI (%)", type: "decimal", step: "0.000001" },
-  { key: "cotizacion_formacion_pct", label: "Cotización formación (%)", type: "decimal", step: "0.000001" },
-  { key: "cotizacion_desempleo_pct", label: "Cotización desempleo (%)", type: "decimal", step: "0.000001" },
-  { key: "horarios", label: "Horarios", type: "text" },
-  { key: "activo", label: "Activo", type: "boolean" },
-  { key: "enviado", label: "Enviado", type: "boolean" },
-  { key: "gestionado", label: "Gestionado", type: "boolean" },
-  { key: "tramitado", label: "Tramitado", type: "boolean" },
-  { key: "tiene_complemento", label: "Tiene complemento", type: "boolean" },
-  { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean" },
-  { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean" },
-  { key: "tiene_plus_transporte", label: "Plus transporte", type: "boolean" },
-  { key: "tiene_nocturnidad", label: "Nocturnidad", type: "boolean" },
-  { key: "tiene_antiguedad", label: "Antigüedad", type: "boolean" },
-  { key: "lenguaje_inclusivo", label: "Lenguaje inclusivo", type: "boolean" },
-  { key: "observaciones", label: "Observaciones", type: "textarea" },
-  { key: "notas", label: "Notas", type: "textarea" },
+  { key: "personal_id", label: "Personal", type: "relation", group: "identificacion" },
+  { key: "empresa_id", label: "Empresa", type: "relation", group: "identificacion" },
+  { key: "puesto_id", label: "Puesto", type: "relation", group: "identificacion" },
+  { key: "fecha_alta", label: "Fecha alta", type: "date", group: "periodo" },
+  { key: "fecha_baja", label: "Fecha baja", type: "date", group: "periodo" },
+  { key: "jornada", label: "Jornada", type: "decimal", group: "periodo" },
+  { key: "jornada_maxima", label: "Jornada máxima", type: "decimal", group: "periodo" },
+  { key: "dias_periodo", label: "Días periodo", type: "number", readonly: true, group: "periodo" },
+  { key: "coeficiente_temporalidad_miles", label: "Coef. temporalidad (‰)", type: "number", readonly: true, group: "periodo" },
+  { key: "contrato_laboral_id", label: "Contrato", type: "relation", group: "contrato" },
+  { key: "modalidad_pago_id", label: "Modalidad de pago", type: "relation", group: "contrato" },
+  { key: "tipo_contratacion_id", label: "Tipo contratación", type: "relation", group: "contrato" },
+  { key: "motivo_baja_id", label: "Motivo baja", type: "relation", group: "contrato" },
+  { key: "movimiento", label: "Movimiento", type: "text", group: "contrato" },
+  { key: "grupo_cotizacion", label: "Grupo cotización", type: "number", group: "cotizacion" },
+  { key: "cotizacion_comunes_pct", label: "Cotización comunes (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
+  { key: "cotizacion_mei_pct", label: "Cotización MEI (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
+  { key: "cotizacion_formacion_pct", label: "Cotización formación (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
+  { key: "cotizacion_desempleo_pct", label: "Cotización desempleo (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
+  { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean", group: "salario" },
+  { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean", group: "salario" },
+  { key: "tiene_plus_transporte", label: "Plus transporte", type: "boolean", group: "salario" },
+  { key: "tiene_nocturnidad", label: "Nocturnidad", type: "boolean", group: "salario" },
+  { key: "horarios", label: "Horarios", type: "text", group: "estado" },
+  { key: "activo", label: "Activo", type: "boolean", group: "estado" },
+  { key: "enviado", label: "Enviado", type: "boolean", group: "estado" },
+  { key: "gestionado", label: "Gestionado", type: "boolean", group: "estado" },
+  { key: "tramitado", label: "Tramitado", type: "boolean", group: "estado" },
+  { key: "lenguaje_inclusivo", label: "Lenguaje inclusivo", type: "boolean", group: "estado" },
+  { key: "observaciones", label: "Observaciones", type: "textarea", group: "notas" },
+  { key: "notas", label: "Notas", type: "textarea", group: "notas" },
+];
+const HISTORIAL_DETAIL_FIELD_GROUPS = [
+  { key: "identificacion", label: "Identificación" },
+  { key: "periodo", label: "Periodo" },
+  { key: "contrato", label: "Contrato y modalidad" },
+  { key: "cotizacion", label: "Cotización" },
+  { key: "salario", label: "Salario y complementos" },
+  { key: "estado", label: "Estado y gestión" },
+  { key: "notas", label: "Notas" },
 ];
 const HISTORIAL_FIELD_BY_KEY = new Map(HISTORIAL_FORM_FIELDS.map((field) => [field.key, field]));
 const HISTORIAL_NUMERIC_TYPES = new Set(["number", "decimal", "relation"]);
@@ -26072,21 +26106,57 @@ function renderHistorialReportTemplateTipoContratacionOptions(selectedValue = ""
   select.value = selectedValue == null ? "" : String(selectedValue);
 }
 
+function getHistorialReportTemplateInitials(row) {
+  const parts = String(row.nombre || row.codigo || "").trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] || "";
+  const second = parts.length > 1 ? parts[1][0] : parts[0]?.[1] || "";
+  return (first + second).toUpperCase();
+}
+
 function renderHistorialReportTemplateSelect() {
-  if (!historialReportTemplateSelect) return;
-  const previous = historialReportTemplateSelect.value;
-  historialReportTemplateSelect.innerHTML =
-    '<option value="">Seleccionar plantilla</option>' +
-    historialReportTemplateRows
-      .map((row) => {
-        const label = `${row.nombre || row.codigo}${row.activo ? "" : " (inactiva)"}`;
-        return `<option value="${escapeHtml(row.id)}">${escapeHtml(label)}</option>`;
-      })
-      .join("");
-  historialReportTemplateSelect.value =
-    previous && historialReportTemplateRows.some((row) => String(row.id) === previous)
-      ? previous
-      : String(historialReportTemplateRows[0]?.id || "");
+  if (!historialReportTemplateList) return;
+  if (
+    currentHistorialReportTemplateId &&
+    !historialReportTemplateRows.some((row) => String(row.id) === currentHistorialReportTemplateId)
+  ) {
+    currentHistorialReportTemplateId = "";
+  }
+  if (!currentHistorialReportTemplateId && historialReportTemplateRows.length) {
+    currentHistorialReportTemplateId = String(historialReportTemplateRows[0].id);
+  }
+
+  if (!historialReportTemplateRows.length) {
+    historialReportTemplateList.innerHTML = '<p class="empty-state">No hay plantillas.</p>';
+    return;
+  }
+
+  historialReportTemplateList.innerHTML = historialReportTemplateRows
+    .map((row) => {
+      const isSelected = String(row.id) === currentHistorialReportTemplateId;
+      return `
+        <button
+          type="button"
+          class="settings-report-item${isSelected ? " active" : ""}"
+          data-historial-report-template-id="${escapeHtml(row.id)}"
+          role="option"
+          aria-selected="${isSelected}"
+        >
+          <span class="settings-report-avatar">${escapeHtml(getHistorialReportTemplateInitials(row))}</span>
+          <span class="settings-report-item-body">
+            <span class="settings-report-item-name">${escapeHtml(row.nombre || row.codigo)}</span>
+            <span class="settings-report-item-meta">${escapeHtml(getHistorialReportTypeLabel(row.tipo_documento))}</span>
+          </span>
+          ${row.activo ? "" : '<span class="settings-report-badge-inactive">Inactiva</span>'}
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function selectHistorialReportTemplate(templateId) {
+  currentHistorialReportTemplateId = templateId ? String(templateId) : "";
+  renderHistorialReportTemplateSelect();
+  syncHistorialReportConfigForms();
 }
 
 function getDefaultHistorialReportTemplate() {
@@ -26128,7 +26198,7 @@ function fillHistorialReportTemplateForm(row = getDefaultHistorialReportTemplate
 
 function syncHistorialReportConfigForms() {
   const template = historialReportTemplateRows.find(
-    (row) => String(row.id) === String(historialReportTemplateSelect?.value || "")
+    (row) => String(row.id) === currentHistorialReportTemplateId
   );
   fillHistorialReportTemplateForm(template || getDefaultHistorialReportTemplate());
 }
@@ -26237,8 +26307,9 @@ async function saveHistorialReportTemplateConfig() {
   try {
     historialReportTemplateSaveButton?.setAttribute("disabled", "true");
     const payload = collectHistorialReportTemplatePayload();
-    const selectedId = historialReportTemplateSelect?.value || "";
-    const existing = historialReportTemplateRows.find((row) => String(row.id) === String(selectedId));
+    const existing = historialReportTemplateRows.find(
+      (row) => String(row.id) === currentHistorialReportTemplateId
+    );
     const supabase = await getSupabaseClient();
     const result = existing
       ? await supabase.from("historial_laboral_informe_plantillas").update(payload).eq("id", existing.id)
@@ -26255,7 +26326,11 @@ async function saveHistorialReportTemplateConfig() {
 }
 
 function startNewHistorialReportTemplate() {
-  if (historialReportTemplateSelect) historialReportTemplateSelect.value = "";
+  currentHistorialReportTemplateId = "";
+  historialReportTemplateList?.querySelectorAll(".settings-report-item.active").forEach((item) => {
+    item.classList.remove("active");
+    item.setAttribute("aria-selected", "false");
+  });
   fillHistorialReportTemplateForm(getDefaultHistorialReportTemplate());
   historialReportTemplateForm?.elements.codigo?.focus();
 }
@@ -28033,38 +28108,53 @@ function renderHistorialRelationSelect(field, value, readonly) {
   return `<select name="${field.key}" ${readonly ? "disabled" : ""}>${html}</select>`;
 }
 
+function renderHistorialDetailFieldControl(field, row) {
+  const value = row[field.key];
+  const name = escapeHtml(field.key);
+  const label = escapeHtml(field.label);
+
+  if (field.type === "boolean") {
+    return `<label class="checkbox-item"><input name="${name}" type="checkbox" ${
+      value ? "checked" : ""
+    } ${field.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
+  }
+
+  if (field.type === "textarea") {
+    return `<label class="full-width">${label}<textarea name="${name}" rows="3" ${
+      field.readonly ? "readonly" : ""
+    }>${escapeHtml(value ?? "")}</textarea></label>`;
+  }
+
+  if (field.type === "relation") {
+    return `<label>${label}${renderHistorialRelationSelect(field, value, field.readonly)}</label>`;
+  }
+
+  const inputType =
+    field.type === "date" ? "date" : HISTORIAL_NUMERIC_TYPES.has(field.type) ? "number" : "text";
+  const step = field.type === "decimal" ? ` step="${field.step || "0.0001"}"` : "";
+  return `<label>${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
+    value ?? ""
+  )}" ${field.readonly ? "readonly" : ""} /></label>`;
+}
+
 function renderHistorialDetailForm(row) {
   if (!historialDetailFields) {
     return;
   }
 
-  historialDetailFields.innerHTML = HISTORIAL_FORM_FIELDS.map((field) => {
-    const value = row[field.key];
-    const name = escapeHtml(field.key);
-    const label = escapeHtml(field.label);
-
-    if (field.type === "boolean") {
-      return `<label class="checkbox-item"><input name="${name}" type="checkbox" ${
-        value ? "checked" : ""
-      } ${field.readonly ? "disabled" : ""} /><span>${label}</span></label>`;
+  historialDetailFields.innerHTML = HISTORIAL_DETAIL_FIELD_GROUPS.map((groupDef) => {
+    const fields = HISTORIAL_FORM_FIELDS.filter((field) => field.group === groupDef.key);
+    if (!fields.length) {
+      return "";
     }
-
-    if (field.type === "textarea") {
-      return `<label class="full-width">${label}<textarea name="${name}" rows="3" ${
-        field.readonly ? "readonly" : ""
-      }>${escapeHtml(value ?? "")}</textarea></label>`;
-    }
-
-    if (field.type === "relation") {
-      return `<label>${label}${renderHistorialRelationSelect(field, value, field.readonly)}</label>`;
-    }
-
-    const inputType =
-      field.type === "date" ? "date" : HISTORIAL_NUMERIC_TYPES.has(field.type) ? "number" : "text";
-    const step = field.type === "decimal" ? ` step="${field.step || "0.0001"}"` : "";
-    return `<label>${label}<input name="${name}" type="${inputType}"${step} value="${escapeHtml(
-      value ?? ""
-    )}" ${field.readonly ? "readonly" : ""} /></label>`;
+    return `
+      <fieldset class="detail-form-section">
+        <legend>${escapeHtml(groupDef.label)}</legend>
+        <div class="detail-form-section-grid">
+          ${fields.map((field) => renderHistorialDetailFieldControl(field, row)).join("")}
+        </div>
+      </fieldset>
+    `;
   }).join("");
 }
 
@@ -32359,7 +32449,13 @@ async function init() {
   historialReportConfigRefreshButton?.addEventListener("click", () => {
     void loadHistorialReportConfig({ force: true });
   });
-  historialReportTemplateSelect?.addEventListener("change", syncHistorialReportConfigForms);
+  historialReportTemplateList?.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-historial-report-template-id]");
+    if (!item) {
+      return;
+    }
+    selectHistorialReportTemplate(item.dataset.historialReportTemplateId);
+  });
   historialReportOpenCompaniesButton?.addEventListener("click", openHistorialReportCompaniesSettings);
   historialReportTemplateSaveButton?.addEventListener("click", () => {
     void saveHistorialReportTemplateConfig();
@@ -32736,16 +32832,17 @@ async function init() {
       // Cada tipo va en su propio rango de `orden` para no chocar con lo que
       // ya emite el motor (devengos 10-300+, bases 599-603, deducciones
       // oficiales 700-704, totales 500/800/810): devengo 400+ (como ya
-      // hacía), deducción 720-799 (antes del total 800), ajuste 801-809
-      // (entre el total de deducciones y el líquido, para que salga ahí al
-      // ordenar por `orden`).
+      // hacía), deducción 690-699 (justo ENCIMA de Contingencias
+      // comunes/MEI/Desempleo/Formación profesional, para que salga
+      // agrupada con ellas al ordenar por `orden`, no después de IRPF),
+      // ajuste 801-809 (entre el total de deducciones y el líquido).
       let nuevaLinea;
       if (tipo === "deduccion") {
         const usados = gestionNominaEditor.lineas.filter(
-          (row) => row.seccion === "deduccion" && Number(row.orden) >= 720 && Number(row.orden) < 800
+          (row) => row.seccion === "deduccion" && Number(row.orden) >= 690 && Number(row.orden) < 700
         ).length;
         nuevaLinea = {
-          orden: 720 + usados,
+          orden: 690 + usados,
           seccion: "deduccion",
           concepto: nombre,
           detalle: null,

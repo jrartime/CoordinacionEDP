@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260901-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260901-12" />
   </head>
   <body>
     <script>
@@ -1183,7 +1183,7 @@
 
                   <form id="record-detail-form" class="detail-form records-detail-form">
                     <p id="record-detail-billing-status" class="muted-text record-detail-billing-status"></p>
-                    <div id="record-detail-fields" class="detail-field-row cols-2 full-width"></div>
+                    <div id="record-detail-fields" class="detail-form-sections full-width"></div>
                     <div id="record-detail-billing-redirect" class="record-detail-billing-redirect">
                       <p class="eyebrow">Facturación en otro contrato</p>
                       <p id="record-detail-billing-redirect-status" class="muted-text"></p>
@@ -1754,7 +1754,7 @@
                   </div>
 
                   <form id="historial-detail-form" class="detail-form historial-detail-form">
-                    <div id="historial-detail-fields" class="detail-field-row cols-2 full-width"></div>
+                    <div id="historial-detail-fields" class="detail-form-sections full-width"></div>
                     <div class="detail-actions">
                       <button id="historial-detail-delete-button" type="button" class="danger-button panel-destructive-action">
                         Eliminar
@@ -3933,38 +3933,43 @@
 
                   <form id="event-form" class="form-grid">
                     <input id="event-id" type="hidden" />
-                    <label>
-                      Nombre del evento
-                      <input id="event-name" type="text" required />
-                    </label>
-                    <label>
-                      Contrato
-                      <select id="event-contract" required>
-                        <option value="">Selecciona contrato</option>
-                      </select>
-                    </label>
-                    <label>
-                      Instalación
-                      <select id="event-installation" required>
-                        <option value="">Selecciona instalación</option>
-                      </select>
-                    </label>
-                    <label>
-                      Fecha de inicio
-                      <input id="event-start-date" type="date" required />
-                    </label>
-                    <label>
-                      Fecha de fin
-                      <input id="event-end-date" type="date" required />
-                    </label>
-                    <label class="full-width">
-                      Observaciones
-                      <textarea id="event-observations" rows="3"></textarea>
-                    </label>
-                    <label id="event-archived-field" class="checkbox-item full-width hidden">
-                      <input id="event-archived" type="checkbox" />
-                      <span>Evento archivado</span>
-                    </label>
+                    <fieldset class="detail-form-section full-width">
+                      <legend>Datos del evento</legend>
+                      <div class="detail-form-section-grid">
+                        <label>
+                          Nombre del evento
+                          <input id="event-name" type="text" required />
+                        </label>
+                        <label>
+                          Contrato
+                          <select id="event-contract" required>
+                            <option value="">Selecciona contrato</option>
+                          </select>
+                        </label>
+                        <label>
+                          Instalación
+                          <select id="event-installation" required>
+                            <option value="">Selecciona instalación</option>
+                          </select>
+                        </label>
+                        <label>
+                          Fecha de inicio
+                          <input id="event-start-date" type="date" required />
+                        </label>
+                        <label>
+                          Fecha de fin
+                          <input id="event-end-date" type="date" required />
+                        </label>
+                        <label class="full-width">
+                          Observaciones
+                          <textarea id="event-observations" rows="3"></textarea>
+                        </label>
+                        <label id="event-archived-field" class="checkbox-item full-width hidden">
+                          <input id="event-archived" type="checkbox" />
+                          <span>Evento archivado</span>
+                        </label>
+                      </div>
+                    </fieldset>
                     <div class="detail-actions full-width">
                       <button
                         id="event-delete-button"
@@ -4078,34 +4083,39 @@
                   <form id="event-schedule-form" class="form-grid">
                     <input id="event-schedule-id" type="hidden" />
                     <input id="event-schedule-event" type="hidden" />
-                    <label>
-                      Fecha
-                      <input id="event-schedule-date" type="date" required />
-                    </label>
-                    <label>
-                      Hora inicio
-                      <input id="event-schedule-start" type="time" required />
-                    </label>
-                    <label>
-                      Hora fin
-                      <input id="event-schedule-end" type="time" required />
-                    </label>
-                    <label class="full-width">
-                      Acción o actividad
-                      <textarea id="event-schedule-activity" rows="4" required></textarea>
-                    </label>
-                    <label class="checkbox-item full-width">
-                      <input id="event-schedule-needs-transport" type="checkbox" />
-                      <span>Necesita transporte</span>
-                    </label>
-                    <label id="event-schedule-transport-detail-field" class="full-width hidden">
-                      Detalle del transporte
-                      <textarea
-                        id="event-schedule-transport-detail"
-                        rows="3"
-                        placeholder="Vehículo, material a transportar, punto de recogida o indicaciones."
-                      ></textarea>
-                    </label>
+                    <fieldset class="detail-form-section full-width">
+                      <legend>Datos del paso</legend>
+                      <div class="detail-form-section-grid">
+                        <label>
+                          Fecha
+                          <input id="event-schedule-date" type="date" required />
+                        </label>
+                        <label>
+                          Hora inicio
+                          <input id="event-schedule-start" type="time" required />
+                        </label>
+                        <label>
+                          Hora fin
+                          <input id="event-schedule-end" type="time" required />
+                        </label>
+                        <label class="full-width">
+                          Acción o actividad
+                          <textarea id="event-schedule-activity" rows="4" required></textarea>
+                        </label>
+                        <label class="checkbox-item full-width">
+                          <input id="event-schedule-needs-transport" type="checkbox" />
+                          <span>Necesita transporte</span>
+                        </label>
+                        <label id="event-schedule-transport-detail-field" class="full-width hidden">
+                          Detalle del transporte
+                          <textarea
+                            id="event-schedule-transport-detail"
+                            rows="3"
+                            placeholder="Vehículo, material a transportar, punto de recogida o indicaciones."
+                          ></textarea>
+                        </label>
+                      </div>
+                    </fieldset>
                     <section class="full-width">
                       <p class="field-label">Personal implicado</p>
                       <div class="dual-list">
@@ -5480,12 +5490,10 @@
             <form id="historial-report-template-form" class="detail-form records-detail-form">
               <div class="report-template-compact-layout">
                 <div class="report-template-list-column">
-                  <label>
-                    Plantillas
-                    <select id="historial-report-template-select" size="7">
-                      <option value="">Seleccionar plantilla</option>
-                    </select>
-                  </label>
+                  <label>Plantillas</label>
+                  <div id="historial-report-template-list" class="settings-report-list" role="listbox" aria-label="Plantillas de informe">
+                    <p class="empty-state">No hay plantillas.</p>
+                  </div>
                   <div class="compact-action-row">
                     <button id="historial-report-template-new-button" type="button" class="secondary-button">
                       Nueva
@@ -5592,7 +5600,10 @@
             </div>
 
             <form id="settings-detail-form" class="detail-form">
-              <div id="settings-detail-fields" class="detail-form"></div>
+              <fieldset class="settings-detail-fields-box">
+                <legend>Datos del registro</legend>
+                <div id="settings-detail-fields" class="detail-form"></div>
+              </fieldset>
               <div class="detail-actions">
                 <button id="settings-detail-delete-button" type="button" class="danger-button tooltip-button hidden" aria-label="Borrar registro">
                   Borrar
@@ -7594,55 +7605,80 @@
             </div>
 
             <form id="contract-detail-form" class="detail-form">
-              <label>
-                ID
-                <input id="contract-detail-id" type="number" step="1" required />
-              </label>
-              <label>
-                Contrato
-                <input id="contract-detail-name" type="text" required />
-              </label>
-              <label>
-                Cliente
-                <input id="contract-detail-client" type="text" />
-              </label>
-              <label>
-                Expediente
-                <input id="contract-detail-file" type="text" />
-              </label>
-              <label>
-                Fecha inicio
-                <input id="contract-detail-start" type="date" />
-              </label>
-              <label>
-                Fecha fin
-                <input id="contract-detail-end" type="date" />
-              </label>
-              <label>
-                Importe
-                <input id="contract-detail-amount" type="text" />
-              </label>
-              <label>
-                IVA
-                <input id="contract-detail-vat" type="number" step="0.0001" />
-              </label>
-              <label class="checkbox-item">
-                <input id="contract-detail-active" type="checkbox" />
-                <span>Contrato activo</span>
-              </label>
-              <label class="checkbox-item">
-                <input id="contract-detail-nocturnidad" type="checkbox" />
-                <span>Tiene nocturnidad</span>
-              </label>
-              <div id="contract-detail-nocturnidad-fields" class="hidden">
-                <label>
-                  Nocturnidad desde
-                  <input id="contract-detail-nocturnidad-inicio" type="time" value="22:00" />
-                </label>
-                <label>
-                  Nocturnidad hasta
-                  <input id="contract-detail-nocturnidad-fin" type="time" value="06:00" />
-                </label>
+              <div class="detail-form-sections">
+                <fieldset class="detail-form-section">
+                  <legend>Identificación</legend>
+                  <div class="detail-form-section-grid">
+                    <label>
+                      ID
+                      <input id="contract-detail-id" type="number" step="1" required />
+                    </label>
+                    <label>
+                      Contrato
+                      <input id="contract-detail-name" type="text" required />
+                    </label>
+                    <label>
+                      Cliente
+                      <input id="contract-detail-client" type="text" />
+                    </label>
+                    <label>
+                      Expediente
+                      <input id="contract-detail-file" type="text" />
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="detail-form-section">
+                  <legend>Vigencia</legend>
+                  <div class="detail-form-section-grid">
+                    <label>
+                      Fecha inicio
+                      <input id="contract-detail-start" type="date" />
+                    </label>
+                    <label>
+                      Fecha fin
+                      <input id="contract-detail-end" type="date" />
+                    </label>
+                    <label class="checkbox-item">
+                      <input id="contract-detail-active" type="checkbox" />
+                      <span>Contrato activo</span>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="detail-form-section">
+                  <legend>Económico</legend>
+                  <div class="detail-form-section-grid">
+                    <label>
+                      Importe
+                      <input id="contract-detail-amount" type="text" />
+                    </label>
+                    <label>
+                      IVA
+                      <input id="contract-detail-vat" type="number" step="0.0001" />
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="detail-form-section">
+                  <legend>Nocturnidad</legend>
+                  <div class="detail-form-section-grid">
+                    <label class="checkbox-item">
+                      <input id="contract-detail-nocturnidad" type="checkbox" />
+                      <span>Tiene nocturnidad</span>
+                    </label>
+                    <div id="contract-detail-nocturnidad-fields" class="hidden contract-nocturnidad-fields">
+                      <label>
+                        Nocturnidad desde
+                        <input id="contract-detail-nocturnidad-inicio" type="time" value="22:00" />
+                      </label>
+                      <label>
+                        Nocturnidad hasta
+                        <input id="contract-detail-nocturnidad-fin" type="time" value="06:00" />
+                      </label>
+                    </div>
+                  </div>
+                </fieldset>
               </div>
 
               <div class="detail-actions">
@@ -8192,54 +8228,55 @@
             <form id="control-detail-form" class="detail-form">
               <input id="control-detail-id" type="hidden" />
 
-              <label>
-                Personal
-                <select id="control-detail-personal" required></select>
-              </label>
+              <div class="detail-form-sections">
+                <fieldset class="detail-form-section">
+                  <legend>Identificación</legend>
+                  <div class="detail-form-section-grid">
+                    <label>
+                      Personal
+                      <select id="control-detail-personal" required></select>
+                    </label>
+                    <label>
+                      DNI
+                      <input id="control-detail-dni" type="text" required />
+                    </label>
+                    <label>
+                      Centro
+                      <select id="control-detail-centro" required></select>
+                    </label>
+                    <label>
+                      Puesto
+                      <select id="control-detail-puesto" required></select>
+                    </label>
+                  </div>
+                </fieldset>
 
-              <label>
-                DNI
-                <input id="control-detail-dni" type="text" required />
-              </label>
-
-              <label>
-                Centro
-                <select id="control-detail-centro" required></select>
-              </label>
-
-              <label>
-                Puesto
-                <select id="control-detail-puesto" required></select>
-              </label>
-
-              <div class="detail-field-row cols-2">
-                <label>
-                  Fecha
-                  <input id="control-detail-fecha" type="date" required />
-                </label>
-
-                <label>
-                  Tipo jornada
-                  <input id="control-detail-tipo-jornada" type="text" />
-                </label>
+                <fieldset class="detail-form-section">
+                  <legend>Jornada</legend>
+                  <div class="detail-form-section-grid">
+                    <label>
+                      Fecha
+                      <input id="control-detail-fecha" type="date" required />
+                    </label>
+                    <label>
+                      Tipo jornada
+                      <input id="control-detail-tipo-jornada" type="text" />
+                    </label>
+                    <label>
+                      Hora inicio
+                      <input id="control-detail-hora-inicio" type="time" required />
+                    </label>
+                    <label>
+                      Hora fin
+                      <input id="control-detail-hora-fin" type="time" />
+                    </label>
+                    <label class="full-width">
+                      Observación
+                      <textarea id="control-detail-observacion" rows="4"></textarea>
+                    </label>
+                  </div>
+                </fieldset>
               </div>
-
-              <div class="detail-field-row cols-2">
-                <label>
-                  Hora inicio
-                  <input id="control-detail-hora-inicio" type="time" required />
-                </label>
-
-                <label>
-                  Hora fin
-                  <input id="control-detail-hora-fin" type="time" />
-                </label>
-              </div>
-
-              <label class="full-width">
-                Observación
-                <textarea id="control-detail-observacion" rows="4"></textarea>
-              </label>
 
               <div class="detail-actions">
                 <button
@@ -8283,69 +8320,73 @@
               <input id="programming-detail-mode" type="hidden" value="edit" />
               <input id="programming-detail-id" type="hidden" />
 
-              <div class="detail-field-row cols-2">
-                <label>
-                  Personal
-                  <select id="programming-detail-personal"></select>
-                </label>
+              <div class="detail-form-sections">
+                <fieldset class="detail-form-section">
+                  <legend>Identificación</legend>
+                  <div class="detail-form-section-grid">
+                    <label>
+                      Personal
+                      <select id="programming-detail-personal"></select>
+                    </label>
+                    <label>
+                      Tipo de programación
+                      <select id="programming-detail-type">
+                        <option value="fin_semana">Programación FS</option>
+                        <option value="semanal">Programación semanal</option>
+                      </select>
+                    </label>
+                    <label>
+                      Instalación
+                      <input
+                        id="programming-detail-installation"
+                        type="text"
+                        list="programming-installation-options"
+                        required
+                      />
+                    </label>
+                    <label>
+                      Deporte
+                      <input id="programming-detail-sport" type="text" />
+                    </label>
+                  </div>
+                </fieldset>
 
-                <label>
-                  Tipo de programación
-                  <select id="programming-detail-type">
-                    <option value="fin_semana">Programación FS</option>
-                    <option value="semanal">Programación semanal</option>
-                  </select>
-                </label>
+                <fieldset class="detail-form-section">
+                  <legend>Horario</legend>
+                  <div class="detail-form-section-grid">
+                    <label>
+                      Fecha
+                      <input id="programming-detail-date" type="date" required />
+                    </label>
+                    <label>
+                      Hora inicio
+                      <input id="programming-detail-start" type="time" required />
+                    </label>
+                    <label>
+                      Hora fin
+                      <input id="programming-detail-end" type="time" />
+                    </label>
+                    <label>
+                      Hora evento
+                      <input id="programming-detail-event-time" type="time" />
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="detail-form-section">
+                  <legend>Detalle</legend>
+                  <div class="detail-form-section-grid">
+                    <label class="full-width">
+                      Actividad
+                      <textarea id="programming-detail-activity" rows="4"></textarea>
+                    </label>
+                    <label class="checkbox-item">
+                      <input id="programming-detail-archived" type="checkbox" />
+                      <span>Registro archivado</span>
+                    </label>
+                  </div>
+                </fieldset>
               </div>
-
-              <div class="detail-field-row cols-2">
-                <label>
-                  Fecha
-                  <input id="programming-detail-date" type="date" required />
-                </label>
-
-                <label>
-                  Instalación
-                  <input
-                    id="programming-detail-installation"
-                    type="text"
-                    list="programming-installation-options"
-                    required
-                  />
-                </label>
-              </div>
-
-              <div class="detail-field-row cols-3">
-                <label>
-                  Hora inicio
-                  <input id="programming-detail-start" type="time" required />
-                </label>
-
-                <label>
-                  Hora fin
-                  <input id="programming-detail-end" type="time" />
-                </label>
-
-                <label>
-                  Hora evento
-                  <input id="programming-detail-event-time" type="time" />
-                </label>
-              </div>
-
-              <label>
-                Deporte
-                <input id="programming-detail-sport" type="text" />
-              </label>
-
-              <label class="full-width">
-                Actividad
-                <textarea id="programming-detail-activity" rows="4"></textarea>
-              </label>
-
-              <label class="checkbox-item">
-                <input id="programming-detail-archived" type="checkbox" />
-                <span>Registro archivado</span>
-              </label>
 
               <div class="detail-actions">
                 <button
@@ -8593,41 +8634,38 @@
             <form id="detail-form" class="detail-form">
               <input id="detail-id" type="hidden" />
 
-              <div class="detail-field-row cols-2">
-                <label>
-                  Nombre y apellidos
-                  <input id="detail-full-name" type="text" />
-                </label>
+              <fieldset class="detail-form-section">
+                <legend>Datos de contacto</legend>
+                <div class="detail-form-section-grid">
+                  <label>
+                    Nombre y apellidos
+                    <input id="detail-full-name" type="text" />
+                  </label>
+                  <label>
+                    Teléfono
+                    <input id="detail-phone" type="tel" />
+                  </label>
+                  <label>
+                    Correo electrónico
+                    <input id="detail-email" type="email" />
+                  </label>
+                  <label>
+                    Fecha de registro
+                    <input id="detail-registration-date" type="date" />
+                  </label>
+                  <label>
+                    Estado
+                    <select id="detail-status">
+                      <option value="Pendiente">Pendiente</option>
+                      <option value="Preseleccionado">Preseleccionado</option>
+                      <option value="Descartado">Descartado</option>
+                      <option value="Contratado">Contratado</option>
+                    </select>
+                  </label>
+                </div>
+              </fieldset>
 
-                <label>
-                  Teléfono
-                  <input id="detail-phone" type="tel" />
-                </label>
-              </div>
-
-              <div class="detail-field-row cols-2">
-                <label>
-                  Correo electrónico
-                  <input id="detail-email" type="email" />
-                </label>
-
-                <label>
-                  Fecha de registro
-                  <input id="detail-registration-date" type="date" />
-                </label>
-              </div>
-
-              <label>
-                Estado
-                <select id="detail-status">
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Preseleccionado">Preseleccionado</option>
-                  <option value="Descartado">Descartado</option>
-                  <option value="Contratado">Contratado</option>
-                </select>
-              </label>
-
-              <fieldset>
+              <fieldset class="detail-form-section">
                 <legend>Puestos</legend>
                 <div class="checkbox-grid detail-checkbox-grid">
                   <label class="checkbox-item">
@@ -8690,7 +8728,7 @@
                 </div>
               </fieldset>
 
-              <fieldset id="detail-sport-specialties-group" class="hidden-submenu">
+              <fieldset id="detail-sport-specialties-group" class="hidden-submenu detail-form-section">
                 <legend>Modalidades deportivas</legend>
                 <div class="checkbox-grid detail-checkbox-grid">
                   <label class="checkbox-item">
@@ -8724,48 +8762,47 @@
                 </div>
               </fieldset>
 
-              <label>
-                Etiquetas
-                <input
-                  id="detail-tags"
-                  type="text"
-                  placeholder="Separadas por comas"
-                />
-              </label>
-
-              <label>
-                Notas
-                <textarea id="detail-notes" rows="4"></textarea>
-              </label>
-
-              <label>
-                Observaciones
-                <textarea id="detail-observations" rows="4"></textarea>
-              </label>
-
-              <label>
-                CV adjunto
-                <input id="detail-attachment-name" type="text" readonly />
-              </label>
-
-              <label>
-                Sustituir currículum
-                <input
-                  id="detail-attachment-file"
-                  type="file"
-                  accept=".pdf,.doc,.docx,.odt,.rtf,.txt,image/*"
-                />
-              </label>
-
-              <label class="checkbox-item">
-                <input id="detail-remove-attachment" type="checkbox" />
-                <span>Eliminar el currículum actual al guardar</span>
-              </label>
-
-              <label class="checkbox-item with-label">
-                <input id="detail-vacancy-consent" type="checkbox" />
-                <span>Autorización para posibles vacantes</span>
-              </label>
+              <fieldset class="detail-form-section">
+                <legend>Notas y documentación</legend>
+                <div class="detail-form-section-grid">
+                  <label class="full-width">
+                    Etiquetas
+                    <input
+                      id="detail-tags"
+                      type="text"
+                      placeholder="Separadas por comas"
+                    />
+                  </label>
+                  <label class="full-width">
+                    Notas
+                    <textarea id="detail-notes" rows="4"></textarea>
+                  </label>
+                  <label class="full-width">
+                    Observaciones
+                    <textarea id="detail-observations" rows="4"></textarea>
+                  </label>
+                  <label>
+                    CV adjunto
+                    <input id="detail-attachment-name" type="text" readonly />
+                  </label>
+                  <label>
+                    Sustituir currículum
+                    <input
+                      id="detail-attachment-file"
+                      type="file"
+                      accept=".pdf,.doc,.docx,.odt,.rtf,.txt,image/*"
+                    />
+                  </label>
+                  <label class="checkbox-item">
+                    <input id="detail-remove-attachment" type="checkbox" />
+                    <span>Eliminar el currículum actual al guardar</span>
+                  </label>
+                  <label class="checkbox-item with-label">
+                    <input id="detail-vacancy-consent" type="checkbox" />
+                    <span>Autorización para posibles vacantes</span>
+                  </label>
+                </div>
+              </fieldset>
 
               <div class="detail-actions">
                 <button
@@ -8797,6 +8834,6 @@
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260830-4" defer></script>
     <script src="./facturacion.js?v=20260807-12" defer></script>
-    <script src="./app.js?v=20260901-1" defer></script>
+    <script src="./app.js?v=20260901-6" defer></script>
   </body>
 </html>
