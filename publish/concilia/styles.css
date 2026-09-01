@@ -67,6 +67,13 @@ button:disabled {
   opacity: 0.5;
 }
 
+button:focus-visible,
+.primary-link:focus-visible,
+.secondary-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .secondary-button,
 .secondary-link {
   background: #ffffff;

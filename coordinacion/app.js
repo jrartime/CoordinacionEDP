@@ -20538,6 +20538,7 @@ const gestionFilterBaseCalculo = document.querySelector("#gestion-filter-base-ca
 // totales aplica exceso y defecto); los demás valores fuerzan el criterio.
 const gestionFilterAjusteJornada = document.querySelector("#gestion-filter-ajuste-jornada");
 const gestionFilterHorasOtrosPuestos = document.querySelector("#gestion-filter-horas-otros-puestos");
+const gestionFilterAplicarTopes = document.querySelector("#gestion-filter-aplicar-topes");
 // Nómina manual: el importe tecleado se impone a lo que saldría del historial y
 // del convenio. Los complementos marcados se dan por incluidos DENTRO de ese
 // importe, así que no se vuelven a sumar. Ver p_manual_* en
@@ -20676,6 +20677,10 @@ function getGestionFilters() {
     horasOtrosPuestos: gestionFilterHorasOtrosPuestos
       ? gestionFilterHorasOtrosPuestos.checked
       : true,
+    // Por defecto true: sube la base al mínimo de cotización del grupo (o la
+    // recorta al máximo) según cotizacion_topes. Desmarcarlo calcula sin topar
+    // nada, útil para comparar o cuando el grupo/tarifa aún no está fiable.
+    aplicarTopes: gestionFilterAplicarTopes ? gestionFilterAplicarTopes.checked : true,
     manual: getGestionManualOptions(),
     complementosExtra: gestionExtraRows.length
       ? gestionExtraRows.map((row) => ({ complemento_id: row.id, importe: row.importe }))
@@ -21676,7 +21681,7 @@ async function toggleGestionNominaTotal(personalId) {
     return;
   }
   detail.innerHTML = '<p class="muted-text">Calculando…</p>';
-  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra, horasOtrosPuestos } =
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra, horasOtrosPuestos, aplicarTopes } =
     getGestionFilters();
   try {
     const supabase = await getSupabaseClient();
@@ -21699,6 +21704,7 @@ async function toggleGestionNominaTotal(personalId) {
       p_complementos_extra: complementosExtra,
       p_manual_conceptos_dentro: manual ? manual.conceptosDentro : null,
       p_horas_otros_puestos: horasOtrosPuestos,
+      p_aplicar_topes_cotizacion: aplicarTopes,
     });
     if (error) {
       throw error;
@@ -21787,7 +21793,7 @@ const gestionNominasEmitidasCache = new Map();
 // Mismos parámetros que usa la tarjeta del total, para que lo emitido sea
 // exactamente lo que se está viendo en pantalla.
 function getGestionNominaEmitirPayload(personalId) {
-  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra, horasOtrosPuestos } =
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra, horasOtrosPuestos, aplicarTopes } =
     getGestionFilters();
   return {
     p_personal_id: Number(personalId),
@@ -21805,6 +21811,7 @@ function getGestionNominaEmitirPayload(personalId) {
     p_complementos_extra: complementosExtra,
     p_manual_conceptos_dentro: manual ? manual.conceptosDentro : null,
     p_horas_otros_puestos: horasOtrosPuestos,
+    p_aplicar_topes_cotizacion: aplicarTopes,
   };
 }
 
@@ -21932,7 +21939,7 @@ async function obtenerGestionNominaTotal(personalId) {
   if (gestionNominaCache.has("total")) {
     return gestionNominaCache.get("total");
   }
-  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra, horasOtrosPuestos } =
+  const { desde, hasta, empresaId, baseCalculo, ajusteJornada, manual, complementosExtra, horasOtrosPuestos, aplicarTopes } =
     getGestionFilters();
   const supabase = await getSupabaseClient();
   const { data, error } = await supabase.rpc("calcular_nomina_persona", {
@@ -21951,6 +21958,7 @@ async function obtenerGestionNominaTotal(personalId) {
     p_complementos_extra: complementosExtra,
     p_manual_conceptos_dentro: manual ? manual.conceptosDentro : null,
     p_horas_otros_puestos: horasOtrosPuestos,
+    p_aplicar_topes_cotizacion: aplicarTopes,
   });
   if (error) throw error;
   gestionNominaCache.set("total", data || []);
@@ -25521,6 +25529,10 @@ const HISTORIAL_NEW_DEFAULTS = {
   cotizacion_mei_pct: 0.0015,
   cotizacion_formacion_pct: 0.001,
   cotizacion_desempleo_pct: 0.0155,
+  // Grupo 6 (Subalternos) es el de la inmensa mayoría del personal (Monitorado
+  // Deportivo, Conc. Monitorado, Recepción/Cons/Aux/Inf): se deja como valor
+  // de partida y se cambia a mano en los casos distintos.
+  grupo_cotizacion: 6,
 };
 
 // Tablas de catálogo para los selectores de relación del formulario y la asignación masiva.

@@ -77,6 +77,10 @@ create table if not exists public.nominas (
   -- tiene contratado. Cambia el importe, asi que se congela con el resto de
   -- parametros del calculo.
   horas_otros_puestos boolean not null default true,
+  -- Si se aplico el tope de cotizacion (minimo/maximo por grupo,
+  -- cotizacion_topes) al calcular las bases. Cambia el importe, asi que se
+  -- congela igual que horas_otros_puestos.
+  aplicar_topes_cotizacion boolean not null default true,
 
   -- Totales congelados (se derivan de nomina_lineas al emitir).
   total_devengado numeric(12, 2) not null default 0,
@@ -567,8 +571,10 @@ drop function if exists public.emitir_nomina(integer, date, date, integer, text,
 drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb);
 -- Idem al anadir p_manual_conceptos_dentro (2026-07-28).
 drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb);
--- Idem al anadir p_horas_otros_puestos (2026-07-29).
+-- Idem al anadir p_horas_otros_puestos (2026-07-29) y, sobre la misma firma,
+-- al anadir despues p_aplicar_topes_cotizacion (2026-08-31).
 drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[]);
+drop function if exists public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[], boolean);
 
 create or replace function public.emitir_nomina(
   p_personal_id integer,
@@ -598,7 +604,11 @@ create or replace function public.emitir_nomina(
   -- Contar como jornada las horas de un puesto que la persona no tiene
   -- contratado. Se congela en la cabecera: sin el, una nomina reemitida podria
   -- salir por otro importe sin que nada explicara por que.
-  p_horas_otros_puestos boolean default true
+  p_horas_otros_puestos boolean default true,
+  -- Aplicar el tope de cotizacion (minimo/maximo por grupo). Se congela igual
+  -- que p_horas_otros_puestos: sin esto, reemitir podria salir por otro
+  -- importe sin que nada explicara por que.
+  p_aplicar_topes_cotizacion boolean default true
 )
 returns bigint
 language plpgsql
@@ -656,14 +666,14 @@ begin
     base_calculo, ajuste_jornada,
     manual_importe, manual_modo, manual_pagas_incluidas,
     manual_complementos, manual_transporte, complementos_extra, manual_conceptos_dentro,
-    horas_otros_puestos,
+    horas_otros_puestos, aplicar_topes_cotizacion,
     notas, sustituye_a, editada, emitida_por_email
   ) values (
     p_personal_id, p_empresa_id, p_desde, p_hasta, v_ids,
     p_base_calculo, p_ajuste_jornada,
     p_manual_importe, p_manual_modo, coalesce(p_manual_pagas_incluidas, false),
     p_manual_complementos, coalesce(p_manual_transporte, false), p_complementos_extra, p_manual_conceptos_dentro,
-    coalesce(p_horas_otros_puestos, true),
+    coalesce(p_horas_otros_puestos, true), coalesce(p_aplicar_topes_cotizacion, true),
     -- El nullif exterior evita reventar cuando el claim no viene (cadena vacia
     -- no es jsonb valido).
     p_notas, v_previa, v_editada,
@@ -702,7 +712,7 @@ begin
       nullif(v_ids, '{}'::bigint[]), p_manual_importe, p_manual_modo,
       coalesce(p_manual_pagas_incluidas, false), p_manual_complementos,
       coalesce(p_manual_transporte, false), p_complementos_extra, p_manual_conceptos_dentro,
-      coalesce(p_horas_otros_puestos, true)
+      coalesce(p_horas_otros_puestos, true), coalesce(p_aplicar_topes_cotizacion, true)
     ) c;
   end if;
 
@@ -917,8 +927,8 @@ begin
 end;
 $$;
 
-revoke all on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[], boolean) from public;
-grant execute on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[], boolean) to authenticated;
+revoke all on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[], boolean, boolean) from public;
+grant execute on function public.emitir_nomina(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, text, boolean, jsonb, jsonb, text[], boolean, boolean) to authenticated;
 
 -- ============================================================================
 -- Anular: no se borra, se marca. Las lineas se conservan como historico.
@@ -955,6 +965,7 @@ grant execute on function public.anular_nomina(bigint, text) to authenticated;
 
 -- Migracion para bases ya creadas: el create table de arriba no la anade.
 alter table public.nominas add column if not exists horas_otros_puestos boolean not null default true;
+alter table public.nominas add column if not exists aplicar_topes_cotizacion boolean not null default true;
 
 alter table public.nominas enable row level security;
 alter table public.nomina_lineas enable row level security;

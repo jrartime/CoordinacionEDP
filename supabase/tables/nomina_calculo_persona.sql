@@ -131,7 +131,10 @@ drop function if exists public.calcular_nomina_persona(integer, date, date, inte
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb);
 -- Idem al anadir p_manual_conceptos_dentro (2026-07-28).
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[]);
--- Idem al anadir p_horas_otros_puestos (2026-07-29).
+-- Idem al anadir p_horas_otros_puestos (2026-07-29) y, sobre la misma firma,
+-- al anadir despues p_aplicar_topes_cotizacion (2026-08-31): sin dropear
+-- antes, PostgREST puede ver la firma vieja y la nueva como un overload
+-- ambiguo ("function is not unique").
 drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean);
 
 create or replace function public.calcular_nomina_persona(
@@ -162,7 +165,11 @@ create or replace function public.calcular_nomina_persona(
   -- contratado. Por defecto SI: son horas trabajadas y no contarlas no solo
   -- deja de pagarlas, en modalidad Horas totales las convierte en descuento.
   -- Se desmarca cuando el puesto del registro esta mal elegido (error de dato).
-  p_horas_otros_puestos boolean default true
+  p_horas_otros_puestos boolean default true,
+  -- Aplicar el tope de cotizacion (minimo/maximo por grupo, cotizacion_topes).
+  -- Por defecto SI. Desmarcarlo calcula sin topar nada -- util para comparar
+  -- contra el calculo "en bruto" o mientras un grupo/tarifa no esta fiable.
+  p_aplicar_topes_cotizacion boolean default true
 )
 -- cantidad/precio acompanan a cada linea con las UNIDADES y el PRECIO UNITARIO
 -- que la produjeron. cotiza_en dice a que bases suma esa linea.
@@ -585,7 +592,7 @@ begin
   -- 120h x 8,58€ = 1.029,60€) y Maria Eugenia de Ugarriza (historial 5913,
   -- 32h/40h: 134,4 -> 134h x 8,58€ = 1.149,72€) -- las tres coincidian con el
   -- coeficiente y solo la formula por horas daba el importe real.
-  if hp.grupo_cotizacion is not null then
+  if p_aplicar_topes_cotizacion and hp.grupo_cotizacion is not null then
     select t.* into v_tope
     from public.cotizacion_topes t
     where t.grupo_cotizacion = hp.grupo_cotizacion
@@ -640,7 +647,7 @@ begin
   v_ded_total   := v_d_comunes + v_d_mei + v_d_desempleo + v_d_formacion + v_d_irpf;
 
   return query select 500, 'total'::text, 'Total devengado (bruto)'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_bruto,2), null::text, null::text[];
-  if hp.grupo_cotizacion is null then
+  if p_aplicar_topes_cotizacion and hp.grupo_cotizacion is null then
     return query select 603, 'base'::text, 'Grupo de cotización sin asignar'::text,
       'Esta persona no tiene grupo de cotización en su historial laboral: no se han comprobado los topes de cotización de este periodo.'::text,
       null::numeric, null::numeric, null::numeric, null::numeric, 0::numeric, null::text, null::text[];
@@ -678,5 +685,5 @@ begin
 end;
 $$;
 
-revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean) from public;
-grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean) to authenticated;
+revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean, boolean) from public;
+grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean, boolean) to authenticated;
