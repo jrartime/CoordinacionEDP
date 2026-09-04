@@ -584,7 +584,7 @@
       let query = supabase
         .from("registros_detalle")
         .select(
-          "id,fecha,contrato_id,contrato,instalacion_id,instalacion,funcion_id,funcion,horas,horas_diurnas,horas_nocturnas,"
+          "id,fecha,contrato_id,contrato,instalacion_id,instalacion,funcion_id,funcion,horas,horas_nocturnas,"
           + "contrato_facturable_id,servicio_facturable_id,funcion_facturable_id,instalacion_facturable_id,"
           + "facturacion_destino_contrato,facturacion_destino_servicio_id,facturacion_destino_servicio,"
           + "facturacion_destino_funcion,facturacion_destino_instalacion"

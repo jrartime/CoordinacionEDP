@@ -213,6 +213,111 @@ $$;
 revoke all on function public.dias_nomina(date, date, boolean) from public;
 grant execute on function public.dias_nomina(date, date, boolean) to authenticated;
 
+-- Dias naturales de [p_desde, p_hasta] cubiertos por algun personal_permisos
+-- de esa persona con tratamiento_nomina='suspendido' (maternidad/paternidad,
+-- excedencia): dias sin nomina, ver personal_permisos.sql. fecha_fin es el
+-- ULTIMO dia del permiso (inclusive, confirmado por el usuario 2026-09-04);
+-- null = sigue abierto (se acota a p_hasta). Asume que los permisos
+-- 'suspendido' de una misma persona no se solapan entre si (son tramos de
+-- baja/alta reales, no simultaneos); si algun dia se solaparan, esta suma
+-- los contaria dos veces.
+create or replace function public.dias_suspendidos_periodo(
+  p_personal_id integer,
+  p_desde date,
+  p_hasta date
+)
+returns integer
+language sql stable security invoker set search_path = public
+as $$
+  select coalesce(sum(
+    least(p_hasta, coalesce(pp.fecha_fin, p_hasta))
+    - greatest(p_desde, pp.fecha_inicio) + 1
+  ), 0)::integer
+  from public.personal_permisos pp
+  join public.personal_permisos_tipo ppt on ppt.id = pp.tipo_id
+  where pp.personal_id = p_personal_id
+    and ppt.tratamiento_nomina = 'suspendido'
+    and pp.fecha_inicio <= p_hasta
+    and coalesce(pp.fecha_fin, p_hasta) >= p_desde;
+$$;
+
+revoke all on function public.dias_suspendidos_periodo(integer, date, date) from public;
+grant execute on function public.dias_suspendidos_periodo(integer, date, date) to authenticated;
+
+-- Dias de nomina de [p_desde, p_hasta] descontando los permisos suspendido
+-- que la solapen (ver dias_suspendidos_periodo). NO basta con restar su
+-- recuento al resultado de dias_nomina(p_desde, p_hasta, ...): dias_nomina
+-- decide "mes completo" (base 30) mirando si el TRAMO empieza el dia 1 del
+-- mes, no solo el flag p_mes_completo que se le pase -- con p_desde=dia 1
+-- siempre entra por esa rama aunque se fuerce el flag a false, y sigue
+-- devolviendo 30 sin reflejar ningun descuento.
+--
+-- Por eso aqui se parte la ventana en los tramos REALMENTE trabajados
+-- alrededor de cada permiso (antes del primero, entre cada dos, despues del
+-- ultimo) y se llama a dias_nomina por separado en cada uno, igual que ya se
+-- hace de forma natural cuando una variacion parte un mes entre dos
+-- historiales. Solo el PRIMER tramo (el que arranca en p_desde) puede ser
+-- "mes completo" -- cualquier tramo posterior a un permiso, por definicion,
+-- ya no viene cubierto desde el dia 1 sin interrupcion.
+--
+-- Caso de referencia: Lucia Arrouge Roza, agosto 2026, permiso hasta el
+-- 05/08 -> tramo trabajado 06-31, dias_nomina('2026-08-06','2026-08-31',
+-- false) = 26 (dias reales, tramo_ini no es dia 1 del mes). Sin partir la
+-- ventana, dias_nomina('2026-08-01','2026-08-31', false) seguia devolviendo
+-- 30 porque el tramo SI arranca el dia 1, y 30-5=25 no cuadra con los 26
+-- dias reales trabajados (06 a 31).
+create or replace function public.dias_nomina_con_permisos(
+  p_personal_id integer,
+  p_desde date,
+  p_hasta date,
+  p_empresa_id integer default null
+)
+returns integer
+language plpgsql stable set search_path = public
+as $$
+declare
+  v_total integer := 0;
+  v_cursor date := p_desde;
+  v_primero boolean := true;
+  v_permiso record;
+begin
+  for v_permiso in
+    select greatest(p_desde, pp.fecha_inicio) as ini,
+           least(p_hasta, coalesce(pp.fecha_fin, p_hasta)) as fin
+    from public.personal_permisos pp
+    join public.personal_permisos_tipo ppt on ppt.id = pp.tipo_id
+    where pp.personal_id = p_personal_id
+      and ppt.tratamiento_nomina = 'suspendido'
+      and pp.fecha_inicio <= p_hasta
+      and coalesce(pp.fecha_fin, p_hasta) >= p_desde
+    order by pp.fecha_inicio
+  loop
+    if v_permiso.ini > v_cursor then
+      v_total := v_total + public.dias_nomina(
+        v_cursor, v_permiso.ini - 1,
+        v_primero and public.tiene_alta_continua_desde_inicio_mes(p_personal_id, v_cursor, p_empresa_id)
+      );
+    end if;
+    v_primero := false;
+    if v_permiso.fin + 1 > v_cursor then
+      v_cursor := v_permiso.fin + 1;
+    end if;
+  end loop;
+
+  if v_cursor <= p_hasta then
+    v_total := v_total + public.dias_nomina(
+      v_cursor, p_hasta,
+      v_primero and public.tiene_alta_continua_desde_inicio_mes(p_personal_id, v_cursor, p_empresa_id)
+    );
+  end if;
+
+  return greatest(v_total, 0);
+end;
+$$;
+
+revoke all on function public.dias_nomina_con_permisos(integer, date, date, integer) from public;
+grant execute on function public.dias_nomina_con_permisos(integer, date, date, integer) to authenticated;
+
 -- Horas que "tocaba" trabajar en el periodo segun la jornada semanal del
 -- contrato. Por cada mes natural que toque el periodo:
 --   dias de lunes a viernes del mes x (jornada / 5) x proporcion de dias
@@ -355,6 +460,7 @@ declare
   v_fecha_ref date; v_desde date; v_hasta date;
   v_sal record; v_conv public.convenios_categorias_salarios;
   v_coef numeric; v_dias integer; v_base numeric;
+  v_dias_suspendidos integer;
   v_dias_trab integer; v_horas_noct numeric; v_convenio_id integer;
   v_precio_hora_jc numeric;
   v_modo text; v_horas_reg numeric; v_tarifa_dia numeric; v_detalle_base text;
@@ -392,8 +498,15 @@ begin
   if v_hasta < v_desde then return; end if;
 
   v_fecha_ref := v_desde;
-  v_dias := public.dias_nomina(v_desde, v_hasta,
-    public.tiene_alta_continua_desde_inicio_mes(h.personal_id, v_desde, h.empresa_id));
+
+  -- Permisos con tratamiento_nomina='suspendido' (maternidad/paternidad,
+  -- excedencia) solapados con la ventana: esos días NO deben pagarse ni
+  -- contar como jornada (ver personal_permisos.sql, dias_nomina_con_permisos
+  -- y memoria nominas-incapacidad-transitoria-pendiente). Caso de
+  -- referencia: Lucía Arrouge Roza, agosto 2026, permiso hasta el 05/08 ->
+  -- 26 días de nómina (06-31), no el mes completo.
+  v_dias_suspendidos := public.dias_suspendidos_periodo(h.personal_id, v_desde, v_hasta);
+  v_dias := public.dias_nomina_con_permisos(h.personal_id, v_desde, v_hasta, h.empresa_id);
   v_coef := coalesce(h.coeficiente_temporalidad_miles, 1000) / 1000.0;
 
   -- Ajuste de jornada: si p_ajuste_jornada trae valor se fuerza; si viene vacio
@@ -519,14 +632,20 @@ begin
   elsif v_modo = 'diario' and coalesce(coalesce(v_conv.salario_diario, v_sal.salario_mensual / 30.0), 0) > 0 then
     v_tarifa_dia := coalesce(v_conv.salario_diario, v_sal.salario_mensual / 30.0);
     v_base := v_tarifa_dia * v_coef * v_dias;
-    v_detalle_base := format('%s€/día × coef %s × %s días%s',
+    v_detalle_base := format('%s€/día × coef %s × %s días%s%s',
       round(v_tarifa_dia, 4), round(v_coef, 3), v_dias,
-      case when v_conv.salario_diario is null then ' (día = mensual/30)' else '' end);
+      case when v_conv.salario_diario is null then ' (día = mensual/30)' else '' end,
+      case when v_dias_suspendidos > 0
+           then format(' · −%s días de permiso con contrato suspendido', v_dias_suspendidos)
+           else '' end);
   else
     v_base := coalesce(v_sal.salario_mensual, 0) * v_coef * v_dias / 30.0;
-    v_detalle_base := format('%s€/mes × coef %s × %s/30 días%s',
+    v_detalle_base := format('%s€/mes × coef %s × %s/30 días%s%s',
       round(coalesce(v_sal.salario_mensual, 0), 2), round(v_coef, 3), v_dias,
-      case when v_modo <> 'mensual' then format(' · sin tarifa %s, se usa mensual', v_modo) else '' end);
+      case when v_modo <> 'mensual' then format(' · sin tarifa %s, se usa mensual', v_modo) else '' end,
+      case when v_dias_suspendidos > 0
+           then format(' · −%s días de permiso con contrato suspendido', v_dias_suspendidos)
+           else '' end);
   end if;
 
   return query select 10, 'Salario base'::text, v_detalle_base,

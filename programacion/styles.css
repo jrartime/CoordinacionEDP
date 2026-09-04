@@ -330,6 +330,25 @@ select {
   font-size: 0.84rem;
 }
 
+/* Misma densidad visual que los filtros compactos de coordinacion/concilia
+   (pestaña Historial laboral): etiquetas pequeñas y controles bajos, sin
+   añadir la estructura de botón de limpiar por campo que usan esas apps. */
+.records-filters-compact {
+  gap: 6px;
+}
+
+.records-filters-compact label {
+  gap: 2px;
+  font-size: 0.72rem;
+}
+
+.records-filters-compact input,
+.records-filters-compact select {
+  height: 28px;
+  padding: 3px 6px;
+  font-size: 0.74rem;
+}
+
 input:focus,
 select:focus {
   outline: none;

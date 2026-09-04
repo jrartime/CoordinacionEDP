@@ -49,7 +49,8 @@ insert into public.historiales_laborales_motivos_baja (id, motivo_baja) values
   (9, 'Jubilacion'),
   (10, 'Excedencia'),
   (11, 'Variacion contrato'),
-  (12, 'No superar periodo de prueba')
+  (12, 'No superar periodo de prueba'),
+  (13, 'Subrogacion a otra empresa')
 on conflict (id) do update set
   motivo_baja = excluded.motivo_baja;
 

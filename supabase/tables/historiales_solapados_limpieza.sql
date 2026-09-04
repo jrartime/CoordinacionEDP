@@ -1,0 +1,59 @@
+-- Limpieza de historiales_laborales SOLAPADOS (misma persona, un historial
+-- empieza el mismo dia o antes de que acabe el anterior). Aplicada el
+-- 04/09/2026 tras el relleno automatico de tipo_contratacion/motivo_baja
+-- (ver historiales_motivo_tipo_relleno_automatico.sql), que fue el que hizo
+-- visible el problema: 923 pares solapados detectados sobre el total de la
+-- tabla.
+--
+-- Metodo de deteccion: para cada persona, historiales ordenados por
+-- fecha_alta (empate por id), un par (anterior, actual) esta solapado si
+-- actual.fecha_alta <= anterior.fecha_baja. Sobre esos pares se sigue la
+-- cadena de historiales CONSECUTIVOS (cada uno empieza el dia siguiente de
+-- que acabe el anterior) que arranca en el historial "corto" (el de fecha de
+-- baja mas temprana de los dos) y se compara donde termina esa cadena contra
+-- la fecha de baja del historial "largo".
+--
+-- Se filtraron primero los pares con **distinto puesto**: son legitimos
+-- (dos ocupaciones a la vez) y no se tocan.
+--
+-- Sobre los pares con el mismo puesto (o ambos sin puesto), tres resultados:
+--
+-- 1. La cadena fina reconstruye EXACTAMENTE el "largo" (mismo inicio, mismo
+--    final, sin huecos): el "largo" es 100% redundante -> se borra, se deja
+--    la cadena fina (que ya tiene tipo_contratacion/motivo_baja correctos
+--    por el relleno automatico). 370 casos. Caso de referencia: Adriana
+--    Suarez Alvarez, un historial "curso completo" (ej. 2004-10-05 a
+--    2005-06-30) duplicado por una cadena de variaciones mensuales que
+--    reconstruye exactamente esas mismas fechas.
+--    Patron emparentado, mas simple: el "dia 1 + resto = periodo completo"
+--    (ej. David Tella Fernandez) -- 48 filas (24 tripletes) resueltas antes,
+--    mismo criterio pero solo 2 eslabones en la cadena.
+--
+-- 2. La cadena fina termina ANTES que el "largo": el "largo" tiene
+--    informacion real que la cadena fina no cubre (la cadena fina dejo de
+--    registrarse, pero el "largo" -a menudo un contrato Indefinido, tipo
+--    100/300- siguio abierto hasta la baja real). NO se borra nada aqui:
+--    borrar el "largo" perderia la fecha de baja real. Caso de referencia:
+--    Francisco Fernandez Rodriguez (historial 100 abierto 2012-2020, cadena
+--    de contrato temporal 501 que se dejo de registrar en 2017).
+--    Excepcion resuelta: cuando el patron era un simple desfase de un dia en
+--    el borde (el "largo" acaba el mismo dia que empieza el siguiente, o un
+--    historial de un solo dia queda contenido en el siguiente) se borro el
+--    historial de un solo dia por ser puramente redundante (Abel Piñeiro
+--    Lopez, Javier Ortiz Muñoz) o se dejo para ajuste manual del limite.
+--
+-- 3. La cadena fina termina DESPUES que el "largo": revision caso a caso,
+--    sin regla automatica (a veces la cadena fina se "engancha" a periodos
+--    que no tienen que ver con el mismo contrato). Alcance acotado a partir
+--    de 2022 (los anteriores a esa fecha se dejaron fuera deliberadamente,
+--    son ruido historico de bajo impacto); de esos, la mayoria se resolvieron
+--    a mano en la propia app durante la revision.
+--
+-- Alcance final: se limito el trabajo de revision caso a caso (grupos 2 y 3)
+-- a partir del 01/01/2022 por decision expresa -- quedan 147 pares
+-- solapados anteriores a esa fecha sin revisar, con baja prioridad al ser
+-- historico antiguo. A partir de 2022 quedan 0 pares solapados.
+--
+-- Verificacion previa a cada borrado: ninguno de los ids borrados estaba
+-- referenciado en nomina_historiales (0 en todos los lotes), asi que no hay
+-- impacto en nominas ya emitidas.

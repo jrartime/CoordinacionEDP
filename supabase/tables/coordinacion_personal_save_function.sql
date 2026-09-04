@@ -53,8 +53,6 @@ begin
 
   insert into public.personal (
     id,
-    activo,
-    pert_empresa,
     vinculacion_id,
     personal,
     genero,
@@ -84,8 +82,6 @@ begin
   )
   values (
     payload_id,
-    coalesce((p_personal->>'activo')::boolean, false),
-    coalesce((p_personal->>'pert_empresa')::boolean, false),
     nullif(p_personal->>'vinculacion_id', '')::integer,
     btrim(p_personal->>'personal'),
     nullif(btrim(coalesce(p_personal->>'genero', '')), ''),
@@ -114,8 +110,6 @@ begin
     nullif(btrim(coalesce(p_personal->>'apellido', '')), '')
   )
   on conflict (id) do update set
-    activo = excluded.activo,
-    pert_empresa = excluded.pert_empresa,
     vinculacion_id = excluded.vinculacion_id,
     personal = excluded.personal,
     genero = excluded.genero,
@@ -226,6 +220,10 @@ begin
     raise exception 'No se recibieron filas para importar.';
   end if;
 
+  -- activo/pert_empresa se leen a la tabla temporal por compatibilidad con
+  -- Excels antiguos, pero ya no se escriben en public.personal (columnas
+  -- eliminadas: vinculacion_id es la unica fuente de verdad). Si el Excel
+  -- las trae, se ignoran sin hacer fallar la importacion.
   create temporary table import_personal_source (
     id integer,
     activo boolean,
@@ -513,8 +511,6 @@ begin
   with upserted as (
     insert into public.personal (
       id,
-      activo,
-      pert_empresa,
       vinculacion_id,
       personal,
       genero,
@@ -553,8 +549,6 @@ begin
     )
     select
       s.id,
-      coalesce(s.activo, false),
-      coalesce(s.pert_empresa, false),
       s.vinculacion_id,
       s.personal,
       s.genero,

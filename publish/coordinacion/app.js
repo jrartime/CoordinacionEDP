@@ -59,6 +59,7 @@ const PRIVATE_TAB_TARGETS = new Set([
   "actividades",
   "registros",
   "historial",
+  "bajas_conciliacion",
   "gestion",
   "contabilidad",
   "facturacion",
@@ -75,6 +76,7 @@ let ACCESS_ASSIGNABLE_TABS = [
   { key: "actividades", label: "Actividades" },
   { key: "registros", label: "Registros" },
   { key: "historial", label: "Historial laboral" },
+  { key: "bajas_conciliacion", label: "Bajas y permisos" },
   { key: "gestion", label: "Gestión" },
   { key: "contabilidad", label: "Contabilidad" },
   { key: "facturacion", label: "Facturación" },
@@ -529,11 +531,12 @@ const PERSONAL_DOCUMENTATION_FIELD_KEYS = new Set([
   "med_emerg",
   "ens",
 ]);
+// activo/pert_empresa ya no son columnas de personal (vinculacion_id es la
+// unica fuente de verdad); si el Excel trae esas cabeceras, al no estar
+// mapeadas aqui simplemente se ignoran sin hacer fallar la importacion.
 const PERSONAL_IMPORT_HEADER_MAP = {
   id: "id",
   id_personal: "id",
-  activo: "activo",
-  pert_empresa: "pert_empresa",
   vinculacion_id: "vinculacion_id",
   personal: "personal",
   genero: "genero",
@@ -616,8 +619,6 @@ const PERSONAL_IMPORT_NUMERIC_FIELDS = new Set([
   "irpf",
 ]);
 const PERSONAL_IMPORT_BOOLEAN_FIELDS = new Set([
-  "activo",
-  "pert_empresa",
   "desplazamiento",
   "enviar",
   "pago",
@@ -645,9 +646,7 @@ const PERSONAL_FIELDS = [
   { key: "dni", label: "DNI", type: "text", group: "identidad" },
   { key: "fecha_nacimiento", label: "Fecha nacimiento", type: "date", confidential: true, group: "identidad" },
   { key: "antiguedad", label: "Antiguedad", type: "date", group: "identidad" },
-  { key: "activo", label: "Activo", type: "boolean", group: "estado" },
   { key: "vinculacion_id", label: "Vinculacion", type: "select", options: PERSONAL_VINCULACION_OPTIONS, group: "estado" },
-  { key: "pert_empresa", label: "Pertenece a empresa", type: "boolean", group: "estado" },
   { key: "persona", label: "Persona", type: "boolean", group: "estado" },
   { key: "email", label: "Email", type: "email", group: "contacto" },
   { key: "movil", label: "Movil", type: "text", group: "contacto" },
@@ -675,13 +674,40 @@ const PERSONAL_FIELDS = [
   { key: "carpeta", label: "Carpeta", type: "text", group: "otros" },
   { key: "observacion", label: "Observacion", type: "textarea", group: "otros" },
 ];
+const PERSONAL_FIELDS_BY_KEY = new Map(PERSONAL_FIELDS.map((field) => [field.key, field]));
+// "rows" fuerza una distribución explícita de campos por línea (en vez del
+// grid de 4 columnas por defecto): cada array interior es una línea, con
+// tantas columnas como campos tenga. "personal" (nombre completo) no aparece
+// en ninguna fila: se autogenera desde nombre+apellido y viaja como input
+// oculto (ver syncPersonalNameField).
 const PERSONAL_FIELD_GROUPS = [
-  { key: "identidad", label: "Identificación" },
+  {
+    key: "identidad",
+    label: "Identificación",
+    rows: [
+      ["id", "nombre", "apellido"],
+      ["genero", "dni", "fecha_nacimiento", "antiguedad"],
+    ],
+  },
   { key: "estado", label: "Estado y vinculación" },
-  { key: "contacto", label: "Contacto" },
-  { key: "direccion", label: "Dirección" },
+  { key: "contacto", label: "Contacto", rows: [["email", "movil", "telefono"]] },
+  {
+    key: "direccion",
+    label: "Dirección",
+    rows: [
+      ["direccion", "codigo_postal"],
+      ["localidad", "municipio", "provincia"],
+    ],
+  },
   { key: "documentacion", label: "Documentación y equipamiento" },
-  { key: "economico", label: "Datos económicos" },
+  {
+    key: "economico",
+    label: "Datos económicos",
+    rows: [
+      ["ss", "cuenta_corriente"],
+      ["prorrateo_pagas", "num_pagas_extra", "irpf"],
+    ],
+  },
   { key: "otros", label: "Otros" },
 ];
 const PERSONAL_VINCULACION_TONE = {
@@ -897,6 +923,7 @@ const privateTabConciliaButton = document.querySelector("#private-tab-concilia")
 const privateTabActividadesButton = document.querySelector("#private-tab-actividades");
 const privateTabRegistrosButton = document.querySelector("#private-tab-registros");
 const privateTabHistorialButton = document.querySelector("#private-tab-historial");
+const privateTabBajasConciliacionButton = document.querySelector("#private-tab-bajas-conciliacion");
 const privateTabGestionButton = document.querySelector("#private-tab-gestion");
 const privateTabContabilidadButton = document.querySelector("#private-tab-contabilidad");
 const privateTabFacturacionButton = document.querySelector("#private-tab-facturacion");
@@ -913,6 +940,7 @@ const privateTabPanelPersonal = document.querySelector("#private-tab-panel-perso
 const privateTabPanelProgramming = document.querySelector("#private-tab-panel-programming");
 const privateTabPanelRegistros = document.querySelector("#private-tab-panel-registros");
 const privateTabPanelHistorial = document.querySelector("#private-tab-panel-historial");
+const privateTabPanelBajasConciliacion = document.querySelector("#private-tab-panel-bajas-conciliacion");
 const privateTabPanelGestion = document.querySelector("#private-tab-panel-gestion");
 const privateTabPanelContabilidad = document.querySelector("#private-tab-panel-contabilidad");
 const privateTabPanelFacturacion = document.querySelector("#private-tab-panel-facturacion");
@@ -1415,6 +1443,14 @@ const personalTextFilter = document.querySelector("#personal-text-filter");
 const personalList = document.querySelector("#personal-list");
 const personalListSummary = document.querySelector("#personal-list-summary");
 const personalStatus = document.querySelector("#personal-status");
+const personalStatsNote = document.querySelector("#personal-stats-note");
+const personalStats = document.querySelector("#personal-stats");
+const personalStatsListPanel = document.querySelector("#personal-stats-list-panel");
+const personalStatsListOverlay = document.querySelector("#personal-stats-list-overlay");
+const personalStatsListCloseButton = document.querySelector("#personal-stats-list-close-button");
+const personalStatsListTitle = document.querySelector("#personal-stats-list-title");
+const personalStatsListSummary = document.querySelector("#personal-stats-list-summary");
+const personalStatsListBody = document.querySelector("#personal-stats-list-body");
 const personalFormTitle = document.querySelector("#personal-form-title");
 const personalDetailAvatar = document.querySelector("#personal-detail-avatar");
 const personalDetailMeta = document.querySelector("#personal-detail-meta");
@@ -2370,6 +2406,7 @@ function syncAccessTabVisibility() {
     actividades: privateTabActividadesButton,
     registros: privateTabRegistrosButton,
     historial: privateTabHistorialButton,
+    bajas_conciliacion: privateTabBajasConciliacionButton,
     gestion: privateTabGestionButton,
     contabilidad: privateTabContabilidadButton,
     facturacion: privateTabFacturacionButton,
@@ -2519,6 +2556,7 @@ function switchPrivateTab(target) {
   const showPersonal = normalizedTarget === "personal";
   const showRegistros = normalizedTarget === "registros";
   const showHistorial = normalizedTarget === "historial";
+  const showBajasConciliacion = normalizedTarget === "bajas_conciliacion";
   const showGestion = normalizedTarget === "gestion";
   const showContabilidad = normalizedTarget === "contabilidad";
   const showFacturacion = normalizedTarget === "facturacion";
@@ -2534,6 +2572,7 @@ function switchPrivateTab(target) {
   privateTabPanelPersonal?.classList.toggle("hidden", !hasAnyAccess || !showPersonal);
   privateTabPanelRegistros?.classList.toggle("hidden", !hasAnyAccess || !showRegistros);
   privateTabPanelHistorial?.classList.toggle("hidden", !hasAnyAccess || !showHistorial);
+  privateTabPanelBajasConciliacion?.classList.toggle("hidden", !hasAnyAccess || !showBajasConciliacion);
   privateTabPanelGestion?.classList.toggle("hidden", !hasAnyAccess || !showGestion);
   privateTabPanelContabilidad?.classList.toggle("hidden", !hasAnyAccess || !showContabilidad);
   privateTabPanelFacturacion?.classList.toggle("hidden", !hasAnyAccess || !showFacturacion);
@@ -2552,6 +2591,7 @@ function switchPrivateTab(target) {
   privateTabPersonalButton?.classList.toggle("active", showPersonal);
   privateTabRegistrosButton?.classList.toggle("active", showRegistros);
   privateTabHistorialButton?.classList.toggle("active", showHistorial);
+  privateTabBajasConciliacionButton?.classList.toggle("active", showBajasConciliacion);
   privateTabGestionButton?.classList.toggle("active", showGestion);
   privateTabContabilidadButton?.classList.toggle("active", showContabilidad);
   privateTabFacturacionButton?.classList.toggle("active", showFacturacion);
@@ -2566,6 +2606,7 @@ function switchPrivateTab(target) {
   privateTabPersonalButton?.setAttribute("aria-pressed", String(showPersonal));
   privateTabRegistrosButton?.setAttribute("aria-pressed", String(showRegistros));
   privateTabHistorialButton?.setAttribute("aria-pressed", String(showHistorial));
+  privateTabBajasConciliacionButton?.setAttribute("aria-pressed", String(showBajasConciliacion));
   privateTabGestionButton?.setAttribute("aria-pressed", String(showGestion));
   privateTabContabilidadButton?.setAttribute("aria-pressed", String(showContabilidad));
   privateTabFacturacionButton?.setAttribute("aria-pressed", String(showFacturacion));
@@ -10986,9 +11027,32 @@ function renderPersonalFormFields() {
       // Los campos confidenciales solo se muestran al rol admin. El resto de
       // usuarios ni los ve ni los envia (la vista los devuelve NULL y la
       // funcion de guardado ignora la escritura confidencial para no-admin).
-      const visibleFields = PERSONAL_FIELDS.filter(
-        (field) => field.group === groupDef.key && !(field.confidential && !currentUserIsAccessAdmin)
-      );
+      const isFieldVisible = (field) => !(field.confidential && !currentUserIsAccessAdmin);
+
+      if (groupDef.rows) {
+        const rowsHtml = groupDef.rows
+          .map((rowKeys) => rowKeys.map((key) => PERSONAL_FIELDS_BY_KEY.get(key)).filter((field) => field && isFieldVisible(field)))
+          .filter((rowFields) => rowFields.length)
+          .map(
+            (rowFields) => `
+              <div class="detail-field-row cols-${rowFields.length}">
+                ${rowFields.map((field) => renderPersonalFieldControl(field)).join("")}
+              </div>
+            `
+          )
+          .join("");
+        if (!rowsHtml) {
+          return "";
+        }
+        return `
+          <fieldset class="full-width personal-form-section">
+            <legend>${escapeHtml(groupDef.label)}</legend>
+            ${rowsHtml}
+          </fieldset>
+        `;
+      }
+
+      const visibleFields = PERSONAL_FIELDS.filter((field) => field.group === groupDef.key && isFieldVisible(field));
       if (!visibleFields.length) {
         return "";
       }
@@ -11046,7 +11110,7 @@ function renderPersonalDetailHeader(row) {
   if (altaLabel) {
     items.push(`<span class="personal-detail-meta-item">Alta ${escapeHtml(altaLabel)}</span>`);
   }
-  if (row.pert_empresa === false) {
+  if (Number(row.vinculacion_id) === 4) {
     items.push(`<span class="personal-detail-meta-item">Sin empresa</span>`);
   }
   personalDetailMeta.innerHTML = items.join("");
@@ -11084,6 +11148,19 @@ function clearPersonalForm() {
       input.value = "";
     }
   });
+}
+
+// "personal" (nombre completo) ya no se edita a mano: se recalcula desde
+// nombre+apellido cada vez que cambia cualquiera de los dos (ver el listener
+// "input" de personalForm) y viaja como input oculto.
+function syncPersonalNameField() {
+  const personalInput = getPersonalFieldInput("personal");
+  if (!personalInput) {
+    return;
+  }
+  const nombre = getPersonalFieldInput("nombre")?.value || "";
+  const apellido = getPersonalFieldInput("apellido")?.value || "";
+  personalInput.value = [nombre, apellido].map((part) => part.trim()).filter(Boolean).join(" ");
 }
 
 function normalizeAccountNumber(value) {
@@ -11221,7 +11298,7 @@ function renderPersonalList() {
       .map((row) => {
         const isSelected = String(row.id) === currentSelectedPersonalId;
         const isNoPert = Number(row.vinculacion_id) === 4;
-        const isInactive = !isNoPert && !row.activo;
+        const isInactive = !isNoPert && [2, 3].includes(Number(row.vinculacion_id));
         const tone = isNoPert ? "nopertenece" : isInactive ? "inactivo" : "ok";
         const badge = isNoPert
           ? '<span class="personal-list-badge personal-list-badge-no-pert">No pertenece</span>'
@@ -11276,7 +11353,7 @@ function startNewPersonal() {
   renderPersonalDetailHeader(null);
   clearPersonalForm();
   setPersonalFormEditing(true);
-  getPersonalFieldInput("personal")?.focus();
+  getPersonalFieldInput("nombre")?.focus();
   void refreshPersonalComplementosPanel();
 }
 
@@ -11287,7 +11364,7 @@ function startEditPersonal() {
   }
   currentPersonalMode = "edit";
   setPersonalFormEditing(true);
-  getPersonalFieldInput("personal")?.focus();
+  getPersonalFieldInput("nombre")?.focus();
 }
 
 async function loadNominaComplementosCatalog() {
@@ -12278,6 +12355,7 @@ async function loadPersonalManagement(preferredPersonalId = currentSelectedPerso
   const { data, error } = await supabase
     .from("personal_completo")
     .select(PERSONAL_SELECT_COLUMNS)
+    .order("vinculacion_id", { ascending: true, nullsFirst: false })
     .order("personal", { ascending: true });
 
   if (error) {
@@ -12310,6 +12388,200 @@ async function loadPersonalManagement(preferredPersonalId = currentSelectedPerso
   }
 
   setPersonalStatus(currentPersonalRows.length ? "" : "No hay personal cargado.");
+  void loadPersonalEstadisticas();
+}
+
+let personalStatsRows = [];
+
+function setPersonalStat(key, value) {
+  const el = document.querySelector(`#personal-stat-${key}`);
+  if (el) {
+    el.textContent = String(value);
+  }
+}
+
+function personalStatsRowIsActiva(row) {
+  return Number(row.vinculacion_id) === 1;
+}
+
+// Filas que componen cada contador, mismo criterio que loadPersonalEstadisticas.
+function getPersonalStatsBucketRows(bucket) {
+  if (bucket === "activa") {
+    return personalStatsRows.filter((row) => personalStatsRowIsActiva(row));
+  }
+  if (bucket === "fijo" || bucket === "temporal") {
+    return personalStatsRows.filter(
+      (row) => personalStatsRowIsActiva(row) && row.tipo_contrato === bucket
+    );
+  }
+  return personalStatsRows;
+}
+
+async function loadPersonalEstadisticas() {
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase.rpc("get_personal_estadisticas");
+
+  if (error) {
+    personalStatsRows = [];
+    if (personalStatsNote) {
+      personalStatsNote.textContent = "No se pudieron cargar las estadísticas de personal.";
+      personalStatsNote.classList.remove("hidden");
+    }
+    return;
+  }
+
+  personalStatsRows = data || [];
+  const totals = {
+    total: { total: 0, H: 0, M: 0 },
+    activa: { total: 0, H: 0, M: 0 },
+    fijo: { total: 0, H: 0, M: 0 },
+    temporal: { total: 0, H: 0, M: 0 },
+  };
+  let activosSinContrato = 0;
+
+  personalStatsRows.forEach((row) => {
+    const genero = row.genero === "H" || row.genero === "M" ? row.genero : null;
+
+    totals.total.total += 1;
+    if (genero) totals.total[genero] += 1;
+
+    if (personalStatsRowIsActiva(row)) {
+      totals.activa.total += 1;
+      if (genero) totals.activa[genero] += 1;
+
+      if (row.tipo_contrato === "fijo") {
+        totals.fijo.total += 1;
+        if (genero) totals.fijo[genero] += 1;
+      } else if (row.tipo_contrato === "temporal") {
+        totals.temporal.total += 1;
+        if (genero) totals.temporal[genero] += 1;
+      } else {
+        activosSinContrato += 1;
+      }
+    }
+  });
+
+  setPersonalStat("total-total", totals.total.total);
+  setPersonalStat("total-h", totals.total.H);
+  setPersonalStat("total-m", totals.total.M);
+  setPersonalStat("activa-total", totals.activa.total);
+  setPersonalStat("activa-h", totals.activa.H);
+  setPersonalStat("activa-m", totals.activa.M);
+  setPersonalStat("fijo-total", totals.fijo.total);
+  setPersonalStat("fijo-h", totals.fijo.H);
+  setPersonalStat("fijo-m", totals.fijo.M);
+  setPersonalStat("temporal-total", totals.temporal.total);
+  setPersonalStat("temporal-h", totals.temporal.H);
+  setPersonalStat("temporal-m", totals.temporal.M);
+
+  if (personalStatsNote) {
+    if (activosSinContrato > 0) {
+      personalStatsNote.textContent =
+        `${activosSinContrato} persona(s) activa(s) sin ningún historial laboral no cuentan ni como fijo ni como temporal.`;
+      personalStatsNote.classList.remove("hidden");
+    } else {
+      personalStatsNote.textContent = "";
+      personalStatsNote.classList.add("hidden");
+    }
+  }
+
+  if (!personalStatsListPanel?.classList.contains("hidden")) {
+    const openBucket = personalStatsListPanel?.dataset.bucket;
+    if (openBucket) {
+      openPersonalStatsList(openBucket);
+    }
+  }
+}
+
+const PERSONAL_STATS_BUCKET_LABELS = {
+  total: "Plantilla",
+  activa: "Plantilla activa",
+  fijo: "Contrato fijo",
+  temporal: "Contrato temporal",
+};
+
+function renderPersonalStatsListRow(row) {
+  const vinc = getPersonalVinculacionInfo(row.vinculacion_id);
+  const tipoLabel =
+    row.tipo_contrato === "fijo" ? "Fijo" : row.tipo_contrato === "temporal" ? "Temporal" : "Sin historial laboral";
+  return `
+    <div class="personal-stats-list-row">
+      <div class="personal-stats-list-row-body">
+        <p class="personal-stats-list-row-name">${escapeHtml(row.personal || `Personal ${row.personal_id}`)}</p>
+        <p class="personal-stats-list-row-meta">
+          <span>${escapeHtml(row.dni || "Sin DNI")}</span>
+          <span class="personal-vinc-badge personal-vinc-${vinc.tone}">${escapeHtml(vinc.label)}</span>
+          <span>${escapeHtml(tipoLabel)}</span>
+        </p>
+      </div>
+      <div class="personal-stats-list-row-actions">
+        <button type="button" class="secondary-button" data-personal-stats-action="ficha" data-personal-id="${escapeHtml(row.personal_id)}">
+          Ver ficha
+        </button>
+        <button type="button" class="secondary-button" data-personal-stats-action="historial" data-personal-id="${escapeHtml(row.personal_id)}">
+          Ver historial
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function openPersonalStatsList(bucket) {
+  if (!personalStatsListPanel) {
+    return;
+  }
+  const rows = getPersonalStatsBucketRows(bucket);
+  personalStatsListPanel.dataset.bucket = bucket;
+  if (personalStatsListTitle) {
+    personalStatsListTitle.textContent = PERSONAL_STATS_BUCKET_LABELS[bucket] || "Listado";
+  }
+  if (personalStatsListSummary) {
+    personalStatsListSummary.textContent = `${rows.length} persona(s)`;
+  }
+  if (personalStatsListBody) {
+    personalStatsListBody.innerHTML = rows.length
+      ? rows.map((row) => renderPersonalStatsListRow(row)).join("")
+      : '<p class="personal-stats-list-body-empty">No hay personal en este grupo.</p>';
+  }
+  personalStatsListPanel.classList.remove("hidden");
+}
+
+function closePersonalStatsList() {
+  personalStatsListPanel?.classList.add("hidden");
+  delete personalStatsListPanel?.dataset.bucket;
+}
+
+function goToPersonalFicha(personalId) {
+  closePersonalStatsList();
+  switchPrivateTab("personal");
+  const jump = () => {
+    if (personalVinculacionFilter) personalVinculacionFilter.value = "";
+    if (personalTextFilter) personalTextFilter.value = "";
+    applyPersonalFilters();
+    selectPersonal(String(personalId));
+    document
+      .querySelector(`.personal-list-item[data-personal-id="${CSS.escape(String(personalId))}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  };
+  if (currentPersonalRows.length) {
+    jump();
+  } else {
+    void loadPersonalManagement(String(personalId)).then(jump);
+  }
+}
+
+function goToPersonalHistorial(personalId) {
+  const row = personalStatsRows.find((item) => String(item.personal_id) === String(personalId));
+  closePersonalStatsList();
+  switchPrivateTab("historial");
+  setPersonalPickerSelection(
+    "historial-filter",
+    String(personalId),
+    row ? `${row.personal}${row.dni ? " · " + row.dni : ""}` : String(personalId)
+  );
+  void refreshPrivateTabData("historial").catch((error) => {
+    setStatus(error?.message || "No se pudo cargar el historial laboral.", "error");
+  });
 }
 
 function formatNullableDate(value) {
@@ -12627,21 +12899,12 @@ async function loadContractsManagement() {
       .from("contratos")
       .select("id, contrato, descripcion, presupuesto_anual, fecha_inicio, fecha_fin, expediente, cpv, importe, cliente, activo, seleccionar, desplazamiento, agrupacion_nomina, iva, tiene_nocturnidad, nocturnidad_inicio, nocturnidad_fin")
       .order("contrato", { ascending: true }),
-    supabase
-      .from("servicios")
-      .select("id, servicio, descripcion, activo")
-      .order("servicio", { ascending: true }),
+    supabase.rpc("get_servicios_para_asignar"),
     supabase
       .from("contrato_servicios")
       .select("contrato_id, servicio_id, activo"),
-    supabase
-      .from("personal")
-      .select("id, personal, dni, activo, vinculacion_id")
-      .order("personal", { ascending: true }),
-    supabase
-      .from("instalaciones")
-      .select("id, instalacion, activo")
-      .order("instalacion", { ascending: true }),
+    supabase.rpc("get_personal_para_asignar"),
+    supabase.rpc("get_instalaciones_para_asignar"),
     supabase
       .from("contrato_personal")
       .select("contrato_id, personal_id, activo, fecha_inicio, fecha_fin, removed_at"),
@@ -21412,6 +21675,62 @@ function renderGestionNominaSeparateNote(rows) {
     </div>`;
 }
 
+// Permisos con tratamiento_nomina='suspendido' (maternidad/paternidad,
+// excedencia) que se solapan con el periodo. El motor YA los descuenta solo
+// (dias_nomina_con_permisos en nomina_calculo.sql, aplicado 2026-09-04): esto
+// es un aviso informativo -no una alarma, no bloquea nada- para que quien
+// prepara la nómina entienda por qué el total sale más bajo que un mes
+// normal, sin tener que abrir el desglose para verlo.
+async function renderGestionPermisosSuspendidos(personalId, desde, hasta) {
+  // OJO: no capturar aquí el nodo del hueco. renderGestionNomina sigue
+  // encadenando `innerHTML +=` después de llamar a esta función (avisos de
+  // solape, huérfanas, las tarjetas de periodo...) y cada `+=` relee y
+  // vuelve a parsear TODO el HTML del contenedor, lo que crea nodos nuevos y
+  // deja cualquier referencia capturada antes apuntando a un nodo ya fuera
+  // del DOM. Se relee el hueco por su selector cada vez que hace falta
+  // escribir, después de que esas reescrituras síncronas ya han terminado.
+  if (!personalId || !desde || !hasta) {
+    return;
+  }
+  const buscarHueco = () => gestionNominaList?.querySelector("[data-gestion-permisos-suspendidos]");
+  if (!buscarHueco()) {
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("personal_permisos_detalle")
+      .select("id,tipo,tratamiento_nomina,fecha_inicio,fecha_fin")
+      .eq("personal_id", Number(personalId))
+      .eq("tratamiento_nomina", "suspendido")
+      .lte("fecha_inicio", hasta)
+      .or(`fecha_fin.is.null,fecha_fin.gte.${desde}`);
+    if (error) throw error;
+    const filas = data || [];
+    const hueco = buscarHueco();
+    if (!hueco) return;
+    if (!filas.length) {
+      hueco.innerHTML = "";
+      return;
+    }
+    const item = (row) =>
+      `<li><strong>${escapeHtml(row.tipo || "Permiso")}</strong>: ${escapeHtml(
+        formatGestionDate(row.fecha_inicio)
+      )} – ${escapeHtml(formatGestionDate(row.fecha_fin) || "en curso")}</li>`;
+    hueco.innerHTML = `<div class="gestion-nomina-warning gestion-nomina-warning-info" role="status">
+        <p><strong>Esta persona tiene un permiso que suspende el contrato dentro del periodo.</strong>
+        El cálculo ya excluye esos días de la base y la jornada (se retoma a partir del día
+        siguiente a que termine el permiso).</p>
+        <ul>${filas.map(item).join("")}</ul>
+      </div>`;
+  } catch (error) {
+    const hueco = buscarHueco();
+    if (hueco) {
+      hueco.innerHTML = `<p class="muted-text">No se pudo comprobar si hay permisos que suspenden el contrato: ${escapeHtml(error.message)}</p>`;
+    }
+  }
+}
+
 // Horas trabajadas en un puesto que la persona no tiene en su historial. Las
 // complementarias y de montaje ya las recoge el motor a la tarifa de ese puesto;
 // las normales NO se pagan solas (su jornada ya se cobra por el historial), así
@@ -21567,7 +21886,12 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
   gestionNominaSelectedIds = new Set(applicable.map((row) => String(row.id)));
   gestionNominaTotalCount = applicable.length;
 
-  gestionNominaList.innerHTML = renderGestionNominaOverlapWarning(applicable);
+  // Aviso de permisos que suspenden el contrato (maternidad/paternidad,
+  // excedencia). Va primero: si aplica, es lo más importante que hay que ver
+  // antes de fijarse en solapes o huérfanas.
+  gestionNominaList.innerHTML = '<div data-gestion-permisos-suspendidos></div>';
+  void renderGestionPermisosSuspendidos(personalId, desde, hasta);
+  gestionNominaList.innerHTML += renderGestionNominaOverlapWarning(applicable);
   gestionNominaList.innerHTML += renderGestionNominaSeparateNote(applicable);
   // Aviso de horas en puestos que no están en el historial. Se pide aparte
   // porque necesita consultar los registros; se inserta cuando llega.
@@ -28333,6 +28657,7 @@ async function openHistorialDetail(historialId) {
   if (historialDetailDeleteButton) historialDetailDeleteButton.classList.remove("hidden");
   if (historialDetailReportButton) historialDetailReportButton.classList.remove("hidden");
   renderHistorialDetailForm(row);
+  clearHistorialValidationError();
   markFormPristine(historialDetailForm);
   historialDetailPanel.classList.remove("hidden");
 }
@@ -28357,6 +28682,7 @@ async function openHistorialNew(seedRow = null, { copy = Boolean(seedRow) } = {}
   if (historialDetailDeleteButton) historialDetailDeleteButton.classList.add("hidden");
   if (historialDetailReportButton) historialDetailReportButton.classList.add("hidden");
   renderHistorialDetailForm(historialDetailSnapshot);
+  clearHistorialValidationError();
   markFormPristine(historialDetailForm);
   historialDetailPanel.classList.remove("hidden");
 }
@@ -28502,8 +28828,51 @@ async function confirmHistorialOverlap(row, excludeId) {
   );
 }
 
+function clearHistorialValidationError() {
+  historialDetailForm?.querySelector(".historial-form-validation")?.remove();
+}
+
+function showHistorialValidationError(message, control = null) {
+  clearHistorialValidationError();
+  if (!historialDetailForm) {
+    return;
+  }
+  const validation = document.createElement("p");
+  validation.className = "historial-form-validation";
+  validation.setAttribute("role", "alert");
+  validation.textContent = `No se puede guardar: ${message}`;
+  const actions = historialDetailForm.querySelector(".detail-actions");
+  if (actions) {
+    historialDetailForm.insertBefore(validation, actions);
+  } else {
+    historialDetailForm.appendChild(validation);
+  }
+  setStatus(message, "error");
+  control?.focus?.();
+  control?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+}
+
+function validateHistorialFechaBajaMotivo() {
+  const fechaBaja = historialDetailForm?.elements?.fecha_baja?.value || "";
+  const motivoControl = historialDetailForm?.elements?.motivo_baja_id;
+  const motivo = motivoControl?.value || "";
+  if (fechaBaja && !motivo) {
+    showHistorialValidationError(
+      "hay que indicar el motivo de la baja antes de guardar un periodo con fecha de baja informada.",
+      motivoControl
+    );
+    return false;
+  }
+  clearHistorialValidationError();
+  return true;
+}
+
 async function saveHistorialDetail(event) {
   event?.preventDefault();
+
+  if (!validateHistorialFechaBajaMotivo()) {
+    return;
+  }
 
   const submitButton = historialDetailForm?.querySelector('button[type="submit"]');
   try {
@@ -29149,6 +29518,620 @@ async function applyHistorialBulkAssignment() {
   }
 }
 
+// --- Bajas y permisos ---
+const BAJAS_TABLE = "personal_bajas";
+const BAJAS_DETAIL_VIEW = "personal_bajas_detalle";
+const BAJAS_DETAIL_SELECT =
+  "id,personal_id,personal,dni,tipo_id,tipo,sin_nomina_empresa,lugar_id,lugar,fecha_inicio,fecha_fin,dias,en_curso,con_parte_baja,ingreso_hospitalario,observacion";
+const PERMISOS_TABLE = "personal_permisos";
+const PERMISOS_DETAIL_VIEW = "personal_permisos_detalle";
+const PERMISOS_DETAIL_SELECT =
+  "id,personal_id,personal,dni,tipo_id,tipo,categoria_id,categoria,categoria_orden,fecha_inicio,fecha_fin,dias,en_curso,observacion";
+const BAJAS_CONCILIACION_FETCH_LIMIT = 1000;
+
+const bajasFiltersForm = document.querySelector("#bajas-filters-form");
+const bajasSummary = document.querySelector("#bajas-summary");
+const bajasTableBody = document.querySelector("#bajas-table-body");
+const bajasFilterTipo = document.querySelector("#bajas-filter-tipo");
+const bajasFilterEnCurso = document.querySelector("#bajas-filter-en-curso");
+const bajasClearFiltersButton = document.querySelector("#bajas-clear-filters-button");
+const bajasNewButton = document.querySelector("#bajas-new-button");
+const bajasRefreshButton = document.querySelector("#bajas-refresh-button");
+const bajasPanel = document.querySelector("#bajas-panel");
+const bajasPanelBackdrop = document.querySelector("#bajas-panel-backdrop");
+const bajasPanelTitle = document.querySelector("#bajas-panel-title");
+const closeBajasPanelButton = document.querySelector("#close-bajas-panel-button");
+const bajasForm = document.querySelector("#bajas-form");
+const bajasIdInput = document.querySelector("#bajas-id");
+const bajasDetailTipoSelect = document.querySelector("#bajas-detail-tipo");
+const bajasDetailLugarSelect = document.querySelector("#bajas-detail-lugar");
+const bajasDetailFechaInicio = document.querySelector("#bajas-detail-fecha-inicio");
+const bajasDetailFechaFin = document.querySelector("#bajas-detail-fecha-fin");
+const bajasDetailConParteBaja = document.querySelector("#bajas-detail-con-parte-baja");
+const bajasDetailIngresoHospitalario = document.querySelector("#bajas-detail-ingreso-hospitalario");
+const bajasDetailObservacion = document.querySelector("#bajas-detail-observacion");
+const bajasDeleteButton = document.querySelector("#bajas-delete-button");
+const bajasCancelButton = document.querySelector("#bajas-cancel-button");
+
+const permisosFiltersForm = document.querySelector("#permisos-filters-form");
+const permisosSummary = document.querySelector("#permisos-summary");
+const permisosTableBody = document.querySelector("#permisos-table-body");
+const permisosFilterCategoria = document.querySelector("#permisos-filter-categoria");
+const permisosFilterTipo = document.querySelector("#permisos-filter-tipo");
+const permisosFilterEnCurso = document.querySelector("#permisos-filter-en-curso");
+const permisosClearFiltersButton = document.querySelector("#permisos-clear-filters-button");
+const permisosNewButton = document.querySelector("#permisos-new-button");
+const permisosRefreshButton = document.querySelector("#permisos-refresh-button");
+const permisosPanel = document.querySelector("#permisos-panel");
+const permisosPanelBackdrop = document.querySelector("#permisos-panel-backdrop");
+const permisosPanelTitle = document.querySelector("#permisos-panel-title");
+const closePermisosPanelButton = document.querySelector("#close-permisos-panel-button");
+const permisosForm = document.querySelector("#permisos-form");
+const permisosIdInput = document.querySelector("#permisos-id");
+const permisosDetailTipoSelect = document.querySelector("#permisos-detail-tipo");
+const permisosDetailFechaInicio = document.querySelector("#permisos-detail-fecha-inicio");
+const permisosDetailFechaFin = document.querySelector("#permisos-detail-fecha-fin");
+const permisosDetailObservacion = document.querySelector("#permisos-detail-observacion");
+const permisosDeleteButton = document.querySelector("#permisos-delete-button");
+const permisosCancelButton = document.querySelector("#permisos-cancel-button");
+
+let currentBajasConciliacionSubtab = "bajas";
+let bajasConciliacionCatalogsLoaded = false;
+let bajasConciliacionPersonalOptionsLoaded = false;
+let bajasSubtabLoadedOnce = false;
+let permisosSubtabLoadedOnce = false;
+let bajasRows = [];
+let permisosRows = [];
+let bajasTipoOptionsCache = [];
+let bajasLugarOptionsCache = [];
+let permisosCategoriaOptionsCache = [];
+let permisosTipoOptionsCache = [];
+
+function switchBajasConciliacionSubtab(view) {
+  currentBajasConciliacionSubtab = view === "permisos" ? "permisos" : "bajas";
+  document
+    .querySelector("#bajasconciliacion-view-bajas")
+    ?.classList.toggle("hidden", currentBajasConciliacionSubtab !== "bajas");
+  document
+    .querySelector("#bajasconciliacion-view-permisos")
+    ?.classList.toggle("hidden", currentBajasConciliacionSubtab !== "permisos");
+  document.querySelectorAll("[data-bajasconciliacion-subtab]").forEach((button) => {
+    const active = button.dataset.bajasconciliacionSubtab === currentBajasConciliacionSubtab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+async function loadBajasConciliacionCatalogs() {
+  if (bajasConciliacionCatalogsLoaded) {
+    return;
+  }
+  const supabase = await getSupabaseClient();
+  const [tipoRes, lugarRes, categoriaRes, tipoPermisosRes] = await Promise.all([
+    supabase.from("personal_bajas_tipo").select("id,tipo").eq("activo", true).order("id", { ascending: true }),
+    supabase.from("personal_bajas_lugar").select("id,lugar").order("id", { ascending: true }),
+    supabase.from("personal_permisos_categoria").select("id,categoria,orden").order("orden", { ascending: true }),
+    supabase.from("personal_permisos_tipo").select("id,tipo,categoria_id").eq("activo", true).order("id", { ascending: true }),
+  ]);
+  bajasTipoOptionsCache = tipoRes.data || [];
+  bajasLugarOptionsCache = lugarRes.data || [];
+  permisosCategoriaOptionsCache = categoriaRes.data || [];
+  permisosTipoOptionsCache = tipoPermisosRes.data || [];
+  bajasConciliacionCatalogsLoaded = true;
+  populateBajasCatalogSelects();
+  populatePermisosCatalogSelects();
+}
+
+function populateBajasCatalogSelects() {
+  const tipoOptionsHtml = bajasTipoOptionsCache
+    .map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.tipo)}</option>`)
+    .join("");
+  const lugarOptionsHtml = bajasLugarOptionsCache
+    .map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.lugar)}</option>`)
+    .join("");
+
+  if (bajasFilterTipo) {
+    const previous = bajasFilterTipo.value;
+    bajasFilterTipo.innerHTML = '<option value="">Todos</option>' + tipoOptionsHtml;
+    bajasFilterTipo.value = previous;
+  }
+  if (bajasDetailTipoSelect) {
+    const previous = bajasDetailTipoSelect.value;
+    bajasDetailTipoSelect.innerHTML = '<option value="">Selecciona tipo</option>' + tipoOptionsHtml;
+    bajasDetailTipoSelect.value = previous;
+  }
+  if (bajasDetailLugarSelect) {
+    const previous = bajasDetailLugarSelect.value;
+    bajasDetailLugarSelect.innerHTML = '<option value="">Sin especificar</option>' + lugarOptionsHtml;
+    bajasDetailLugarSelect.value = previous;
+  }
+}
+
+// Construye <optgroup> por categoría (mismo orden que personal_permisos_categoria.orden)
+// tanto para el select de filtro como para el del panel de alta/edición.
+function buildPermisosTipoOptionsHtml() {
+  return permisosCategoriaOptionsCache
+    .map((categoria) => {
+      const tipos = permisosTipoOptionsCache.filter(
+        (tipo) => tipo.categoria_id === categoria.id
+      );
+      if (!tipos.length) return "";
+      const optionsHtml = tipos
+        .map((tipo) => `<option value="${escapeHtml(tipo.id)}">${escapeHtml(tipo.tipo)}</option>`)
+        .join("");
+      return `<optgroup label="${escapeHtml(categoria.categoria)}">${optionsHtml}</optgroup>`;
+    })
+    .join("");
+}
+
+function populatePermisosCatalogSelects() {
+  const categoriaOptionsHtml = permisosCategoriaOptionsCache
+    .map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.categoria)}</option>`)
+    .join("");
+  const tipoOptgroupsHtml = buildPermisosTipoOptionsHtml();
+
+  if (permisosFilterCategoria) {
+    const previous = permisosFilterCategoria.value;
+    permisosFilterCategoria.innerHTML = '<option value="">Todas</option>' + categoriaOptionsHtml;
+    permisosFilterCategoria.value = previous;
+  }
+  if (permisosFilterTipo) {
+    const previous = permisosFilterTipo.value;
+    permisosFilterTipo.innerHTML = '<option value="">Todos</option>' + tipoOptgroupsHtml;
+    permisosFilterTipo.value = previous;
+  }
+  if (permisosDetailTipoSelect) {
+    const previous = permisosDetailTipoSelect.value;
+    permisosDetailTipoSelect.innerHTML = '<option value="">Selecciona tipo</option>' + tipoOptgroupsHtml;
+    permisosDetailTipoSelect.value = previous;
+  }
+}
+
+async function loadBajasConciliacionPersonalOptions(supabase) {
+  if (bajasConciliacionPersonalOptionsLoaded) {
+    return;
+  }
+  const { data, error } = await supabase
+    .from("personal")
+    .select("id, personal")
+    .order("personal", { ascending: true })
+    .limit(3000);
+  if (error) {
+    return;
+  }
+  const options = (data || []).map((row) => ({ value: String(row.id), label: row.personal || String(row.id) }));
+  setPersonalPickerOptions("bajas-filter", options);
+  setPersonalPickerOptions("bajas-detail", options);
+  setPersonalPickerOptions("permisos-filter", options);
+  setPersonalPickerOptions("permisos-detail", options);
+  bajasConciliacionPersonalOptionsLoaded = true;
+}
+
+function getBajasFilterValues() {
+  const formData = new FormData(bajasFiltersForm ?? undefined);
+  return {
+    fechaDesde: String(formData.get("fecha_desde") || "").trim(),
+    fechaHasta: String(formData.get("fecha_hasta") || "").trim(),
+    tipoId: String(formData.get("tipo_id") || "").trim(),
+    personalId: String(formData.get("personal_id") || "").trim(),
+    enCurso: String(bajasFilterEnCurso?.value || "").trim(),
+  };
+}
+
+function getPermisosFilterValues() {
+  const formData = new FormData(permisosFiltersForm ?? undefined);
+  return {
+    fechaDesde: String(formData.get("fecha_desde") || "").trim(),
+    fechaHasta: String(formData.get("fecha_hasta") || "").trim(),
+    categoriaId: String(formData.get("categoria_id") || "").trim(),
+    tipoId: String(formData.get("tipo_id") || "").trim(),
+    personalId: String(formData.get("personal_id") || "").trim(),
+    enCurso: String(permisosFilterEnCurso?.value || "").trim(),
+  };
+}
+
+function renderBajasTable(rows) {
+  if (!bajasTableBody) return;
+  if (!rows.length) {
+    bajasTableBody.innerHTML =
+      '<tr><td colspan="10" class="empty-state">No hay bajas que coincidan con los filtros.</td></tr>';
+    return;
+  }
+  bajasTableBody.innerHTML = rows
+    .map((row) => {
+      const cells = [
+        row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : ""),
+        row.tipo || "",
+        row.lugar || "",
+        formatDisplayDate(row.fecha_inicio),
+        formatDisplayDate(row.fecha_fin),
+        row.dias ?? "",
+        row.en_curso ? "Sí" : "No",
+        row.con_parte_baja ? "Sí" : "No",
+        row.ingreso_hospitalario ? "Sí" : "No",
+      ];
+      const dataCells = cells.map((value) => `<td>${escapeHtml(String(value ?? ""))}</td>`).join("");
+      const actionCell = `<td class="records-row-actions"><button type="button" class="compact-button" data-bajas-edit="${escapeHtml(
+        row.id
+      )}" title="Editar baja" aria-label="Editar baja">&#9998;</button></td>`;
+      return `<tr data-bajas-id="${escapeHtml(row.id)}">${dataCells}${actionCell}</tr>`;
+    })
+    .join("");
+}
+
+function renderPermisosTable(rows) {
+  if (!permisosTableBody) return;
+  if (!rows.length) {
+    permisosTableBody.innerHTML =
+      '<tr><td colspan="8" class="empty-state">No hay medidas que coincidan con los filtros.</td></tr>';
+    return;
+  }
+  permisosTableBody.innerHTML = rows
+    .map((row) => {
+      const cells = [
+        row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : ""),
+        formatDisplayDate(row.fecha_inicio),
+        formatDisplayDate(row.fecha_fin),
+        row.categoria || "",
+        row.tipo || "",
+        row.dias ?? "",
+        row.en_curso ? "Sí" : "No",
+      ];
+      const dataCells = cells.map((value) => `<td>${escapeHtml(String(value ?? ""))}</td>`).join("");
+      const actionCell = `<td class="records-row-actions"><button type="button" class="compact-button" data-permiso-edit="${escapeHtml(
+        row.id
+      )}" title="Editar medida" aria-label="Editar medida">&#9998;</button></td>`;
+      return `<tr data-permiso-id="${escapeHtml(row.id)}">${dataCells}${actionCell}</tr>`;
+    })
+    .join("");
+}
+
+async function loadBajas() {
+  if (bajasSummary) bajasSummary.textContent = "Cargando bajas médicas...";
+  if (bajasTableBody) {
+    bajasTableBody.innerHTML = '<tr><td colspan="10" class="empty-state">Cargando bajas médicas...</td></tr>';
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    await loadBajasConciliacionCatalogs();
+    await loadBajasConciliacionPersonalOptions(supabase);
+    const filters = getBajasFilterValues();
+
+    let query = supabase
+      .from(BAJAS_DETAIL_VIEW)
+      .select(BAJAS_DETAIL_SELECT)
+      .order("fecha_inicio", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(BAJAS_CONCILIACION_FETCH_LIMIT);
+
+    if (filters.fechaDesde) {
+      query = query.or(`fecha_fin.is.null,fecha_fin.gte.${filters.fechaDesde}`);
+    }
+    if (filters.fechaHasta) {
+      query = query.lte("fecha_inicio", filters.fechaHasta);
+    }
+    if (filters.tipoId) {
+      query = query.eq("tipo_id", filters.tipoId);
+    }
+    if (filters.personalId) {
+      query = query.eq("personal_id", filters.personalId);
+    }
+    if (filters.enCurso) {
+      query = query.eq("en_curso", filters.enCurso === "true");
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    bajasRows = data ?? [];
+    renderBajasTable(bajasRows);
+    if (bajasSummary) {
+      bajasSummary.textContent =
+        bajasRows.length >= BAJAS_CONCILIACION_FETCH_LIMIT
+          ? `Mostrando las primeras ${BAJAS_CONCILIACION_FETCH_LIMIT} bajas. Ajusta los filtros para acotar.`
+          : `${bajasRows.length} ${bajasRows.length === 1 ? "baja" : "bajas"}`;
+    }
+  } catch (error) {
+    bajasRows = [];
+    if (bajasSummary) bajasSummary.textContent = "No se pudieron cargar las bajas médicas.";
+    if (bajasTableBody) {
+      bajasTableBody.innerHTML =
+        '<tr><td colspan="10" class="empty-state">Error cargando las bajas médicas.</td></tr>';
+    }
+    setStatus(`No se pudieron cargar las bajas médicas: ${error.message}`, "error");
+  }
+}
+
+async function loadPermisos() {
+  if (permisosSummary) permisosSummary.textContent = "Cargando permisos...";
+  if (permisosTableBody) {
+    permisosTableBody.innerHTML =
+      '<tr><td colspan="8" class="empty-state">Cargando permisos...</td></tr>';
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    await loadBajasConciliacionCatalogs();
+    await loadBajasConciliacionPersonalOptions(supabase);
+    const filters = getPermisosFilterValues();
+
+    let query = supabase
+      .from(PERMISOS_DETAIL_VIEW)
+      .select(PERMISOS_DETAIL_SELECT)
+      .order("fecha_inicio", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(BAJAS_CONCILIACION_FETCH_LIMIT);
+
+    if (filters.fechaDesde) {
+      query = query.or(`fecha_fin.is.null,fecha_fin.gte.${filters.fechaDesde}`);
+    }
+    if (filters.fechaHasta) {
+      query = query.lte("fecha_inicio", filters.fechaHasta);
+    }
+    if (filters.categoriaId) {
+      query = query.eq("categoria_id", filters.categoriaId);
+    }
+    if (filters.tipoId) {
+      query = query.eq("tipo_id", filters.tipoId);
+    }
+    if (filters.personalId) {
+      query = query.eq("personal_id", filters.personalId);
+    }
+    if (filters.enCurso) {
+      query = query.eq("en_curso", filters.enCurso === "true");
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    permisosRows = data ?? [];
+    renderPermisosTable(permisosRows);
+    if (permisosSummary) {
+      permisosSummary.textContent =
+        permisosRows.length >= BAJAS_CONCILIACION_FETCH_LIMIT
+          ? `Mostrando las primeras ${BAJAS_CONCILIACION_FETCH_LIMIT} medidas. Ajusta los filtros para acotar.`
+          : `${permisosRows.length} ${permisosRows.length === 1 ? "medida" : "medidas"}`;
+    }
+  } catch (error) {
+    permisosRows = [];
+    if (permisosSummary) permisosSummary.textContent = "No se pudieron cargar los permisos.";
+    if (permisosTableBody) {
+      permisosTableBody.innerHTML =
+        '<tr><td colspan="8" class="empty-state">Error cargando los permisos.</td></tr>';
+    }
+    setStatus(`No se pudieron cargar los permisos: ${error.message}`, "error");
+  }
+}
+
+async function loadBajasConciliacionActive() {
+  if (currentBajasConciliacionSubtab === "permisos") {
+    await loadPermisos();
+    permisosSubtabLoadedOnce = true;
+    return;
+  }
+  await loadBajas();
+  bajasSubtabLoadedOnce = true;
+}
+
+// --- Bajas: panel de alta/edición ---
+function resetBajasForm() {
+  bajasForm?.reset();
+  if (bajasIdInput) bajasIdInput.value = "";
+  clearPersonalPicker("bajas-detail");
+  if (bajasDetailConParteBaja) bajasDetailConParteBaja.checked = true;
+  bajasDeleteButton?.classList.add("hidden");
+  markFormPristine(bajasForm);
+}
+
+function fillBajasForm(row) {
+  if (!row) return;
+  bajasIdInput.value = row.id;
+  setPersonalPickerSelection(
+    "bajas-detail",
+    row.personal_id != null ? String(row.personal_id) : "",
+    row.personal || ""
+  );
+  if (bajasDetailTipoSelect) bajasDetailTipoSelect.value = row.tipo_id != null ? String(row.tipo_id) : "";
+  if (bajasDetailLugarSelect) bajasDetailLugarSelect.value = row.lugar_id != null ? String(row.lugar_id) : "";
+  if (bajasDetailFechaInicio) bajasDetailFechaInicio.value = row.fecha_inicio || "";
+  if (bajasDetailFechaFin) bajasDetailFechaFin.value = row.fecha_fin || "";
+  if (bajasDetailConParteBaja) bajasDetailConParteBaja.checked = Boolean(row.con_parte_baja);
+  if (bajasDetailIngresoHospitalario) bajasDetailIngresoHospitalario.checked = Boolean(row.ingreso_hospitalario);
+  if (bajasDetailObservacion) bajasDetailObservacion.value = row.observacion || "";
+}
+
+async function openBajasPanel(row = null) {
+  const supabase = await getSupabaseClient();
+  await loadBajasConciliacionCatalogs();
+  await loadBajasConciliacionPersonalOptions(supabase);
+  populateBajasCatalogSelects();
+  if (row) {
+    fillBajasForm(row);
+    if (bajasPanelTitle) bajasPanelTitle.textContent = "Editar baja";
+    bajasDeleteButton?.classList.remove("hidden");
+  } else {
+    resetBajasForm();
+    if (bajasPanelTitle) bajasPanelTitle.textContent = "Nueva baja";
+  }
+  markFormPristine(bajasForm);
+  bajasPanel?.classList.remove("hidden");
+}
+
+async function closeBajasPanel(options = {}) {
+  if (!options.force && !(await confirmCloseWithSave(bajasForm, () => saveBajas()))) {
+    return false;
+  }
+  bajasPanel?.classList.add("hidden");
+  resetBajasForm();
+  return true;
+}
+
+async function saveBajas(event) {
+  event?.preventDefault?.();
+
+  const personalIdRaw = document.querySelector("#bajas-detail-personal-id")?.value || "";
+  const payload = {
+    personal_id: personalIdRaw ? Number(personalIdRaw) : null,
+    tipo_id: bajasDetailTipoSelect?.value ? Number(bajasDetailTipoSelect.value) : null,
+    lugar_id: bajasDetailLugarSelect?.value ? Number(bajasDetailLugarSelect.value) : null,
+    fecha_inicio: bajasDetailFechaInicio?.value || "",
+    fecha_fin: bajasDetailFechaFin?.value || null,
+    con_parte_baja: Boolean(bajasDetailConParteBaja?.checked),
+    ingreso_hospitalario: Boolean(bajasDetailIngresoHospitalario?.checked),
+    observacion: bajasDetailObservacion?.value?.trim() || null,
+  };
+
+  if (!payload.personal_id || !payload.tipo_id || !payload.fecha_inicio) {
+    setStatus("Completa personal, tipo y fecha de inicio de la baja.", "error");
+    return false;
+  }
+  if (payload.fecha_fin && payload.fecha_fin < payload.fecha_inicio) {
+    setStatus("La fecha de fin de la baja no puede ser anterior a la de inicio.", "error");
+    return false;
+  }
+
+  const supabase = await getSupabaseClient();
+  const editingId = bajasIdInput?.value;
+  const result = editingId
+    ? await supabase.from(BAJAS_TABLE).update(payload).eq("id", editingId)
+    : await supabase.from(BAJAS_TABLE).insert(payload).select("id").single();
+
+  if (result.error) {
+    setStatus(result.error.message || "No se pudo guardar la baja.", "error");
+    return false;
+  }
+
+  resetBajasForm();
+  closeBajasPanel({ force: true });
+  await loadBajas();
+  setStatus("Baja guardada correctamente.", "success");
+  return true;
+}
+
+async function deleteBajas(id) {
+  const row = bajasRows.find((item) => String(item.id) === String(id));
+  if (!row || !window.confirm(`¿Eliminar la baja de "${row.personal || "esta persona"}"?`)) {
+    return;
+  }
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from(BAJAS_TABLE).delete().eq("id", id);
+  if (error) {
+    setStatus(error.message || "No se pudo eliminar la baja.", "error");
+    return;
+  }
+  closeBajasPanel({ force: true });
+  await loadBajas();
+  setStatus("Baja eliminada.", "success");
+}
+
+// --- Permisos: panel de alta/edición ---
+function resetPermisosForm() {
+  permisosForm?.reset();
+  if (permisosIdInput) permisosIdInput.value = "";
+  clearPersonalPicker("permisos-detail");
+  permisosDeleteButton?.classList.add("hidden");
+  markFormPristine(permisosForm);
+}
+
+function fillPermisosForm(row) {
+  if (!row) return;
+  permisosIdInput.value = row.id;
+  setPersonalPickerSelection(
+    "permisos-detail",
+    row.personal_id != null ? String(row.personal_id) : "",
+    row.personal || ""
+  );
+  if (permisosDetailTipoSelect) {
+    permisosDetailTipoSelect.value = row.tipo_id != null ? String(row.tipo_id) : "";
+  }
+  if (permisosDetailFechaInicio) permisosDetailFechaInicio.value = row.fecha_inicio || "";
+  if (permisosDetailFechaFin) permisosDetailFechaFin.value = row.fecha_fin || "";
+  if (permisosDetailObservacion) permisosDetailObservacion.value = row.observacion || "";
+}
+
+async function openPermisosPanel(row = null) {
+  const supabase = await getSupabaseClient();
+  await loadBajasConciliacionCatalogs();
+  await loadBajasConciliacionPersonalOptions(supabase);
+  populatePermisosCatalogSelects();
+  if (row) {
+    fillPermisosForm(row);
+    if (permisosPanelTitle) permisosPanelTitle.textContent = "Editar medida";
+    permisosDeleteButton?.classList.remove("hidden");
+  } else {
+    resetPermisosForm();
+    if (permisosPanelTitle) permisosPanelTitle.textContent = "Nueva medida";
+  }
+  markFormPristine(permisosForm);
+  permisosPanel?.classList.remove("hidden");
+}
+
+async function closePermisosPanel(options = {}) {
+  if (
+    !options.force &&
+    !(await confirmCloseWithSave(permisosForm, () => savePermisos()))
+  ) {
+    return false;
+  }
+  permisosPanel?.classList.add("hidden");
+  resetPermisosForm();
+  return true;
+}
+
+async function savePermisos(event) {
+  event?.preventDefault?.();
+
+  const personalIdRaw = document.querySelector("#permisos-detail-personal-id")?.value || "";
+  const payload = {
+    personal_id: personalIdRaw ? Number(personalIdRaw) : null,
+    tipo_id: permisosDetailTipoSelect?.value ? Number(permisosDetailTipoSelect.value) : null,
+    fecha_inicio: permisosDetailFechaInicio?.value || "",
+    fecha_fin: permisosDetailFechaFin?.value || null,
+    observacion: permisosDetailObservacion?.value?.trim() || null,
+  };
+
+  if (!payload.personal_id || !payload.tipo_id || !payload.fecha_inicio) {
+    setStatus("Completa personal, tipo y fecha de inicio de la medida.", "error");
+    return false;
+  }
+  if (payload.fecha_fin && payload.fecha_fin < payload.fecha_inicio) {
+    setStatus("La fecha de fin de la medida no puede ser anterior a la de inicio.", "error");
+    return false;
+  }
+
+  const supabase = await getSupabaseClient();
+  const editingId = permisosIdInput?.value;
+  const result = editingId
+    ? await supabase.from(PERMISOS_TABLE).update(payload).eq("id", editingId)
+    : await supabase.from(PERMISOS_TABLE).insert(payload).select("id").single();
+
+  if (result.error) {
+    setStatus(result.error.message || "No se pudo guardar la medida.", "error");
+    return false;
+  }
+
+  resetPermisosForm();
+  closePermisosPanel({ force: true });
+  await loadPermisos();
+  setStatus("Medida guardada correctamente.", "success");
+  return true;
+}
+
+async function deletePermisos(id) {
+  const row = permisosRows.find((item) => String(item.id) === String(id));
+  if (!row || !window.confirm(`¿Eliminar la medida de "${row.personal || "esta persona"}"?`)) {
+    return;
+  }
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from(PERMISOS_TABLE).delete().eq("id", id);
+  if (error) {
+    setStatus(error.message || "No se pudo eliminar la medida.", "error");
+    return;
+  }
+  closePermisosPanel({ force: true });
+  await loadPermisos();
+  setStatus("Medida eliminada.", "success");
+}
+
 async function restoreSession() {
   initControlFilters();
   const session = await ensurePrivateSession({ silent: true });
@@ -29211,6 +30194,11 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
 
   if (normalizedTarget === "historial") {
     await loadHistorial();
+    return;
+  }
+
+  if (normalizedTarget === "bajas_conciliacion") {
+    await loadBajasConciliacionActive();
     return;
   }
 
@@ -31690,6 +32678,12 @@ async function init() {
       setStatus(error?.message || "No se pudo cargar el historial laboral.", "error");
     });
   });
+  privateTabBajasConciliacionButton?.addEventListener("click", () => {
+    switchPrivateTab("bajas_conciliacion");
+    void refreshPrivateTabData("bajas_conciliacion").catch((error) => {
+      setStatus(error?.message || "No se pudieron cargar las bajas y permisos.", "error");
+    });
+  });
   privateTabGestionButton?.addEventListener("click", () => {
     switchPrivateTab("gestion");
     void refreshPrivateTabData("gestion").catch((error) => {
@@ -31925,6 +32919,38 @@ async function init() {
   });
   personalVinculacionFilter?.addEventListener("change", applyPersonalFilters);
   personalTextFilter?.addEventListener("input", debounce(applyPersonalFilters, 160));
+  personalStats?.addEventListener("click", (event) => {
+    const chip = event.target.closest("[data-stat-bucket]");
+    if (!chip) {
+      return;
+    }
+    openPersonalStatsList(chip.dataset.statBucket);
+  });
+  personalStats?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    const chip = event.target.closest("[data-stat-bucket]");
+    if (!chip) {
+      return;
+    }
+    event.preventDefault();
+    openPersonalStatsList(chip.dataset.statBucket);
+  });
+  personalStatsListCloseButton?.addEventListener("click", closePersonalStatsList);
+  personalStatsListOverlay?.addEventListener("click", closePersonalStatsList);
+  personalStatsListBody?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-personal-stats-action]");
+    if (!button) {
+      return;
+    }
+    const personalId = button.dataset.personalId;
+    if (button.dataset.personalStatsAction === "ficha") {
+      goToPersonalFicha(personalId);
+    } else if (button.dataset.personalStatsAction === "historial") {
+      goToPersonalHistorial(personalId);
+    }
+  });
   personalList?.addEventListener("click", (event) => {
     const item = event.target.closest("[data-personal-id]");
     if (!item) {
@@ -31946,6 +32972,9 @@ async function init() {
   personalForm?.addEventListener("input", (event) => {
     if (event.target?.name === "cuenta_corriente") {
       reformatAccountNumberInput(event.target);
+    }
+    if (event.target?.name === "nombre" || event.target?.name === "apellido") {
+      syncPersonalNameField();
     }
   });
   personalComplementoForm?.addEventListener("submit", (event) => {
@@ -32430,6 +33459,155 @@ async function init() {
   historialRefreshButton?.addEventListener("click", () => {
     void loadHistorial();
   });
+
+  // --- Bajas y permisos: subpestañas, filtros y paneles ---
+  document.querySelectorAll("[data-bajasconciliacion-subtab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      switchBajasConciliacionSubtab(button.dataset.bajasconciliacionSubtab);
+      const alreadyLoaded =
+        currentBajasConciliacionSubtab === "permisos"
+          ? permisosSubtabLoadedOnce
+          : bajasSubtabLoadedOnce;
+      if (!alreadyLoaded) {
+        void loadBajasConciliacionActive().catch((error) => {
+          setStatus(error?.message || "No se pudo cargar la información.", "error");
+        });
+      }
+    });
+  });
+
+  bajasFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadBajas();
+  });
+  bajasFiltersForm?.addEventListener("change", (event) => {
+    syncFilterResetButtons(bajasFiltersForm);
+    if (event.target?.id === "bajas-filter-personal-input") return;
+    void loadBajas();
+  });
+  bajasFiltersForm?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-reset-filter]");
+    if (!button || !resetRecordsNamedFilterControl(bajasFiltersForm, button.dataset.resetFilter)) {
+      return;
+    }
+    syncFilterResetButtons(bajasFiltersForm);
+    void loadBajas();
+  });
+  setupPersonalPicker("bajas-filter", {
+    inputId: "bajas-filter-personal-input",
+    hiddenId: "bajas-filter-personal",
+    suggestionsId: "bajas-filter-personal-suggestions",
+    onChange: () => {
+      void loadBajas();
+    },
+  });
+  bajasClearFiltersButton?.addEventListener("click", () => {
+    bajasFiltersForm?.reset();
+    clearPersonalPicker("bajas-filter");
+    syncFilterResetButtons(bajasFiltersForm);
+    void loadBajas();
+  });
+  syncFilterResetButtons(bajasFiltersForm);
+  bajasRefreshButton?.addEventListener("click", () => {
+    void loadBajas();
+  });
+  bajasNewButton?.addEventListener("click", () => void openBajasPanel());
+  closeBajasPanelButton?.addEventListener("click", () => {
+    void closeBajasPanel();
+  });
+  bajasPanelBackdrop?.addEventListener("click", () => {
+    void closeBajasPanel();
+  });
+  bajasCancelButton?.addEventListener("click", () => {
+    void closeBajasPanel();
+  });
+  bajasForm?.addEventListener("submit", (event) => {
+    void saveBajas(event);
+  });
+  bajasDeleteButton?.addEventListener("click", () => {
+    if (!bajasIdInput?.value) return;
+    void deleteBajas(bajasIdInput.value);
+  });
+  setupPersonalPicker("bajas-detail", {
+    inputId: "bajas-detail-personal-input",
+    hiddenId: "bajas-detail-personal-id",
+    suggestionsId: "bajas-detail-personal-suggestions",
+  });
+  bajasTableBody?.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-bajas-edit]");
+    const id = editButton?.dataset.bajasEdit || event.target.closest("[data-bajas-id]")?.dataset.bajasId;
+    if (!id) return;
+    const row = bajasRows.find((item) => String(item.id) === String(id));
+    if (row) void openBajasPanel(row);
+  });
+
+  permisosFiltersForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadPermisos();
+  });
+  permisosFiltersForm?.addEventListener("change", (event) => {
+    syncFilterResetButtons(permisosFiltersForm);
+    if (event.target?.id === "permisos-filter-personal-input") return;
+    void loadPermisos();
+  });
+  permisosFiltersForm?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-reset-filter]");
+    if (!button || !resetRecordsNamedFilterControl(permisosFiltersForm, button.dataset.resetFilter)) {
+      return;
+    }
+    syncFilterResetButtons(permisosFiltersForm);
+    void loadPermisos();
+  });
+  setupPersonalPicker("permisos-filter", {
+    inputId: "permisos-filter-personal-input",
+    hiddenId: "permisos-filter-personal",
+    suggestionsId: "permisos-filter-personal-suggestions",
+    onChange: () => {
+      void loadPermisos();
+    },
+  });
+  permisosClearFiltersButton?.addEventListener("click", () => {
+    permisosFiltersForm?.reset();
+    clearPersonalPicker("permisos-filter");
+    syncFilterResetButtons(permisosFiltersForm);
+    void loadPermisos();
+  });
+  syncFilterResetButtons(permisosFiltersForm);
+  permisosRefreshButton?.addEventListener("click", () => {
+    void loadPermisos();
+  });
+  permisosNewButton?.addEventListener("click", () => void openPermisosPanel());
+  closePermisosPanelButton?.addEventListener("click", () => {
+    void closePermisosPanel();
+  });
+  permisosPanelBackdrop?.addEventListener("click", () => {
+    void closePermisosPanel();
+  });
+  permisosCancelButton?.addEventListener("click", () => {
+    void closePermisosPanel();
+  });
+  permisosForm?.addEventListener("submit", (event) => {
+    void savePermisos(event);
+  });
+  permisosDeleteButton?.addEventListener("click", () => {
+    if (!permisosIdInput?.value) return;
+    void deletePermisos(permisosIdInput.value);
+  });
+  setupPersonalPicker("permisos-detail", {
+    inputId: "permisos-detail-personal-input",
+    hiddenId: "permisos-detail-personal-id",
+    suggestionsId: "permisos-detail-personal-suggestions",
+  });
+  permisosTableBody?.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-permiso-edit]");
+    const id =
+      editButton?.dataset.permisoEdit ||
+      event.target.closest("[data-permiso-id]")?.dataset.permisoId;
+    if (!id) return;
+    const row = permisosRows.find((item) => String(item.id) === String(id));
+    if (row) void openPermisosPanel(row);
+  });
+
   historialNewButton?.addEventListener("click", () => {
     void openHistorialNew();
   });
@@ -33197,6 +34375,9 @@ async function init() {
   historialDetailForm?.addEventListener("input", (event) => {
     if (["fecha_alta", "fecha_baja", "jornada", "jornada_maxima"].includes(event.target?.name)) {
       syncHistorialDetailCalculatedFields();
+    }
+    if (["fecha_baja", "motivo_baja_id"].includes(event.target?.name)) {
+      clearHistorialValidationError();
     }
   });
   historialDetailCloseButton?.addEventListener("click", closeHistorialDetail);

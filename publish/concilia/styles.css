@@ -730,6 +730,109 @@ textarea {
   color: var(--text);
 }
 
+/* ---- Filtros compactos (mismo estilo que Historial laboral en coordinacion) ---- */
+.records-filters-compact {
+  gap: 3px 6px;
+}
+
+.records-filters-compact label,
+.records-filters-compact .filter-field {
+  gap: 1px;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.records-filters-compact .filter-field input,
+.records-filters-compact .filter-field select,
+.records-filters-compact .filter-field textarea {
+  padding: 3px 6px;
+  font-size: 0.74rem;
+  height: 28px;
+  line-height: 1.2;
+}
+
+.records-filters-compact .multi-check-toggle {
+  min-height: 28px;
+  padding: 3px 26px 3px 6px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.records-filters-compact .multi-check-option {
+  gap: 8px;
+}
+
+/* ---- ✕ de filtros DENTRO del control (mismo mecanismo que coordinacion) ---- */
+.records-filters-compact .filter-control-row:not(:has(> select[multiple])) {
+  position: relative;
+  display: block;
+}
+
+.records-filters-compact .filter-control-row:not(:has(> select[multiple])) > input,
+.records-filters-compact .filter-control-row:not(:has(> select[multiple])) > select {
+  width: 100%;
+}
+
+.records-filters-compact .filter-control-row > select:not([multiple]),
+.records-filters-compact .filter-control-row > input[type="date"] {
+  padding-right: 44px;
+}
+
+.records-filters-compact .filter-control-row > input[type="text"],
+.records-filters-compact .filter-control-row > input[type="search"] {
+  padding-right: 26px;
+}
+
+.records-filters-compact .filter-control-row:not(:has(> select[multiple])) .filter-reset-button {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 24px;
+  min-width: 0;
+  width: 18px;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.records-filters-compact .filter-control-row:has(> input[type="text"]) .filter-reset-button,
+.records-filters-compact .filter-control-row:has(> input[type="search"]) .filter-reset-button {
+  right: 6px;
+}
+
+.records-filters-compact .filter-control-row:not(:has(> select[multiple])) .filter-reset-button:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+.records-filters-compact .filter-reset-button.is-empty {
+  visibility: hidden;
+}
+
+/* Alumnado: centro/semana estrechos, buscar y edad anchos. */
+#students-filters-form.records-filters-compact {
+  grid-template-columns: 150px 120px minmax(160px, 1fr) minmax(180px, 1fr);
+}
+
+/* Asistencia: centro/semana estrechos, buscar ancho. */
+#attendance-filters-form.records-filters-compact {
+  grid-template-columns: 150px 120px minmax(200px, 1fr);
+}
+
+/* NEE: un unico campo de busqueda, sin estirarlo a todo el ancho. */
+#nee-filters-form.records-filters-compact {
+  grid-template-columns: minmax(220px, 360px);
+}
+
 .table-wrap {
   max-height: 62vh;
   overflow: auto;

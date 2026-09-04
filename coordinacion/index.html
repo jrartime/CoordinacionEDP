@@ -26,7 +26,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260901-12" />
+    <link rel="stylesheet" href="./styles.css?v=20260904-4" />
   </head>
   <body>
     <script>
@@ -565,6 +565,14 @@
                 aria-pressed="false"
               >
                 Historial laboral
+              </button>
+              <button
+                id="private-tab-bajas-conciliacion"
+                type="button"
+                class="private-tab-button hidden"
+                aria-pressed="false"
+              >
+                Bajas y permisos
               </button>
               <button
                 id="private-tab-contracts"
@@ -1724,6 +1732,467 @@
                 </div>
               </section>
 
+            </section>
+
+            <section id="private-tab-panel-bajas-conciliacion" class="private-tab-panel hidden">
+              <nav class="settings-subtabs" aria-label="Secciones de bajas y permisos">
+                <button
+                  id="bajasconciliacion-subtab-bajas"
+                  class="settings-subtab-button active"
+                  type="button"
+                  data-bajasconciliacion-subtab="bajas"
+                  aria-pressed="true"
+                >
+                  Bajas médicas
+                </button>
+                <button
+                  id="bajasconciliacion-subtab-permisos"
+                  class="settings-subtab-button"
+                  type="button"
+                  data-bajasconciliacion-subtab="permisos"
+                  aria-pressed="false"
+                >
+                  Permisos
+                </button>
+              </nav>
+
+              <div id="bajasconciliacion-view-bajas">
+              <section class="card">
+                <div class="card-header records-header">
+                  <div>
+                    <p class="eyebrow">Bajas y permisos</p>
+                    <h2>Bajas médicas</h2>
+                  </div>
+                  <div class="results-actions">
+                    <button id="bajas-new-button" type="button" title="Añadir baja">
+                      + Añadir
+                    </button>
+                    <button id="bajas-refresh-button" type="button">Actualizar</button>
+                  </div>
+                </div>
+
+                <form id="bajas-filters-form" class="filters-grid records-filters-grid records-filters-compact">
+                  <label class="filter-field">
+                    Fecha desde
+                    <div class="filter-control-row">
+                      <input id="bajas-filter-fecha-desde" name="fecha_desde" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_desde"
+                        aria-label="Restablecer fecha desde"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
+                  </label>
+                  <label class="filter-field">
+                    Fecha hasta
+                    <div class="filter-control-row">
+                      <input id="bajas-filter-fecha-hasta" name="fecha_hasta" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_hasta"
+                        aria-label="Restablecer fecha hasta"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
+                  </label>
+                  <label class="filter-field">
+                    Tipo
+                    <select id="bajas-filter-tipo" name="tipo_id">
+                      <option value="">Todos</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    En curso
+                    <select id="bajas-filter-en-curso" name="en_curso">
+                      <option value="">Todos</option>
+                      <option value="true">Sí</option>
+                      <option value="false">No</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Personal
+                    <div class="filter-field-stack personal-picker-stack">
+                      <input
+                        id="bajas-filter-personal-input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Buscar o desplegar"
+                      />
+                      <input id="bajas-filter-personal" name="personal_id" type="hidden" />
+                      <button
+                        type="button"
+                        class="personal-picker-clear hidden"
+                        data-personal-clear
+                        aria-label="Limpiar personal"
+                        title="Limpiar"
+                      >&times;</button>
+                      <button
+                        type="button"
+                        class="personal-picker-toggle"
+                        data-personal-toggle
+                        aria-label="Desplegar lista de personal"
+                        title="Desplegar"
+                      >&#9662;</button>
+                      <div
+                        id="bajas-filter-personal-suggestions"
+                        class="filter-suggestions filter-suggestions-full hidden"
+                      ></div>
+                    </div>
+                  </label>
+                  <div class="filter-actions">
+                    <button id="bajas-clear-filters-button" type="button" class="secondary-button">
+                      Limpiar
+                    </button>
+                  </div>
+                </form>
+
+                <div class="results-toolbar section-summary-toolbar">
+                  <div class="results-summary">
+                    <p id="bajas-summary" class="summary-chip">Cargando bajas médicas...</p>
+                  </div>
+                </div>
+
+                <div class="table-wrapper records-table-wrapper">
+                  <table id="bajas-table" class="records-table">
+                    <thead>
+                      <tr>
+                        <th>Personal</th>
+                        <th>Tipo</th>
+                        <th>Lugar</th>
+                        <th>Fecha inicio</th>
+                        <th>Fecha fin</th>
+                        <th>Días</th>
+                        <th>En curso</th>
+                        <th>Parte de baja</th>
+                        <th>Ingreso hosp.</th>
+                        <th aria-label="Acciones"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="bajas-table-body">
+                      <tr>
+                        <td colspan="10" class="empty-state">Cargando bajas médicas...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section id="bajas-panel" class="detail-panel hidden">
+                <div id="bajas-panel-backdrop" class="detail-overlay"></div>
+                <aside class="detail-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Baja médica</p>
+                      <h3 id="bajas-panel-title">Nueva baja</h3>
+                    </div>
+                    <button id="close-bajas-panel-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+
+                  <form id="bajas-form" class="form-grid">
+                    <input id="bajas-id" type="hidden" />
+                    <fieldset class="detail-form-section full-width">
+                      <legend>Datos de la baja</legend>
+                      <div class="detail-form-section-grid">
+                        <label class="filter-field full-width">
+                          Personal
+                          <div class="filter-field-stack personal-picker-stack">
+                            <input
+                              id="bajas-detail-personal-input"
+                              type="text"
+                              autocomplete="off"
+                              placeholder="Buscar personal"
+                            />
+                            <input id="bajas-detail-personal-id" type="hidden" />
+                            <button
+                              type="button"
+                              class="personal-picker-clear hidden"
+                              data-personal-clear
+                              aria-label="Limpiar personal"
+                              title="Limpiar"
+                            >&times;</button>
+                            <button
+                              type="button"
+                              class="personal-picker-toggle"
+                              data-personal-toggle
+                              aria-label="Desplegar lista de personal"
+                              title="Desplegar"
+                            >&#9662;</button>
+                            <div
+                              id="bajas-detail-personal-suggestions"
+                              class="filter-suggestions filter-suggestions-full hidden"
+                            ></div>
+                          </div>
+                        </label>
+                        <label>
+                          Tipo
+                          <select id="bajas-detail-tipo" required>
+                            <option value="">Selecciona tipo</option>
+                          </select>
+                        </label>
+                        <label>
+                          Lugar
+                          <select id="bajas-detail-lugar">
+                            <option value="">Sin especificar</option>
+                          </select>
+                        </label>
+                        <label>
+                          Fecha de inicio
+                          <input id="bajas-detail-fecha-inicio" type="date" required />
+                        </label>
+                        <label>
+                          Fecha de fin
+                          <input id="bajas-detail-fecha-fin" type="date" />
+                        </label>
+                        <label class="checkbox-item">
+                          <input id="bajas-detail-con-parte-baja" type="checkbox" checked />
+                          <span>Con parte de baja</span>
+                        </label>
+                        <label class="checkbox-item">
+                          <input id="bajas-detail-ingreso-hospitalario" type="checkbox" />
+                          <span>Ingreso hospitalario</span>
+                        </label>
+                        <label class="full-width">
+                          Observación
+                          <textarea id="bajas-detail-observacion" rows="3"></textarea>
+                        </label>
+                      </div>
+                    </fieldset>
+                    <div class="detail-actions full-width">
+                      <button
+                        id="bajas-delete-button"
+                        type="button"
+                        class="danger-button panel-destructive-action hidden"
+                      >
+                        Eliminar
+                      </button>
+                      <button id="bajas-save-button" type="submit">Guardar baja</button>
+                      <button id="bajas-cancel-button" class="secondary-button" type="button">
+                        Limpiar
+                      </button>
+                    </div>
+                  </form>
+                </aside>
+              </section>
+              </div>
+
+              <div id="bajasconciliacion-view-permisos" class="hidden">
+              <section class="card">
+                <div class="card-header records-header">
+                  <div>
+                    <p class="eyebrow">Bajas y permisos</p>
+                    <h2>Permisos</h2>
+                  </div>
+                  <div class="results-actions">
+                    <button id="permisos-new-button" type="button" title="Añadir medida">
+                      + Añadir
+                    </button>
+                    <button id="permisos-refresh-button" type="button">Actualizar</button>
+                  </div>
+                </div>
+
+                <form id="permisos-filters-form" class="filters-grid records-filters-grid records-filters-compact">
+                  <label class="filter-field">
+                    Fecha desde
+                    <div class="filter-control-row">
+                      <input id="permisos-filter-fecha-desde" name="fecha_desde" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_desde"
+                        aria-label="Restablecer fecha desde"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
+                  </label>
+                  <label class="filter-field">
+                    Fecha hasta
+                    <div class="filter-control-row">
+                      <input id="permisos-filter-fecha-hasta" name="fecha_hasta" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_hasta"
+                        aria-label="Restablecer fecha hasta"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
+                  </label>
+                  <label class="filter-field">
+                    Categoría
+                    <select id="permisos-filter-categoria" name="categoria_id">
+                      <option value="">Todas</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Tipo
+                    <select id="permisos-filter-tipo" name="tipo_id">
+                      <option value="">Todos</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    En curso
+                    <select id="permisos-filter-en-curso" name="en_curso">
+                      <option value="">Todos</option>
+                      <option value="true">Sí</option>
+                      <option value="false">No</option>
+                    </select>
+                  </label>
+                  <label class="filter-field">
+                    Personal
+                    <div class="filter-field-stack personal-picker-stack">
+                      <input
+                        id="permisos-filter-personal-input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Buscar o desplegar"
+                      />
+                      <input id="permisos-filter-personal" name="personal_id" type="hidden" />
+                      <button
+                        type="button"
+                        class="personal-picker-clear hidden"
+                        data-personal-clear
+                        aria-label="Limpiar personal"
+                        title="Limpiar"
+                      >&times;</button>
+                      <button
+                        type="button"
+                        class="personal-picker-toggle"
+                        data-personal-toggle
+                        aria-label="Desplegar lista de personal"
+                        title="Desplegar"
+                      >&#9662;</button>
+                      <div
+                        id="permisos-filter-personal-suggestions"
+                        class="filter-suggestions filter-suggestions-full hidden"
+                      ></div>
+                    </div>
+                  </label>
+                  <div class="filter-actions">
+                    <button id="permisos-clear-filters-button" type="button" class="secondary-button">
+                      Limpiar
+                    </button>
+                  </div>
+                </form>
+
+                <div class="results-toolbar section-summary-toolbar">
+                  <div class="results-summary">
+                    <p id="permisos-summary" class="summary-chip">Cargando permisos...</p>
+                  </div>
+                </div>
+
+                <div class="table-wrapper records-table-wrapper">
+                  <table id="permisos-table" class="records-table">
+                    <thead>
+                      <tr>
+                        <th>Personal</th>
+                        <th>Fecha inicio</th>
+                        <th>Fecha fin</th>
+                        <th>Categoría</th>
+                        <th>Tipo</th>
+                        <th>Días</th>
+                        <th>En curso</th>
+                        <th aria-label="Acciones"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="permisos-table-body">
+                      <tr>
+                        <td colspan="8" class="empty-state">Cargando permisos...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section id="permisos-panel" class="detail-panel hidden">
+                <div id="permisos-panel-backdrop" class="detail-overlay"></div>
+                <aside class="detail-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Permisos</p>
+                      <h3 id="permisos-panel-title">Nueva medida</h3>
+                    </div>
+                    <button id="close-permisos-panel-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+
+                  <form id="permisos-form" class="form-grid">
+                    <input id="permisos-id" type="hidden" />
+                    <fieldset class="detail-form-section full-width">
+                      <legend>Datos de la medida</legend>
+                      <div class="detail-form-section-grid">
+                        <label class="filter-field full-width">
+                          Personal
+                          <div class="filter-field-stack personal-picker-stack">
+                            <input
+                              id="permisos-detail-personal-input"
+                              type="text"
+                              autocomplete="off"
+                              placeholder="Buscar personal"
+                            />
+                            <input id="permisos-detail-personal-id" type="hidden" />
+                            <button
+                              type="button"
+                              class="personal-picker-clear hidden"
+                              data-personal-clear
+                              aria-label="Limpiar personal"
+                              title="Limpiar"
+                            >&times;</button>
+                            <button
+                              type="button"
+                              class="personal-picker-toggle"
+                              data-personal-toggle
+                              aria-label="Desplegar lista de personal"
+                              title="Desplegar"
+                            >&#9662;</button>
+                            <div
+                              id="permisos-detail-personal-suggestions"
+                              class="filter-suggestions filter-suggestions-full hidden"
+                            ></div>
+                          </div>
+                        </label>
+                        <label class="full-width">
+                          Tipo
+                          <select id="permisos-detail-tipo" required>
+                            <option value="">Selecciona tipo</option>
+                          </select>
+                        </label>
+                        <label>
+                          Fecha de inicio
+                          <input id="permisos-detail-fecha-inicio" type="date" required />
+                        </label>
+                        <label>
+                          Fecha de fin
+                          <input id="permisos-detail-fecha-fin" type="date" />
+                        </label>
+                        <label class="full-width">
+                          Observación
+                          <textarea id="permisos-detail-observacion" rows="3"></textarea>
+                        </label>
+                      </div>
+                    </fieldset>
+                    <div class="detail-actions full-width">
+                      <button
+                        id="permisos-delete-button"
+                        type="button"
+                        class="danger-button panel-destructive-action hidden"
+                      >
+                        Eliminar
+                      </button>
+                      <button id="permisos-save-button" type="submit">Guardar medida</button>
+                      <button id="permisos-cancel-button" class="secondary-button" type="button">
+                        Limpiar
+                      </button>
+                    </div>
+                  </form>
+                </aside>
+              </section>
+              </div>
             </section>
 
             <!--
@@ -3086,7 +3555,7 @@
                   </div>
                 </div>
 
-                <form id="filters-form" class="filters-grid">
+                <form id="filters-form" class="filters-grid records-filters-grid records-filters-compact">
                   <label class="filter-field">
                     Buscar texto
                     <div class="filter-control-row">
@@ -3198,7 +3667,7 @@
                     </div>
                   </label>
 
-                  <label class="checkbox-item with-label">
+                  <label class="records-show-all-toggle">
                     <input id="filter-has-cv" name="has_cv" type="checkbox" />
                     <span>Solo con CV adjunto</span>
                   </label>
@@ -3743,7 +4212,7 @@
                   </div>
                 </div>
 
-                <form id="events-filters-form" class="filters-grid event-filters-grid">
+                <form id="events-filters-form" class="filters-grid records-filters-grid records-filters-compact event-filters-grid">
                   <label class="filter-field">
                     Evento
                     <div class="filter-control-row">
@@ -3823,7 +4292,7 @@
                       </button>
                     </div>
                   </label>
-                  <label class="checkbox-label">
+                  <label class="records-show-all-toggle">
                     <input id="event-filter-include-archived" type="checkbox" />
                     <span>Mostrar archivados</span>
                   </label>
@@ -4429,7 +4898,7 @@
 
                 <form
                   id="programming-filters-form"
-                  class="filters-grid programming-filters-grid"
+                  class="filters-grid records-filters-grid records-filters-compact programming-filters-grid"
                   autocomplete="off"
                 >
                   <label class="filter-field">
@@ -4537,7 +5006,7 @@
                     </div>
                   </label>
 
-                  <label class="checkbox-item">
+                  <label class="records-show-all-toggle">
                     <input id="programming-filter-include-archived" type="checkbox" />
                     <span>Mostrar archivados</span>
                   </label>
@@ -4681,9 +5150,90 @@
 
           <p id="personal-status" class="panel-status-message"></p>
 
+          <div class="results-toolbar section-summary-toolbar personal-stats-toolbar">
+            <div id="personal-stats" class="results-summary">
+              <article
+                class="summary-chip personal-stat-chip"
+                data-stat-bucket="total"
+                role="button"
+                tabindex="0"
+                title="Ver listado"
+              >
+                <span class="summary-label">Plantilla</span>
+                <strong id="personal-stat-total-total">0</strong>
+                <span class="personal-stat-chip-breakdown"
+                  >H: <span id="personal-stat-total-h">0</span> · M:
+                  <span id="personal-stat-total-m">0</span></span
+                >
+              </article>
+              <article
+                class="summary-chip personal-stat-chip"
+                data-stat-bucket="activa"
+                role="button"
+                tabindex="0"
+                title="Ver listado"
+              >
+                <span class="summary-label">Plantilla activa</span>
+                <strong id="personal-stat-activa-total">0</strong>
+                <span class="personal-stat-chip-breakdown"
+                  >H: <span id="personal-stat-activa-h">0</span> · M:
+                  <span id="personal-stat-activa-m">0</span></span
+                >
+              </article>
+              <article
+                class="summary-chip personal-stat-chip"
+                data-stat-bucket="fijo"
+                role="button"
+                tabindex="0"
+                title="Ver listado"
+              >
+                <span class="summary-label">Contrato fijo</span>
+                <strong id="personal-stat-fijo-total">0</strong>
+                <span class="personal-stat-chip-breakdown"
+                  >H: <span id="personal-stat-fijo-h">0</span> · M:
+                  <span id="personal-stat-fijo-m">0</span></span
+                >
+              </article>
+              <article
+                class="summary-chip personal-stat-chip"
+                data-stat-bucket="temporal"
+                role="button"
+                tabindex="0"
+                title="Ver listado"
+              >
+                <span class="summary-label">Contrato temporal</span>
+                <strong id="personal-stat-temporal-total">0</strong>
+                <span class="personal-stat-chip-breakdown"
+                  >H: <span id="personal-stat-temporal-h">0</span> · M:
+                  <span id="personal-stat-temporal-m">0</span></span
+                >
+              </article>
+            </div>
+          </div>
+          <p id="personal-stats-note" class="personal-stats-note hidden"></p>
+
+          <section id="personal-stats-list-panel" class="detail-panel hidden">
+            <div id="personal-stats-list-overlay" class="detail-overlay"></div>
+            <aside class="detail-drawer">
+              <div class="detail-header">
+                <div>
+                  <p class="eyebrow">Personal</p>
+                  <h3 id="personal-stats-list-title">Listado</h3>
+                </div>
+                <div class="detail-header-actions">
+                  <button id="personal-stats-list-close-button" type="button" class="secondary-button">
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+              <p id="personal-stats-list-summary" class="muted-text"></p>
+              <div id="personal-stats-list-body" class="personal-stats-list-body"></div>
+            </aside>
+          </section>
+
           <div class="personal-management-layout">
             <aside class="personal-list-panel">
-              <div class="filters-grid personal-list-filters">
+              <div class="filters-grid records-filters-compact personal-list-filters">
                 <label class="filter-field">
                   Vinculaci&oacute;n
                   <select id="personal-vinculacion-filter">
@@ -4729,6 +5279,7 @@
               </div>
 
               <form id="personal-form" class="form-grid personal-form">
+                <input type="hidden" name="personal" />
                 <div id="personal-form-fields" class="form-grid full-width"></div>
                 <div class="detail-actions full-width">
                   <button
@@ -5666,7 +6217,7 @@
             </div>
           </div>
 
-          <form id="students-filters-form" class="filters-grid">
+          <form id="students-filters-form" class="filters-grid records-filters-compact">
             <label class="filter-field">
               Centro
               <div class="filter-control-row">
@@ -6056,7 +6607,7 @@
             </div>
           </div>
 
-          <form id="attendance-filters-form" class="filters-grid attendance-filters-grid">
+          <form id="attendance-filters-form" class="filters-grid records-filters-compact attendance-filters-grid">
             <label class="filter-field">
               Centro
               <div class="filter-control-row">
@@ -6248,7 +6799,7 @@
             </div>
           </div>
 
-          <form id="nee-filters-form" class="filters-grid nee-filters-grid">
+          <form id="nee-filters-form" class="filters-grid records-filters-compact nee-filters-grid">
             <label class="filter-field">
               Buscar alumnado
               <div class="filter-control-row">
@@ -6327,7 +6878,7 @@
             </div>
           </div>
 
-          <form id="comedor-filters-form" class="filters-grid nee-filters-grid">
+          <form id="comedor-filters-form" class="filters-grid records-filters-compact nee-filters-grid">
             <label class="filter-field">
               Centro
               <div class="filter-control-row">
@@ -6430,7 +6981,7 @@
             </div>
           </div>
 
-          <form id="availability-filters-form" class="filters-grid availability-filters-grid">
+          <form id="availability-filters-form" class="filters-grid records-filters-compact availability-filters-grid">
             <label class="filter-field">
               Buscar persona
               <div class="filter-control-row">
@@ -8833,7 +9384,7 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260830-4" defer></script>
-    <script src="./facturacion.js?v=20260807-12" defer></script>
-    <script src="./app.js?v=20260901-6" defer></script>
+    <script src="./facturacion.js?v=20260902-1" defer></script>
+    <script src="./app.js?v=20260904-9" defer></script>
   </body>
 </html>

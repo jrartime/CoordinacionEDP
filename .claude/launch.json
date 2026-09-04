@@ -6,6 +6,12 @@
       "runtimeExecutable": "powershell",
       "runtimeArgs": ["-Command", "python -m http.server $env:PORT"],
       "autoPort": true
+    },
+    {
+      "name": "EDP Publish (publish/)",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-Command", "python -m http.server $env:PORT --directory publish"],
+      "autoPort": true
     }
   ]
 }
