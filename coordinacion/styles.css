@@ -933,12 +933,14 @@ textarea {
 .checkbox-item {
   flex-direction: row;
   align-items: center;
+  flex-shrink: 0;
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
   font-size: 0.88rem;
+  white-space: nowrap;
 }
 
 .checkbox-item input {
@@ -1136,6 +1138,7 @@ textarea {
   padding: 6px 10px;
   font-size: 0.8rem;
   line-height: 1.15;
+  min-height: 28px;
 }
 
 .control-actions-panel {
@@ -1194,6 +1197,7 @@ textarea {
   padding: 6px 10px;
   font-size: 0.8rem;
   line-height: 1.15;
+  min-height: 28px;
 }
 
 .control-primary-actions button,
@@ -1202,6 +1206,7 @@ textarea {
   padding: 6px 10px;
   font-size: 0.8rem;
   line-height: 1.15;
+  min-height: 28px;
 }
 
 .control-file-actions {
@@ -1636,16 +1641,18 @@ textarea {
 .programming-personnel-form button,
 .programming-bulk-assignment-panel button {
   margin-top: 0;
-  padding: 8px 10px;
+  padding: 4px 10px;
   font-size: 0.8rem;
+  min-height: 28px;
 }
 
 .programming-bulk-assignment-panel .compact-button {
-  width: 36px;
-  min-width: 36px;
-  min-height: 36px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
   padding: 0;
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   line-height: 1;
 }
 
@@ -1666,6 +1673,26 @@ textarea {
   margin-top: 8px;
 }
 
+/* Orden unificado de los paneles de asignación/borrado masivo: Seleccionar
+   a la izquierda del todo, luego Campo/Valor actual/Nuevo valor, luego
+   Aplicar/Limpiar campos/Borrar. Se escopa a los 4 paneles que siguen este
+   patrón (Registros, Historial, Control, Actividades) para no afectar a
+   otros usos de la misma clase, como el panel de Sustituciones de Registros,
+   que solo tiene un botón y no sigue este orden. */
+#records-bulk-zone .activities-bulk-assignment-panel,
+#historial-bulk-zone .activities-bulk-assignment-panel,
+#control-bulk-zone .activities-bulk-assignment-panel,
+#activities-bulk-zone .activities-bulk-assignment-panel {
+  grid-template-columns:
+    auto
+    minmax(140px, 1fr)
+    minmax(125px, 0.85fr)
+    minmax(125px, 0.85fr)
+    auto
+    auto
+    auto;
+}
+
 .contracts-bulk-assignment-panel label,
 .activities-bulk-assignment-panel label {
   font-size: 0.72rem;
@@ -1681,8 +1708,9 @@ textarea {
 .contracts-bulk-assignment-panel button,
 .activities-bulk-assignment-panel button {
   margin-top: 0;
-  padding: 8px 10px;
+  padding: 4px 10px;
   font-size: 0.8rem;
+  min-height: 28px;
 }
 
 .activities-bulk-assignment-panel label {
@@ -1846,14 +1874,15 @@ textarea {
 }
 
 .programming-unmatched-accept-button {
-  min-height: 36px;
+  min-height: 28px;
   padding: 0 10px;
 }
 
 .programming-unmatched-delete-button {
-  width: 36px;
-  min-width: 36px;
-  min-height: 36px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
   padding: 0;
 }
 
@@ -2614,7 +2643,7 @@ table.historial-report-activities-table td:nth-child(5) {
 }
 
 .compact-checkbox {
-  min-height: 36px;
+  min-height: 28px;
 }
 
 .contract-services-section {
@@ -2752,22 +2781,18 @@ button:has(.button-icon),
 
 button.icon-only-button:has(.button-icon),
 button.tooltip-button:has(.button-icon):not(.icon-text-button) {
-  width: 36px;
-  min-width: 36px;
-  height: 36px;
-  min-height: 36px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
   padding: 0;
-}
-
-button.tooltip-button:has(.button-icon):not(.icon-text-button) {
-  min-width: 36px;
-  min-height: 36px;
-  padding: 0;
+  font-size: 0.8rem;
 }
 
 button.icon-text-button:has(.button-icon) {
   width: auto;
   min-width: 0;
+  min-height: 28px;
 }
 
 .tooltip-button {
@@ -3959,6 +3984,14 @@ th {
   vertical-align: middle;
 }
 
+/* Cada fila cabe en 3 líneas como máximo; lo que no entra se oculta en vez
+   de estirar la fila (nombres de personal/instalación/actividad largos). */
+.programming-table td {
+  max-height: 3.9em;
+  line-height: 1.3;
+  overflow: hidden;
+}
+
 #control-records-table .weekday-marker,
 .programming-table .weekday-marker,
 .control-totals-table-wrapper .weekday-marker,
@@ -4908,6 +4941,16 @@ th {
   gap: 10px;
   justify-content: flex-end;
   margin-top: 8px;
+}
+
+/* Mismo alto (28px) que el resto de controles de panel — filtros, barras de
+   herramientas y paneles de asignación masiva — para que Guardar/Cancelar/
+   Eliminar no destaquen por tamaño frente al resto de la interfaz. */
+.detail-actions button,
+.activity-actions button {
+  padding: 4px 14px;
+  font-size: 0.82rem;
+  min-height: 28px;
 }
 
 .historial-form-validation {
@@ -5994,8 +6037,10 @@ details[open] > .gestion-collapsible-header::before {
   width: 22px;
   min-width: 22px;
   height: 22px;
+  min-height: 22px;
   border-radius: 4px;
   font-size: 0.75rem;
+  padding: 0;
 }
 
 #gestion-historial-table th.records-row-actions,

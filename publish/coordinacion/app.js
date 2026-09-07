@@ -860,10 +860,16 @@ function getActionButtonDecoration(button, label) {
   return null;
 }
 
+const NAVIGATION_TAB_BUTTON_SELECTOR =
+  ".private-tab-button, .module-tab-button, .settings-subtab-button, .control-view-toggle-button";
+
 function decorateStaticActionButtons(root = document) {
-  const buttons = root.matches?.("button")
-    ? [root]
-    : Array.from(root.querySelectorAll?.("button") || []);
+  const isNavigationTab = (button) => button.matches(NAVIGATION_TAB_BUTTON_SELECTOR);
+  const buttons = (
+    root.matches?.("button")
+      ? [root]
+      : Array.from(root.querySelectorAll?.("button") || [])
+  ).filter((button) => !isNavigationTab(button));
   buttons.forEach((button) => {
     const visibleLabel = (button.textContent || "").trim();
     const preferAriaLabel =
@@ -1181,20 +1187,6 @@ const eventPanel = document.querySelector("#event-panel");
 const eventPanelBackdrop = document.querySelector("#event-panel-backdrop");
 const closeEventPanelButton = document.querySelector("#close-event-panel-button");
 const eventPanelTitle = document.querySelector("#event-panel-title");
-const openEventSettingsButton = document.querySelector("#open-event-settings-button");
-const eventSettingsPanel = document.querySelector("#event-settings-panel");
-const eventSettingsPanelBackdrop = document.querySelector("#event-settings-panel-backdrop");
-const closeEventSettingsPanelButton = document.querySelector("#close-event-settings-panel-button");
-const eventAssemblyPersonnelFilter = document.querySelector("#event-assembly-personnel-filter");
-const eventAssemblyAvailableSelect = document.querySelector("#event-assembly-available-select");
-const eventAssemblySelectedSelect = document.querySelector("#event-assembly-selected-select");
-const eventAssemblyAddButton = document.querySelector("#event-assembly-add-button");
-const eventAssemblyRemoveButton = document.querySelector("#event-assembly-remove-button");
-const eventInstallationFilter = document.querySelector("#event-installation-settings-filter");
-const eventInstallationAvailableSelect = document.querySelector("#event-installation-available-select");
-const eventInstallationSelectedSelect = document.querySelector("#event-installation-selected-select");
-const eventInstallationAddButton = document.querySelector("#event-installation-add-button");
-const eventInstallationRemoveButton = document.querySelector("#event-installation-remove-button");
 const eventClearButton = document.querySelector("#event-clear-button");
 const eventsRefreshButton = document.querySelector("#events-refresh-button");
 const eventsFiltersForm = document.querySelector("#events-filters-form");
@@ -1755,8 +1747,6 @@ let eventCreatorRows = [];
 let eventAllInstallationRows = [];
 let eventInstallationRows = [];
 let eventPersonnelRows = [];
-let eventAssemblyPersonnelIds = new Set();
-let eventAssignedInstallationIds = new Set();
 let currentEvents = [];
 let currentEventScheduleRows = [];
 let currentEventSchedulePersonnelRows = [];
@@ -6555,6 +6545,10 @@ function getProgrammingPersonnelOptionLabel(name) {
   return person ? formatProgrammingPersonnelLabel(person) : normalizedName;
 }
 
+function getProgrammingPersonnelDisplayName(name) {
+  return normalizeProgrammingPersonnelName(name);
+}
+
 function isMissingProgrammingPersonnelTableError(error) {
   const details = formatSupabaseErrorDetails(error).toLowerCase();
   return (
@@ -7416,7 +7410,7 @@ function refreshProgrammingPreviewPage() {
                 </div>
               </td>
               <td>${escapeHtml(getProgrammingTypeBadgeLabel(row.tipoProgramacion))}</td>
-              <td>${escapeHtml(getProgrammingPersonnelOptionLabel(row.personal))}</td>
+              <td>${escapeHtml(getProgrammingPersonnelDisplayName(row.personal))}</td>
               <td>${escapeHtml(row.instalacion)}</td>
               <td class="weekday-marker-cell">
                 <span
@@ -12409,6 +12403,9 @@ function getPersonalStatsBucketRows(bucket) {
   if (bucket === "activa") {
     return personalStatsRows.filter((row) => personalStatsRowIsActiva(row));
   }
+  if (bucket === "no-activa") {
+    return personalStatsRows.filter((row) => !personalStatsRowIsActiva(row));
+  }
   if (bucket === "fijo" || bucket === "temporal") {
     return personalStatsRows.filter(
       (row) => personalStatsRowIsActiva(row) && row.tipo_contrato === bucket
@@ -12434,6 +12431,7 @@ async function loadPersonalEstadisticas() {
   const totals = {
     total: { total: 0, H: 0, M: 0 },
     activa: { total: 0, H: 0, M: 0 },
+    noActiva: { total: 0, H: 0, M: 0 },
     fijo: { total: 0, H: 0, M: 0 },
     temporal: { total: 0, H: 0, M: 0 },
   };
@@ -12458,6 +12456,9 @@ async function loadPersonalEstadisticas() {
       } else {
         activosSinContrato += 1;
       }
+    } else {
+      totals.noActiva.total += 1;
+      if (genero) totals.noActiva[genero] += 1;
     }
   });
 
@@ -12467,6 +12468,9 @@ async function loadPersonalEstadisticas() {
   setPersonalStat("activa-total", totals.activa.total);
   setPersonalStat("activa-h", totals.activa.H);
   setPersonalStat("activa-m", totals.activa.M);
+  setPersonalStat("no-activa-total", totals.noActiva.total);
+  setPersonalStat("no-activa-h", totals.noActiva.H);
+  setPersonalStat("no-activa-m", totals.noActiva.M);
   setPersonalStat("fijo-total", totals.fijo.total);
   setPersonalStat("fijo-h", totals.fijo.H);
   setPersonalStat("fijo-m", totals.fijo.M);
@@ -12496,6 +12500,7 @@ async function loadPersonalEstadisticas() {
 const PERSONAL_STATS_BUCKET_LABELS = {
   total: "Plantilla",
   activa: "Plantilla activa",
+  "no-activa": "Plantilla no activa",
   fijo: "Contrato fijo",
   temporal: "Contrato temporal",
 };
@@ -14181,12 +14186,10 @@ async function loadCurrentAccessRole() {
     if (currentAllowedPrivateTabs.has("actividades")) {
       currentAllowedPrivateTabs.add("registros");
     }
-    openEventSettingsButton?.classList.toggle("hidden", !currentUserIsAccessAdmin);
     applyBillingRedirectAdminVisibility();
   } catch (_error) {
     currentUserIsAccessAdmin = false;
     currentAllowedPrivateTabs = new Set();
-    openEventSettingsButton?.classList.add("hidden");
     applyBillingRedirectAdminVisibility();
   }
 }
@@ -14596,8 +14599,6 @@ async function handleLogout() {
   eventAllInstallationRows = [];
   eventInstallationRows = [];
   eventPersonnelRows = [];
-  eventAssignedInstallationIds = new Set();
-  eventAssemblyPersonnelIds = new Set();
   eventsCatalogsLoaded = false;
   currentContractRows = [];
   contractServiceCatalogRows = [];
@@ -29574,6 +29575,20 @@ const permisosDetailFechaFin = document.querySelector("#permisos-detail-fecha-fi
 const permisosDetailObservacion = document.querySelector("#permisos-detail-observacion");
 const permisosDeleteButton = document.querySelector("#permisos-delete-button");
 const permisosCancelButton = document.querySelector("#permisos-cancel-button");
+const permisosTiposManageButton = document.querySelector("#permisos-tipos-manage-button");
+const permisosTiposPanel = document.querySelector("#permisos-tipos-panel");
+const permisosTiposPanelBackdrop = document.querySelector("#permisos-tipos-panel-backdrop");
+const closePermisosTiposPanelButton = document.querySelector("#close-permisos-tipos-panel-button");
+const permisosTiposTableBody = document.querySelector("#permisos-tipos-table-body");
+const permisosTiposForm = document.querySelector("#permisos-tipos-form");
+const permisosTiposNuevoNombre = document.querySelector("#permisos-tipos-nuevo-nombre");
+const permisosTiposNuevoCategoria = document.querySelector("#permisos-tipos-nuevo-categoria");
+const permisosTiposNuevoTratamiento = document.querySelector("#permisos-tipos-nuevo-tratamiento");
+const permisosTiposEditarId = document.querySelector("#permisos-tipos-editar-id");
+const permisosTiposFormLegend = document.querySelector("#permisos-tipos-form-legend");
+const permisosTiposFormEstado = document.querySelector("#permisos-tipos-form-estado");
+const permisosTiposCancelarEdicionButton = document.querySelector("#permisos-tipos-cancelar-edicion");
+const permisosTiposGuardarButton = document.querySelector("#permisos-tipos-nuevo-guardar");
 
 let currentBajasConciliacionSubtab = "bajas";
 let bajasConciliacionCatalogsLoaded = false;
@@ -29687,6 +29702,184 @@ function populatePermisosCatalogSelects() {
   }
 }
 
+// Panel admin "Tipos de permiso": alta de tipos nuevos, edición (nombre,
+// categoría, tratamiento de nómina) y activar/desactivar los existentes.
+// Solo admin (RLS de personal_permisos_tipo lo exige igual, esto es solo
+// para no mostrar el botón a quien no puede usarlo).
+const PERMISOS_TRATAMIENTO_LABELS = {
+  normal: "Normal",
+  suspendido: "Suspende el contrato",
+  pagado_por_empresa: "Pagado por la empresa",
+};
+
+// Fila a fila de la última carga, para poder rellenar el formulario de
+// edición sin volver a pedir los datos al pulsar el lápiz de una fila.
+let permisosTiposListaCache = [];
+
+async function loadPermisosTiposLista() {
+  if (!permisosTiposTableBody) return;
+  permisosTiposTableBody.innerHTML =
+    '<tr><td colspan="5" class="empty-state">Cargando tipos...</td></tr>';
+  try {
+    const supabase = await getSupabaseClient();
+    const [tiposRes, categoriasRes] = await Promise.all([
+      supabase
+        .from("personal_permisos_tipo")
+        .select("id,tipo,categoria_id,tratamiento_nomina,activo")
+        .order("categoria_id", { ascending: true })
+        .order("tipo", { ascending: true }),
+      supabase
+        .from("personal_permisos_categoria")
+        .select("id,categoria,orden")
+        .order("orden", { ascending: true }),
+    ]);
+    if (tiposRes.error) throw tiposRes.error;
+    if (categoriasRes.error) throw categoriasRes.error;
+
+    const categorias = categoriasRes.data || [];
+    const categoriaLabelById = new Map(categorias.map((c) => [c.id, c.categoria]));
+
+    if (permisosTiposNuevoCategoria) {
+      const previous = permisosTiposNuevoCategoria.value;
+      permisosTiposNuevoCategoria.innerHTML =
+        '<option value="">Selecciona categoría</option>' +
+        categorias
+          .map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.categoria)}</option>`)
+          .join("");
+      permisosTiposNuevoCategoria.value = previous;
+    }
+
+    const tipos = tiposRes.data || [];
+    permisosTiposListaCache = tipos;
+    if (!tipos.length) {
+      permisosTiposTableBody.innerHTML = '<tr><td colspan="5" class="empty-state">Sin tipos.</td></tr>';
+      return;
+    }
+    permisosTiposTableBody.innerHTML = tipos
+      .map(
+        (row) => `
+      <tr>
+        <td>
+          <button
+            type="button"
+            class="compact-button"
+            data-permiso-tipo-edit="${escapeHtml(row.id)}"
+            title="Editar tipo"
+            aria-label="Editar tipo"
+          >✎</button>
+        </td>
+        <td>${escapeHtml(row.tipo)}</td>
+        <td>${escapeHtml(categoriaLabelById.get(row.categoria_id) || "-")}</td>
+        <td>${escapeHtml(PERMISOS_TRATAMIENTO_LABELS[row.tratamiento_nomina] || row.tratamiento_nomina)}</td>
+        <td>
+          <label class="checkbox-item">
+            <input type="checkbox" data-permiso-tipo-activo="${escapeHtml(row.id)}" ${row.activo ? "checked" : ""} />
+          </label>
+        </td>
+      </tr>`
+      )
+      .join("");
+  } catch (error) {
+    permisosTiposTableBody.innerHTML = `<tr><td colspan="5" class="empty-state">No se pudieron cargar los tipos: ${escapeHtml(error.message)}</td></tr>`;
+  }
+}
+
+async function openPermisosTiposPanel() {
+  permisosTiposPanel?.classList.remove("hidden");
+  cancelarEdicionPermisoTipo();
+  await loadPermisosTiposLista();
+}
+
+function closePermisosTiposPanel() {
+  permisosTiposPanel?.classList.add("hidden");
+  cancelarEdicionPermisoTipo();
+}
+
+// Rellena el formulario de abajo con los datos de la fila marcada arriba, en
+// vez de dejarlo en modo "Nuevo tipo". El id editado viaja en un input
+// oculto; guardarPermisoTipoNuevo mira ese campo para decidir insert/update.
+function iniciarEdicionPermisoTipo(id) {
+  const fila = permisosTiposListaCache.find((row) => String(row.id) === String(id));
+  if (!fila || !permisosTiposForm) return;
+  if (permisosTiposEditarId) permisosTiposEditarId.value = String(fila.id);
+  if (permisosTiposNuevoNombre) permisosTiposNuevoNombre.value = fila.tipo || "";
+  if (permisosTiposNuevoCategoria) permisosTiposNuevoCategoria.value = String(fila.categoria_id ?? "");
+  if (permisosTiposNuevoTratamiento) permisosTiposNuevoTratamiento.value = fila.tratamiento_nomina || "normal";
+  if (permisosTiposFormLegend) permisosTiposFormLegend.textContent = "Editar tipo";
+  if (permisosTiposFormEstado) {
+    permisosTiposFormEstado.textContent = `Editando "${fila.tipo}". Los permisos que ya usan este tipo no cambian de fecha ni de persona, solo el nombre/categoría/tratamiento se actualizan para todos ellos.`;
+    permisosTiposFormEstado.classList.remove("hidden");
+  }
+  if (permisosTiposGuardarButton) permisosTiposGuardarButton.textContent = "Guardar cambios";
+  permisosTiposCancelarEdicionButton?.classList.remove("hidden");
+  permisosTiposForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function cancelarEdicionPermisoTipo() {
+  permisosTiposForm?.reset();
+  if (permisosTiposEditarId) permisosTiposEditarId.value = "";
+  if (permisosTiposFormLegend) permisosTiposFormLegend.textContent = "Nuevo tipo";
+  if (permisosTiposFormEstado) {
+    permisosTiposFormEstado.textContent = "";
+    permisosTiposFormEstado.classList.add("hidden");
+  }
+  if (permisosTiposGuardarButton) permisosTiposGuardarButton.textContent = "Añadir tipo";
+  permisosTiposCancelarEdicionButton?.classList.add("hidden");
+}
+
+// Tras guardar/editar/(des)activar hay que tirar la caché de catálogos de
+// Bajas y permisos (bajasConciliacionCatalogsLoaded), o el cambio no se
+// reflejaría en los desplegables de Tipo hasta recargar la página entera.
+async function guardarPermisoTipoNuevo(event) {
+  event.preventDefault();
+  const nombre = permisosTiposNuevoNombre?.value.trim();
+  const categoriaId = permisosTiposNuevoCategoria?.value;
+  const tratamiento = permisosTiposNuevoTratamiento?.value || "normal";
+  const editandoId = permisosTiposEditarId?.value || "";
+  if (!nombre || !categoriaId) {
+    setStatus("Pon un nombre y elige una categoría antes de guardar.", "error");
+    return;
+  }
+  const payload = {
+    tipo: nombre,
+    categoria_id: Number(categoriaId),
+    tratamiento_nomina: tratamiento,
+  };
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = editandoId
+      ? await supabase.from("personal_permisos_tipo").update(payload).eq("id", editandoId)
+      : await supabase.from("personal_permisos_tipo").insert(payload);
+    if (error) throw error;
+    cancelarEdicionPermisoTipo();
+    await loadPermisosTiposLista();
+    bajasConciliacionCatalogsLoaded = false;
+    await loadBajasConciliacionCatalogs();
+    setStatus(
+      editandoId ? `Tipo "${nombre}" actualizado.` : `Tipo "${nombre}" añadido.`,
+      "success"
+    );
+  } catch (error) {
+    setStatus(error?.message || "No se pudo guardar el tipo de permiso.", "error");
+  }
+}
+
+async function togglePermisoTipoActivo(id, activo) {
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase
+      .from("personal_permisos_tipo")
+      .update({ activo })
+      .eq("id", id);
+    if (error) throw error;
+    bajasConciliacionCatalogsLoaded = false;
+    await loadBajasConciliacionCatalogs();
+  } catch (error) {
+    setStatus(error?.message || "No se pudo actualizar el tipo de permiso.", "error");
+    await loadPermisosTiposLista();
+  }
+}
+
 async function loadBajasConciliacionPersonalOptions(supabase) {
   if (bajasConciliacionPersonalOptionsLoaded) {
     return;
@@ -29763,7 +29956,7 @@ function renderPermisosTable(rows) {
   if (!permisosTableBody) return;
   if (!rows.length) {
     permisosTableBody.innerHTML =
-      '<tr><td colspan="8" class="empty-state">No hay medidas que coincidan con los filtros.</td></tr>';
+      '<tr><td colspan="7" class="empty-state">No hay medidas que coincidan con los filtros.</td></tr>';
     return;
   }
   permisosTableBody.innerHTML = rows
@@ -29772,7 +29965,6 @@ function renderPermisosTable(rows) {
         row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : ""),
         formatDisplayDate(row.fecha_inicio),
         formatDisplayDate(row.fecha_fin),
-        row.categoria || "",
         row.tipo || "",
         row.dias ?? "",
         row.en_curso ? "Sí" : "No",
@@ -29843,10 +30035,11 @@ async function loadBajas() {
 }
 
 async function loadPermisos() {
+  permisosTiposManageButton?.classList.toggle("hidden", !currentUserIsAccessAdmin);
   if (permisosSummary) permisosSummary.textContent = "Cargando permisos...";
   if (permisosTableBody) {
     permisosTableBody.innerHTML =
-      '<tr><td colspan="8" class="empty-state">Cargando permisos...</td></tr>';
+      '<tr><td colspan="7" class="empty-state">Cargando permisos...</td></tr>';
   }
   try {
     const supabase = await getSupabaseClient();
@@ -29896,7 +30089,7 @@ async function loadPermisos() {
     if (permisosSummary) permisosSummary.textContent = "No se pudieron cargar los permisos.";
     if (permisosTableBody) {
       permisosTableBody.innerHTML =
-        '<tr><td colspan="8" class="empty-state">Error cargando los permisos.</td></tr>';
+        '<tr><td colspan="7" class="empty-state">Error cargando los permisos.</td></tr>';
     }
     setStatus(`No se pudieron cargar los permisos: ${error.message}`, "error");
   }
@@ -30631,67 +30824,6 @@ function syncEventScheduleTransportField() {
   }
 }
 
-function renderEventSettings() {
-  renderEventInstallationSettings();
-
-  if (!eventAssemblyAvailableSelect || !eventAssemblySelectedSelect) {
-    return;
-  }
-
-  const filterText = normalizeSearchText(eventAssemblyPersonnelFilter?.value || "");
-  const filteredRows = eventPersonnelRows.filter((row) =>
-    normalizeSearchText(row.personal).includes(filterText)
-  );
-  const availableRows = filteredRows.filter((row) => !eventAssemblyPersonnelIds.has(Number(row.id)));
-  const selectedRows = filteredRows.filter((row) => eventAssemblyPersonnelIds.has(Number(row.id)));
-
-  if (!eventPersonnelRows.length) {
-    eventAssemblyAvailableSelect.innerHTML = "";
-    eventAssemblySelectedSelect.innerHTML = "";
-    return;
-  }
-
-  eventAssemblyAvailableSelect.innerHTML = availableRows
-    .map((row) => `<option value="${row.id}">${escapeHtml(row.personal)}</option>`)
-    .join("");
-  eventAssemblySelectedSelect.innerHTML = selectedRows
-    .map((row) => `<option value="${row.id}">${escapeHtml(row.personal)}</option>`)
-    .join("");
-}
-
-function renderEventInstallationSettings() {
-  if (!eventInstallationAvailableSelect || !eventInstallationSelectedSelect) {
-    return;
-  }
-
-  const filterText = normalizeSearchText(eventInstallationFilter?.value || "");
-  const filteredRows = eventAllInstallationRows.filter((row) => {
-    const haystack = normalizeSearchText(row.instalacion);
-    return !filterText || haystack.includes(filterText);
-  });
-  const availableRows = filteredRows.filter(
-    (row) => !eventAssignedInstallationIds.has(Number(row.id))
-  );
-  const selectedRows = filteredRows.filter((row) =>
-    eventAssignedInstallationIds.has(Number(row.id))
-  );
-
-  eventInstallationAvailableSelect.innerHTML = availableRows
-    .map((row) => `<option value="${row.id}">${escapeHtml(row.instalacion)}</option>`)
-    .join("");
-  eventInstallationSelectedSelect.innerHTML = selectedRows
-    .map((row) => `<option value="${row.id}">${escapeHtml(row.instalacion)}</option>`)
-    .join("");
-}
-
-function openEventSettingsPanel() {
-  renderEventSettings();
-  eventSettingsPanel?.classList.remove("hidden");
-}
-
-function closeEventSettingsPanel() {
-  eventSettingsPanel?.classList.add("hidden");
-}
 
 function isEventArchived(event) {
   return Boolean(event?.archived_at);
@@ -31816,9 +31948,7 @@ async function loadEventCatalogs() {
   const [
     contractsResult,
     installationsResult,
-    assignedInstallationsResult,
     personnelResult,
-    assemblyPersonnelResult,
     contractPersonalResult,
     contractInstallationResult,
     creatorsResult,
@@ -31833,16 +31963,10 @@ async function loadEventCatalogs() {
       .eq("activo", true)
       .order("instalacion", { ascending: true }),
     supabase
-      .from("eventos_instalaciones")
-      .select("instalacion_id"),
-    supabase
       .from("personal")
       .select("id, personal, vinculacion_id")
       .in("vinculacion_id", [1, 2])
       .order("personal", { ascending: true }),
-    supabase
-      .from("eventos_montaje_personal")
-      .select("personal_id"),
     supabase
       .from("contrato_personal")
       .select("contrato_id, personal_id, activo, fecha_inicio, fecha_fin, removed_at"),
@@ -31860,19 +31984,8 @@ async function loadEventCatalogs() {
   if (installationsResult.error) {
     throw installationsResult.error;
   }
-  const assignedInstallationsTableMissing =
-    assignedInstallationsResult.error &&
-    formatSupabaseErrorDetails(assignedInstallationsResult.error)
-      .toLowerCase()
-      .includes("eventos_instalaciones");
-  if (assignedInstallationsResult.error && !assignedInstallationsTableMissing) {
-    throw assignedInstallationsResult.error;
-  }
   if (personnelResult.error) {
     throw personnelResult.error;
-  }
-  if (assemblyPersonnelResult.error) {
-    throw assemblyPersonnelResult.error;
   }
   if (contractPersonalResult.error) {
     throw contractPersonalResult.error;
@@ -31886,85 +31999,14 @@ async function loadEventCatalogs() {
 
   eventContractRows = (contractsResult.data ?? []).filter((row) => row.activo !== false);
   eventAllInstallationRows = installationsResult.data ?? [];
-  eventAssignedInstallationIds = new Set(
-    assignedInstallationsTableMissing
-      ? eventAllInstallationRows.map((row) => Number(row.id))
-      : (assignedInstallationsResult.data ?? []).map((row) => Number(row.instalacion_id))
-  );
   eventInstallationRows = [];
   eventPersonnelRows = personnelResult.data ?? [];
-  eventAssemblyPersonnelIds = new Set((assemblyPersonnelResult.data ?? []).map((row) => Number(row.personal_id)));
   eventContractPersonalRows = contractPersonalResult.data ?? [];
   eventContractInstallationRows = contractInstallationResult.data ?? [];
   eventCreatorRows = creatorsResult.data ?? [];
   eventsCatalogsLoaded = true;
   renderEventContractOptions();
   renderEventCatalogOptions();
-  renderEventSettings();
-}
-
-async function setEventAssemblyPersonnelBatch(personalIds, isEnabled) {
-  const ids = personalIds.map(Number).filter(Boolean);
-  if (!ids.length) {
-    return;
-  }
-
-  const supabase = await getSupabaseClient();
-  const { error } = isEnabled
-    ? await supabase
-        .from("eventos_montaje_personal")
-        .upsert(ids.map((personalId) => ({ personal_id: personalId })))
-    : await supabase.from("eventos_montaje_personal").delete().in("personal_id", ids);
-
-  if (error) {
-    setStatus(error.message || "No se pudo actualizar la configuración de montajes.", "error");
-    renderEventSettings();
-    return;
-  }
-
-  ids.forEach((personalId) => {
-    if (isEnabled) {
-      eventAssemblyPersonnelIds.add(personalId);
-    } else {
-      eventAssemblyPersonnelIds.delete(personalId);
-    }
-  });
-
-  renderEventCatalogOptions();
-  renderEventSettings();
-  setStatus("Configuración de montajes actualizada.", "success");
-}
-
-async function setEventInstallationBatch(installationIds, isEnabled) {
-  const ids = installationIds.map(Number).filter(Boolean);
-  if (!ids.length) {
-    return;
-  }
-
-  const supabase = await getSupabaseClient();
-  const { error } = isEnabled
-    ? await supabase
-        .from("eventos_instalaciones")
-        .upsert(ids.map((installationId) => ({ instalacion_id: installationId })))
-    : await supabase.from("eventos_instalaciones").delete().in("instalacion_id", ids);
-
-  if (error) {
-    setStatus(error.message || "No se pudo actualizar la configuración de instalaciones.", "error");
-    renderEventSettings();
-    return;
-  }
-
-  ids.forEach((installationId) => {
-    if (isEnabled) {
-      eventAssignedInstallationIds.add(installationId);
-    } else {
-      eventAssignedInstallationIds.delete(installationId);
-    }
-  });
-  syncEventInstallationOptionsForContract(eventInstallationSelect?.value || "");
-  renderEventsTable();
-  renderEventSettings();
-  setStatus("Configuración de instalaciones de eventos actualizada.", "success");
 }
 
 function getSelectedOptionValues(selectElement) {
@@ -33190,29 +33232,6 @@ async function init() {
     }
     void deleteEvent(eventIdInput.value);
   });
-  openEventSettingsButton?.addEventListener("click", () => {
-    void loadEventCatalogs()
-      .then(openEventSettingsPanel)
-      .catch((error) => {
-        setStatus(error?.message || "No se pudo abrir la configuración de eventos.", "error");
-      });
-  });
-  closeEventSettingsPanelButton?.addEventListener("click", closeEventSettingsPanel);
-  eventSettingsPanelBackdrop?.addEventListener("click", closeEventSettingsPanel);
-  eventAssemblyPersonnelFilter?.addEventListener("input", renderEventSettings);
-  eventAssemblyAddButton?.addEventListener("click", () => {
-    void setEventAssemblyPersonnelBatch(getSelectedOptionValues(eventAssemblyAvailableSelect), true);
-  });
-  eventAssemblyRemoveButton?.addEventListener("click", () => {
-    void setEventAssemblyPersonnelBatch(getSelectedOptionValues(eventAssemblySelectedSelect), false);
-  });
-  eventInstallationFilter?.addEventListener("input", renderEventInstallationSettings);
-  eventInstallationAddButton?.addEventListener("click", () => {
-    void setEventInstallationBatch(getSelectedOptionValues(eventInstallationAvailableSelect), true);
-  });
-  eventInstallationRemoveButton?.addEventListener("click", () => {
-    void setEventInstallationBatch(getSelectedOptionValues(eventInstallationSelectedSelect), false);
-  });
   closeEventSchedulePanelButton?.addEventListener("click", closeEventSchedulePanel);
   eventSchedulePanelBackdrop?.addEventListener("click", closeEventSchedulePanel);
   eventScheduleDeleteButton?.addEventListener("click", () => {
@@ -33580,6 +33599,21 @@ async function init() {
   closePermisosPanelButton?.addEventListener("click", () => {
     void closePermisosPanel();
   });
+  permisosTiposManageButton?.addEventListener("click", () => void openPermisosTiposPanel());
+  closePermisosTiposPanelButton?.addEventListener("click", () => closePermisosTiposPanel());
+  permisosTiposPanelBackdrop?.addEventListener("click", () => closePermisosTiposPanel());
+  permisosTiposForm?.addEventListener("submit", (event) => void guardarPermisoTipoNuevo(event));
+  permisosTiposTableBody?.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-permiso-tipo-activo]");
+    if (!checkbox) return;
+    void togglePermisoTipoActivo(Number(checkbox.dataset.permisoTipoActivo), checkbox.checked);
+  });
+  permisosTiposTableBody?.addEventListener("click", (event) => {
+    const boton = event.target.closest("[data-permiso-tipo-edit]");
+    if (!boton) return;
+    iniciarEdicionPermisoTipo(boton.dataset.permisoTipoEdit);
+  });
+  permisosTiposCancelarEdicionButton?.addEventListener("click", () => cancelarEdicionPermisoTipo());
   permisosPanelBackdrop?.addEventListener("click", () => {
     void closePermisosPanel();
   });

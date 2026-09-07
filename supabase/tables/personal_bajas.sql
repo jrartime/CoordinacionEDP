@@ -1,19 +1,19 @@
 -- ============================================================================
---  Bajas médicas / IT del personal: enfermedad, accidente y las situaciones
---  de salud asimiladas (riesgo durante el embarazo o la lactancia), migradas
---  desde Tbl_Personal_Bajas / _Tipo / _Lugar (Access).
+--  Bajas médicas / IT del personal: enfermedad, accidente y la situación de
+--  salud asimilada (riesgo durante el embarazo), migradas desde
+--  Tbl_Personal_Bajas / _Tipo / _Lugar (Access).
 -- ----------------------------------------------------------------------------
 --  Es el expediente administrativo del parte, independiente de `registros`:
 --  la situación IT/LG de los registros de jornada se sigue marcando a mano
 --  como hasta ahora (ver situaciones.sql), esta tabla no los genera.
 --
---  Los dos riesgos (embarazo/lactancia) comparten aquí catálogo con las
---  bajas por enfermedad/accidente porque son una situación de salud
---  asimilada a la IT (parte a la Seguridad Social, la persona sigue de alta,
---  no trabaja); se diferencian con `sin_nomina_empresa`: en esos dos tipos el
---  INSS paga el 100% y la empresa no calcula nada. En el resto (enfermedad y
---  accidente) sigue pendiente diseñar el cálculo del complemento de IT (ver
---  memoria nominas-incapacidad-transitoria-pendiente).
+--  Riesgo durante el embarazo comparte aquí catálogo con las bajas por
+--  enfermedad/accidente porque es una situación de salud asimilada a la IT
+--  (parte a la Seguridad Social, la persona sigue de alta, no trabaja); se
+--  diferencia con `sin_nomina_empresa`: en ese tipo el INSS paga el 100% y
+--  la empresa no calcula nada. En el resto (enfermedad y accidente) sigue
+--  pendiente diseñar el cálculo del complemento de IT (ver memoria
+--  nominas-incapacidad-transitoria-pendiente).
 --
 --  Maternidad/paternidad y lactancia (el permiso propiamente dicho, no el
 --  riesgo) NO viven aquí: se movieron a `personal_permisos` el 2026-09-04
@@ -21,10 +21,20 @@
 --  baja, no son una situación de salud sino un permiso con tratamiento de
 --  nómina propio (maternidad suspende el contrato, lactancia la sigue
 --  pagando la empresa) — cada uno distinto entre sí, cosa que el flag
---  binario sin_nomina_empresa no podía expresar. El tipo 6
---  (Maternidad/paternidad) se deja en el catálogo con `activo = false` por
---  si algún export histórico lo referencia; ningún `personal_bajas` vivo lo
---  usa ya.
+--  binario sin_nomina_empresa no podía expresar.
+--
+--  Riesgo durante la lactancia también se desactivó aquí el 2026-09-07: el
+--  usuario confirmó que lo que se venía registrando bajo ese tipo eran en
+--  realidad permisos de lactancia (el derecho de reducción/acumulación,
+--  pagado por la empresa), no una baja por riesgo de salud evaluado
+--  médicamente — se migraron las filas existentes a personal_permisos
+--  (tipo Lactancia) y se desactivó el tipo aquí. Riesgo durante el embarazo
+--  SÍ se mantiene activo: es un riesgo evaluado médicamente distinto, no un
+--  permiso de uso rutinario como la lactancia.
+--
+--  Los tipos 6 (Maternidad/paternidad) y 8 (Riesgo durante la lactancia) se
+--  dejan en el catálogo con `activo = false` por si algún export histórico
+--  los referencia; ningún `personal_bajas` vivo los usa ya.
 --
 --  No se guarda `periodo`/días como columna: en el Excel origen no cuadraba
 --  con fecha_fin - fecha_inicio en ~1 de cada 6 filas (recaídas o tecleo).
@@ -54,7 +64,7 @@ insert into public.personal_bajas_tipo (id, tipo, sin_nomina_empresa, activo) va
   (5, 'Incidente', false, true),
   (6, 'Maternidad/paternidad', true, false),
   (7, 'Riesgo durante el embarazo', true, true),
-  (8, 'Riesgo durante la lactancia', true, true)
+  (8, 'Riesgo durante la lactancia', true, false)
 on conflict (id) do update set
   tipo = excluded.tipo,
   sin_nomina_empresa = excluded.sin_nomina_empresa,

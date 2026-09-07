@@ -25,8 +25,8 @@
     </style>
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
-    <link rel="stylesheet" href="./concilia-integrated.css?v=20260727-6" />
-    <link rel="stylesheet" href="./styles.css?v=20260904-4" />
+    <link rel="stylesheet" href="./concilia-integrated.css?v=20260907-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260907-4" />
   </head>
   <body>
     <script>
@@ -647,7 +647,7 @@
                       <input id="records-edit-mode" type="checkbox" />
                       <span>&#9998;</span>
                     </label>
-                    <button id="records-refresh-button" type="button">Actualizar</button>
+                    <button id="records-refresh-button" type="button" class="secondary-button">Actualizar</button>
                   </div>
                 </div>
 
@@ -800,6 +800,9 @@
                       Pulsa Seleccionar para mostrar los ticks y marca expresamente los registros.
                       Aplicar y Borrar sólo actuarán sobre los registros seleccionados.
                     </p>
+                    <button id="records-bulk-select-button" type="button" class="secondary-button">
+                      Seleccionar
+                    </button>
                     <label>
                       Campo
                       <select id="records-bulk-field">
@@ -843,9 +846,6 @@
                     </button>
                     <button id="records-bulk-clear-fields-button" type="button" class="secondary-button">
                       Limpiar campos
-                    </button>
-                    <button id="records-bulk-select-button" type="button" class="secondary-button">
-                      Seleccionar
                     </button>
                     <button id="records-bulk-delete-button" type="button" class="danger-button" disabled>
                       Borrar seleccionados
@@ -1486,7 +1486,7 @@
                       type="file"
                       accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                     />
-                    <button id="historial-import-excel-button" type="button" class="secondary-button">
+                    <button id="historial-import-excel-button" type="button" class="warm-button">
                       Cargar Excel
                     </button>
                     <button id="historial-open-companies-settings-button" type="button" class="secondary-button">
@@ -1498,13 +1498,13 @@
                     <button id="historial-new-button" type="button" title="Añadir periodo">
                       + Añadir
                     </button>
-                    <button id="historial-listado-report-pdf-button" type="button" class="secondary-button">
+                    <button id="historial-listado-report-pdf-button" type="button" class="warm-button">
                       Informe PDF
                     </button>
-                    <button id="historial-listado-report-image-button" type="button" class="secondary-button">
+                    <button id="historial-listado-report-image-button" type="button" class="warm-button">
                       Copiar PNG
                     </button>
-                    <button id="historial-refresh-button" type="button">Actualizar</button>
+                    <button id="historial-refresh-button" type="button" class="secondary-button">Actualizar</button>
                   </div>
                 </div>
 
@@ -1639,6 +1639,9 @@
                       Pulsa Seleccionar para mostrar los ticks y marca expresamente los periodos.
                       Aplicar y Borrar sólo actuarán sobre los periodos seleccionados.
                     </p>
+                    <button id="historial-bulk-select-button" type="button" class="secondary-button">
+                      Seleccionar
+                    </button>
                     <label>
                       Campo
                       <select id="historial-bulk-field">
@@ -1674,9 +1677,6 @@
                     </button>
                     <button id="historial-bulk-clear-fields-button" type="button" class="secondary-button">
                       Limpiar campos
-                    </button>
-                    <button id="historial-bulk-select-button" type="button" class="secondary-button">
-                      Seleccionar
                     </button>
                     <button id="historial-bulk-delete-button" type="button" class="danger-button" disabled>
                       Borrar seleccionados
@@ -1767,7 +1767,7 @@
                     <button id="bajas-new-button" type="button" title="Añadir baja">
                       + Añadir
                     </button>
-                    <button id="bajas-refresh-button" type="button">Actualizar</button>
+                    <button id="bajas-refresh-button" type="button" class="secondary-button">Actualizar</button>
                   </div>
                 </div>
 
@@ -1970,10 +1970,10 @@
                       >
                         Eliminar
                       </button>
-                      <button id="bajas-save-button" type="submit">Guardar baja</button>
                       <button id="bajas-cancel-button" class="secondary-button" type="button">
                         Limpiar
                       </button>
+                      <button id="bajas-save-button" type="submit">Guardar baja</button>
                     </div>
                   </form>
                 </aside>
@@ -1991,7 +1991,15 @@
                     <button id="permisos-new-button" type="button" title="Añadir medida">
                       + Añadir
                     </button>
-                    <button id="permisos-refresh-button" type="button">Actualizar</button>
+                    <button
+                      id="permisos-tipos-manage-button"
+                      type="button"
+                      class="secondary-button hidden"
+                      title="Añadir o desactivar tipos de permiso"
+                    >
+                      Tipos de permiso
+                    </button>
+                    <button id="permisos-refresh-button" type="button" class="secondary-button">Actualizar</button>
                   </div>
                 </div>
 
@@ -2092,7 +2100,6 @@
                         <th>Personal</th>
                         <th>Fecha inicio</th>
                         <th>Fecha fin</th>
-                        <th>Categoría</th>
                         <th>Tipo</th>
                         <th>Días</th>
                         <th>En curso</th>
@@ -2101,7 +2108,7 @@
                     </thead>
                     <tbody id="permisos-table-body">
                       <tr>
-                        <td colspan="8" class="empty-state">Cargando permisos...</td>
+                        <td colspan="7" class="empty-state">Cargando permisos...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -2184,12 +2191,89 @@
                       >
                         Eliminar
                       </button>
-                      <button id="permisos-save-button" type="submit">Guardar medida</button>
                       <button id="permisos-cancel-button" class="secondary-button" type="button">
                         Limpiar
                       </button>
+                      <button id="permisos-save-button" type="submit">Guardar medida</button>
                     </div>
                   </form>
+                </aside>
+              </section>
+
+              <section id="permisos-tipos-panel" class="detail-panel hidden">
+                <div id="permisos-tipos-panel-backdrop" class="detail-overlay"></div>
+                <aside class="detail-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Permisos</p>
+                      <h3>Tipos de permiso</h3>
+                    </div>
+                    <button id="close-permisos-tipos-panel-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+
+                  <div class="detail-form-sections full-width">
+                    <fieldset class="detail-form-section full-width">
+                      <legend>Existentes</legend>
+                      <p class="muted-text">
+                        Desactivar un tipo lo quita del desplegable de altas nuevas, sin tocar
+                        los permisos que ya lo tuvieran asignado.
+                      </p>
+                      <div class="table-wrapper records-table-wrapper">
+                        <table class="records-table">
+                          <thead>
+                            <tr>
+                              <th></th>
+                              <th>Tipo</th>
+                              <th>Categoría</th>
+                              <th>Tratamiento de nómina</th>
+                              <th>Activo</th>
+                            </tr>
+                          </thead>
+                          <tbody id="permisos-tipos-table-body">
+                            <tr><td colspan="5" class="empty-state">Cargando tipos...</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </fieldset>
+
+                    <fieldset class="detail-form-section full-width">
+                      <legend id="permisos-tipos-form-legend">Nuevo tipo</legend>
+                      <p id="permisos-tipos-form-estado" class="muted-text hidden"></p>
+                      <form id="permisos-tipos-form" class="detail-form-section-grid">
+                        <input id="permisos-tipos-editar-id" type="hidden" />
+                        <label class="full-width">
+                          Nombre
+                          <input id="permisos-tipos-nuevo-nombre" type="text" required maxlength="200" />
+                        </label>
+                        <label class="full-width">
+                          Categoría
+                          <select id="permisos-tipos-nuevo-categoria" required>
+                            <option value="">Selecciona categoría</option>
+                          </select>
+                        </label>
+                        <label class="full-width">
+                          Tratamiento de nómina
+                          <select id="permisos-tipos-nuevo-tratamiento">
+                            <option value="normal">Normal — no afecta al cálculo</option>
+                            <option value="suspendido">Suspende el contrato — sin nómina ni jornada mientras dura</option>
+                            <option value="pagado_por_empresa">Pagado por la empresa — nómina normal mientras dura</option>
+                          </select>
+                        </label>
+                        <div class="detail-actions full-width">
+                          <button id="permisos-tipos-nuevo-guardar" type="submit">Añadir tipo</button>
+                          <button
+                            id="permisos-tipos-cancelar-edicion"
+                            type="button"
+                            class="secondary-button hidden"
+                          >
+                            Cancelar edición
+                          </button>
+                        </div>
+                      </form>
+                    </fieldset>
+                  </div>
                 </aside>
               </section>
               </div>
@@ -2398,7 +2482,7 @@
                     <h2>Historiales y horas por intervalo</h2>
                   </div>
                   <div class="results-actions">
-                    <button id="gestion-refresh-button" type="button">Actualizar</button>
+                    <button id="gestion-refresh-button" type="button" class="secondary-button">Actualizar</button>
                   </div>
                 </div>
 
@@ -2720,8 +2804,8 @@
                       Incluir anuladas
                     </label>
                     <div class="filter-actions">
-                      <button type="button" id="gestion-nomina-listado-excel" class="secondary-button" data-icon="download" data-icon-mode="icon-text" disabled>Excel</button>
-                      <button type="button" id="gestion-nomina-listado-pdf" class="secondary-button" data-icon="download" data-icon-mode="icon-text" disabled>PDF</button>
+                      <button type="button" id="gestion-nomina-listado-excel" class="warm-button" data-icon="download" data-icon-mode="icon-text" disabled>Excel</button>
+                      <button type="button" id="gestion-nomina-listado-pdf" class="warm-button" data-icon="download" data-icon-mode="icon-text" disabled>PDF</button>
                     </div>
                   </form>
                   <div id="gestion-nomina-listado-body"></div>
@@ -2851,9 +2935,9 @@
                     <h2>Apuntes de Cronos</h2>
                   </div>
                   <div class="results-actions">
-                    <button id="contabilidad-load-button" type="button" class="secondary-button">Cargar CSV</button>
+                    <button id="contabilidad-load-button" type="button" class="warm-button">Cargar CSV</button>
                     <input id="contabilidad-load-input" type="file" accept=".csv,text/csv" class="hidden" />
-                    <button id="contabilidad-refresh-button" type="button">Actualizar</button>
+                    <button id="contabilidad-refresh-button" type="button" class="secondary-button">Actualizar</button>
                   </div>
                 </div>
 
@@ -2971,9 +3055,9 @@
                     <h2>Movimientos bancarios (TPV)</h2>
                   </div>
                   <div class="results-actions">
-                    <button id="banco-load-button" type="button" class="secondary-button">Cargar CSV</button>
+                    <button id="banco-load-button" type="button" class="warm-button">Cargar CSV</button>
                     <input id="banco-load-input" type="file" accept=".csv,text/csv" class="hidden" />
-                    <button id="banco-refresh-button" type="button">Actualizar</button>
+                    <button id="banco-refresh-button" type="button" class="secondary-button">Actualizar</button>
                   </div>
                 </div>
 
@@ -3064,7 +3148,7 @@
                     <h2>Resultados Banco / Cronos</h2>
                   </div>
                   <div class="results-actions">
-                    <button id="resultados-refresh-button" type="button">Actualizar</button>
+                    <button id="resultados-refresh-button" type="button" class="secondary-button">Actualizar</button>
                   </div>
                 </div>
 
@@ -3123,10 +3207,10 @@
                   >
                     Resumen
                   </button>
-                  <button id="resultados-export-excel-button" type="button" class="secondary-button hidden">
+                  <button id="resultados-export-excel-button" type="button" class="warm-button hidden">
                     Exportar Excel
                   </button>
-                  <button id="resultados-export-pdf-button" type="button" class="secondary-button hidden">
+                  <button id="resultados-export-pdf-button" type="button" class="warm-button hidden">
                     Exportar PDF
                   </button>
                 </div>
@@ -3184,7 +3268,7 @@
                     <h2>Conciliación Cronos / Banco</h2>
                   </div>
                   <div class="results-actions">
-                    <button id="conciliacion-refresh-button" type="button">Actualizar</button>
+                    <button id="conciliacion-refresh-button" type="button" class="secondary-button">Actualizar</button>
                   </div>
                 </div>
 
@@ -3805,6 +3889,7 @@
                       <button
                         id="control-import-csv-button"
                         type="button"
+                        class="warm-button"
                       >
                         Cargar datos
                       </button>
@@ -3933,6 +4018,13 @@
                       Aplicar modifica todos los registros filtrados que tengan el valor actual.
                       Para borrar, pulsa Seleccionar y marca expresamente los registros.
                     </p>
+                    <button
+                      id="control-enable-selective-delete-button"
+                      type="button"
+                      class="secondary-button"
+                    >
+                      Seleccionar
+                    </button>
                     <label>
                       Campo
                       <select id="control-bulk-field">
@@ -3957,13 +4049,6 @@
                       <select id="control-bulk-new-select" class="hidden"></select>
                     </label>
                     <button id="control-bulk-apply-button" type="button">Aplicar</button>
-                    <button
-                      id="control-enable-selective-delete-button"
-                      type="button"
-                      class="secondary-button"
-                    >
-                      Seleccionar
-                    </button>
                     <button
                       id="control-delete-selected-button"
                       type="button"
@@ -4167,17 +4252,6 @@
                     >
                       <svg class="button-icon" aria-hidden="true">
                         <use href="./icons.svg#icon-new"></use>
-                      </svg>
-                    </button>
-                    <button
-                      id="open-event-settings-button"
-                      class="secondary-button icon-button"
-                      type="button"
-                      aria-label="Configuración de eventos"
-                      title="Configuración"
-                    >
-                      <svg class="button-icon" aria-hidden="true">
-                        <use href="./icons.svg#icon-settings"></use>
                       </svg>
                     </button>
                     <button id="events-refresh-button" class="secondary-button" type="button">
@@ -4443,96 +4517,16 @@
                       <button
                         id="event-delete-button"
                         type="button"
-                        class="danger-button tooltip-button hidden"
-                        aria-label="Borrar evento"
+                        class="danger-button panel-destructive-action hidden"
                       >
-                        <svg class="button-icon" aria-hidden="true">
-                          <use href="./icons.svg#icon-delete"></use>
-                        </svg>
+                        Eliminar
                       </button>
-                      <button id="event-save-button" type="submit">Guardar evento</button>
                       <button id="event-clear-button" class="secondary-button" type="button">
                         Limpiar
                       </button>
+                      <button id="event-save-button" type="submit">Guardar evento</button>
                     </div>
                   </form>
-                </aside>
-              </section>
-
-              <section id="event-settings-panel" class="detail-panel hidden">
-                <div id="event-settings-panel-backdrop" class="detail-overlay"></div>
-                <aside class="detail-drawer">
-                  <div class="detail-header">
-                    <div>
-                      <p class="eyebrow">Configuración</p>
-                      <h3>Ajustes de eventos</h3>
-                    </div>
-                    <button id="close-event-settings-panel-button" type="button" class="secondary-button">
-                      Cerrar
-                    </button>
-                  </div>
-
-                  <details class="settings-section" open>
-                    <summary>Personal disponible para montajes</summary>
-                    <p class="muted-text">
-                      Solo el personal marcado aquí aparecerá al asignar personal a los pasos del cronograma.
-                    </p>
-                    <label>
-                      Filtrar personal
-                      <input
-                        id="event-assembly-personnel-filter"
-                        type="search"
-                        placeholder="Nombre del personal"
-                      />
-                    </label>
-                    <div class="dual-list">
-                      <section>
-                        <h5>Disponible</h5>
-                        <select id="event-assembly-available-select" multiple size="14"></select>
-                      </section>
-                      <div class="dual-list-actions" aria-label="Cambiar estado del personal">
-                        <button id="event-assembly-add-button" type="button">&gt;</button>
-                        <button id="event-assembly-remove-button" type="button" class="secondary-button">
-                          &lt;
-                        </button>
-                      </div>
-                      <section>
-                        <h5>Seleccionado para montajes</h5>
-                        <select id="event-assembly-selected-select" multiple size="14"></select>
-                      </section>
-                    </div>
-                  </details>
-
-                  <details class="settings-section">
-                    <summary>Instalaciones asignadas a eventos</summary>
-                    <p class="muted-text">
-                      Solo las instalaciones marcadas aquí aparecerán al crear o editar eventos.
-                    </p>
-                    <label>
-                      Filtrar instalación
-                      <input
-                        id="event-installation-settings-filter"
-                        type="search"
-                        placeholder="Nombre de instalación"
-                      />
-                    </label>
-                    <div class="dual-list">
-                      <section>
-                        <h5>Disponible</h5>
-                        <select id="event-installation-available-select" multiple size="14"></select>
-                      </section>
-                      <div class="dual-list-actions" aria-label="Cambiar instalaciones de eventos">
-                        <button id="event-installation-add-button" type="button">&gt;</button>
-                        <button id="event-installation-remove-button" type="button" class="secondary-button">
-                          &lt;
-                        </button>
-                      </div>
-                      <section>
-                        <h5>Asignadas</h5>
-                        <select id="event-installation-selected-select" multiple size="14"></select>
-                      </section>
-                    </div>
-                  </details>
                 </aside>
               </section>
 
@@ -4682,7 +4676,7 @@
                         <use href="./icons.svg#icon-new"></use>
                       </svg>
                     </button>
-                    <button id="programming-import-button" type="button">
+                    <button id="programming-import-button" type="button" class="warm-button">
                       Cargar datos
                     </button>
                     <button
@@ -5138,7 +5132,7 @@
                 type="file"
                 accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               />
-              <button id="personal-import-excel-button" type="button" class="secondary-button">
+              <button id="personal-import-excel-button" type="button" class="warm-button">
                 Cargar Excel
               </button>
               <button id="personal-new-button" type="button">Nueva persona</button>
@@ -5178,6 +5172,20 @@
                 <span class="personal-stat-chip-breakdown"
                   >H: <span id="personal-stat-activa-h">0</span> · M:
                   <span id="personal-stat-activa-m">0</span></span
+                >
+              </article>
+              <article
+                class="summary-chip personal-stat-chip"
+                data-stat-bucket="no-activa"
+                role="button"
+                tabindex="0"
+                title="Ver listado"
+              >
+                <span class="summary-label">Plantilla no activa</span>
+                <strong id="personal-stat-no-activa-total">0</strong>
+                <span class="personal-stat-chip-breakdown"
+                  >H: <span id="personal-stat-no-activa-h">0</span> · M:
+                  <span id="personal-stat-no-activa-m">0</span></span
                 >
               </article>
               <article
@@ -5695,7 +5703,7 @@
                   <button id="facturacion-generation-preview" type="button" class="secondary-button" disabled>Vista previa de agrupación</button>
                   <button id="facturacion-generation-weekly" type="button" class="secondary-button" disabled>Desglose por semanas</button>
                   <button id="facturacion-generation-save" type="button" class="secondary-button" disabled>Guardar preparación</button>
-                  <button id="facturacion-generation-pdf" type="button" class="secondary-button" disabled>Descargar PDF</button>
+                  <button id="facturacion-generation-pdf" type="button" class="warm-button" disabled>Descargar PDF</button>
                 </div>
               </div>
               <p class="muted-text">
@@ -5726,7 +5734,7 @@
               <div class="facturacion-section-title">
                 <div><p class="eyebrow">Trazabilidad</p><h3>Preparaciones guardadas</h3></div>
                 <div class="facturacion-generation-actions">
-                  <button id="facturacion-preparations-pdf" type="button" class="secondary-button" disabled>Descargar PDF de marcadas</button>
+                  <button id="facturacion-preparations-pdf" type="button" class="warm-button" disabled>Descargar PDF de marcadas</button>
                 </div>
               </div>
               <div class="table-scroll card facturacion-table-card">
@@ -5754,7 +5762,7 @@
                 <div class="facturacion-generation-actions">
                   <label>Desde<input id="facturacion-control-from" type="date" /></label>
                   <label>Hasta<input id="facturacion-control-to" type="date" /></label>
-                  <button id="facturacion-control-refresh" type="button">Actualizar</button>
+                  <button id="facturacion-control-refresh" type="button" class="secondary-button">Actualizar</button>
                 </div>
               </div>
               <p class="muted-text">
@@ -6205,13 +6213,13 @@
               <button id="open-summary-panel-button" class="secondary-button" type="button">
                 Resumen
               </button>
-              <button id="download-students-age-report-pdf-button" class="secondary-button" type="button">
+              <button id="download-students-age-report-pdf-button" class="warm-button" type="button">
                 Informe edades PDF
               </button>
-              <button id="open-student-panel-button" class="warm-button" type="button">
+              <button id="open-student-panel-button" type="button">
                 Nuevo alumno
               </button>
-              <button id="students-refresh-button" type="button">
+              <button id="students-refresh-button" type="button" class="secondary-button">
                 Actualizar
               </button>
             </div>
@@ -6731,14 +6739,14 @@
               <div class="header-actions">
                 <button
                   id="attendance-report-pdf-button"
-                  class="secondary-button compact-button"
+                  class="warm-button compact-button"
                   type="button"
                 >
                   PDF
                 </button>
                 <button
                   id="attendance-report-excel-button"
-                  class="secondary-button compact-button"
+                  class="warm-button compact-button"
                   type="button"
                 >
                   Excel
@@ -6977,7 +6985,7 @@
               <a class="secondary-link" href="https://concilia.edpsl.es/disponibilidad.html" target="_blank" rel="noopener">
                 Abrir web publica
               </a>
-              <button id="availability-refresh-button" type="button">Actualizar</button>
+              <button id="availability-refresh-button" type="button" class="secondary-button">Actualizar</button>
             </div>
           </div>
 
@@ -7077,7 +7085,7 @@
                   <use href="./icons.svg#icon-new"></use>
                 </svg>
               </button>
-              <button id="refresh-activities-button" type="button">
+              <button id="refresh-activities-button" type="button" class="secondary-button">
                 Actualizar
               </button>
               <button id="open-activities-report-button" class="secondary-button" type="button">
@@ -7304,10 +7312,10 @@
               </label>
 
               <div class="activity-actions">
-                <button type="submit">Guardar actividad</button>
                 <button id="clear-activity-form-button" class="secondary-button" type="button">
                   Limpiar
                 </button>
+                <button type="submit">Guardar actividad</button>
               </div>
             </form>
           </aside>
@@ -7510,6 +7518,9 @@
                   Pulsa Seleccionar para mostrar los ticks y marca expresamente las actividades.
                   Aplicar y Borrar sólo actuarán sobre las actividades seleccionadas.
                 </p>
+                <button id="activities-bulk-select-button" type="button" class="secondary-button">
+                  Seleccionar
+                </button>
                 <label>
                   Campo
                   <select id="activities-bulk-field">
@@ -7545,9 +7556,6 @@
                 <button id="activities-bulk-clear-fields-button" type="button" class="secondary-button">
                   Limpiar campos
                 </button>
-                <button id="activities-bulk-select-button" type="button" class="secondary-button">
-                  Seleccionar
-                </button>
                 <button id="activities-bulk-delete-button" type="button" class="danger-button" disabled>
                   Borrar seleccionadas
                 </button>
@@ -7560,7 +7568,7 @@
               </div>
             </details>
 
-            <details class="programming-panel-zone activities-records-zone">
+            <details class="programming-panel-zone activities-records-zone hidden">
               <summary>Generación de registros</summary>
               <form id="activities-records-generation-form" class="activities-records-generation-panel">
                 <button id="activities-select-records-button" type="button" class="secondary-button">
@@ -7653,7 +7661,7 @@
               <div class="header-actions">
                 <button
                   id="generate-activity-records-button"
-                  class="secondary-button compact-button"
+                  class="secondary-button compact-button hidden"
                   type="button"
                 >
                   Generar registros
@@ -7845,7 +7853,7 @@
                   <use href="./icons.svg#icon-delete"></use>
                 </svg>
               </button>
-              <button id="refresh-assignments-button" type="button">
+              <button id="refresh-assignments-button" type="button" class="secondary-button">
                 Actualizar
               </button>
             </div>
@@ -8030,10 +8038,10 @@
               <p class="muted-text">Puedes seleccionar hasta 20 personas.</p>
 
               <div class="activity-actions">
-                <button type="submit">Guardar asignacion</button>
-                <button id="clear-assignment-button" class="danger-button" type="button">
+                <button id="clear-assignment-button" class="danger-button panel-destructive-action" type="button">
                   Vaciar semana
                 </button>
+                <button type="submit">Guardar asignacion</button>
               </div>
             </form>
           </aside>
@@ -8833,12 +8841,9 @@
                 <button
                   id="control-detail-delete-button"
                   type="button"
-                  class="danger-button tooltip-button"
-                  aria-label="Borrar registro"
+                  class="danger-button panel-destructive-action"
                 >
-                  <svg class="button-icon" aria-hidden="true">
-                    <use href="./icons.svg#icon-delete"></use>
-                  </svg>
+                  Eliminar
                 </button>
                 <button id="control-detail-save-button" type="submit">
                   Guardar cambios
@@ -8941,20 +8946,18 @@
 
               <div class="detail-actions">
                 <button
-                  id="programming-detail-archive-button"
-                  type="button"
-                >
-                  Archivar
-                </button>
-                <button
                   id="programming-detail-delete-button"
                   type="button"
-                  class="danger-button tooltip-button"
-                  aria-label="Borrar registro"
+                  class="danger-button panel-destructive-action"
                 >
-                  <svg class="button-icon" aria-hidden="true">
-                    <use href="./icons.svg#icon-delete"></use>
-                  </svg>
+                  Eliminar
+                </button>
+                <button
+                  id="programming-detail-archive-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Archivar
                 </button>
                 <button id="programming-detail-save-button" type="submit">
                   Guardar cambios
@@ -9166,16 +9169,6 @@
                 <h3 id="detail-title">Detalle</h3>
               </div>
               <div class="detail-header-actions">
-                <button
-                  id="detail-delete-button"
-                  type="button"
-                  class="danger-button tooltip-button"
-                  aria-label="Borrar registro"
-                >
-                  <svg class="button-icon" aria-hidden="true">
-                    <use href="./icons.svg#icon-delete"></use>
-                  </svg>
-                </button>
                 <button id="close-detail-button" type="button" class="secondary-button">
                   Cerrar
                 </button>
@@ -9357,6 +9350,13 @@
 
               <div class="detail-actions">
                 <button
+                  id="detail-delete-button"
+                  type="button"
+                  class="danger-button panel-destructive-action"
+                >
+                  Eliminar
+                </button>
+                <button
                   id="detail-edit-button"
                   type="button"
                   class="tooltip-button"
@@ -9385,6 +9385,6 @@
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260830-4" defer></script>
     <script src="./facturacion.js?v=20260902-1" defer></script>
-    <script src="./app.js?v=20260904-9" defer></script>
+    <script src="./app.js?v=20260907-7" defer></script>
   </body>
 </html>

@@ -93,28 +93,10 @@ textarea {
   padding: 24px;
 }
 
-.secondary-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  border: 1px solid #d1d5dc;
-  border-radius: 6px;
-  padding: 6px 12px;
-  background: #ffffff;
-  color: #364153;
-  font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1.25;
-  text-decoration: none;
-  box-shadow: none;
-  white-space: nowrap;
-}
-
-.secondary-button:hover {
-  background: #f9fafb;
-  color: #101828;
-}
+/* La definición canónica de .secondary-button vive más abajo, junto a la
+   de button (línea ~275): esta era una copia muerta (misma especificidad,
+   pero anterior en la cascada, así que nunca ganaba fuera de .hero) que
+   solo generaba confusión sobre cuál de las dos mandaba. */
 
 .icon-link {
   width: 34px;
