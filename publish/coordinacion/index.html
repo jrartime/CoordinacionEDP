@@ -5691,9 +5691,7 @@
                   <label class="facturacion-groupby-field">Agrupar factura por
                     <select id="facturacion-generation-groupby">
                       <option value="contrato" selected>Contrato completo</option>
-                      <option value="servicio">Servicio (todas sus funciones)</option>
-                      <option value="funcion">Servicio, función separada</option>
-                      <option value="contrato_funcion">Contrato y función (junta servicios)</option>
+                      <option value="contrato_funcion">Contrato y función</option>
                     </select>
                   </label>
                   <label>Observación
@@ -7226,7 +7224,7 @@
 
               <label>
                 Servicio
-                <select id="activity-servicio" name="servicio_id" required>
+                <select id="activity-servicio" name="servicio_id">
                   <option value="">Seleccionar servicio</option>
                 </select>
               </label>
@@ -7717,7 +7715,7 @@
 
               <label>
                 Servicio
-                <select id="edit-activity-servicio" name="servicio_id" required>
+                <select id="edit-activity-servicio" name="servicio_id">
                   <option value="">Seleccionar servicio</option>
                 </select>
               </label>
@@ -9383,8 +9381,8 @@
     <script src="./config.js" defer></script>
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260830-4" defer></script>
-    <script src="./facturacion.js?v=20260902-1" defer></script>
+    <script src="./concilia-integrated.js?v=20260908-1" defer></script>
+    <script src="./facturacion.js?v=20260908-1" defer></script>
     <script src="./app.js?v=20260907-7" defer></script>
   </body>
 </html>

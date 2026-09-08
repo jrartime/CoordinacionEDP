@@ -620,12 +620,10 @@
     // registro esta redirigido via registros_facturacion_destino, si no el
     // propio): asi una funcion "Monitorado" trabajada en el contrato A pero
     // redirigida al B cae en el grupo del B, con la tarifa/servicio del B.
-    // Se separa por servicio aunque la funcion sea la misma (una tarifa puede
-    // etiquetar varios servicios a la vez, ver serviceIdsForRate): cada
-    // servicio facturable es su fila y su tick propios en pantalla. Ese
-    // "atado" de la tarifa se respeta igualmente al guardar -no se reparten
-    // horas entre servicios-, pero eso lo hace clusterGenerationGroups con
-    // buildServiceClusters, no este calculo.
+    // Se separa por servicio aunque la funcion sea la misma, por si algun
+    // registro trae un servicio propio o redirigido (ver serviceIdsForRate);
+    // hoy ninguna tarifa del sistema tiene mas de un servicio etiquetado, asi
+    // que en la practica esto ya no produce mas de un grupo por funcion.
     records.forEach((row) => {
       const rateKey = `${row.contrato_facturable_id ?? ""}|${row.funcion_facturable_id ?? ""}`;
       if (!rateCache.has(rateKey)) {
@@ -920,100 +918,25 @@
     }
   }
 
-  // "Servicio" y "función separada" exigen que la tarifa tenga al menos un
-  // servicio asignado (contratos_funciones_servicios): son variantes de la
-  // misma agrupacion por servicio, y sin el dato no hay forma de decidir que
-  // funciones van juntas en la misma factura. "Contrato completo" y
-  // "Contrato y función" no lo necesitan: junta lo que haya en los datos
-  // (servicio_facturable_id de cada registro) sin depender de la etiqueta de
-  // la tarifa.
-  function resolveGroupServiceIssue(group, agrupacion) {
-    if (agrupacion === "contrato" || agrupacion === "contrato_funcion") return null;
-    if (!group.servicioIds.length) {
-      return `${group.contrato} · ${group.funcion}: la tarifa no tiene ningún servicio asignado (Configuración → Funciones y tarifas). No se puede guardar agrupando por servicio.`;
-    }
-    return null;
-  }
-
-  // Una funcion puede etiquetarse con varios servicios (se comparte entre
-  // ellos). Cuando eso pasa, esos servicios quedan "atados" y se agrupan
-  // siempre juntos en las agrupaciones "servicio" y "función separada" -no
-  // se reparten horas entre ellos-, y el atado se contagia: si otra funcion
-  // enlaza a su vez uno de esos servicios con un tercero, los tres acaban en
-  // la misma preparacion. Es el algoritmo de componentes conexos (union-find)
-  // sobre los ids de servicio que etiquetan una misma tarifa
-  // (contratos_funciones_servicios), no sobre los grupos calculados: desde
-  // que buildBillingGeneration separa el calculo por servicio, una misma
-  // tarifa nunca junta sus servicios en un solo grupo, así que el atado hay
-  // que leerlo de la tarifa directamente para que el guardado los siga
-  // juntando.
-  function buildServiceClusters() {
-    const parent = new Map();
-    const find = (x) => {
-      if (!parent.has(x)) parent.set(x, x);
-      let root = x;
-      while (parent.get(root) !== root) root = parent.get(root);
-      let cur = x;
-      while (parent.get(cur) !== root) {
-        const next = parent.get(cur);
-        parent.set(cur, root);
-        cur = next;
-      }
-      return root;
-    };
-    const union = (a, b) => {
-      const ra = find(a);
-      const rb = find(b);
-      if (ra !== rb) parent.set(ra, rb);
-    };
-    const idsByRate = new Map();
-    state.functionServices.forEach((row) => {
-      if (!idsByRate.has(row.contrato_funcion_id)) idsByRate.set(row.contrato_funcion_id, []);
-      idsByRate.get(row.contrato_funcion_id).push(row.servicio_id);
-    });
-    idsByRate.forEach((ids) => {
-      ids.forEach((id) => find(id));
-      for (let i = 1; i < ids.length; i += 1) {
-        union(ids[0], ids[i]);
-      }
-    });
-    const members = new Map();
-    state.functionServices.forEach((row) => {
-      const root = find(row.servicio_id);
-      if (!members.has(root)) members.set(root, new Set());
-      members.get(root).add(row.servicio_id);
-    });
-    return {
-      membersOf: (id) => Array.from(members.get(find(id)) || [id]).sort((a, b) => a - b),
-    };
-  }
-
-  // "Contrato y función": a diferencia de "servicio"/"función separada" (que
-  // solo juntan servicios atados por una misma tarifa), esta junta sin mirar
-  // la tarifa -todo lo que haya en los datos (servicio_facturable_id de cada
-  // registro) para ese contrato+función va a la misma preparación-. Util
-  // cuando la función se reparte entre servicios que no comparten tarifa.
+  // "Contrato completo" junta todo el contrato en una preparación; "Contrato
+  // y función" separa una preparación por función dentro del mismo contrato.
+  // Ninguna de las dos depende de cómo esté etiquetada la tarifa en servicio
+  // (contratos_funciones_servicios): junta lo que haya en los datos
+  // (servicio_facturable_id de cada registro, si lo hay) solo para el
+  // desglose informativo, no para decidir la agrupación.
   function clusterGenerationGroups(groups, agrupacion) {
-    const serviceClusters = agrupacion === "servicio" || agrupacion === "funcion" ? buildServiceClusters() : null;
     const clusters = new Map();
     groups.forEach((group) => {
-      const groupServiceIds = agrupacion === "servicio" || agrupacion === "funcion"
-        ? serviceClusters.membersOf(group.servicioIds[0])
-        : [];
       const key = agrupacion === "contrato"
         ? `${group.contratoId}|contrato`
-        : agrupacion === "servicio"
-          ? `${group.contratoId}|servicio:${groupServiceIds.join(",")}`
-          : agrupacion === "contrato_funcion"
-            ? `${group.contratoId}|contrato_funcion:${group.funcionId}`
-            : `${group.contratoId}|funcion:${group.funcionId}|servicio:${groupServiceIds.join(",")}`;
+        : `${group.contratoId}|contrato_funcion:${group.funcionId}`;
       if (!clusters.has(key)) {
         clusters.set(key, {
           contratoId: group.contratoId,
           contrato: group.contrato,
           funcion: group.funcion,
           servicioIdSet: new Set(),
-          funcionId: agrupacion === "funcion" || agrupacion === "contrato_funcion" ? group.funcionId : null,
+          funcionId: agrupacion === "contrato_funcion" ? group.funcionId : null,
           baseImponible: 0,
           iva: 0,
           total: 0,
@@ -1027,7 +950,7 @@
         });
       }
       const cluster = clusters.get(key);
-      (agrupacion === "contrato_funcion" ? group.servicioIds : groupServiceIds).forEach((id) => cluster.servicioIdSet.add(id));
+      group.servicioIds.forEach((id) => cluster.servicioIdSet.add(id));
       cluster.baseImponible += group.subtotal;
       cluster.iva += group.iva;
       cluster.total += group.totalWithIva;
@@ -1047,11 +970,7 @@
       const servicioIds = Array.from(cluster.servicioIdSet).sort((a, b) => a - b);
       const label = agrupacion === "contrato"
         ? `${cluster.contrato} · contrato completo`
-        : agrupacion === "servicio"
-          ? `${cluster.contrato} · ${serviceNames(servicioIds)}`
-          : agrupacion === "contrato_funcion"
-            ? `${cluster.contrato} · ${cluster.funcion}`
-            : `${cluster.contrato} · ${serviceNames(servicioIds)} · ${cluster.funcion}`;
+        : `${cluster.contrato} · ${cluster.funcion}`;
       return { ...cluster, servicioIds, label };
     });
   }
@@ -1070,14 +989,12 @@
     const agrupacion = el.generationGroupBy.value;
     const agrupacionLabel = el.generationGroupBy.selectedOptions[0]?.textContent || agrupacion;
     const clusters = clusterGenerationGroups(selectedGroups, agrupacion);
-    const issues = selectedGroups.map((group) => resolveGroupServiceIssue(group, agrupacion)).filter(Boolean);
     el.preparationPreviewBody.innerHTML = `
       <p class="muted-text">
         Así quedarían las preparaciones si guardas ahora con «${escapeHtml(agrupacionLabel)}»:
         ${clusters.length} ${clusters.length === 1 ? "preparación" : "preparaciones"}. Esto no guarda nada,
         solo lo enseña.
       </p>
-      ${issues.length ? `<ul class="facturacion-generation-alerts">${Array.from(new Set(issues)).map((issue) => `<li>${escapeHtml(issue)}</li>`).join("")}</ul>` : ""}
       ${clusters.map((cluster) => `
         <h4>${escapeHtml(cluster.label)}</h4>
         <div class="facturacion-generation-summary">
@@ -1138,11 +1055,6 @@
       return;
     }
     const agrupacion = el.generationGroupBy.value;
-    const issue = selectedGroups.map((group) => resolveGroupServiceIssue(group, agrupacion)).find(Boolean);
-    if (issue) {
-      setStatus(issue, "error");
-      return;
-    }
     // Guardar con un precio a ciegas (sin tarifa, con varias sin activar, o
     // incompleta) o con el IVA supuesto al 21% crearía un importe real que no
     // se corresponde con la configuración: se bloquea hasta corregirlo, no

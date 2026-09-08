@@ -2745,7 +2745,6 @@
       ["personal_id", "selecciona una persona."],
       ["empresa_id", "selecciona una empresa."],
       ["contrato_id", "selecciona un contrato."],
-      ["servicio_id", "selecciona un servicio."],
       ["instalacion_id", "selecciona una instalación."],
       ["puesto_id", "selecciona un puesto."],
       ["situacion_id", "selecciona una situación."],
@@ -2768,39 +2767,36 @@
       return null;
     }
 
-    if (!formData.get("servicio_id")) {
-      showActivityValidationError(form, "selecciona un servicio para la actividad.", form.elements.servicio_id);
-      return null;
-    }
-
     const horariosPersonalizados = getActivityCustomSchedules(form, diasSemana);
     if (horariosPersonalizados === null) {
       return null;
     }
 
-    const editedActivity = activitiesRows.find(
-      (activity) => String(activity.id) === String(editActivityId?.value || "")
-    );
-    const selectedService = activityServiceRows.find(
-      (service) =>
-        String(service.id) === String(formData.get("servicio_id")) &&
-        String(service.contrato_id) === String(formData.get("contrato_id"))
-    ) || (
-      editedActivity &&
-      String(editedActivity.servicio_id) === String(formData.get("servicio_id"))
-        ? { id: editedActivity.servicio_id, contrato_id: editedActivity.contrato_id }
-        : null
-    );
-    if (
-      !selectedService ||
-      String(selectedService.contrato_id) !== String(formData.get("contrato_id"))
-    ) {
-      showActivityValidationError(
-        form,
-        "el servicio seleccionado no pertenece al contrato de la actividad.",
-        form.elements.servicio_id
+    if (formData.get("servicio_id")) {
+      const editedActivity = activitiesRows.find(
+        (activity) => String(activity.id) === String(editActivityId?.value || "")
       );
-      return null;
+      const selectedService = activityServiceRows.find(
+        (service) =>
+          String(service.id) === String(formData.get("servicio_id")) &&
+          String(service.contrato_id) === String(formData.get("contrato_id"))
+      ) || (
+        editedActivity &&
+        String(editedActivity.servicio_id) === String(formData.get("servicio_id"))
+          ? { id: editedActivity.servicio_id, contrato_id: editedActivity.contrato_id }
+          : null
+      );
+      if (
+        !selectedService ||
+        String(selectedService.contrato_id) !== String(formData.get("contrato_id"))
+      ) {
+        showActivityValidationError(
+          form,
+          "el servicio seleccionado no pertenece al contrato de la actividad.",
+          form.elements.servicio_id
+        );
+        return null;
+      }
     }
 
     if (fechaFin < fechaInicio) {
