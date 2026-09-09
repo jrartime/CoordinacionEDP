@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Coordinación EDP</title>
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="theme-color" content="#155dfc" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="EDP Portal" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <script>
       if (
         window.location.hostname === "coordinacion.edpsl.es" ||
@@ -26,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260907-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260907-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260908-3" />
   </head>
   <body>
     <script>
@@ -496,6 +502,17 @@
               </div>
 
               <div class="toolbar-actions">
+                <button
+                  id="mobile-menu-toggle"
+                  type="button"
+                  class="mobile-menu-toggle"
+                  aria-label="Abrir menú"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-controls="mobile-nav-drawer"
+                >
+                  <span class="mobile-menu-toggle-bars" aria-hidden="true"></span>
+                </button>
                 <a
                   id="show-public-panel"
                   class="secondary-button button-link"
@@ -508,6 +525,74 @@
                 </button>
               </div>
             </div>
+
+            <div id="mobile-nav-overlay" class="mobile-nav-overlay hidden"></div>
+            <nav id="mobile-nav-drawer" class="mobile-nav-drawer hidden" aria-label="Menú de navegación">
+              <div class="mobile-nav-header">
+                <span class="mobile-nav-title">Menú</span>
+                <button
+                  id="mobile-nav-close"
+                  type="button"
+                  class="secondary-button mobile-nav-close-button"
+                  aria-label="Cerrar menú"
+                >
+                  &times;
+                </button>
+              </div>
+              <div id="mobile-nav-list" class="mobile-nav-list"></div>
+            </nav>
+
+            <section id="private-tab-panel-home" class="private-tab-panel hidden">
+              <div class="card mobile-home-card">
+                <p class="eyebrow">Inicio</p>
+                <h2>Acciones rápidas</h2>
+                <div class="mobile-home-actions">
+                  <button
+                    id="mobile-home-action-baja"
+                    type="button"
+                    class="mobile-home-action-button"
+                  >
+                    Comunicar baja o accidente
+                  </button>
+                  <button type="button" class="mobile-home-action-button">
+                    Consultar horario de trabajador
+                  </button>
+                  <button type="button" class="mobile-home-action-button">
+                    Consultar programación de instalación
+                  </button>
+                </div>
+              </div>
+
+              <div id="mobile-home-install-card" class="card mobile-home-install-card">
+                <p class="eyebrow">Aplicación</p>
+                <div class="mobile-home-install-header">
+                  <img src="./EDP.jpg" alt="" class="mobile-home-install-icon" />
+                  <div class="mobile-home-install-copy">
+                    <h3>Instala EDP Portal</h3>
+                    <p>
+                      Cuando tu navegador lo permita, podrás instalar el portal
+                      desde esta misma pantalla.
+                    </p>
+                  </div>
+                </div>
+                <div class="mobile-home-install-actions">
+                  <button id="mobile-home-install-button" type="button" disabled>
+                    Instalar ahora
+                  </button>
+                  <button
+                    id="mobile-home-install-hide-button"
+                    type="button"
+                    class="secondary-button"
+                  >
+                    Ocultar
+                  </button>
+                </div>
+                <p class="mobile-home-install-hint">
+                  Consejo: en Chrome o Edge, abre el menú del navegador y elige la
+                  opción de instalar.
+                </p>
+              </div>
+            </section>
 
             <div class="private-tabs">
               <button
@@ -6613,6 +6698,26 @@
             </div>
           </div>
 
+          <div class="control-view-toggle" role="group" aria-label="Vista de Asistencia">
+            <button
+              id="attendance-view-no-lectivo-button"
+              type="button"
+              class="control-view-toggle-button active"
+              data-attendance-view="no_lectivo"
+            >
+              No lectivo
+            </button>
+            <button
+              id="attendance-view-lectivo-button"
+              type="button"
+              class="control-view-toggle-button"
+              data-attendance-view="lectivo"
+            >
+              Lectivo
+            </button>
+          </div>
+
+          <div id="attendance-no-lectivo-view">
           <form id="attendance-filters-form" class="filters-grid records-filters-compact attendance-filters-grid">
             <label class="filter-field">
               Centro
@@ -6720,6 +6825,33 @@
               <button id="attendance-next-page" class="secondary-button" type="button">
                 Siguiente
               </button>
+            </div>
+          </div>
+          </div>
+
+          <div id="attendance-lectivo-view" class="hidden">
+            <form id="lectivo-filters-form" class="filters-grid records-filters-compact attendance-filters-grid">
+              <label class="filter-field">
+                Centro
+                <div class="filter-control-row">
+                  <select id="lectivo-centro-select">
+                    <option value="">Selecciona un centro...</option>
+                  </select>
+                </div>
+              </label>
+            </form>
+
+            <p id="lectivo-summary" class="summary-chip">Selecciona un centro para pasar lista.</p>
+
+            <div class="table-wrap lectivo-table-wrap">
+              <table class="lectivo-attendance-table" id="lectivo-attendance-table">
+                <thead id="lectivo-attendance-table-head"></thead>
+                <tbody id="lectivo-attendance-table-body">
+                  <tr>
+                    <td class="empty-state">Selecciona un centro para pasar lista.</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -7566,7 +7698,7 @@
               </div>
             </details>
 
-            <details class="programming-panel-zone activities-records-zone hidden">
+            <details class="programming-panel-zone activities-records-zone">
               <summary>Generación de registros</summary>
               <form id="activities-records-generation-form" class="activities-records-generation-panel">
                 <button id="activities-select-records-button" type="button" class="secondary-button">
@@ -7659,7 +7791,7 @@
               <div class="header-actions">
                 <button
                   id="generate-activity-records-button"
-                  class="secondary-button compact-button hidden"
+                  class="secondary-button compact-button"
                   type="button"
                 >
                   Generar registros
@@ -9383,6 +9515,6 @@
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260908-1" defer></script>
     <script src="./facturacion.js?v=20260908-1" defer></script>
-    <script src="./app.js?v=20260907-7" defer></script>
+    <script src="./app.js?v=20260908-4" defer></script>
   </body>
 </html>

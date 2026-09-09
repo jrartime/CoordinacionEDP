@@ -104,6 +104,14 @@
   const attendanceReportTableBody = document.querySelector("#attendance-report-table-body");
   const attendanceReportPdfButton = document.querySelector("#attendance-report-pdf-button");
   const attendanceReportExcelButton = document.querySelector("#attendance-report-excel-button");
+  const attendanceViewNoLectivoButton = document.querySelector("#attendance-view-no-lectivo-button");
+  const attendanceViewLectivoButton = document.querySelector("#attendance-view-lectivo-button");
+  const attendanceNoLectivoView = document.querySelector("#attendance-no-lectivo-view");
+  const attendanceLectivoView = document.querySelector("#attendance-lectivo-view");
+  const lectivoCentroSelect = document.querySelector("#lectivo-centro-select");
+  const lectivoSummary = document.querySelector("#lectivo-summary");
+  const lectivoAttendanceTableHead = document.querySelector("#lectivo-attendance-table-head");
+  const lectivoAttendanceTableBody = document.querySelector("#lectivo-attendance-table-body");
   const neeFiltersForm = document.querySelector("#nee-filters-form");
   const filterNeeAlumnado = document.querySelector("#filter-nee-alumnado");
   const clearNeeFilterButton = document.querySelector("#clear-nee-filter-button");
@@ -420,6 +428,25 @@
     { field: "asistencia_jueves", label: "jueves", shortLabel: "J" },
     { field: "asistencia_viernes", label: "viernes", shortLabel: "V" },
   ];
+  // dia_semana (concilia_lectivo_horarios) -> numero de dia dentro de la semana en curso
+  // (1=lunes...7=domingo, ver getSpanishWeekday) y etiqueta corta para la cabecera.
+  const LECTIVO_DAY_ORDER = {
+    lunes: { weekday: 1, label: "Lunes" },
+    martes: { weekday: 2, label: "Martes" },
+    miercoles: { weekday: 3, label: "Miercoles" },
+    jueves: { weekday: 4, label: "Jueves" },
+    viernes: { weekday: 5, label: "Viernes" },
+    sabado: { weekday: 6, label: "Sabado" },
+    domingo: { weekday: 7, label: "Domingo" },
+  };
+  const LECTIVO_TURNO_LABELS = {
+    A: "Turno A",
+    B: "Turno B",
+    turno_1: "Turno 1",
+    turno_2: "Turno 2",
+    turno_3: "Turno 3",
+    tarde: "Tarde",
+  };
   const AVAILABILITY_WEEKS = SUMMARY_WEEKS.map((week) => `semana_${week}`);
   const ASSIGNMENT_WEEK_FIELDS = SUMMARY_WEEKS.map((week) => `semana_${week}`);
   const ACTIVITY_REPORT_WEEKS = [
@@ -2006,6 +2033,291 @@
     } catch (error) {
       setStatus(`No se pudo actualizar asistencia: ${error.message}`, "error");
       return false;
+    }
+  }
+
+  // -----------------------------------------------
+  // Asistencia "Lectivo" — pasar lista por centro y semana en curso
+  // (concilia_lectivo_usuarios / concilia_lectivo_horarios / concilia_lectivo_asistencias,
+  // independiente de concilia_usuarios)
+  // -----------------------------------------------
+  let lectivoCentrosLoaded = false;
+  let lectivoCurrentCentroId = null;
+  let lectivoWeekMonday = null;
+
+  function getCurrentWeekMonday(date = new Date()) {
+    return addDays(date, -(getSpanishWeekday(date) - 1));
+  }
+
+  async function loadLectivoCentros(supabase) {
+    if (lectivoCentrosLoaded) {
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("concilia_lectivo_usuarios")
+      .select("centro_id, instalaciones(instalacion)")
+      .eq("activo", true);
+
+    if (error) {
+      setStatus(`No se pudieron cargar los centros de Lectivo: ${error.message}`, "error");
+      return;
+    }
+
+    const centrosById = new Map();
+    (data ?? []).forEach((row) => {
+      if (!centrosById.has(row.centro_id)) {
+        centrosById.set(row.centro_id, row.instalaciones?.instalacion || `Centro ${row.centro_id}`);
+      }
+    });
+    const centros = [...centrosById.entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
+
+    lectivoCentroSelect.innerHTML =
+      '<option value="">Selecciona un centro...</option>' +
+      centros
+        .map(([id, nombre]) => `<option value="${escapeHtml(id)}">${escapeHtml(nombre)}</option>`)
+        .join("");
+
+    lectivoCentrosLoaded = true;
+  }
+
+  function buildLectivoColumns(usuarios) {
+    const columnsByKey = new Map();
+    usuarios.forEach((usuario) => {
+      (usuario.concilia_lectivo_horarios ?? [])
+        .filter((horario) => horario.matriculado)
+        .forEach((horario) => {
+          const key = `${horario.dia_semana}__${horario.turno}`;
+          if (!columnsByKey.has(key)) {
+            columnsByKey.set(key, {
+              diaSemana: horario.dia_semana,
+              turno: horario.turno,
+              turnoOrden: horario.turno_orden,
+            });
+          }
+        });
+    });
+
+    return [...columnsByKey.values()].sort((a, b) => {
+      const dayDiff =
+        (LECTIVO_DAY_ORDER[a.diaSemana]?.weekday ?? 99) - (LECTIVO_DAY_ORDER[b.diaSemana]?.weekday ?? 99);
+      return dayDiff !== 0 ? dayDiff : a.turnoOrden - b.turnoOrden;
+    });
+  }
+
+  function lectivoColumnDate(column) {
+    const weekday = LECTIVO_DAY_ORDER[column.diaSemana]?.weekday;
+    if (!weekday || !lectivoWeekMonday) {
+      return null;
+    }
+    return addDays(lectivoWeekMonday, weekday - 1);
+  }
+
+  function groupLectivoColumnsByDay(columns) {
+    const groups = [];
+    let current = null;
+    columns.forEach((column) => {
+      if (!current || current.diaSemana !== column.diaSemana) {
+        current = { diaSemana: column.diaSemana, columns: [] };
+        groups.push(current);
+      }
+      current.columns.push(column);
+    });
+    return groups;
+  }
+
+  function renderLectivoAttendanceTable(usuarios, columns, asistenciasByKey) {
+    if (!columns.length) {
+      lectivoAttendanceTableHead.innerHTML = "";
+      lectivoAttendanceTableBody.innerHTML =
+        '<tr><td class="empty-state">Este centro no tiene horarios de matricula configurados.</td></tr>';
+      return;
+    }
+
+    const dayGroups = groupLectivoColumnsByDay(columns);
+
+    lectivoAttendanceTableHead.innerHTML = `
+      <tr>
+        <th class="lectivo-name-col" rowspan="2">Alumnado</th>
+        ${dayGroups
+          .map((day) => {
+            const date = lectivoColumnDate(day.columns[0]);
+            const dayLabel = LECTIVO_DAY_ORDER[day.diaSemana]?.label || day.diaSemana;
+            const dateLabel = date
+              ? date.toLocaleDateString("es-ES", { day: "numeric", month: "numeric" })
+              : "";
+            return `<th colspan="${day.columns.length}">${escapeHtml(dayLabel)} ${escapeHtml(dateLabel)}</th>`;
+          })
+          .join("")}
+      </tr>
+      <tr>
+        ${dayGroups
+          .map((day) =>
+            day.columns
+              .map(
+                (column) =>
+                  `<th class="lectivo-turno-col">${escapeHtml(LECTIVO_TURNO_LABELS[column.turno] || column.turno)}</th>`
+              )
+              .join("")
+          )
+          .join("")}
+      </tr>
+    `;
+
+    if (!usuarios.length) {
+      lectivoAttendanceTableBody.innerHTML =
+        '<tr><td class="empty-state">No hay alumnado matriculado en este centro.</td></tr>';
+      return;
+    }
+
+    lectivoAttendanceTableBody.innerHTML = usuarios
+      .map((usuario) => {
+        const horarios = usuario.concilia_lectivo_horarios ?? [];
+        return `
+          <tr>
+            <th class="lectivo-name-col" scope="row">
+              <span class="lectivo-name-text">${escapeHtml(usuario.nombre)} ${escapeHtml(usuario.apellidos)}</span>
+            </th>
+            ${columns
+              .map((column) => {
+                const matriculado = horarios.some(
+                  (horario) =>
+                    horario.matriculado &&
+                    horario.dia_semana === column.diaSemana &&
+                    horario.turno === column.turno
+                );
+                if (!matriculado) {
+                  return '<td class="attendance-check-cell attendance-check-cell-empty">-</td>';
+                }
+                const date = lectivoColumnDate(column);
+                const fecha = date ? formatDateValue(date) : "";
+                const key = `${usuario.id}__${fecha}__${column.turno}`;
+                const presente = asistenciasByKey.get(key) === true;
+                return `
+                  <td class="attendance-check-cell">
+                    <input
+                      class="lectivo-attendance-checkbox"
+                      type="checkbox"
+                      data-lectivo-usuario-id="${escapeHtml(usuario.id)}"
+                      data-lectivo-fecha="${escapeHtml(fecha)}"
+                      data-lectivo-dia-semana="${escapeHtml(column.diaSemana)}"
+                      data-lectivo-turno="${escapeHtml(column.turno)}"
+                      ${presente ? "checked" : ""}
+                      aria-label="Marcar presente ${escapeHtml(usuario.nombre)}"
+                    />
+                  </td>
+                `;
+              })
+              .join("")}
+          </tr>
+        `;
+      })
+      .join("");
+  }
+
+  async function loadLectivoAttendance(supabase) {
+    const centroId = Number(lectivoCentroSelect.value || "") || null;
+    lectivoCurrentCentroId = centroId;
+
+    if (!centroId) {
+      lectivoSummary.textContent = "Selecciona un centro para pasar lista.";
+      lectivoAttendanceTableHead.innerHTML = "";
+      lectivoAttendanceTableBody.innerHTML =
+        '<tr><td class="empty-state">Selecciona un centro para pasar lista.</td></tr>';
+      return;
+    }
+
+    lectivoWeekMonday = getCurrentWeekMonday();
+    const weekStart = formatDateValue(lectivoWeekMonday);
+    const weekEnd = formatDateValue(addDays(lectivoWeekMonday, 6));
+
+    const [{ data: usuarios, error: usuariosError }, { data: asistencias, error: asistenciasError }] =
+      await Promise.all([
+        supabase
+          .from("concilia_lectivo_usuarios")
+          .select("id, nombre, apellidos, concilia_lectivo_horarios(dia_semana, turno, turno_orden, matriculado)")
+          .eq("centro_id", centroId)
+          .eq("activo", true)
+          .order("apellidos", { ascending: true })
+          .order("nombre", { ascending: true }),
+        supabase
+          .from("concilia_lectivo_asistencias")
+          .select("lectivo_usuario_id, fecha, turno, presente")
+          .eq("centro_id", centroId)
+          .gte("fecha", weekStart)
+          .lte("fecha", weekEnd),
+      ]);
+
+    if (usuariosError) {
+      setStatus(`No se pudo cargar el alumnado de Lectivo: ${usuariosError.message}`, "error");
+      return;
+    }
+    if (asistenciasError) {
+      setStatus(`No se pudo cargar la asistencia de Lectivo: ${asistenciasError.message}`, "error");
+      return;
+    }
+
+    const asistenciasByKey = new Map();
+    (asistencias ?? []).forEach((row) => {
+      asistenciasByKey.set(`${row.lectivo_usuario_id}__${row.fecha}__${row.turno}`, row.presente);
+    });
+
+    const columns = buildLectivoColumns(usuarios ?? []);
+    renderLectivoAttendanceTable(usuarios ?? [], columns, asistenciasByKey);
+
+    const semanaLabel = `${lectivoWeekMonday.toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+    })} - ${addDays(lectivoWeekMonday, 6).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })}`;
+    lectivoSummary.textContent = `${(usuarios ?? []).length} alumnos. Semana del ${semanaLabel}.`;
+  }
+
+  async function updateLectivoAttendance(lectivoUsuarioId, fecha, diaSemana, turno, presente) {
+    if (!lectivoUsuarioId || !fecha || !lectivoCurrentCentroId) {
+      setStatus("No se pudo actualizar la asistencia: falta informacion.", "error");
+      return false;
+    }
+
+    try {
+      const supabase = await getSupabaseClient();
+      const { error } = await supabase.from("concilia_lectivo_asistencias").upsert(
+        {
+          lectivo_usuario_id: Number(lectivoUsuarioId),
+          centro_id: lectivoCurrentCentroId,
+          fecha,
+          dia_semana: diaSemana,
+          turno,
+          presente,
+        },
+        { onConflict: "lectivo_usuario_id,fecha,turno" }
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      setStatus(presente ? "Asistencia marcada." : "Asistencia retirada.", "success");
+      return true;
+    } catch (error) {
+      setStatus(`No se pudo actualizar la asistencia: ${error.message}`, "error");
+      return false;
+    }
+  }
+
+  function setAttendanceView(view) {
+    const isLectivo = view === "lectivo";
+    attendanceViewNoLectivoButton?.classList.toggle("active", !isLectivo);
+    attendanceViewLectivoButton?.classList.toggle("active", isLectivo);
+    attendanceNoLectivoView?.classList.toggle("hidden", isLectivo);
+    attendanceLectivoView?.classList.toggle("hidden", !isLectivo);
+
+    if (isLectivo) {
+      void getSupabaseClient().then(async (supabase) => {
+        await loadLectivoCentros(supabase);
+        if (lectivoCentroSelect.value) {
+          await loadLectivoAttendance(supabase);
+        }
+      });
     }
   }
 
@@ -7454,6 +7766,31 @@
           }
           checkbox.disabled = false;
         });
+    });
+    attendanceViewNoLectivoButton?.addEventListener("click", () => setAttendanceView("no_lectivo"));
+    attendanceViewLectivoButton?.addEventListener("click", () => setAttendanceView("lectivo"));
+    lectivoCentroSelect?.addEventListener("change", () => {
+      void getSupabaseClient().then((supabase) => loadLectivoAttendance(supabase));
+    });
+    lectivoAttendanceTableBody?.addEventListener("change", (event) => {
+      const checkbox = event.target.closest(".lectivo-attendance-checkbox");
+      if (!checkbox) {
+        return;
+      }
+
+      checkbox.disabled = true;
+      void updateLectivoAttendance(
+        checkbox.dataset.lectivoUsuarioId,
+        checkbox.dataset.lectivoFecha,
+        checkbox.dataset.lectivoDiaSemana,
+        checkbox.dataset.lectivoTurno,
+        checkbox.checked
+      ).then((success) => {
+        if (!success) {
+          checkbox.checked = !checkbox.checked;
+        }
+        checkbox.disabled = false;
+      });
     });
     neeFiltersForm.addEventListener("input", () => {
       neeCurrentPage = 1;

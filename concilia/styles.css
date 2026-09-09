@@ -1057,6 +1057,77 @@ td {
   opacity: 0.65;
 }
 
+.control-view-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f1f5f9;
+  margin-right: 4px;
+}
+
+.control-view-toggle-button {
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  line-height: 1.15;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.control-view-toggle-button.active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-weight: 600;
+}
+
+.lectivo-attendance-table {
+  min-width: 640px;
+}
+
+.lectivo-attendance-table th,
+.lectivo-attendance-table td {
+  text-align: center;
+}
+
+.lectivo-attendance-table thead th:first-child,
+.lectivo-attendance-table tbody th {
+  text-align: left;
+}
+
+.lectivo-attendance-table tbody th {
+  min-width: 200px;
+  background: #ffffff;
+}
+
+.lectivo-name-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #ffffff;
+}
+
+.lectivo-attendance-table .lectivo-attendance-checkbox {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.lectivo-attendance-table .lectivo-attendance-checkbox:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.attendance-check-cell-empty {
+  color: var(--muted);
+}
+
 .nee-filters-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
@@ -1952,6 +2023,10 @@ code {
     padding-bottom: 24px;
   }
 
+  body:has(#module-panel-asistencia:not(.hidden)) .app-shell {
+    width: 100%;
+  }
+
   .module-card {
     padding: 14px;
   }
@@ -2337,5 +2412,24 @@ code {
     content: "Actualizado: ";
     color: var(--muted);
     font-weight: 800;
+  }
+
+  .lectivo-name-col {
+    min-width: 96px;
+    max-width: 96px;
+    width: 96px;
+  }
+
+  .lectivo-name-text {
+    display: inline-block;
+    max-width: 75%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+
+  .lectivo-turno-col {
+    min-width: 44px;
   }
 }

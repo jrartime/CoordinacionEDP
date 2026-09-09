@@ -604,6 +604,26 @@
             </div>
           </div>
 
+          <div class="control-view-toggle" role="group" aria-label="Vista de Asistencia">
+            <button
+              id="attendance-view-no-lectivo-button"
+              type="button"
+              class="control-view-toggle-button active"
+              data-attendance-view="no_lectivo"
+            >
+              No lectivo
+            </button>
+            <button
+              id="attendance-view-lectivo-button"
+              type="button"
+              class="control-view-toggle-button"
+              data-attendance-view="lectivo"
+            >
+              Lectivo
+            </button>
+          </div>
+
+          <div id="attendance-no-lectivo-view">
           <form id="attendance-filters-form" class="filters-grid records-filters-compact attendance-filters-grid">
             <label class="filter-field">
               Centro
@@ -813,6 +833,33 @@
               <button id="attendance-next-page" class="secondary-button" type="button">
                 Siguiente
               </button>
+            </div>
+          </div>
+          </div>
+
+          <div id="attendance-lectivo-view" class="hidden">
+            <form id="lectivo-filters-form" class="filters-grid records-filters-compact attendance-filters-grid">
+              <label class="filter-field">
+                Centro
+                <div class="filter-control-row">
+                  <select id="lectivo-centro-select">
+                    <option value="">Selecciona un centro...</option>
+                  </select>
+                </div>
+              </label>
+            </form>
+
+            <p id="lectivo-summary" class="summary-chip">Selecciona un centro para pasar lista.</p>
+
+            <div class="table-wrap lectivo-table-wrap">
+              <table class="lectivo-attendance-table" id="lectivo-attendance-table">
+                <thead id="lectivo-attendance-table-head"></thead>
+                <tbody id="lectivo-attendance-table-body">
+                  <tr>
+                    <td class="empty-state">Selecciona un centro para pasar lista.</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 

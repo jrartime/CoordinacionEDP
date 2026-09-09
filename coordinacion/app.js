@@ -861,7 +861,7 @@ function getActionButtonDecoration(button, label) {
 }
 
 const NAVIGATION_TAB_BUTTON_SELECTOR =
-  ".private-tab-button, .module-tab-button, .settings-subtab-button, .control-view-toggle-button";
+  ".private-tab-button, .module-tab-button, .settings-subtab-button, .control-view-toggle-button, .mobile-nav-item";
 
 function decorateStaticActionButtons(root = document) {
   const isNavigationTab = (button) => button.matches(NAVIGATION_TAB_BUTTON_SELECTOR);
@@ -937,6 +937,12 @@ const privateTabContractsButton = document.querySelector("#private-tab-contracts
 const privateTabPersonalButton = document.querySelector("#private-tab-personal");
 const privateTabProgrammingButton = document.querySelector("#private-tab-programming");
 const privateTabSettingsButton = document.querySelector("#private-tab-settings");
+const privateTabPanelHome = document.querySelector("#private-tab-panel-home");
+const mobileMenuToggle = document.querySelector("#mobile-menu-toggle");
+const mobileNavOverlay = document.querySelector("#mobile-nav-overlay");
+const mobileNavDrawer = document.querySelector("#mobile-nav-drawer");
+const mobileNavCloseButton = document.querySelector("#mobile-nav-close");
+const mobileNavList = document.querySelector("#mobile-nav-list");
 const privateTabPanelNew = document.querySelector("#private-tab-panel-new");
 const privateTabPanelSearch = document.querySelector("#private-tab-panel-search");
 const privateTabPanelControl = document.querySelector("#private-tab-panel-control");
@@ -1814,6 +1820,8 @@ let currentSettingsAvailableFieldKeys = null;
 let currentSettingsDynamicOptions = new Map();
 let currentAllowedPrivateTabs = new Set(["programming"]);
 let currentUserIsAccessAdmin = false;
+const MOBILE_NAV_BREAKPOINT_QUERY = "(max-width: 720px)";
+let isMobileHomeVisible = false;
 let currentPanelTarget = getInitialPanelTarget();
 let currentPrivateTabTarget = getInitialPrivateTabTarget();
 let lastSuggestedBulkPersonal = "";
@@ -2387,6 +2395,197 @@ function togglePrivateView(isLoggedIn, email = "") {
     : "";
 }
 
+function isMobileViewport() {
+  return Boolean(window.matchMedia?.(MOBILE_NAV_BREAKPOINT_QUERY).matches);
+}
+
+function closeMobileNav() {
+  mobileNavOverlay?.classList.add("hidden");
+  mobileNavDrawer?.classList.add("hidden");
+  mobileMenuToggle?.setAttribute("aria-expanded", "false");
+}
+
+function openMobileNav() {
+  renderMobileNav();
+  mobileNavOverlay?.classList.remove("hidden");
+  mobileNavDrawer?.classList.remove("hidden");
+  mobileMenuToggle?.setAttribute("aria-expanded", "true");
+}
+
+function renderMobileNav() {
+  if (!mobileNavList) {
+    return;
+  }
+
+  const items = [{ key: "home", label: "Inicio" }].concat(
+    ACCESS_ASSIGNABLE_TABS.filter((tab) => currentAllowedPrivateTabs.has(tab.key))
+  );
+
+  mobileNavList.innerHTML = items
+    .map((item) => {
+      const isActive =
+        item.key === "home" ? isMobileHomeVisible : !isMobileHomeVisible && currentPrivateTabTarget === item.key;
+      return `
+        <button
+          type="button"
+          class="mobile-nav-item${isActive ? " active" : ""}"
+          data-mobile-nav-target="${escapeHtml(item.key)}"
+          aria-pressed="${isActive}"
+        >
+          ${escapeHtml(item.label)}
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function showMobileHome() {
+  isMobileHomeVisible = true;
+  document.querySelectorAll(".private-tab-panel").forEach((panel) => {
+    panel.classList.toggle("hidden", panel !== privateTabPanelHome);
+  });
+  closeMobileNav();
+}
+
+function enterMobileHomeIfNeeded() {
+  renderMobileNav();
+  if (currentAllowedPrivateTabs.size && isMobileViewport()) {
+    showMobileHome();
+  }
+}
+
+function bindMobileNav() {
+  mobileMenuToggle?.addEventListener("click", () => {
+    const isOpen = Boolean(mobileNavDrawer && !mobileNavDrawer.classList.contains("hidden"));
+    if (isOpen) {
+      closeMobileNav();
+    } else {
+      openMobileNav();
+    }
+  });
+  mobileNavOverlay?.addEventListener("click", () => closeMobileNav());
+  mobileNavCloseButton?.addEventListener("click", () => closeMobileNav());
+  mobileNavList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-mobile-nav-target]");
+    if (!button) {
+      return;
+    }
+    const target = button.dataset.mobileNavTarget;
+    if (target === "home") {
+      showMobileHome();
+      renderMobileNav();
+      return;
+    }
+    switchPrivateTab(target);
+    closeMobileNav();
+    void refreshPrivateTabData(target).catch((error) => {
+      setStatus(error?.message || "No se pudo cargar la sección.", "error");
+    });
+  });
+  window.addEventListener("resize", () => {
+    if (!isMobileViewport()) {
+      closeMobileNav();
+      if (isMobileHomeVisible) {
+        switchPrivateTab(currentPrivateTabTarget);
+      }
+    }
+  });
+}
+
+function bindMobileHomeActions() {
+  document.querySelector("#mobile-home-action-baja")?.addEventListener("click", () => {
+    if (!currentAllowedPrivateTabs.has("bajas_conciliacion")) {
+      setStatus("No tienes acceso a Bajas y permisos.", "error");
+      return;
+    }
+    switchPrivateTab("bajas_conciliacion");
+    switchBajasConciliacionSubtab("bajas");
+    void refreshPrivateTabData("bajas_conciliacion").catch((error) => {
+      setStatus(error?.message || "No se pudieron cargar las bajas y permisos.", "error");
+    });
+    void openBajasPanel();
+  });
+}
+
+// --- Instalar como app (PWA) ---
+const PWA_INSTALL_DISMISS_KEY = "edp_pwa_install_dismissed";
+let deferredPwaInstallPrompt = null;
+
+function isRunningAsInstalledPwa() {
+  return Boolean(
+    window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone
+  );
+}
+
+function isPwaInstallHintDismissed() {
+  try {
+    return window.localStorage?.getItem(PWA_INSTALL_DISMISS_KEY) === "1";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function hidePwaInstallCard() {
+  document.querySelector("#mobile-home-install-card")?.classList.add("hidden");
+}
+
+function dismissPwaInstallHint() {
+  try {
+    window.localStorage?.setItem(PWA_INSTALL_DISMISS_KEY, "1");
+  } catch (_error) {
+    // Storage can be unavailable in some embedded/private contexts.
+  }
+  hidePwaInstallCard();
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
+
+function bindPwaInstall() {
+  const card = document.querySelector("#mobile-home-install-card");
+  const installButton = document.querySelector("#mobile-home-install-button");
+  const hideButton = document.querySelector("#mobile-home-install-hide-button");
+
+  if (isRunningAsInstalledPwa() || isPwaInstallHintDismissed()) {
+    card?.classList.add("hidden");
+  }
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredPwaInstallPrompt = event;
+    if (installButton) installButton.disabled = false;
+  });
+
+  installButton?.addEventListener("click", async () => {
+    if (!deferredPwaInstallPrompt) {
+      return;
+    }
+    installButton.disabled = true;
+    deferredPwaInstallPrompt.prompt();
+    try {
+      await deferredPwaInstallPrompt.userChoice;
+    } catch (_error) {
+      // El usuario cerro el dialogo del navegador sin elegir.
+    }
+    deferredPwaInstallPrompt = null;
+    hidePwaInstallCard();
+  });
+
+  hideButton?.addEventListener("click", () => {
+    dismissPwaInstallHint();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    dismissPwaInstallHint();
+  });
+}
+
 function syncAccessTabVisibility() {
   const tabButtons = {
     search: privateTabSearchButton,
@@ -2532,6 +2731,8 @@ function showIntegratedConciliaPanel(privateTabTarget) {
 function switchPrivateTab(target) {
   const normalizedTarget = normalizePrivateTabTarget(target);
   currentPrivateTabTarget = normalizedTarget;
+  isMobileHomeVisible = false;
+  privateTabPanelHome?.classList.add("hidden");
   try {
     window.localStorage?.setItem(PRIVATE_TAB_STORAGE_KEY, normalizedTarget);
   } catch (_error) {
@@ -10877,6 +11078,7 @@ async function handleLogin(event) {
     switchPanel("private");
     togglePrivateView(true, data.user?.email ?? email);
     await loadPrivateDataAfterAuth();
+    enterMobileHomeIfNeeded();
     loginForm.reset();
     setLoginStatus("");
     setStatus("Acceso concedido. Panel privado conectado con Supabase.", "success");
@@ -14563,6 +14765,7 @@ async function handleInviteSetup(event) {
     togglePrivateView(true, data.user?.email ?? session?.user?.email ?? "");
     inviteSetupForm.reset();
     await loadPrivateDataAfterAuth();
+    enterMobileHomeIfNeeded();
     setStatus("Contrasena creada. Acceso concedido.", "success");
   } catch (error) {
     setStatus(`No se pudo completar la invitacion: ${error.message}`, "error");
@@ -35344,7 +35547,12 @@ async function init() {
   await restoreSession();
   switchPrivateTab(currentPrivateTabTarget);
   switchPanel(currentPanelTarget);
+  enterMobileHomeIfNeeded();
 }
 
 bindPanelNavigation();
+bindMobileNav();
+bindMobileHomeActions();
+bindPwaInstall();
+registerServiceWorker();
 void init();

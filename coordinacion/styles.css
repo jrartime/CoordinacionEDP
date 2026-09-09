@@ -418,6 +418,239 @@ legend {
   display: none;
 }
 
+/* --- Navegación móvil: menú hamburguesa + página de inicio --- */
+.mobile-menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.mobile-menu-toggle-bars {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: #364153;
+}
+
+.mobile-menu-toggle-bars::before,
+.mobile-menu-toggle-bars::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: #364153;
+}
+
+.mobile-menu-toggle-bars::before {
+  top: -6px;
+}
+
+.mobile-menu-toggle-bars::after {
+  top: 6px;
+}
+
+.mobile-nav-overlay.hidden,
+.mobile-nav-drawer.hidden {
+  display: none;
+}
+
+.mobile-nav-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 45;
+  background: rgba(20, 40, 75, 0.28);
+}
+
+.mobile-nav-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 46;
+  width: min(300px, 82vw);
+  height: 100vh;
+  overflow-y: auto;
+  background: #ffffff;
+  box-shadow: 16px 0 40px rgba(20, 40, 75, 0.14);
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mobile-nav-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mobile-nav-close-button {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.mobile-nav-list {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.mobile-nav-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 12px;
+  background: transparent;
+  color: #364153;
+  font-size: 0.92rem;
+  font-weight: 500;
+  text-align: left;
+  box-shadow: none;
+}
+
+.mobile-nav-item:hover {
+  background: #f3f4f6;
+  color: #101828;
+  transform: none;
+}
+
+.mobile-nav-item.active {
+  background: #eff6ff;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+#private-tab-panel-home {
+  display: none;
+}
+
+.mobile-home-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.mobile-home-action-button {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 16px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: left;
+  box-shadow: var(--shadow);
+}
+
+.mobile-home-action-button:hover {
+  background: #f9fafb;
+  transform: none;
+}
+
+.mobile-home-install-card {
+  margin-top: 12px;
+}
+
+.mobile-home-install-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.mobile-home-install-icon {
+  width: 34px;
+  height: 65px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.mobile-home-install-copy h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mobile-home-install-copy p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.mobile-home-install-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.mobile-home-install-actions button {
+  flex: 1 1 auto;
+}
+
+.mobile-home-install-actions button:disabled {
+  background: #e5e7eb;
+  color: #99a1af;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.mobile-home-install-hint {
+  margin: 10px 0 0;
+  color: var(--muted-soft);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+  .mobile-menu-toggle {
+    display: inline-flex;
+  }
+
+  .private-tabs {
+    display: none;
+  }
+
+  #private-tab-panel-home:not(.hidden) {
+    display: block;
+  }
+}
+
 .personal-management-layout {
   display: grid;
   grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
@@ -4368,7 +4601,14 @@ th {
 
 .detail-panel {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  /* Ancho/alto explícitos en vw/vh en vez de "inset: 0": en algunos
+     navegadores móviles el auto-tamaño implícito de position:fixed + inset:0
+     se calcula mal (el panel salía a más del doble del ancho real de la
+     pantalla, cortando el contenido). vw/vh no tienen ese problema. */
+  width: 100vw;
+  height: 100vh;
   z-index: 30;
 }
 
@@ -4380,7 +4620,10 @@ th {
 
 .unsaved-dialog-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   z-index: 60;
   display: flex;
   align-items: center;
