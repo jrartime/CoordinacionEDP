@@ -488,6 +488,10 @@ textarea {
   box-shadow: var(--shadow);
 }
 
+.module-card > * {
+  min-width: 0;
+}
+
 .module-header {
   display: flex;
   align-items: start;
@@ -834,6 +838,7 @@ textarea {
 
 .table-wrap {
   max-height: 62vh;
+  min-width: 0;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1305,6 +1310,50 @@ td {
   width: 13px;
   height: 13px;
   accent-color: var(--accent);
+}
+
+.lectivo-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 10px 8px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+
+.lectivo-schedule-grid legend {
+  grid-column: 1 / -1;
+  padding: 0 0 4px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.lectivo-schedule-day {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.lectivo-schedule-day-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.lectivo-schedule-day .checkbox-field {
+  min-height: 22px;
+  font-size: 0.78rem;
+}
+
+.lectivo-students-new-field {
+  justify-content: end;
+}
+
+.lectivo-students-new-field button {
+  width: 100%;
 }
 
 .activity-actions {

@@ -17,6 +17,12 @@
     preparations: [],
     preparationsLoaded: false,
     preparationSelectedIds: new Set(),
+    preparationsSort: { field: "created_at", direction: "desc" },
+    invoicesSort: { field: "fecha", direction: "desc" },
+    budgetsSort: { field: "fecha_inicio", direction: "asc" },
+    controlMonthsSort: { field: "mes", direction: "asc" },
+    controlMonthly: [],
+    controlByInvoice: [],
     contractId: "",
     year: "",
     generation: null,
@@ -49,6 +55,17 @@
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
+  }
+
+  function downloadBlob(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   }
 
   function numeric(value) {
@@ -208,9 +225,53 @@
       </tr>`;
   }
 
+  function getSortableBudgetValue(row, field, totals) {
+    const invoiced = totals.get(String(row.id)) || 0;
+    switch (field) {
+      case "periodo": return String(row.periodo ?? "");
+      case "fecha_inicio": return String(row.fecha_inicio ?? "");
+      case "fecha_fin": return String(row.fecha_fin ?? "");
+      case "presupuesto": return numeric(row.presupuesto);
+      case "iva": return numeric(row.porcentaje_iva);
+      case "facturado": return invoiced;
+      case "saldo": return numeric(row.presupuesto) - invoiced;
+      case "ejecucion": return numeric(row.presupuesto) ? (invoiced / numeric(row.presupuesto)) * 100 : 0;
+      default: return "";
+    }
+  }
+
+  function compareBudgetValues(left, right, field, totals) {
+    const leftValue = getSortableBudgetValue(left, field, totals);
+    const rightValue = getSortableBudgetValue(right, field, totals);
+    if (["periodo", "fecha_inicio", "fecha_fin"].includes(field)) {
+      return String(leftValue).localeCompare(String(rightValue), "es", { numeric: true, sensitivity: "base" });
+    }
+    return Number(leftValue) - Number(rightValue);
+  }
+
+  function sortBudgets(rows, totals) {
+    const sort = state.budgetsSort;
+    const directionMultiplier = sort.direction === "asc" ? 1 : -1;
+    return [...rows].sort((left, right) => {
+      const result = compareBudgetValues(left, right, sort.field, totals);
+      if (result !== 0) return result * directionMultiplier;
+      return String(left.fecha_inicio ?? "").localeCompare(String(right.fecha_inicio ?? ""), "es", { numeric: true });
+    });
+  }
+
+  function syncBudgetsSortButtons() {
+    document.querySelectorAll("[data-budgets-sort-field]").forEach((button) => {
+      const isActive = button.dataset.budgetsSortField === state.budgetsSort.field;
+      button.classList.toggle("active", isActive);
+      button.classList.toggle("sort-asc", isActive && state.budgetsSort.direction === "asc");
+      button.classList.toggle("sort-desc", isActive && state.budgetsSort.direction === "desc");
+    });
+  }
+
   function renderBudgets() {
-    const budgets = budgetsForSelection().sort((a, b) => String(a.fecha_inicio).localeCompare(String(b.fecha_inicio)));
     const totals = invoiceBudgetTotals();
+    const budgets = sortBudgets(budgetsForSelection(), totals);
+    syncBudgetsSortButtons();
     el.summaryPeriods.innerHTML = budgets.length
       ? budgets.map((row) => budgetRow(row, totals)).join("")
       : '<tr><td colspan="7" class="empty-state">No hay presupuestos para esta selección.</td></tr>';
@@ -267,12 +328,59 @@
       .some((value) => String(value || "").toLocaleLowerCase("es").includes(term));
   }
 
-  function renderInvoices() {
+  function getSortableInvoiceValue(row, field, budgetNames, statusNames) {
+    switch (field) {
+      case "fecha": return String(row.fecha ?? "");
+      case "serie": return [row.serie, row.n_documento].filter(Boolean).join("/");
+      case "referencia": return String(row.referencia ?? "");
+      case "base": return numeric(row.base_imponible);
+      case "iva": return numeric(row.iva);
+      case "total": return numeric(row.total);
+      case "presupuesto": return String(budgetNames.get(String(row.presupuesto_id)) || "");
+      case "estado": return String(statusNames.get(String(row.contrato_estado_factura_id)) || "");
+      case "cobro": return `${row.cobrada ? "1" : "0"}_${row.fecha_cobro || ""}`;
+      default: return "";
+    }
+  }
+
+  function compareInvoiceValues(left, right, field, budgetNames, statusNames) {
+    const leftValue = getSortableInvoiceValue(left, field, budgetNames, statusNames);
+    const rightValue = getSortableInvoiceValue(right, field, budgetNames, statusNames);
+    if (["base", "iva", "total"].includes(field)) {
+      return Number(leftValue) - Number(rightValue);
+    }
+    return String(leftValue).localeCompare(String(rightValue), "es", { numeric: true, sensitivity: "base" });
+  }
+
+  function sortInvoices(rows, budgetNames, statusNames) {
+    const sort = state.invoicesSort;
+    const directionMultiplier = sort.direction === "asc" ? 1 : -1;
+    return [...rows].sort((left, right) => {
+      const result = compareInvoiceValues(left, right, sort.field, budgetNames, statusNames);
+      if (result !== 0) return result * directionMultiplier;
+      return String(right.fecha ?? "").localeCompare(String(left.fecha ?? ""), "es", { numeric: true });
+    });
+  }
+
+  function syncInvoicesSortButtons() {
+    document.querySelectorAll("[data-invoices-sort-field]").forEach((button) => {
+      const isActive = button.dataset.invoicesSortField === state.invoicesSort.field;
+      button.classList.toggle("active", isActive);
+      button.classList.toggle("sort-asc", isActive && state.invoicesSort.direction === "asc");
+      button.classList.toggle("sort-desc", isActive && state.invoicesSort.direction === "desc");
+    });
+  }
+
+  function getSortedFilteredInvoices() {
     const budgetNames = new Map(state.budgets.map((row) => [String(row.id), row.periodo]));
     const statusNames = new Map(state.statuses.map((row) => [String(row.id), row.estado]));
-    const invoices = invoicesForSelection()
-      .filter(invoiceMatchesSearch)
-      .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+    const invoices = invoicesForSelection().filter(invoiceMatchesSearch);
+    return { invoices: sortInvoices(invoices, budgetNames, statusNames), budgetNames, statusNames };
+  }
+
+  function renderInvoices() {
+    const { invoices, budgetNames, statusNames } = getSortedFilteredInvoices();
+    syncInvoicesSortButtons();
     el.invoicesBody.innerHTML = invoices.length
       ? invoices.map((row) => `
           <tr>
@@ -288,6 +396,49 @@
             <td><button type="button" class="secondary-button row-action" data-edit-invoice="${row.id}">Editar</button></td>
           </tr>`).join("")
       : '<tr><td colspan="10" class="empty-state">No hay facturas para esta selección.</td></tr>';
+  }
+
+  // Exporta exactamente lo que se ve en el listado: mismo contrato/año/
+  // búsqueda/orden activos.
+  async function exportInvoicesToExcel() {
+    const { invoices, budgetNames, statusNames } = getSortedFilteredInvoices();
+    if (!invoices.length) {
+      setStatus("No hay facturas para esta selección.", "error");
+      return;
+    }
+    setStatus("Preparando Excel de facturas...");
+    try {
+      const xlsxModule = await import("https://esm.sh/xlsx@0.18.5");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const rows = invoices.map((row) => ({
+        Fecha: formatDate(row.fecha),
+        "Serie/Número": [row.serie, row.n_documento].filter(Boolean).join("/"),
+        Referencia: row.referencia || "",
+        Base: numeric(row.base_imponible),
+        IVA: numeric(row.iva),
+        Total: numeric(row.total),
+        Presupuesto: budgetNames.get(String(row.presupuesto_id)) || "Sin asignar",
+        Estado: statusNames.get(String(row.contrato_estado_factura_id)) || "Sin estado",
+        Cobro: row.cobrada ? `Cobrada · ${formatDate(row.fecha_cobro)}` : "Pendiente",
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      worksheet["!cols"] = [
+        { wch: 12 }, { wch: 14 }, { wch: 24 }, { wch: 12 }, { wch: 10 },
+        { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 20 },
+      ];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Facturas");
+      const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const contractName = selectedContract()?.contrato || "facturas";
+      const dateSuffix = new Date().toISOString().slice(0, 10);
+      downloadBlob(
+        new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+        `${contractName}-facturas-${dateSuffix}.xlsx`.replaceAll(/[^\w.-]+/g, "-")
+      );
+      setStatus("Excel de facturas exportado correctamente.", "success");
+    } catch (error) {
+      setStatus(`No se pudo exportar el Excel: ${error.message}`, "error");
+    }
   }
 
   function renderConfiguration() {
@@ -1128,10 +1279,59 @@
     return "Contrato completo";
   }
 
+  function getSortablePreparationValue(row, field, contractNames, invoiceNames) {
+    switch (field) {
+      case "fecha_desde":
+        return String(row.fecha_desde ?? "");
+      case "contrato":
+        return String(contractNames.get(String(row.contrato_id)) || "").trim();
+      case "agrupacion":
+        return preparationGroupingLabel(row);
+      case "estado":
+        return String(row.estado ?? "");
+      case "total":
+        return Number(row.total ?? 0);
+      case "factura":
+        return row.contrato_facturacion_id ? String(invoiceNames.get(String(row.contrato_facturacion_id)) || "") : "";
+      default:
+        return String(row.created_at ?? "");
+    }
+  }
+
+  function comparePreparationValues(left, right, field, contractNames, invoiceNames) {
+    const leftValue = getSortablePreparationValue(left, field, contractNames, invoiceNames);
+    const rightValue = getSortablePreparationValue(right, field, contractNames, invoiceNames);
+    if (field === "total") {
+      return Number(leftValue) - Number(rightValue);
+    }
+    return String(leftValue).localeCompare(String(rightValue), "es", { numeric: true, sensitivity: "base" });
+  }
+
+  function sortPreparations(rows, contractNames, invoiceNames) {
+    const sort = state.preparationsSort;
+    const directionMultiplier = sort.direction === "asc" ? 1 : -1;
+    return [...rows].sort((left, right) => {
+      const result = comparePreparationValues(left, right, sort.field, contractNames, invoiceNames);
+      if (result !== 0) return result * directionMultiplier;
+      return String(right.created_at ?? "").localeCompare(String(left.created_at ?? ""), "es", { numeric: true });
+    });
+  }
+
+  function syncPreparationsSortButtons() {
+    if (!el.preparationsTable) return;
+    el.preparationsTable.querySelectorAll("[data-preparations-sort-field]").forEach((button) => {
+      const isActive = button.dataset.preparationsSortField === state.preparationsSort.field;
+      button.classList.toggle("active", isActive);
+      button.classList.toggle("sort-asc", isActive && state.preparationsSort.direction === "asc");
+      button.classList.toggle("sort-desc", isActive && state.preparationsSort.direction === "desc");
+    });
+  }
+
   function preparationsForSelection() {
-    return state.preparations
-      .filter((row) => !state.contractId || String(row.contrato_id) === String(state.contractId))
-      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    const contractNames = new Map(state.contracts.map((row) => [String(row.id), row.contrato]));
+    const invoiceNames = new Map(state.invoices.map((row) => [String(row.id), [row.serie, row.n_documento].filter(Boolean).join("/") || `#${row.id}`]));
+    const rows = state.preparations.filter((row) => !state.contractId || String(row.contrato_id) === String(state.contractId));
+    return sortPreparations(rows, contractNames, invoiceNames);
   }
 
   function renderPreparations() {
@@ -1170,6 +1370,7 @@
       el.preparationsCheckAll.disabled = !rows.length;
     }
     if (el.preparationsPdf) el.preparationsPdf.disabled = !state.preparationSelectedIds.size;
+    syncPreparationsSortButtons();
   }
 
   async function anulatePreparation(id) {
@@ -1257,6 +1458,27 @@
     return date.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
   }
 
+  function sortControlMonths(months, byMonth) {
+    const sort = state.controlMonthsSort;
+    const directionMultiplier = sort.direction === "asc" ? 1 : -1;
+    return [...months].sort((left, right) => {
+      const result = sort.field === "mes"
+        ? left.localeCompare(right)
+        : numeric(byMonth.get(left)[sort.field]) - numeric(byMonth.get(right)[sort.field]);
+      if (result !== 0) return result * directionMultiplier;
+      return left.localeCompare(right);
+    });
+  }
+
+  function syncControlMonthsSortButtons() {
+    document.querySelectorAll("[data-control-months-sort-field]").forEach((button) => {
+      const isActive = button.dataset.controlMonthsSortField === state.controlMonthsSort.field;
+      button.classList.toggle("active", isActive);
+      button.classList.toggle("sort-asc", isActive && state.controlMonthsSort.direction === "asc");
+      button.classList.toggle("sort-desc", isActive && state.controlMonthsSort.direction === "desc");
+    });
+  }
+
   async function loadControl() {
     if (!el.controlMonthsBody) return;
     if (!state.contractId) {
@@ -1280,7 +1502,9 @@
       el.controlMonthsBody.innerHTML = `<tr><td colspan="5" class="empty-state">${escapeHtml(message)}</td></tr>`;
       return;
     }
-    renderControl(monthly.data || [], byInvoice.data || []);
+    state.controlMonthly = monthly.data || [];
+    state.controlByInvoice = byInvoice.data || [];
+    renderControl(state.controlMonthly, state.controlByInvoice);
   }
 
   function renderControl(monthly, byInvoice) {
@@ -1299,7 +1523,8 @@
     const currentMonthStart = new Date();
     currentMonthStart.setDate(1);
     currentMonthStart.setHours(0, 0, 0, 0);
-    const months = Array.from(byMonth.keys()).sort();
+    const months = sortControlMonths(Array.from(byMonth.keys()), byMonth);
+    syncControlMonthsSortButtons();
     el.controlMonthsBody.innerHTML = months.length
       ? months.map((mes) => {
           const hours = byMonth.get(mes);
@@ -1971,6 +2196,7 @@
     qa("[data-facturacion-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.facturacionView)));
     el.newBudget.addEventListener("click", () => fillBudgetForm());
     el.newInvoice.addEventListener("click", () => fillInvoiceForm());
+    el.invoicesExcel?.addEventListener("click", () => void exportInvoicesToExcel());
     el.newRate.addEventListener("click", () => fillRateForm());
     el.newPeriod.addEventListener("click", () => fillPeriodForm());
     el.newStatus.addEventListener("click", () => fillStatusForm());
@@ -2023,6 +2249,44 @@
       renderPreparations();
     });
     el.preparationsPdf?.addEventListener("click", () => void exportSelectedPreparationsPdf());
+    el.preparationsTable?.querySelector("thead")?.addEventListener("click", (event) => {
+      const field = event.target.closest("[data-preparations-sort-field]")?.dataset.preparationsSortField;
+      if (!field) return;
+      state.preparationsSort = {
+        field,
+        direction: state.preparationsSort.field === field && state.preparationsSort.direction === "asc" ? "desc" : "asc",
+      };
+      renderPreparations();
+    });
+    el.invoicesTable?.querySelector("thead")?.addEventListener("click", (event) => {
+      const field = event.target.closest("[data-invoices-sort-field]")?.dataset.invoicesSortField;
+      if (!field) return;
+      state.invoicesSort = {
+        field,
+        direction: state.invoicesSort.field === field && state.invoicesSort.direction === "asc" ? "desc" : "asc",
+      };
+      renderInvoices();
+    });
+    const handleBudgetsSortClick = (event) => {
+      const field = event.target.closest("[data-budgets-sort-field]")?.dataset.budgetsSortField;
+      if (!field) return;
+      state.budgetsSort = {
+        field,
+        direction: state.budgetsSort.field === field && state.budgetsSort.direction === "asc" ? "desc" : "asc",
+      };
+      renderBudgets();
+    };
+    el.budgetsTable?.querySelector("thead")?.addEventListener("click", handleBudgetsSortClick);
+    el.summaryPeriodsTable?.querySelector("thead")?.addEventListener("click", handleBudgetsSortClick);
+    el.controlMonthsTable?.querySelector("thead")?.addEventListener("click", (event) => {
+      const field = event.target.closest("[data-control-months-sort-field]")?.dataset.controlMonthsSortField;
+      if (!field) return;
+      state.controlMonthsSort = {
+        field,
+        direction: state.controlMonthsSort.field === field && state.controlMonthsSort.direction === "asc" ? "desc" : "asc",
+      };
+      renderControl(state.controlMonthly, state.controlByInvoice);
+    });
     el.controlRefresh.addEventListener("click", () => void loadControl());
     el.controlViewPending.addEventListener("click", viewPendingInRecords);
     el.budgetForm.addEventListener("submit", saveBudget);
@@ -2098,13 +2362,17 @@
       kpiExecution: q("#facturacion-kpi-execution"),
       kpiPending: q("#facturacion-kpi-pending"),
       summaryPeriods: q("#facturacion-summary-periods"),
+      summaryPeriodsTable: q("#facturacion-summary-periods-table"),
       alerts: q("#facturacion-alerts"),
       yearChart: q("#facturacion-year-chart"),
+      budgetsTable: q("#facturacion-budgets-table"),
       budgetsBody: q("#facturacion-budgets-body"),
+      invoicesTable: q("#facturacion-invoices-table"),
       invoicesBody: q("#facturacion-invoices-body"),
       invoiceSearch: q("#facturacion-invoice-search"),
       newBudget: q("#facturacion-new-budget"),
       newInvoice: q("#facturacion-new-invoice"),
+      invoicesExcel: q("#facturacion-invoices-excel"),
       budgetDialog: q("#facturacion-budget-dialog"),
       invoiceDialog: q("#facturacion-invoice-dialog"),
       budgetForm: q("#facturacion-budget-form"),
@@ -2123,6 +2391,7 @@
       generationBody: q("#facturacion-generation-body"),
       generationObservacion: q("#facturacion-generation-observacion"),
       generationSelectionSummary: q("#facturacion-generation-selection-summary"),
+      preparationsTable: q("#facturacion-preparations-table"),
       preparationsBody: q("#facturacion-preparations-body"),
       preparationsCheckAll: q("#facturacion-preparations-check-all"),
       preparationsPdf: q("#facturacion-preparations-pdf"),
@@ -2149,6 +2418,7 @@
       controlTo: q("#facturacion-control-to"),
       controlRefresh: q("#facturacion-control-refresh"),
       controlKpis: q("#facturacion-control-kpis"),
+      controlMonthsTable: q("#facturacion-control-months-table"),
       controlMonthsBody: q("#facturacion-control-months-body"),
       controlInvoicesBody: q("#facturacion-control-invoices-body"),
       controlViewPending: q("#facturacion-control-view-pending"),

@@ -18,6 +18,7 @@ create table if not exists public.concilia_lectivo_usuarios (
   apellidos text not null,
   telefono_1 text,
   telefono_2 text,
+  correo_electronico text,
   edad integer,
   activo boolean not null default true,
   created_at timestamptz not null default now(),
@@ -25,6 +26,9 @@ create table if not exists public.concilia_lectivo_usuarios (
   constraint concilia_lectivo_usuarios_centro_curso_nombre_key
     unique (centro_id, curso_escolar, nombre, apellidos)
 );
+
+alter table public.concilia_lectivo_usuarios
+add column if not exists correo_electronico text;
 
 create index if not exists concilia_lectivo_usuarios_centro_idx
 on public.concilia_lectivo_usuarios (centro_id);

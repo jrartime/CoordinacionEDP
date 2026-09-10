@@ -23,7 +23,8 @@ create table if not exists public.coordinacion_pestanas (
         'gestion',
         'contabilidad',
         'facturacion',
-        'bajas_conciliacion'
+        'bajas_conciliacion',
+        'avisos'
       )
     )
 );
@@ -33,6 +34,7 @@ drop constraint if exists coordinacion_pestanas_key_check;
 
 insert into public.coordinacion_pestanas (pestana, etiqueta, descripcion, orden, activo)
 values
+  ('avisos', 'Avisos', 'Mensajería entre miembros de la plataforma, con adjuntos y avisos automáticos.', 5, true),
   ('programming', 'Programación', 'Gestión de la programación de coordinación.', 10, true),
   ('control', 'Control personal', 'Gestión de partes y control de horas.', 20, true),
   ('events', 'Eventos', 'Gestión de eventos deportivos.', 30, true),
@@ -125,7 +127,8 @@ check (
     'gestion',
     'contabilidad',
     'facturacion',
-    'bajas_conciliacion'
+    'bajas_conciliacion',
+    'avisos'
   )
 );
 

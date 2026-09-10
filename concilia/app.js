@@ -77,6 +77,32 @@
   const studentNee = document.querySelector("#student-nee");
   const studentComedor = document.querySelector("#student-comedor");
   const studentGrupo = document.querySelector("#student-grupo");
+  const alumnadoViewNoLectivoButton = document.querySelector("#alumnado-view-no-lectivo-button");
+  const alumnadoViewLectivoButton = document.querySelector("#alumnado-view-lectivo-button");
+  const alumnadoNoLectivoView = document.querySelector("#alumnado-no-lectivo-view");
+  const alumnadoLectivoView = document.querySelector("#alumnado-lectivo-view");
+  const lectivoAlumnadoCentroFilter = document.querySelector("#lectivo-alumnado-centro-filter");
+  const lectivoAlumnadoNameFilter = document.querySelector("#lectivo-alumnado-name-filter");
+  const lectivoStudentsPanelBackdrop = document.querySelector("#lectivo-students-panel-backdrop");
+  const lectivoStudentsPanel = document.querySelector("#lectivo-students-panel");
+  const closeLectivoStudentsPanelButton = document.querySelector("#close-lectivo-students-panel-button");
+  const lectivoStudentPanelTitle = document.querySelector("#lectivo-students-panel-title");
+  const lectivoStudentPanelSummary = document.querySelector("#lectivo-student-panel-summary");
+  const lectivoStudentsPanelSummary = document.querySelector("#lectivo-students-panel-summary");
+  const lectivoStudentsCentroSelect = lectivoAlumnadoCentroFilter;
+  const lectivoStudentsNewButton = document.querySelector("#lectivo-students-new-button");
+  const lectivoStudentsTableBody = document.querySelector("#lectivo-students-table-body");
+  const lectivoStudentForm = document.querySelector("#lectivo-student-form");
+  const lectivoStudentBackButton = document.querySelector("#lectivo-student-back-button");
+  const lectivoStudentIdInput = document.querySelector("#lectivo-student-id");
+  const lectivoStudentCentroSelect = document.querySelector("#lectivo-student-centro");
+  const lectivoStudentActivo = document.querySelector("#lectivo-student-activo");
+  const lectivoStudentNombre = document.querySelector("#lectivo-student-nombre");
+  const lectivoStudentApellidos = document.querySelector("#lectivo-student-apellidos");
+  const lectivoStudentCorreo = document.querySelector("#lectivo-student-correo");
+  const lectivoStudentTelefono1 = document.querySelector("#lectivo-student-telefono1");
+  const lectivoStudentTelefono2 = document.querySelector("#lectivo-student-telefono2");
+  const lectivoStudentEdad = document.querySelector("#lectivo-student-edad");
   const openSummaryPanelButton = document.querySelector("#open-summary-panel-button");
   const closeSummaryPanelButton = document.querySelector("#close-summary-panel-button");
   const summaryPanelBackdrop = document.querySelector("#summary-panel-backdrop");
@@ -2376,8 +2402,8 @@
           .select("id, nombre, apellidos, concilia_lectivo_horarios(dia_semana, turno, turno_orden, matriculado)")
           .eq("centro_id", centroId)
           .eq("activo", true)
-          .order("apellidos", { ascending: true })
-          .order("nombre", { ascending: true }),
+          .order("nombre", { ascending: true })
+          .order("apellidos", { ascending: true }),
         supabase
           .from("concilia_lectivo_asistencias")
           .select("lectivo_usuario_id, fecha, turno, presente")
@@ -4621,6 +4647,358 @@
     }
   }
 
+  // -----------------------------------------------
+  // Alumnado Lectivo — CRUD de concilia_lectivo_usuarios / concilia_lectivo_horarios
+  // desde la pestana Alumnado (independiente del CRUD de concilia_usuarios de arriba)
+  // -----------------------------------------------
+  const LECTIVO_STUDENT_CURSO_ESCOLAR = "2025-2026";
+  const LECTIVO_SCHEDULE_DAYS = ["lunes", "martes", "miercoles", "jueves", "viernes"];
+  let lectivoStudentsAllCentrosLoaded = false;
+  let lectivoStudentsCurrentCentroId = null;
+  let lectivoStudentsRows = [];
+  let lectivoStudentEditingId = null;
+
+  async function loadLectivoStudentsCentros(supabase) {
+    // Todos los colegios activos, para el formulario de alta/edicion (hace falta
+    // poder elegir un centro aunque todavia no tenga ningun alumno lectivo).
+    if (lectivoStudentsAllCentrosLoaded) {
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("instalaciones")
+      .select("id, instalacion")
+      .eq("categoria", "Colegio")
+      .eq("activo", true)
+      .order("instalacion", { ascending: true });
+
+    if (error) {
+      setStatus(`No se pudieron cargar los centros: ${error.message}`, "error");
+      return;
+    }
+
+    const options = (data ?? [])
+      .map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.instalacion)}</option>`)
+      .join("");
+    lectivoStudentCentroSelect.innerHTML = '<option value="">Selecciona un centro...</option>' + options;
+    lectivoStudentsAllCentrosLoaded = true;
+  }
+
+  async function loadLectivoAlumnadoCentroFilterOptions(supabase) {
+    // Solo los centros que ya tienen alumnado lectivo, para el filtro del listado.
+    const { data, error } = await supabase
+      .from("concilia_lectivo_usuarios")
+      .select("centro_id, instalaciones(instalacion)")
+      .eq("activo", true);
+
+    if (error) {
+      setStatus(`No se pudieron cargar los centros: ${error.message}`, "error");
+      return;
+    }
+
+    const centrosById = new Map();
+    (data ?? []).forEach((row) => {
+      if (!centrosById.has(row.centro_id)) {
+        centrosById.set(row.centro_id, row.instalaciones?.instalacion || `Centro ${row.centro_id}`);
+      }
+    });
+    const centros = [...centrosById.entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
+
+    const previousValue = lectivoAlumnadoCentroFilter.value;
+    lectivoAlumnadoCentroFilter.innerHTML =
+      '<option value="">Selecciona un centro...</option>' +
+      centros
+        .map(([id, nombre]) => `<option value="${escapeHtml(id)}">${escapeHtml(nombre)}</option>`)
+        .join("");
+    if (centros.some(([id]) => String(id) === previousValue)) {
+      lectivoAlumnadoCentroFilter.value = previousValue;
+    }
+  }
+
+  function formatLectivoScheduleSummary(horarios) {
+    const dayLabels = { lunes: "L", martes: "M", miercoles: "X", jueves: "J", viernes: "V" };
+    const byDay = new Map();
+    (horarios ?? [])
+      .filter((horario) => horario.matriculado)
+      .forEach((horario) => {
+        if (!byDay.has(horario.dia_semana)) {
+          byDay.set(horario.dia_semana, []);
+        }
+        byDay.get(horario.dia_semana).push(horario.turno);
+      });
+
+    const summary = LECTIVO_SCHEDULE_DAYS.filter((day) => byDay.has(day))
+      .map((day) => `${dayLabels[day]}(${byDay.get(day).sort().join(",")})`)
+      .join(" ");
+    return summary || "-";
+  }
+
+  function getLectivoAlumnadoFilteredRows() {
+    const query = normalizeText(lectivoAlumnadoNameFilter?.value || "");
+    if (!query) {
+      return lectivoStudentsRows;
+    }
+    return lectivoStudentsRows.filter((row) =>
+      normalizeText(`${row.nombre} ${row.apellidos}`).includes(query)
+    );
+  }
+
+  function renderLectivoStudentsList() {
+    const rows = getLectivoAlumnadoFilteredRows();
+
+    if (!rows.length) {
+      lectivoStudentsTableBody.innerHTML = lectivoStudentsRows.length
+        ? '<tr><td colspan="6" class="empty-state">Sin resultados para ese nombre.</td></tr>'
+        : '<tr><td colspan="6" class="empty-state">No hay alumnado en este centro.</td></tr>';
+      return;
+    }
+
+    lectivoStudentsTableBody.innerHTML = rows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.nombre)} ${escapeHtml(row.apellidos)}${row.activo ? "" : " (baja)"}</td>
+            <td>${escapeHtml(row.edad ?? "-")}</td>
+            <td>${escapeHtml(row.correo_electronico || "-")}</td>
+            <td>${escapeHtml(row.telefono_1 || "-")}</td>
+            <td>${escapeHtml(formatLectivoScheduleSummary(row.concilia_lectivo_horarios))}</td>
+            <td>
+              <button type="button" class="secondary-button compact-button" data-lectivo-student-edit="${escapeHtml(row.id)}">
+                Editar
+              </button>
+              <button
+                type="button"
+                class="secondary-button compact-button"
+                data-lectivo-student-toggle="${escapeHtml(row.id)}"
+                data-lectivo-student-next="${row.activo ? "false" : "true"}"
+              >
+                ${row.activo ? "Dar de baja" : "Reactivar"}
+              </button>
+            </td>
+          </tr>
+        `
+      )
+      .join("");
+  }
+
+  async function loadLectivoStudentsList(supabase) {
+    const centroId = Number(lectivoStudentsCentroSelect.value || "") || null;
+    lectivoStudentsCurrentCentroId = centroId;
+
+    if (!centroId) {
+      lectivoStudentsRows = [];
+      lectivoStudentsPanelSummary.textContent = "Selecciona un centro.";
+      lectivoStudentsTableBody.innerHTML =
+        '<tr><td colspan="6" class="empty-state">Selecciona un centro.</td></tr>';
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("concilia_lectivo_usuarios")
+      .select(
+        "id, nombre, apellidos, correo_electronico, telefono_1, telefono_2, edad, activo, concilia_lectivo_horarios(dia_semana, turno, matriculado)"
+      )
+      .eq("centro_id", centroId)
+      .eq("curso_escolar", LECTIVO_STUDENT_CURSO_ESCOLAR)
+      .order("activo", { ascending: false })
+      .order("nombre", { ascending: true })
+      .order("apellidos", { ascending: true });
+
+    if (error) {
+      setStatus(`No se pudo cargar el alumnado: ${error.message}`, "error");
+      return;
+    }
+
+    lectivoStudentsRows = data ?? [];
+    lectivoStudentsPanelSummary.textContent = `${lectivoStudentsRows.length} alumnos.`;
+    renderLectivoStudentsList();
+  }
+
+  function openLectivoStudentFormPanel() {
+    lectivoStudentsPanelBackdrop.classList.remove("hidden");
+    lectivoStudentsPanel.classList.remove("hidden");
+    lectivoStudentNombre.focus();
+  }
+
+  function closeLectivoStudentFormPanel() {
+    lectivoStudentsPanelBackdrop.classList.add("hidden");
+    lectivoStudentsPanel.classList.add("hidden");
+  }
+
+  function setLectivoScheduleCheckbox(dia, turno, checked) {
+    const input = lectivoStudentForm.querySelector(`[data-lectivo-schedule="${dia}-${turno}"]`);
+    if (input) {
+      input.checked = checked;
+    }
+  }
+
+  function resetLectivoScheduleCheckboxes() {
+    lectivoStudentForm.querySelectorAll("[data-lectivo-schedule]").forEach((input) => {
+      input.checked = false;
+    });
+  }
+
+  function openLectivoStudentCreate() {
+    lectivoStudentForm.reset();
+    lectivoStudentIdInput.value = "";
+    lectivoStudentEditingId = null;
+    resetLectivoScheduleCheckboxes();
+    lectivoStudentActivo.checked = true;
+    lectivoStudentCentroSelect.value = lectivoStudentsCurrentCentroId
+      ? String(lectivoStudentsCurrentCentroId)
+      : "";
+    lectivoStudentPanelTitle.textContent = "Nuevo alumno lectivo";
+    lectivoStudentPanelSummary.textContent = "Completa los datos del nuevo alumno.";
+    openLectivoStudentFormPanel();
+  }
+
+  function openLectivoStudentEdit(id) {
+    const row = lectivoStudentsRows.find((student) => String(student.id) === String(id));
+    if (!row) {
+      setStatus("No se encontro el alumno en el listado actual.", "error");
+      return;
+    }
+
+    lectivoStudentForm.reset();
+    lectivoStudentIdInput.value = row.id;
+    lectivoStudentEditingId = row.id;
+    lectivoStudentCentroSelect.value = String(lectivoStudentsCurrentCentroId);
+    lectivoStudentActivo.checked = Boolean(row.activo);
+    lectivoStudentNombre.value = row.nombre ?? "";
+    lectivoStudentApellidos.value = row.apellidos ?? "";
+    lectivoStudentCorreo.value = row.correo_electronico ?? "";
+    lectivoStudentTelefono1.value = row.telefono_1 ?? "";
+    lectivoStudentTelefono2.value = row.telefono_2 ?? "";
+    lectivoStudentEdad.value = row.edad ?? "";
+
+    resetLectivoScheduleCheckboxes();
+    (row.concilia_lectivo_horarios ?? [])
+      .filter((horario) => horario.matriculado)
+      .forEach((horario) => setLectivoScheduleCheckbox(horario.dia_semana, horario.turno, true));
+
+    lectivoStudentPanelTitle.textContent = `Editar ${row.nombre} ${row.apellidos}`;
+    lectivoStudentPanelSummary.textContent = "Actualiza los datos y guarda los cambios.";
+    openLectivoStudentFormPanel();
+  }
+
+  function collectLectivoScheduleSelection() {
+    const selection = [];
+    LECTIVO_SCHEDULE_DAYS.forEach((dia) => {
+      ["A", "B"].forEach((turno) => {
+        const input = lectivoStudentForm.querySelector(`[data-lectivo-schedule="${dia}-${turno}"]`);
+        selection.push({ dia_semana: dia, turno, matriculado: Boolean(input?.checked) });
+      });
+    });
+    return selection;
+  }
+
+  async function handleLectivoStudentSubmit(event) {
+    event.preventDefault();
+
+    const centroId = Number(lectivoStudentCentroSelect.value || "") || null;
+    const nombre = trimInputValue(lectivoStudentNombre);
+    const apellidos = trimInputValue(lectivoStudentApellidos);
+
+    if (!centroId || !nombre || !apellidos) {
+      setStatus("Centro, nombre y apellidos son obligatorios.", "error");
+      return;
+    }
+
+    const payload = {
+      centro_id: centroId,
+      curso_escolar: LECTIVO_STUDENT_CURSO_ESCOLAR,
+      nombre,
+      apellidos,
+      correo_electronico: nullableInputValue(lectivoStudentCorreo),
+      telefono_1: nullableInputValue(lectivoStudentTelefono1),
+      telefono_2: nullableInputValue(lectivoStudentTelefono2),
+      edad: nullableInputValue(lectivoStudentEdad) ? Number(trimInputValue(lectivoStudentEdad)) : null,
+      activo: Boolean(lectivoStudentActivo.checked),
+    };
+
+    try {
+      const supabase = await getSupabaseClient();
+      let usuarioId = lectivoStudentEditingId;
+
+      if (usuarioId) {
+        const { error } = await supabase
+          .from("concilia_lectivo_usuarios")
+          .update(payload)
+          .eq("id", usuarioId);
+        if (error) {
+          throw error;
+        }
+      } else {
+        const { data, error } = await supabase
+          .from("concilia_lectivo_usuarios")
+          .insert(payload)
+          .select("id")
+          .single();
+        if (error) {
+          throw error;
+        }
+        usuarioId = data.id;
+      }
+
+      const scheduleRows = collectLectivoScheduleSelection().map((slot) => ({
+        lectivo_usuario_id: usuarioId,
+        dia_semana: slot.dia_semana,
+        turno: slot.turno,
+        turno_orden: slot.turno === "A" ? 1 : 2,
+        matriculado: slot.matriculado,
+      }));
+
+      const { error: horariosError } = await supabase
+        .from("concilia_lectivo_horarios")
+        .upsert(scheduleRows, { onConflict: "lectivo_usuario_id,dia_semana,turno" });
+      if (horariosError) {
+        throw horariosError;
+      }
+
+      setStatus(lectivoStudentEditingId ? "Alumno actualizado." : "Alumno creado.", "success");
+      await loadLectivoAlumnadoCentroFilterOptions(supabase);
+      lectivoStudentsCentroSelect.value = String(centroId);
+      closeLectivoStudentFormPanel();
+      await loadLectivoStudentsList(supabase);
+    } catch (error) {
+      setStatus(`No se pudo guardar el alumno: ${error.message}`, "error");
+    }
+  }
+
+  async function toggleLectivoStudentActivo(id, nextActivo) {
+    try {
+      const supabase = await getSupabaseClient();
+      const { error } = await supabase
+        .from("concilia_lectivo_usuarios")
+        .update({ activo: nextActivo })
+        .eq("id", id);
+      if (error) {
+        throw error;
+      }
+      setStatus(nextActivo ? "Alumno reactivado." : "Alumno dado de baja.", "success");
+      await loadLectivoStudentsList(supabase);
+    } catch (error) {
+      setStatus(`No se pudo actualizar el alumno: ${error.message}`, "error");
+    }
+  }
+
+  function setAlumnadoView(view) {
+    const isLectivo = view === "lectivo";
+    alumnadoViewNoLectivoButton?.classList.toggle("active", !isLectivo);
+    alumnadoViewLectivoButton?.classList.toggle("active", isLectivo);
+    alumnadoNoLectivoView?.classList.toggle("hidden", isLectivo);
+    alumnadoLectivoView?.classList.toggle("hidden", !isLectivo);
+
+    if (isLectivo) {
+      void getSupabaseClient().then(async (supabase) => {
+        await Promise.all([loadLectivoStudentsCentros(supabase), loadLectivoAlumnadoCentroFilterOptions(supabase)]);
+        if (lectivoStudentsCentroSelect.value) {
+          await loadLectivoStudentsList(supabase);
+        }
+      });
+    }
+  }
+
   async function updateStudentInlineField(studentIdValue, field, value) {
     if (!studentIdValue || !["comedor", "grupo"].includes(field)) {
       setStatus("No se pudo actualizar el alumno: campo no valido.", "error");
@@ -5839,6 +6217,35 @@
     openStudentPanelButton.addEventListener("click", openStudentCreatePanel);
     closeStudentPanelButton.addEventListener("click", closeStudentPanel);
     studentPanelBackdrop.addEventListener("click", closeStudentPanel);
+    alumnadoViewNoLectivoButton?.addEventListener("click", () => setAlumnadoView("no_lectivo"));
+    alumnadoViewLectivoButton?.addEventListener("click", () => setAlumnadoView("lectivo"));
+    closeLectivoStudentsPanelButton?.addEventListener("click", closeLectivoStudentFormPanel);
+    lectivoStudentsPanelBackdrop?.addEventListener("click", closeLectivoStudentFormPanel);
+    lectivoStudentsCentroSelect?.addEventListener("change", () => {
+      void getSupabaseClient().then((supabase) => loadLectivoStudentsList(supabase));
+    });
+    lectivoAlumnadoNameFilter?.addEventListener("input", renderLectivoStudentsList);
+    lectivoAlumnadoNameFilter?.addEventListener("change", renderLectivoStudentsList);
+    lectivoStudentsNewButton?.addEventListener("click", openLectivoStudentCreate);
+    lectivoStudentBackButton?.addEventListener("click", closeLectivoStudentFormPanel);
+    lectivoStudentForm?.addEventListener("submit", (event) => {
+      void handleLectivoStudentSubmit(event);
+    });
+    lectivoStudentsTableBody?.addEventListener("click", (event) => {
+      const editButton = event.target.closest("[data-lectivo-student-edit]");
+      if (editButton) {
+        openLectivoStudentEdit(editButton.dataset.lectivoStudentEdit);
+        return;
+      }
+
+      const toggleButton = event.target.closest("[data-lectivo-student-toggle]");
+      if (toggleButton) {
+        void toggleLectivoStudentActivo(
+          toggleButton.dataset.lectivoStudentToggle,
+          toggleButton.dataset.lectivoStudentNext === "true"
+        );
+      }
+    });
     clearStudentFormButton.addEventListener("click", () => {
       if (studentId.value) {
         const row = studentRows.find((student) => String(student.id) === String(studentId.value));

@@ -2964,6 +2964,17 @@ details.settings-section[open] summary {
   gap: 12px;
 }
 
+/* Los items de grid tienen min-width:auto por defecto, que se calcula desde
+   el min-content del <select> (el ancho de su opción más larga) e ignora el
+   minmax(0, 1fr) de la pista si no se anula explícitamente — provoca overflow
+   horizontal en contenedores estrechos (p.ej. el modal de Nuevo aviso) con
+   nombres largos. min-width:0 deja que el item (y el select al 100%) se
+   encoja de verdad al ancho de su columna; el texto de las opciones se
+   recorta en vez de desbordar. */
+.dual-list > section {
+  min-width: 0;
+}
+
 .dual-list h5 {
   margin: 0 0 8px;
   font-size: 0.9rem;
@@ -7662,4 +7673,390 @@ details[open] > .gestion-collapsible-header::before {
   .records-compare-columns {
     grid-template-columns: 1fr;
   }
+}
+
+/* ============================================================================
+   Avisos
+   ============================================================================ */
+.avisos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.avisos-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.avisos-list-item:hover {
+  border-color: var(--line-strong);
+}
+
+.avisos-list-item-unread {
+  border-left: 3px solid var(--accent);
+  background: #f0f6ff;
+}
+
+.avisos-list-item-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.avisos-list-item-titulo {
+  font-weight: 600;
+}
+
+.avisos-list-item-unread .avisos-list-item-titulo::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 6px;
+}
+
+.avisos-list-item-fecha {
+  flex-shrink: 0;
+  font-size: 0.82em;
+  color: var(--muted-soft);
+}
+
+.avisos-list-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.avisos-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 0.85em;
+}
+
+.avisos-detail-cuerpo {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.avisos-detail-adjuntos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.avisos-adjunto-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  cursor: pointer;
+  font: inherit;
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.avisos-detail-adjuntos:empty {
+  display: none;
+}
+
+.avisos-detail-lecturas {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.avisos-reglas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.avisos-reglas-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  box-shadow: none;
+}
+
+.avisos-reglas-list-item span {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.avisos-reglas-list-item-inactive {
+  opacity: 0.6;
+}
+
+/* Nuevo aviso: panel flotante centrado en vez de cajón lateral. Reutiliza
+   .detail-drawer (padding, inputs, checkbox-item, dual-list ya heredados) y
+   solo sobreescribe el posicionamiento para que funcione como tarjeta
+   centrada dentro de .detail-panel-floating (mismo patrón que
+   .image-preview-dialog). */
+.avisos-new-dialog {
+  position: relative;
+  z-index: 1;
+  top: auto;
+  right: auto;
+  width: min(460px, 100%);
+  height: auto;
+  max-height: calc(100vh - 32px);
+  overflow-x: hidden;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(20, 40, 75, 0.28);
+  padding: 12px;
+  gap: 6px;
+}
+
+.avisos-new-dialog .filter-field,
+.avisos-new-dialog .checkbox-item {
+  gap: 3px;
+}
+
+/* El tooltip CSS (.tooltip-button::after) se centra bajo el botón con
+   left:50%/transform y, aunque invisible por opacity:0, sigue contribuyendo
+   al scrollWidth del diálogo cuando el texto es más ancho que el botón y
+   éste queda cerca del borde — provoca una barra de scroll horizontal en un
+   modal estrecho aunque nada se vea desbordado. Se desactiva aquí (los
+   botones ya llevan title= como alternativa nativa), y overflow-x:hidden de
+   arriba lo garantiza pase lo que pase. */
+.avisos-new-dialog .tooltip-button::after {
+  content: none;
+}
+
+.avisos-new-dialog #avisos-new-cuerpo {
+  min-height: 0;
+  height: 48px;
+}
+
+.avisos-new-dialog .field-label {
+  margin: 0 0 4px;
+}
+
+.avisos-new-dialog .contract-assignment-filter {
+  gap: 3px;
+}
+
+.avisos-dest-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.avisos-dest-dual-list {
+  gap: 8px;
+}
+
+.avisos-dest-dual-list h5 {
+  margin: 0 0 4px;
+}
+
+/* .detail-drawer .dual-list select[multiple] (más arriba en el fichero) fija
+   height/min-height:320px para las listas de asignación normales, con
+   especificidad (0,3,1) — más que .avisos-dest-dual-list select (0,1,1), así
+   que gana pese a venir después en cascada. Se necesita el id del panel para
+   superarla sin depender del orden. */
+#avisos-new-panel .avisos-dest-dual-list select[multiple] {
+  height: 64px;
+  min-height: 64px;
+}
+
+.dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 2px dashed var(--line-strong);
+  border-radius: 10px;
+  background: var(--bg);
+  text-align: center;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.dropzone:hover {
+  border-color: var(--accent);
+  background: #f0f6ff;
+}
+
+.dropzone.dropzone-active {
+  border-color: var(--accent);
+  background: #e8f1ff;
+}
+
+.dropzone-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--muted-soft);
+}
+
+.dropzone-text {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dropzone-subtext {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.avisos-new-dialog .dropzone-text,
+.avisos-new-dialog .dropzone-subtext {
+  font-size: 0.82rem;
+}
+
+.dropzone-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dropzone-input:focus-visible ~ .dropzone-icon {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dropzone-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dropzone-files:empty {
+  display: none;
+}
+
+.dropzone-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 0.85em;
+}
+
+.dropzone-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropzone-file-remove {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  font-size: 1.15em;
+}
+
+.dropzone-file-remove:hover {
+  color: var(--error);
+  background: transparent;
+}
+
+@media (max-width: 760px) {
+  .detail-panel-floating {
+    padding: 12px;
+  }
+
+  .avisos-new-dialog {
+    max-height: calc(100vh - 24px);
+    padding: 12px;
+  }
+
+  .avisos-dest-dual-list {
+    grid-template-columns: 1fr;
+  }
+
+  .avisos-dest-dual-list .dual-list-actions {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  #avisos-new-panel .avisos-dest-dual-list select[multiple] {
+    height: 96px;
+    min-height: 96px;
+  }
+}
+
+/* Aviso pendiente: contador en la pestaña de escritorio y en el botón de
+   acciones rápidas de móvil. */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--error);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.nav-badge.hidden {
+  display: none;
+}
+
+.mobile-home-action-button-with-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mobile-home-action-button-with-badge .nav-badge {
+  margin-left: 12px;
 }

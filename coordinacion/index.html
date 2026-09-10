@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260907-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260908-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260909-4" />
   </head>
   <body>
     <script>
@@ -554,6 +554,14 @@
                   >
                     Comunicar baja o accidente
                   </button>
+                  <button
+                    id="mobile-home-action-avisos"
+                    type="button"
+                    class="mobile-home-action-button mobile-home-action-button-with-badge"
+                  >
+                    <span>Avisos</span>
+                    <span id="avisos-mobile-badge" class="nav-badge hidden"></span>
+                  </button>
                   <button type="button" class="mobile-home-action-button">
                     Consultar horario de trabajador
                   </button>
@@ -602,6 +610,15 @@
                 aria-pressed="true"
               >
                 Programación
+              </button>
+              <button
+                id="private-tab-avisos"
+                type="button"
+                class="private-tab-button hidden"
+                aria-pressed="false"
+              >
+                Avisos
+                <span id="avisos-nav-badge" class="nav-badge hidden"></span>
               </button>
               <button
                 id="private-tab-control"
@@ -1944,15 +1961,15 @@
                   <table id="bajas-table" class="records-table">
                     <thead>
                       <tr>
-                        <th>Personal</th>
-                        <th>Tipo</th>
-                        <th>Lugar</th>
-                        <th>Fecha inicio</th>
-                        <th>Fecha fin</th>
-                        <th>Días</th>
-                        <th>En curso</th>
-                        <th>Parte de baja</th>
-                        <th>Ingreso hosp.</th>
+                        <th><button type="button" class="sort-button" data-bajas-sort-field="personal">Personal</button></th>
+                        <th><button type="button" class="sort-button" data-bajas-sort-field="tipo">Tipo</button></th>
+                        <th><button type="button" class="sort-button" data-bajas-sort-field="lugar">Lugar</button></th>
+                        <th><button type="button" class="sort-button" data-bajas-sort-field="fecha_inicio">Fecha inicio</button></th>
+                        <th><button type="button" class="sort-button" data-bajas-sort-field="fecha_fin">Fecha fin</button></th>
+                        <th><button type="button" class="sort-button" data-bajas-sort-field="dias">Días</button></th>
+                        <th><button type="button" class="sort-button" data-bajas-sort-field="en_curso">En curso</button></th>
+                        <th><button type="button" class="sort-button" data-bajas-sort-field="con_parte_baja">Parte de baja</button></th>
+                        <th><button type="button" class="sort-button" data-bajas-sort-field="ingreso_hospitalario">Ingreso hosp.</button></th>
                         <th aria-label="Acciones"></th>
                       </tr>
                     </thead>
@@ -2182,12 +2199,12 @@
                   <table id="permisos-table" class="records-table">
                     <thead>
                       <tr>
-                        <th>Personal</th>
-                        <th>Fecha inicio</th>
-                        <th>Fecha fin</th>
-                        <th>Tipo</th>
-                        <th>Días</th>
-                        <th>En curso</th>
+                        <th><button type="button" class="sort-button" data-permisos-sort-field="personal">Personal</button></th>
+                        <th><button type="button" class="sort-button" data-permisos-sort-field="fecha_inicio">Fecha inicio</button></th>
+                        <th><button type="button" class="sort-button" data-permisos-sort-field="fecha_fin">Fecha fin</button></th>
+                        <th><button type="button" class="sort-button" data-permisos-sort-field="tipo">Tipo</button></th>
+                        <th><button type="button" class="sort-button" data-permisos-sort-field="dias">Días</button></th>
+                        <th><button type="button" class="sort-button" data-permisos-sort-field="en_curso">En curso</button></th>
                         <th aria-label="Acciones"></th>
                       </tr>
                     </thead>
@@ -4705,6 +4722,246 @@
               </section>
             </section>
 
+            <section id="private-tab-panel-avisos" class="private-tab-panel hidden">
+              <section class="card">
+                <div class="card-header">
+                  <div>
+                    <p class="eyebrow">Avisos</p>
+                    <h3>Mensajería entre miembros</h3>
+                  </div>
+                  <div class="results-actions">
+                    <button id="avisos-reglas-button" type="button" class="secondary-button hidden">
+                      Reglas de aviso
+                    </button>
+                    <button id="avisos-refresh-button" type="button" class="secondary-button">
+                      Actualizar
+                    </button>
+                    <button id="avisos-new-button" type="button" class="warm-button">
+                      + Nuevo aviso
+                    </button>
+                  </div>
+                </div>
+
+                <div class="filters-grid records-filters-compact">
+                  <div class="filter-field">
+                    <span>Ver</span>
+                    <select id="avisos-filter-vista">
+                      <option value="recibidos">Recibidos</option>
+                      <option value="no_leidos">No leídos</option>
+                      <option value="enviados">Enviados por mí</option>
+                    </select>
+                  </div>
+                </div>
+
+                <p id="avisos-summary" class="summary-chip">Cargando avisos...</p>
+
+                <div id="avisos-list" class="avisos-list"></div>
+              </section>
+            </section>
+
+            <section id="avisos-detail-panel" class="detail-panel hidden">
+              <div id="avisos-detail-overlay" class="detail-overlay"></div>
+              <aside class="detail-drawer">
+                <div class="detail-header">
+                  <div>
+                    <p class="eyebrow" id="avisos-detail-eyebrow">Aviso</p>
+                    <h3 id="avisos-detail-titulo">&nbsp;</h3>
+                  </div>
+                  <div class="detail-header-actions">
+                    <button id="avisos-detail-delete-button" type="button" class="danger-button hidden">
+                      Borrar
+                    </button>
+                    <button id="avisos-detail-close-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+                <p id="avisos-detail-meta" class="muted-text"></p>
+                <p id="avisos-detail-cuerpo" class="avisos-detail-cuerpo"></p>
+                <div id="avisos-detail-adjuntos" class="avisos-detail-adjuntos"></div>
+                <div id="avisos-detail-lecturas" class="avisos-detail-lecturas hidden">
+                  <p class="eyebrow">Leído por</p>
+                  <p id="avisos-detail-lecturas-list" class="muted-text"></p>
+                </div>
+              </aside>
+            </section>
+
+            <section id="avisos-new-panel" class="detail-panel detail-panel-floating hidden">
+              <div id="avisos-new-overlay" class="detail-overlay"></div>
+              <aside class="detail-drawer avisos-new-dialog">
+                <div class="detail-header">
+                  <div>
+                    <p class="eyebrow">Avisos</p>
+                    <h3>Nuevo aviso</h3>
+                  </div>
+                  <div class="detail-header-actions">
+                    <button id="avisos-new-close-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+                <form id="avisos-new-form">
+                  <label class="filter-field">
+                    Título
+                    <input id="avisos-new-titulo" name="titulo" type="text" required maxlength="200" />
+                  </label>
+                  <label class="filter-field">
+                    Mensaje
+                    <textarea id="avisos-new-cuerpo" name="cuerpo" rows="4"></textarea>
+                  </label>
+                  <label class="checkbox-item">
+                    <input id="avisos-new-para-todos" type="checkbox" />
+                    <span>Para todos los usuarios de Avisos</span>
+                  </label>
+
+                  <div id="avisos-new-destinatarios-field" class="avisos-dest-field">
+                    <p class="field-label">Destinatarios</p>
+                    <label class="contract-assignment-filter">
+                      Filtrar destinatario
+                      <input
+                        id="avisos-new-destinatarios-filter"
+                        type="search"
+                        placeholder="Nombre"
+                      />
+                    </label>
+                    <div class="dual-list avisos-dest-dual-list">
+                      <section>
+                        <h5>Disponibles</h5>
+                        <select id="avisos-new-dest-available" multiple size="6"></select>
+                      </section>
+                      <div class="dual-list-actions" aria-label="Elegir destinatarios">
+                        <button
+                          id="avisos-new-dest-add-button"
+                          type="button"
+                          data-icon="move-right"
+                          aria-label="Añadir destinatario"
+                          title="Añadir destinatario"
+                        >&gt;</button>
+                        <button
+                          id="avisos-new-dest-remove-button"
+                          type="button"
+                          class="secondary-button"
+                          data-icon="move-left"
+                          aria-label="Quitar destinatario"
+                          title="Quitar destinatario"
+                        >&lt;</button>
+                      </div>
+                      <section>
+                        <h5>Seleccionados</h5>
+                        <select id="avisos-new-dest-selected" multiple size="6"></select>
+                      </section>
+                    </div>
+                  </div>
+
+                  <div class="filter-field">
+                    <span>Adjuntos (fotos o documentos)</span>
+                    <div id="avisos-new-dropzone" class="dropzone">
+                      <svg class="dropzone-icon" aria-hidden="true">
+                        <use href="./icons.svg?v=20260723-1#icon-upload"></use>
+                      </svg>
+                      <p class="dropzone-text">
+                        Arrastra y suelta los archivos, o haz clic para elegirlos
+                      </p>
+                      <input
+                        id="avisos-new-adjuntos"
+                        type="file"
+                        multiple
+                        class="dropzone-input"
+                        accept=".pdf,.doc,.docx,.odt,.rtf,.txt,image/*"
+                        aria-label="Seleccionar archivos adjuntos"
+                      />
+                    </div>
+                    <ul id="avisos-new-files-list" class="dropzone-files"></ul>
+                  </div>
+
+                  <p id="avisos-new-status" class="panel-status-message"></p>
+                  <div class="detail-header-actions">
+                    <button type="submit" class="warm-button">Enviar aviso</button>
+                  </div>
+                </form>
+              </aside>
+            </section>
+
+            <section id="avisos-reglas-panel" class="detail-panel hidden">
+              <div id="avisos-reglas-overlay" class="detail-overlay"></div>
+              <aside class="detail-drawer">
+                <div class="detail-header">
+                  <div>
+                    <p class="eyebrow">Avisos</p>
+                    <h3>Reglas de aviso automático</h3>
+                  </div>
+                  <div class="detail-header-actions">
+                    <button id="avisos-reglas-close-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+                <p class="muted-text">
+                  Cada regla activa genera un aviso automático al darse de alta una fila en su tabla origen.
+                  Usa <code>{{personal_nombre}}</code>, <code>{{tipo}}</code>, <code>{{fecha_inicio}}</code> y
+                  <code>{{fecha_fin}}</code> en el título/mensaje.
+                </p>
+                <div id="avisos-reglas-list" class="avisos-reglas-list"></div>
+                <form id="avisos-reglas-form">
+                  <input id="avisos-reglas-id" type="hidden" name="id" />
+                  <label class="filter-field">
+                    Nombre
+                    <input id="avisos-reglas-nombre" name="nombre" type="text" required maxlength="200" />
+                  </label>
+                  <label class="filter-field">
+                    Tabla origen
+                    <select id="avisos-reglas-tabla-origen" name="tabla_origen" required>
+                      <option value="personal_bajas">Bajas médicas (personal_bajas)</option>
+                      <option value="personal_permisos">Permisos (personal_permisos)</option>
+                    </select>
+                  </label>
+                  <label class="checkbox-item">
+                    <input id="avisos-reglas-activo" type="checkbox" checked />
+                    <span>Activa</span>
+                  </label>
+                  <label class="filter-field">
+                    Título (plantilla)
+                    <input id="avisos-reglas-plantilla-titulo" name="plantilla_titulo" type="text" required maxlength="200" />
+                  </label>
+                  <label class="filter-field">
+                    Mensaje (plantilla)
+                    <textarea id="avisos-reglas-plantilla-cuerpo" name="plantilla_cuerpo" rows="4" required></textarea>
+                  </label>
+                  <label class="filter-field">
+                    Difusión
+                    <select id="avisos-reglas-difusion" name="difusion">
+                      <option value="rol">Por rol</option>
+                      <option value="usuarios">Usuarios concretos</option>
+                      <option value="todos">Todos</option>
+                    </select>
+                  </label>
+                  <label class="filter-field" id="avisos-reglas-rol-field">
+                    Rol
+                    <select id="avisos-reglas-rol">
+                      <option value="admin">Admin</option>
+                      <option value="coordinator">Coordinador</option>
+                      <option value="area_coordinator">Coordinador de área</option>
+                      <option value="viewer">Solo lectura</option>
+                    </select>
+                  </label>
+                  <label class="filter-field" id="avisos-reglas-destinatarios-field">
+                    Destinatarios
+                    <select id="avisos-reglas-destinatarios" multiple size="6"></select>
+                  </label>
+                  <p id="avisos-reglas-status" class="panel-status-message"></p>
+                  <div class="detail-header-actions">
+                    <button id="avisos-reglas-delete-button" type="button" class="danger-button hidden">
+                      Borrar regla
+                    </button>
+                    <button id="avisos-reglas-clear-button" type="button" class="secondary-button">
+                      Nueva regla
+                    </button>
+                    <button type="submit" class="warm-button">Guardar regla</button>
+                  </div>
+                </form>
+              </aside>
+            </section>
+
             <section id="private-tab-panel-programming" class="private-tab-panel">
               <section class="card">
                 <div class="card-header">
@@ -5621,15 +5878,15 @@
           <p id="contracts-status" class="panel-status-message"></p>
 
           <div class="table-scroll access-table-wrap">
-            <table class="contracts-table">
+            <table id="contracts-table" class="contracts-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Contrato</th>
-                  <th>Cliente</th>
-                  <th>Expediente</th>
-                  <th>Servicios</th>
-                  <th>Estado</th>
+                  <th><button type="button" class="sort-button" data-contracts-sort-field="id">ID</button></th>
+                  <th><button type="button" class="sort-button" data-contracts-sort-field="contrato">Contrato</button></th>
+                  <th><button type="button" class="sort-button" data-contracts-sort-field="cliente">Cliente</button></th>
+                  <th><button type="button" class="sort-button" data-contracts-sort-field="expediente">Expediente</button></th>
+                  <th><button type="button" class="sort-button" data-contracts-sort-field="servicios">Servicios</button></th>
+                  <th><button type="button" class="sort-button" data-contracts-sort-field="estado">Estado</button></th>
                 </tr>
               </thead>
               <tbody id="contracts-table-body">
@@ -5708,8 +5965,16 @@
                     <div><p class="eyebrow">Seguimiento</p><h3>Periodos presupuestarios</h3></div>
                   </div>
                   <div class="table-scroll">
-                    <table class="facturacion-table">
-                      <thead><tr><th>Periodo</th><th>Inicio</th><th>Fin</th><th>Presupuesto</th><th>Facturado</th><th>Saldo</th><th>Ejecución</th></tr></thead>
+                    <table id="facturacion-summary-periods-table" class="facturacion-table">
+                      <thead><tr>
+                        <th><button type="button" class="sort-button" data-budgets-sort-field="periodo">Periodo</button></th>
+                        <th><button type="button" class="sort-button" data-budgets-sort-field="fecha_inicio">Inicio</button></th>
+                        <th><button type="button" class="sort-button" data-budgets-sort-field="fecha_fin">Fin</button></th>
+                        <th><button type="button" class="sort-button" data-budgets-sort-field="presupuesto">Presupuesto</button></th>
+                        <th><button type="button" class="sort-button" data-budgets-sort-field="facturado">Facturado</button></th>
+                        <th><button type="button" class="sort-button" data-budgets-sort-field="saldo">Saldo</button></th>
+                        <th><button type="button" class="sort-button" data-budgets-sort-field="ejecucion">Ejecución</button></th>
+                      </tr></thead>
                       <tbody id="facturacion-summary-periods"></tbody>
                     </table>
                   </div>
@@ -5735,8 +6000,18 @@
                 <button id="facturacion-new-budget" type="button">Nuevo presupuesto</button>
               </div>
               <div class="table-scroll card facturacion-table-card">
-                <table class="facturacion-table">
-                  <thead><tr><th>Periodo</th><th>Fecha inicio</th><th>Fecha fin</th><th>Presupuesto</th><th>IVA</th><th>Facturado</th><th>Saldo</th><th>Ejecución</th><th></th></tr></thead>
+                <table id="facturacion-budgets-table" class="facturacion-table">
+                  <thead><tr>
+                    <th><button type="button" class="sort-button" data-budgets-sort-field="periodo">Periodo</button></th>
+                    <th><button type="button" class="sort-button" data-budgets-sort-field="fecha_inicio">Fecha inicio</button></th>
+                    <th><button type="button" class="sort-button" data-budgets-sort-field="fecha_fin">Fecha fin</button></th>
+                    <th><button type="button" class="sort-button" data-budgets-sort-field="presupuesto">Presupuesto</button></th>
+                    <th><button type="button" class="sort-button" data-budgets-sort-field="iva">IVA</button></th>
+                    <th><button type="button" class="sort-button" data-budgets-sort-field="facturado">Facturado</button></th>
+                    <th><button type="button" class="sort-button" data-budgets-sort-field="saldo">Saldo</button></th>
+                    <th><button type="button" class="sort-button" data-budgets-sort-field="ejecucion">Ejecución</button></th>
+                    <th></th>
+                  </tr></thead>
                   <tbody id="facturacion-budgets-body"></tbody>
                 </table>
               </div>
@@ -5747,12 +6022,24 @@
                 <div><p class="eyebrow">Documentos</p><h3>Facturas</h3></div>
                 <div class="facturacion-invoice-actions">
                   <label>Buscar <input id="facturacion-invoice-search" type="search" placeholder="Número, referencia o cliente" /></label>
+                  <button id="facturacion-invoices-excel" type="button">Exportar Excel</button>
                   <button id="facturacion-new-invoice" type="button">Nueva factura</button>
                 </div>
               </div>
               <div class="table-scroll card facturacion-table-card">
-                <table class="facturacion-table facturacion-invoices-table">
-                  <thead><tr><th>Fecha</th><th>Serie / Número</th><th>Referencia</th><th>Base</th><th>IVA</th><th>Total</th><th>Presupuesto</th><th>Estado</th><th>Cobro</th><th></th></tr></thead>
+                <table id="facturacion-invoices-table" class="facturacion-table facturacion-invoices-table">
+                  <thead><tr>
+                    <th><button type="button" class="sort-button" data-invoices-sort-field="fecha">Fecha</button></th>
+                    <th><button type="button" class="sort-button" data-invoices-sort-field="serie">Serie / Número</button></th>
+                    <th><button type="button" class="sort-button" data-invoices-sort-field="referencia">Referencia</button></th>
+                    <th><button type="button" class="sort-button" data-invoices-sort-field="base">Base</button></th>
+                    <th><button type="button" class="sort-button" data-invoices-sort-field="iva">IVA</button></th>
+                    <th><button type="button" class="sort-button" data-invoices-sort-field="total">Total</button></th>
+                    <th><button type="button" class="sort-button" data-invoices-sort-field="presupuesto">Presupuesto</button></th>
+                    <th><button type="button" class="sort-button" data-invoices-sort-field="estado">Estado</button></th>
+                    <th><button type="button" class="sort-button" data-invoices-sort-field="cobro">Cobro</button></th>
+                    <th></th>
+                  </tr></thead>
                   <tbody id="facturacion-invoices-body"></tbody>
                 </table>
               </div>
@@ -5825,8 +6112,14 @@
                   <thead>
                     <tr>
                       <th><input id="facturacion-preparations-check-all" type="checkbox" aria-label="Marcar todas" /></th>
-                      <th>Periodo</th><th>Contrato</th><th>Agrupación</th><th>Estado</th>
-                      <th>Total</th><th>Factura</th><th>Generada</th><th></th>
+                      <th><button type="button" class="sort-button" data-preparations-sort-field="fecha_desde">Periodo</button></th>
+                      <th><button type="button" class="sort-button" data-preparations-sort-field="contrato">Contrato</button></th>
+                      <th><button type="button" class="sort-button" data-preparations-sort-field="agrupacion">Agrupación</button></th>
+                      <th><button type="button" class="sort-button" data-preparations-sort-field="estado">Estado</button></th>
+                      <th><button type="button" class="sort-button" data-preparations-sort-field="total">Total</button></th>
+                      <th><button type="button" class="sort-button" data-preparations-sort-field="factura">Factura</button></th>
+                      <th><button type="button" class="sort-button" data-preparations-sort-field="created_at">Generada</button></th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody id="facturacion-preparations-body">
@@ -5862,9 +6155,16 @@
                 </button>
               </div>
               <div class="table-scroll card facturacion-table-card">
-                <table class="facturacion-table">
+                <table id="facturacion-control-months-table" class="facturacion-table">
                   <thead>
-                    <tr><th>Mes</th><th>Pendiente</th><th>Redirigido</th><th>En preparación</th><th>Facturado</th><th>Excluido</th></tr>
+                    <tr>
+                      <th><button type="button" class="sort-button" data-control-months-sort-field="mes">Mes</button></th>
+                      <th><button type="button" class="sort-button" data-control-months-sort-field="Pendiente">Pendiente</button></th>
+                      <th><button type="button" class="sort-button" data-control-months-sort-field="Redirigido">Redirigido</button></th>
+                      <th><button type="button" class="sort-button" data-control-months-sort-field="En preparación">En preparación</button></th>
+                      <th><button type="button" class="sort-button" data-control-months-sort-field="Facturado">Facturado</button></th>
+                      <th><button type="button" class="sort-button" data-control-months-sort-field="Excluido">Excluido</button></th>
+                    </tr>
                   </thead>
                   <tbody id="facturacion-control-months-body">
                     <tr><td colspan="6" class="empty-state">Selecciona un contrato para ver su seguimiento.</td></tr>
@@ -6308,6 +6608,26 @@
             </div>
           </div>
 
+          <div class="control-view-toggle" role="group" aria-label="Vista de Alumnado">
+            <button
+              id="alumnado-view-no-lectivo-button"
+              type="button"
+              class="control-view-toggle-button active"
+              data-alumnado-view="no_lectivo"
+            >
+              No lectivo
+            </button>
+            <button
+              id="alumnado-view-lectivo-button"
+              type="button"
+              class="control-view-toggle-button"
+              data-alumnado-view="lectivo"
+            >
+              Lectivo
+            </button>
+          </div>
+
+          <div id="alumnado-no-lectivo-view">
           <form id="students-filters-form" class="filters-grid records-filters-compact">
             <label class="filter-field">
               Centro
@@ -6453,6 +6773,72 @@
               <button id="students-next-page" class="secondary-button" type="button">
                 Siguiente
               </button>
+            </div>
+          </div>
+          </div>
+
+          <div id="alumnado-lectivo-view" class="hidden">
+            <form id="lectivo-alumnado-filters-form" class="filters-grid records-filters-compact">
+              <label class="filter-field">
+                Centro
+                <div class="filter-control-row">
+                  <select id="lectivo-alumnado-centro-filter">
+                    <option value="">Selecciona un centro...</option>
+                  </select>
+                </div>
+              </label>
+
+              <label class="filter-field">
+                Alumnado
+                <div class="filter-control-row">
+                  <input
+                    id="lectivo-alumnado-name-filter"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Nombre o apellidos"
+                  />
+                  <button
+                    type="button"
+                    class="filter-reset-button"
+                    data-reset-control="lectivo-alumnado-name-filter"
+                    aria-label="Restablecer alumnado"
+                    title="Restablecer"
+                  >
+                    x
+                  </button>
+                </div>
+              </label>
+            </form>
+
+            <div class="results-toolbar section-summary-toolbar">
+              <div class="results-summary">
+                <p id="lectivo-students-panel-summary" class="summary-chip">Selecciona un centro.</p>
+              </div>
+              <div class="header-actions">
+                <button id="lectivo-students-new-button" type="button">
+                  Nuevo alumno
+                </button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="student-list-table">
+                <thead>
+                  <tr>
+                    <th>Alumnado</th>
+                    <th>Edad</th>
+                    <th>Correo</th>
+                    <th>Telefono</th>
+                    <th>Horario</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="lectivo-students-table-body">
+                  <tr>
+                    <td colspan="6" class="empty-state">Selecciona un centro.</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -6669,6 +7055,112 @@
                 </button>
                 <button id="clear-student-form-button" class="secondary-button" type="button">
                   Limpiar
+                </button>
+                <button type="submit">Guardar alumno</button>
+              </div>
+            </form>
+          </aside>
+
+          <div id="lectivo-students-panel-backdrop" class="panel-backdrop hidden"></div>
+          <aside
+            id="lectivo-students-panel"
+            class="side-panel hidden"
+            aria-labelledby="lectivo-students-panel-title"
+          >
+            <div class="side-panel-header">
+              <div class="section-heading">
+                <p class="eyebrow">Alumnado Lectivo</p>
+                <h2 id="lectivo-students-panel-title">Nuevo alumno lectivo</h2>
+                <p id="lectivo-student-panel-summary">Completa los datos del alumno.</p>
+              </div>
+              <button
+                id="close-lectivo-students-panel-button"
+                class="secondary-button compact-button"
+                type="button"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <form id="lectivo-student-form" class="activity-form side-panel-form">
+              <input id="lectivo-student-id" name="id" type="hidden" />
+
+              <div class="side-field-row cols-2">
+                <label>
+                  Centro
+                  <select id="lectivo-student-centro" name="centro_id" required></select>
+                </label>
+                <label class="checkbox-field">
+                  <input id="lectivo-student-activo" name="activo" type="checkbox" checked />
+                  Activo
+                </label>
+              </div>
+
+              <div class="side-field-row cols-2">
+                <label>
+                  Nombre
+                  <input id="lectivo-student-nombre" name="nombre" type="text" required />
+                </label>
+                <label>
+                  Apellidos
+                  <input id="lectivo-student-apellidos" name="apellidos" type="text" required />
+                </label>
+              </div>
+
+              <div class="side-field-row cols-3">
+                <label>
+                  Correo electronico
+                  <input id="lectivo-student-correo" name="correo_electronico" type="email" />
+                </label>
+                <label>
+                  Telefono 1
+                  <input id="lectivo-student-telefono1" name="telefono_1" type="tel" />
+                </label>
+                <label>
+                  Telefono 2
+                  <input id="lectivo-student-telefono2" name="telefono_2" type="tel" />
+                </label>
+              </div>
+
+              <div class="side-field-row cols-2">
+                <label>
+                  Edad
+                  <input id="lectivo-student-edad" name="edad" type="number" min="0" step="1" />
+                </label>
+              </div>
+
+              <fieldset class="lectivo-schedule-grid">
+                <legend>Horario semanal (turno A / turno B)</legend>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Lunes</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule="lunes-A" />A</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule="lunes-B" />B</label>
+                </div>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Martes</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule="martes-A" />A</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule="martes-B" />B</label>
+                </div>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Miercoles</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule="miercoles-A" />A</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule="miercoles-B" />B</label>
+                </div>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Jueves</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule="jueves-A" />A</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule="jueves-B" />B</label>
+                </div>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Viernes</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule="viernes-A" />A</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule="viernes-B" />B</label>
+                </div>
+              </fieldset>
+
+              <div class="activity-actions">
+                <button id="lectivo-student-back-button" class="secondary-button" type="button">
+                  Cancelar
                 </button>
                 <button type="submit">Guardar alumno</button>
               </div>
@@ -9514,7 +10006,7 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260908-1" defer></script>
-    <script src="./facturacion.js?v=20260908-1" defer></script>
-    <script src="./app.js?v=20260908-4" defer></script>
+    <script src="./facturacion.js?v=20260910-4" defer></script>
+    <script src="./app.js?v=20260910-1" defer></script>
   </body>
 </html>

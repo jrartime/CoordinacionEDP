@@ -49,6 +49,7 @@ const CONCILIA_MODULE_BY_TAB_KEY = {
   actividades: "actividades",
 };
 const PRIVATE_TAB_TARGETS = new Set([
+  "avisos",
   "programming",
   "control",
   "events",
@@ -66,6 +67,7 @@ const PRIVATE_TAB_TARGETS = new Set([
   "settings",
 ]);
 let ACCESS_ASSIGNABLE_TABS = [
+  { key: "avisos", label: "Avisos" },
   { key: "programming", label: "Programación" },
   { key: "control", label: "Control personal" },
   { key: "events", label: "Eventos" },
@@ -922,6 +924,7 @@ const showPublicPanelButton = document.querySelector("#show-public-panel");
 const showPrivatePanelButton = document.querySelector("#show-private-panel");
 const loginView = document.querySelector("#login-view");
 const privateView = document.querySelector("#private-view");
+const privateTabAvisosButton = document.querySelector("#private-tab-avisos");
 const privateTabSearchButton = document.querySelector("#private-tab-search");
 const privateTabControlButton = document.querySelector("#private-tab-control");
 const privateTabEventsButton = document.querySelector("#private-tab-events");
@@ -943,6 +946,7 @@ const mobileNavOverlay = document.querySelector("#mobile-nav-overlay");
 const mobileNavDrawer = document.querySelector("#mobile-nav-drawer");
 const mobileNavCloseButton = document.querySelector("#mobile-nav-close");
 const mobileNavList = document.querySelector("#mobile-nav-list");
+const privateTabPanelAvisos = document.querySelector("#private-tab-panel-avisos");
 const privateTabPanelNew = document.querySelector("#private-tab-panel-new");
 const privateTabPanelSearch = document.querySelector("#private-tab-panel-search");
 const privateTabPanelControl = document.querySelector("#private-tab-panel-control");
@@ -1425,6 +1429,7 @@ const contractsRefreshButton = document.querySelector("#contracts-refresh-button
 const contractsShowInactiveInput = document.querySelector("#contracts-show-inactive");
 const contractsStatus = document.querySelector("#contracts-status");
 const contractsTableBody = document.querySelector("#contracts-table-body");
+const contractsTableEl = document.querySelector("#contracts-table");
 const contractsBulkFieldSelect = document.querySelector("#contracts-bulk-field");
 const contractsBulkCurrentValueInput = document.querySelector("#contracts-bulk-current-value");
 const contractsBulkNewValueInput = document.querySelector("#contracts-bulk-new-value");
@@ -1772,6 +1777,7 @@ let controlTotalsSections = [];
 let controlTotalsCurrentSummary = "";
 const eventAssignmentSaveTimers = new Map();
 let currentContractRows = [];
+let currentContractsSort = { field: "contrato", direction: "asc" };
 let contractServiceCatalogRows = [];
 let currentContractServiceRows = [];
 let contractPersonalCatalogRows = [];
@@ -2505,6 +2511,17 @@ function bindMobileHomeActions() {
     });
     void openBajasPanel();
   });
+
+  document.querySelector("#mobile-home-action-avisos")?.addEventListener("click", () => {
+    if (!currentAllowedPrivateTabs.has("avisos")) {
+      setStatus("No tienes acceso a Avisos.", "error");
+      return;
+    }
+    switchPrivateTab("avisos");
+    void refreshPrivateTabData("avisos").catch((error) => {
+      setStatus(error?.message || "No se pudieron cargar los avisos.", "error");
+    });
+  });
 }
 
 // --- Instalar como app (PWA) ---
@@ -2588,6 +2605,7 @@ function bindPwaInstall() {
 
 function syncAccessTabVisibility() {
   const tabButtons = {
+    avisos: privateTabAvisosButton,
     search: privateTabSearchButton,
     control: privateTabControlButton,
     events: privateTabEventsButton,
@@ -2739,6 +2757,7 @@ function switchPrivateTab(target) {
     // Storage can be unavailable in some embedded/private contexts.
   }
 
+  const showAvisos = normalizedTarget === "avisos";
   const showSearch = normalizedTarget === "search";
   const showControl = normalizedTarget === "control";
   const showEvents = normalizedTarget === "events";
@@ -2755,6 +2774,7 @@ function switchPrivateTab(target) {
   const showConcilia = normalizedTarget === "concilia" || normalizedTarget === "actividades";
   const hasAnyAccess = currentAllowedPrivateTabs.size > 0;
 
+  privateTabPanelAvisos?.classList.toggle("hidden", !hasAnyAccess || !showAvisos);
   privateTabPanelSearch.classList.toggle("hidden", !hasAnyAccess || !showSearch);
   privateTabPanelControl.classList.toggle("hidden", !hasAnyAccess || !showControl);
   privateTabPanelEvents?.classList.toggle("hidden", !hasAnyAccess || !showEvents);
@@ -2772,6 +2792,7 @@ function switchPrivateTab(target) {
   if (showConcilia) {
     showIntegratedConciliaPanel(normalizedTarget);
   }
+  privateTabAvisosButton?.classList.toggle("active", showAvisos);
   privateTabSearchButton.classList.toggle("active", showSearch);
   privateTabControlButton.classList.toggle("active", showControl);
   privateTabEventsButton?.classList.toggle("active", showEvents);
@@ -2787,6 +2808,7 @@ function switchPrivateTab(target) {
   privateTabContabilidadButton?.classList.toggle("active", showContabilidad);
   privateTabFacturacionButton?.classList.toggle("active", showFacturacion);
   privateTabSettingsButton?.classList.toggle("active", showSettings);
+  privateTabAvisosButton?.setAttribute("aria-pressed", String(showAvisos));
   privateTabSearchButton.setAttribute("aria-pressed", String(showSearch));
   privateTabControlButton.setAttribute("aria-pressed", String(showControl));
   privateTabEventsButton?.setAttribute("aria-pressed", String(showEvents));
@@ -11128,6 +11150,7 @@ async function loadPrivateDataAfterAuth() {
   renderPersonalFormFields();
   setPersonalFormEditing(false);
   syncAccessTabVisibility();
+  void refreshAvisosUnreadBadge();
   await refreshPrivateTabData(currentPrivateTabTarget);
 }
 
@@ -13051,12 +13074,47 @@ async function applyContractsBulkAssignment() {
   setContractsStatus(`Asignación masiva aplicada a ${matches.length} contrato${matches.length === 1 ? "" : "s"}.`, "success");
 }
 
+function getSortableContractValue(contract, field) {
+  switch (field) {
+    case "id": return Number(contract.id) || 0;
+    case "contrato": return String(contract.contrato || "").trim();
+    case "cliente": return String(contract.cliente || "").trim();
+    case "expediente": return String(contract.expediente || "").trim();
+    case "servicios": return getServicesForContract(contract.id).length;
+    case "estado": return contract.activo ? 1 : 0;
+    default: return "";
+  }
+}
+
+function compareContractValues(left, right, field) {
+  const leftValue = getSortableContractValue(left, field);
+  const rightValue = getSortableContractValue(right, field);
+  if (["id", "servicios", "estado"].includes(field)) {
+    return Number(leftValue) - Number(rightValue);
+  }
+  return String(leftValue).localeCompare(String(rightValue), "es", { numeric: true, sensitivity: "base" });
+}
+
+function sortContractRows(rows) {
+  const directionMultiplier = currentContractsSort.direction === "asc" ? 1 : -1;
+  return [...rows].sort((left, right) => {
+    const result = compareContractValues(left, right, currentContractsSort.field);
+    if (result !== 0) return result * directionMultiplier;
+    return String(left.contrato || "").localeCompare(String(right.contrato || ""), "es");
+  });
+}
+
+function syncContractsSortButtons() {
+  syncSortButtonsBySelector("[data-contracts-sort-field]", "contractsSortField", currentContractsSort);
+}
+
 function renderContractsTable() {
   if (!contractsTableBody) {
     return;
   }
 
-  const visibleContracts = getVisibleContractRows();
+  const visibleContracts = sortContractRows(getVisibleContractRows());
+  syncContractsSortButtons();
   syncContractsBulkAssignmentUi();
   if (!visibleContracts.length) {
     contractsTableBody.innerHTML =
@@ -29736,6 +29794,7 @@ const BAJAS_CONCILIACION_FETCH_LIMIT = 1000;
 const bajasFiltersForm = document.querySelector("#bajas-filters-form");
 const bajasSummary = document.querySelector("#bajas-summary");
 const bajasTableBody = document.querySelector("#bajas-table-body");
+const bajasTableEl = document.querySelector("#bajas-table");
 const bajasFilterTipo = document.querySelector("#bajas-filter-tipo");
 const bajasFilterEnCurso = document.querySelector("#bajas-filter-en-curso");
 const bajasClearFiltersButton = document.querySelector("#bajas-clear-filters-button");
@@ -29760,6 +29819,7 @@ const bajasCancelButton = document.querySelector("#bajas-cancel-button");
 const permisosFiltersForm = document.querySelector("#permisos-filters-form");
 const permisosSummary = document.querySelector("#permisos-summary");
 const permisosTableBody = document.querySelector("#permisos-table-body");
+const permisosTableEl = document.querySelector("#permisos-table");
 const permisosFilterCategoria = document.querySelector("#permisos-filter-categoria");
 const permisosFilterTipo = document.querySelector("#permisos-filter-tipo");
 const permisosFilterEnCurso = document.querySelector("#permisos-filter-en-curso");
@@ -29799,7 +29859,9 @@ let bajasConciliacionPersonalOptionsLoaded = false;
 let bajasSubtabLoadedOnce = false;
 let permisosSubtabLoadedOnce = false;
 let bajasRows = [];
+let bajasSort = { field: "fecha_inicio", direction: "desc" };
 let permisosRows = [];
+let permisosSort = { field: "fecha_inicio", direction: "desc" };
 let bajasTipoOptionsCache = [];
 let bajasLugarOptionsCache = [];
 let permisosCategoriaOptionsCache = [];
@@ -30126,14 +30188,52 @@ function getPermisosFilterValues() {
   };
 }
 
+function getSortableBajaValue(row, field) {
+  switch (field) {
+    case "personal": return String(row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : "")).trim();
+    case "tipo": return String(row.tipo || "");
+    case "lugar": return String(row.lugar || "");
+    case "fecha_inicio": return String(row.fecha_inicio || "");
+    case "fecha_fin": return String(row.fecha_fin || "");
+    case "dias": return Number(row.dias) || 0;
+    case "en_curso": return row.en_curso ? 1 : 0;
+    case "con_parte_baja": return row.con_parte_baja ? 1 : 0;
+    case "ingreso_hospitalario": return row.ingreso_hospitalario ? 1 : 0;
+    default: return "";
+  }
+}
+
+function compareBajaValues(left, right, field) {
+  const leftValue = getSortableBajaValue(left, field);
+  const rightValue = getSortableBajaValue(right, field);
+  if (["dias", "en_curso", "con_parte_baja", "ingreso_hospitalario"].includes(field)) {
+    return Number(leftValue) - Number(rightValue);
+  }
+  return String(leftValue).localeCompare(String(rightValue), "es", { numeric: true, sensitivity: "base" });
+}
+
+function sortBajasRows(rows) {
+  const directionMultiplier = bajasSort.direction === "asc" ? 1 : -1;
+  return [...rows].sort((left, right) => {
+    const result = compareBajaValues(left, right, bajasSort.field);
+    if (result !== 0) return result * directionMultiplier;
+    return String(right.fecha_inicio || "").localeCompare(String(left.fecha_inicio || ""), "es", { numeric: true });
+  });
+}
+
+function syncBajasSortButtons() {
+  syncSortButtonsBySelector("[data-bajas-sort-field]", "bajasSortField", bajasSort);
+}
+
 function renderBajasTable(rows) {
   if (!bajasTableBody) return;
+  syncBajasSortButtons();
   if (!rows.length) {
     bajasTableBody.innerHTML =
       '<tr><td colspan="10" class="empty-state">No hay bajas que coincidan con los filtros.</td></tr>';
     return;
   }
-  bajasTableBody.innerHTML = rows
+  bajasTableBody.innerHTML = sortBajasRows(rows)
     .map((row) => {
       const cells = [
         row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : ""),
@@ -30155,14 +30255,49 @@ function renderBajasTable(rows) {
     .join("");
 }
 
+function getSortablePermisoValue(row, field) {
+  switch (field) {
+    case "personal": return String(row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : "")).trim();
+    case "fecha_inicio": return String(row.fecha_inicio || "");
+    case "fecha_fin": return String(row.fecha_fin || "");
+    case "tipo": return String(row.tipo || "");
+    case "dias": return Number(row.dias) || 0;
+    case "en_curso": return row.en_curso ? 1 : 0;
+    default: return "";
+  }
+}
+
+function comparePermisoValues(left, right, field) {
+  const leftValue = getSortablePermisoValue(left, field);
+  const rightValue = getSortablePermisoValue(right, field);
+  if (["dias", "en_curso"].includes(field)) {
+    return Number(leftValue) - Number(rightValue);
+  }
+  return String(leftValue).localeCompare(String(rightValue), "es", { numeric: true, sensitivity: "base" });
+}
+
+function sortPermisosRows(rows) {
+  const directionMultiplier = permisosSort.direction === "asc" ? 1 : -1;
+  return [...rows].sort((left, right) => {
+    const result = comparePermisoValues(left, right, permisosSort.field);
+    if (result !== 0) return result * directionMultiplier;
+    return String(right.fecha_inicio || "").localeCompare(String(left.fecha_inicio || ""), "es", { numeric: true });
+  });
+}
+
+function syncPermisosSortButtons() {
+  syncSortButtonsBySelector("[data-permisos-sort-field]", "permisosSortField", permisosSort);
+}
+
 function renderPermisosTable(rows) {
   if (!permisosTableBody) return;
+  syncPermisosSortButtons();
   if (!rows.length) {
     permisosTableBody.innerHTML =
       '<tr><td colspan="7" class="empty-state">No hay medidas que coincidan con los filtros.</td></tr>';
     return;
   }
-  permisosTableBody.innerHTML = rows
+  permisosTableBody.innerHTML = sortPermisosRows(rows)
     .map((row) => {
       const cells = [
         row.personal || (row.personal_id != null ? `ID ${row.personal_id}` : ""),
@@ -30556,6 +30691,11 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
   }
 
   const normalizedTarget = normalizePrivateTabTarget(target);
+  if (normalizedTarget === "avisos") {
+    await loadAvisos();
+    return;
+  }
+
   if (normalizedTarget === "search") {
     await fetchCandidates();
     return;
@@ -30640,6 +30780,911 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
     await loadProgrammingFromSupabase();
     return;
   }
+}
+
+// ============================================================================
+//  Avisos: mensajería entre miembros de Coordinación, con adjuntos y reglas
+//  de aviso automático (admin).
+// ============================================================================
+let avisosVista = "recibidos";
+let avisosRows = [];
+let avisosDirectorio = [];
+let avisosDirectorioLoaded = false;
+let avisosCurrentDetailId = null;
+let avisosReglasRows = [];
+
+const avisosListEl = document.querySelector("#avisos-list");
+const avisosSummaryEl = document.querySelector("#avisos-summary");
+const avisosFilterVistaSelect = document.querySelector("#avisos-filter-vista");
+const avisosNewButton = document.querySelector("#avisos-new-button");
+const avisosRefreshButton = document.querySelector("#avisos-refresh-button");
+const avisosReglasButton = document.querySelector("#avisos-reglas-button");
+
+const avisosDetailPanel = document.querySelector("#avisos-detail-panel");
+const avisosDetailOverlay = document.querySelector("#avisos-detail-overlay");
+const avisosDetailCloseButton = document.querySelector("#avisos-detail-close-button");
+const avisosDetailDeleteButton = document.querySelector("#avisos-detail-delete-button");
+const avisosDetailEyebrow = document.querySelector("#avisos-detail-eyebrow");
+const avisosDetailTitulo = document.querySelector("#avisos-detail-titulo");
+const avisosDetailMeta = document.querySelector("#avisos-detail-meta");
+const avisosDetailCuerpo = document.querySelector("#avisos-detail-cuerpo");
+const avisosDetailAdjuntos = document.querySelector("#avisos-detail-adjuntos");
+const avisosDetailLecturas = document.querySelector("#avisos-detail-lecturas");
+const avisosDetailLecturasList = document.querySelector("#avisos-detail-lecturas-list");
+
+const avisosNewPanel = document.querySelector("#avisos-new-panel");
+const avisosNewOverlay = document.querySelector("#avisos-new-overlay");
+const avisosNewCloseButton = document.querySelector("#avisos-new-close-button");
+const avisosNewForm = document.querySelector("#avisos-new-form");
+const avisosNewTitulo = document.querySelector("#avisos-new-titulo");
+const avisosNewCuerpo = document.querySelector("#avisos-new-cuerpo");
+const avisosNewParaTodos = document.querySelector("#avisos-new-para-todos");
+const avisosNewDestinatariosField = document.querySelector("#avisos-new-destinatarios-field");
+const avisosNewDestFilterInput = document.querySelector("#avisos-new-destinatarios-filter");
+const avisosNewDestAvailableSelect = document.querySelector("#avisos-new-dest-available");
+const avisosNewDestSelectedSelect = document.querySelector("#avisos-new-dest-selected");
+const avisosNewDestAddButton = document.querySelector("#avisos-new-dest-add-button");
+const avisosNewDestRemoveButton = document.querySelector("#avisos-new-dest-remove-button");
+const avisosNewDropzone = document.querySelector("#avisos-new-dropzone");
+const avisosNewAdjuntosInput = document.querySelector("#avisos-new-adjuntos");
+const avisosNewFilesList = document.querySelector("#avisos-new-files-list");
+const avisosNewStatus = document.querySelector("#avisos-new-status");
+let avisosNewSelectedDestIds = new Set();
+let avisosNewSelectedFiles = [];
+
+const avisosReglasPanel = document.querySelector("#avisos-reglas-panel");
+const avisosReglasOverlay = document.querySelector("#avisos-reglas-overlay");
+const avisosReglasCloseButton = document.querySelector("#avisos-reglas-close-button");
+const avisosReglasListEl = document.querySelector("#avisos-reglas-list");
+const avisosReglasForm = document.querySelector("#avisos-reglas-form");
+const avisosReglasIdInput = document.querySelector("#avisos-reglas-id");
+const avisosReglasNombreInput = document.querySelector("#avisos-reglas-nombre");
+const avisosReglasTablaOrigenSelect = document.querySelector("#avisos-reglas-tabla-origen");
+const avisosReglasActivoCheckbox = document.querySelector("#avisos-reglas-activo");
+const avisosReglasPlantillaTituloInput = document.querySelector("#avisos-reglas-plantilla-titulo");
+const avisosReglasPlantillaCuerpoInput = document.querySelector("#avisos-reglas-plantilla-cuerpo");
+const avisosReglasDifusionSelect = document.querySelector("#avisos-reglas-difusion");
+const avisosReglasRolField = document.querySelector("#avisos-reglas-rol-field");
+const avisosReglasRolSelect = document.querySelector("#avisos-reglas-rol");
+const avisosReglasDestinatariosField = document.querySelector("#avisos-reglas-destinatarios-field");
+const avisosReglasDestinatariosSelect = document.querySelector("#avisos-reglas-destinatarios");
+const avisosReglasStatus = document.querySelector("#avisos-reglas-status");
+const avisosReglasDeleteButton = document.querySelector("#avisos-reglas-delete-button");
+const avisosReglasClearButton = document.querySelector("#avisos-reglas-clear-button");
+const avisosNavBadge = document.querySelector("#avisos-nav-badge");
+const avisosMobileBadge = document.querySelector("#avisos-mobile-badge");
+
+function getAvisosCurrentUserId() {
+  return currentSession?.user?.id || null;
+}
+
+function setAvisosBadgeCount(badgeEl, count) {
+  if (!badgeEl) {
+    return;
+  }
+  if (count > 0) {
+    badgeEl.textContent = count > 99 ? "99+" : String(count);
+    badgeEl.classList.remove("hidden");
+  } else {
+    badgeEl.textContent = "";
+    badgeEl.classList.add("hidden");
+  }
+}
+
+async function refreshAvisosUnreadBadge() {
+  if (!avisosNavBadge && !avisosMobileBadge) {
+    return;
+  }
+  if (!currentAllowedPrivateTabs.has("avisos")) {
+    setAvisosBadgeCount(avisosNavBadge, 0);
+    setAvisosBadgeCount(avisosMobileBadge, 0);
+    return;
+  }
+  const currentUserId = getAvisosCurrentUserId();
+  if (!currentUserId) {
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { count, error } = await supabase
+      .from("avisos_detalle")
+      .select("id", { count: "exact", head: true })
+      .eq("leido", false)
+      .or(`autor_id.is.null,autor_id.neq.${currentUserId}`);
+    if (error) throw error;
+    setAvisosBadgeCount(avisosNavBadge, count || 0);
+    setAvisosBadgeCount(avisosMobileBadge, count || 0);
+  } catch (_error) {
+    // El contador es informativo; un fallo aquí no debe interrumpir nada más.
+  }
+}
+
+function formatAvisosDateTime(value) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+async function ensureAvisosDirectorio(force = false) {
+  if (avisosDirectorioLoaded && !force) {
+    return avisosDirectorio;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("coordinacion_usuarios_directorio")
+      .select("user_id, nombre, activo")
+      .order("nombre", { ascending: true });
+    if (error) throw error;
+    avisosDirectorio = (data || []).filter((row) => row.activo);
+    avisosDirectorioLoaded = true;
+  } catch (_error) {
+    // El selector de destinatarios queda vacío si falla; no bloquea el resto.
+  }
+  return avisosDirectorio;
+}
+
+function renderAvisosDestinatariosOptions(selectEl, selectedIds = new Set()) {
+  if (!selectEl) {
+    return;
+  }
+  const currentUserId = getAvisosCurrentUserId();
+  selectEl.innerHTML = avisosDirectorio
+    .filter((row) => row.user_id !== currentUserId)
+    .map(
+      (row) => `
+        <option value="${escapeHtml(row.user_id)}" ${selectedIds.has(row.user_id) ? "selected" : ""}>
+          ${escapeHtml(row.nombre || row.user_id)}
+        </option>
+      `
+    )
+    .join("");
+}
+
+async function loadAvisos() {
+  avisosReglasButton?.classList.toggle("hidden", !currentUserIsAccessAdmin);
+  await ensureAvisosDirectorio();
+  await fetchAvisos();
+}
+
+async function fetchAvisos() {
+  if (avisosSummaryEl) {
+    avisosSummaryEl.textContent = "Cargando avisos...";
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const currentUserId = getAvisosCurrentUserId();
+    let query = supabase
+      .from("avisos_detalle")
+      .select("*")
+      .order("creado_en", { ascending: false })
+      .limit(300);
+
+    if (avisosVista === "enviados") {
+      query = query.eq("autor_id", currentUserId);
+    } else {
+      if (currentUserId) {
+        query = query.or(`autor_id.is.null,autor_id.neq.${currentUserId}`);
+      }
+      if (avisosVista === "no_leidos") {
+        query = query.eq("leido", false);
+      }
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    avisosRows = data || [];
+    renderAvisosList(avisosRows);
+    void refreshAvisosUnreadBadge();
+  } catch (error) {
+    if (avisosSummaryEl) {
+      avisosSummaryEl.textContent = error?.message || "No se pudieron cargar los avisos.";
+    }
+  }
+}
+
+function renderAvisosList(rows) {
+  if (!avisosListEl) {
+    return;
+  }
+  const currentUserId = getAvisosCurrentUserId();
+
+  if (!rows.length) {
+    avisosListEl.innerHTML = `<p class="empty-state">No hay avisos en esta vista.</p>`;
+    if (avisosSummaryEl) {
+      avisosSummaryEl.textContent = "0 avisos.";
+    }
+    return;
+  }
+
+  if (avisosSummaryEl) {
+    const unreadCount = rows.filter((row) => !row.leido && row.autor_id !== currentUserId).length;
+    const avisoWord = rows.length === 1 ? "aviso" : "avisos";
+    avisosSummaryEl.textContent = `${rows.length} ${avisoWord}${unreadCount ? `, ${unreadCount} sin leer` : ""}.`;
+  }
+
+  avisosListEl.innerHTML = rows
+    .map((row) => {
+      const isUnread = !row.leido && row.autor_id !== currentUserId;
+      const autorLabel = row.origen === "automatico" ? "Sistema" : row.autor_nombre || "—";
+      const chips = [];
+      if (row.difusion === "todos") {
+        chips.push(`<span class="avisos-chip">Todos</span>`);
+      }
+      if (row.contrato_nombre) {
+        chips.push(`<span class="avisos-chip">${escapeHtml(row.contrato_nombre)}</span>`);
+      }
+      if (row.personal_nombre) {
+        chips.push(`<span class="avisos-chip">${escapeHtml(row.personal_nombre)}</span>`);
+      }
+      if (row.tiene_adjuntos) {
+        chips.push(`<span class="avisos-chip">📎</span>`);
+      }
+      return `
+        <button
+          type="button"
+          class="avisos-list-item${isUnread ? " avisos-list-item-unread" : ""}"
+          data-avisos-id="${escapeHtml(row.id)}"
+        >
+          <div class="avisos-list-item-header">
+            <span class="avisos-list-item-titulo">${escapeHtml(row.titulo)}</span>
+            <span class="avisos-list-item-fecha">${formatAvisosDateTime(row.creado_en)}</span>
+          </div>
+          <div class="avisos-list-item-meta">
+            <span>${escapeHtml(autorLabel)}</span>
+            ${chips.join("")}
+          </div>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+async function openAvisoDetail(avisoId) {
+  const row = avisosRows.find((item) => String(item.id) === String(avisoId));
+  if (!row) {
+    return;
+  }
+  avisosCurrentDetailId = row.id;
+  avisosDetailPanel?.classList.remove("hidden");
+
+  if (avisosDetailEyebrow) {
+    avisosDetailEyebrow.textContent = row.origen === "automatico" ? "Aviso automático" : "Aviso";
+  }
+  if (avisosDetailTitulo) {
+    avisosDetailTitulo.textContent = row.titulo || "";
+  }
+  const autorLabel = row.origen === "automatico" ? "Sistema" : row.autor_nombre || "—";
+  const metaParts = [autorLabel, formatAvisosDateTime(row.creado_en)];
+  if (row.difusion === "todos") {
+    metaParts.push("Para todos");
+  }
+  if (row.contrato_nombre) {
+    metaParts.push(row.contrato_nombre);
+  }
+  if (row.personal_nombre) {
+    metaParts.push(row.personal_nombre);
+  }
+  if (avisosDetailMeta) {
+    avisosDetailMeta.textContent = metaParts.filter(Boolean).join(" · ");
+  }
+  if (avisosDetailCuerpo) {
+    avisosDetailCuerpo.textContent = row.cuerpo || "";
+  }
+
+  const currentUserId = getAvisosCurrentUserId();
+  const canManage = currentUserIsAccessAdmin || row.autor_id === currentUserId;
+  avisosDetailDeleteButton?.classList.toggle("hidden", !canManage);
+
+  if (avisosDetailAdjuntos) {
+    avisosDetailAdjuntos.innerHTML = "";
+  }
+  avisosDetailLecturas?.classList.add("hidden");
+
+  try {
+    const supabase = await getSupabaseClient();
+    const [adjuntosResult, lecturasResult] = await Promise.all([
+      row.tiene_adjuntos
+        ? supabase
+            .from("avisos_adjuntos")
+            .select("id, nombre_archivo, ruta_storage, tipo_mime")
+            .eq("aviso_id", row.id)
+        : Promise.resolve({ data: [] }),
+      canManage
+        ? supabase.from("avisos_lecturas").select("user_id, leido_en").eq("aviso_id", row.id)
+        : Promise.resolve({ data: null }),
+    ]);
+    renderAvisoDetailAdjuntos(adjuntosResult.data || []);
+    if (lecturasResult.data) {
+      await renderAvisoDetailLecturas(lecturasResult.data);
+    }
+  } catch (_error) {
+    // Los adjuntos/lecturas son informativos; un fallo aquí no bloquea el detalle.
+  }
+
+  if (!row.leido && row.autor_id !== currentUserId) {
+    void markAvisoAsRead(row.id);
+  }
+}
+
+function renderAvisoDetailAdjuntos(adjuntos) {
+  if (!avisosDetailAdjuntos) {
+    return;
+  }
+  if (!adjuntos.length) {
+    avisosDetailAdjuntos.innerHTML = "";
+    return;
+  }
+  avisosDetailAdjuntos.innerHTML =
+    `<p class="eyebrow">Adjuntos</p>` +
+    adjuntos
+      .map(
+        (item) => `
+          <button
+            type="button"
+            class="avisos-adjunto-item"
+            data-avisos-adjunto-path="${escapeHtml(item.ruta_storage)}"
+            data-avisos-adjunto-nombre="${escapeHtml(item.nombre_archivo)}"
+          >
+            📎 ${escapeHtml(item.nombre_archivo)}
+          </button>
+        `
+      )
+      .join("");
+}
+
+async function renderAvisoDetailLecturas(lecturas) {
+  if (!avisosDetailLecturas || !avisosDetailLecturasList) {
+    return;
+  }
+  await ensureAvisosDirectorio();
+  if (!lecturas.length) {
+    avisosDetailLecturasList.textContent = "Nadie lo ha leído todavía.";
+  } else {
+    const names = lecturas.map((item) => {
+      const person = avisosDirectorio.find((row) => row.user_id === item.user_id);
+      return person?.nombre || "Usuario";
+    });
+    avisosDetailLecturasList.textContent = names.join(", ");
+  }
+  avisosDetailLecturas.classList.remove("hidden");
+}
+
+async function downloadAvisoAttachment(path, filename) {
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.storage.from(supabaseConfig.bucket).download(path);
+    if (error) throw error;
+    const url = URL.createObjectURL(data);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename || "adjunto";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    setStatus(error?.message || "No se pudo descargar el adjunto.", "error");
+  }
+}
+
+async function markAvisoAsRead(avisoId) {
+  try {
+    const supabase = await getSupabaseClient();
+    const userId = getAvisosCurrentUserId();
+    if (!userId) {
+      return;
+    }
+    await supabase
+      .from("avisos_lecturas")
+      .upsert({ aviso_id: avisoId, user_id: userId, leido_en: new Date().toISOString() });
+
+    if (avisosVista === "no_leidos") {
+      avisosRows = avisosRows.filter((item) => String(item.id) !== String(avisoId));
+    } else {
+      const row = avisosRows.find((item) => String(item.id) === String(avisoId));
+      if (row) {
+        row.leido = true;
+      }
+    }
+    renderAvisosList(avisosRows);
+    void refreshAvisosUnreadBadge();
+  } catch (_error) {
+    // Marcar como leído es best-effort: un fallo no debe impedir leer el aviso.
+  }
+}
+
+function closeAvisoDetail() {
+  avisosDetailPanel?.classList.add("hidden");
+  avisosCurrentDetailId = null;
+}
+
+async function deleteCurrentAviso() {
+  if (!avisosCurrentDetailId) {
+    return;
+  }
+  const confirmed = window.confirm("¿Borrar este aviso? Esta acción no se puede deshacer.");
+  if (!confirmed) {
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.from("avisos").delete().eq("id", avisosCurrentDetailId);
+    if (error) throw error;
+    closeAvisoDetail();
+    await fetchAvisos();
+    setStatus("Aviso borrado.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo borrar el aviso.", "error");
+  }
+}
+
+function syncAvisosNewDestinatariosVisibility() {
+  const paraTodos = Boolean(avisosNewParaTodos?.checked);
+  avisosNewDestinatariosField?.classList.toggle("hidden", paraTodos);
+}
+
+function renderAvisosNewDestLists() {
+  if (!avisosNewDestAvailableSelect || !avisosNewDestSelectedSelect) {
+    return;
+  }
+  const currentUserId = getAvisosCurrentUserId();
+  const query = normalizeSearchText(avisosNewDestFilterInput?.value || "");
+
+  const availableRows = avisosDirectorio.filter((row) => {
+    if (row.user_id === currentUserId || avisosNewSelectedDestIds.has(row.user_id)) {
+      return false;
+    }
+    return !query || normalizeSearchText(row.nombre || "").includes(query);
+  });
+  const selectedRows = avisosDirectorio.filter((row) => avisosNewSelectedDestIds.has(row.user_id));
+
+  avisosNewDestAvailableSelect.innerHTML = availableRows
+    .map((row) => `<option value="${escapeHtml(row.user_id)}">${escapeHtml(row.nombre || row.user_id)}</option>`)
+    .join("");
+  avisosNewDestSelectedSelect.innerHTML = selectedRows
+    .map((row) => `<option value="${escapeHtml(row.user_id)}">${escapeHtml(row.nombre || row.user_id)}</option>`)
+    .join("");
+}
+
+function moveAvisosNewDest(userIds, shouldSelect) {
+  userIds.forEach((userId) => {
+    if (shouldSelect) {
+      avisosNewSelectedDestIds.add(userId);
+    } else {
+      avisosNewSelectedDestIds.delete(userId);
+    }
+  });
+  renderAvisosNewDestLists();
+}
+
+function renderAvisosNewFilesList() {
+  if (!avisosNewFilesList) {
+    return;
+  }
+  avisosNewFilesList.innerHTML = avisosNewSelectedFiles
+    .map(
+      (file, index) => `
+        <li class="dropzone-file-item">
+          <span class="dropzone-file-name">${escapeHtml(file.name)}</span>
+          <button
+            type="button"
+            class="dropzone-file-remove"
+            data-avisos-file-index="${index}"
+            aria-label="Quitar ${escapeHtml(file.name)}"
+          >×</button>
+        </li>
+      `
+    )
+    .join("");
+}
+
+function addAvisosNewFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) {
+    return;
+  }
+  avisosNewSelectedFiles = avisosNewSelectedFiles.concat(files);
+  renderAvisosNewFilesList();
+}
+
+function removeAvisosNewFile(index) {
+  avisosNewSelectedFiles.splice(index, 1);
+  renderAvisosNewFilesList();
+}
+
+async function openAvisosNewPanel() {
+  await ensureAvisosDirectorio();
+  avisosNewForm?.reset();
+  avisosNewSelectedDestIds = new Set();
+  avisosNewSelectedFiles = [];
+  if (avisosNewDestFilterInput) {
+    avisosNewDestFilterInput.value = "";
+  }
+  renderAvisosNewDestLists();
+  renderAvisosNewFilesList();
+  syncAvisosNewDestinatariosVisibility();
+  if (avisosNewStatus) {
+    avisosNewStatus.textContent = "";
+  }
+  avisosNewPanel?.classList.remove("hidden");
+}
+
+function closeAvisosNewPanel() {
+  avisosNewPanel?.classList.add("hidden");
+}
+
+async function uploadAvisoAttachment(avisoId, file) {
+  const supabase = await getSupabaseClient();
+  const safeName = sanitizeFileName(file.name);
+  const path = `avisos/${avisoId}/${Date.now()}-${safeName}`;
+  const { error: uploadError } = await supabase.storage.from(supabaseConfig.bucket).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type || "application/octet-stream",
+  });
+  if (uploadError) throw uploadError;
+
+  const { error: insertError } = await supabase.from("avisos_adjuntos").insert({
+    aviso_id: avisoId,
+    nombre_archivo: file.name,
+    ruta_storage: path,
+    tipo_mime: file.type || null,
+    tamano_bytes: file.size || null,
+  });
+  if (insertError) throw insertError;
+}
+
+async function handleAvisosNewSubmit(event) {
+  event.preventDefault();
+  const titulo = avisosNewTitulo?.value.trim();
+  if (!titulo) {
+    if (avisosNewStatus) {
+      avisosNewStatus.textContent = "El título es obligatorio.";
+    }
+    return;
+  }
+  const paraTodos = Boolean(avisosNewParaTodos?.checked);
+  const destinatarios = paraTodos ? [] : Array.from(avisosNewSelectedDestIds);
+
+  if (!paraTodos && !destinatarios.length) {
+    if (avisosNewStatus) {
+      avisosNewStatus.textContent = 'Elige al menos un destinatario o marca "Para todos".';
+    }
+    return;
+  }
+
+  const submitButton = avisosNewForm?.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+  }
+  if (avisosNewStatus) {
+    avisosNewStatus.textContent = "Enviando...";
+  }
+
+  try {
+    const supabase = await getSupabaseClient();
+    const userId = getAvisosCurrentUserId();
+    if (!userId) {
+      throw new Error("No hay una sesión activa.");
+    }
+
+    const { data: avisoRow, error: insertError } = await supabase
+      .from("avisos")
+      .insert({
+        autor_id: userId,
+        origen: "manual",
+        titulo,
+        cuerpo: avisosNewCuerpo?.value.trim() || null,
+        difusion: paraTodos ? "todos" : "usuarios",
+      })
+      .select("id")
+      .single();
+    if (insertError) throw insertError;
+
+    if (!paraTodos && destinatarios.length) {
+      const { error: destError } = await supabase
+        .from("avisos_destinatarios")
+        .insert(destinatarios.map((userIdDest) => ({ aviso_id: avisoRow.id, user_id: userIdDest })));
+      if (destError) throw destError;
+    }
+
+    for (const file of avisosNewSelectedFiles) {
+      await uploadAvisoAttachment(avisoRow.id, file);
+    }
+
+    closeAvisosNewPanel();
+    avisosVista = "enviados";
+    if (avisosFilterVistaSelect) {
+      avisosFilterVistaSelect.value = "enviados";
+    }
+    await fetchAvisos();
+    setStatus("Aviso enviado.", "success");
+  } catch (error) {
+    if (avisosNewStatus) {
+      avisosNewStatus.textContent = error?.message || "No se pudo enviar el aviso.";
+    }
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
+  }
+}
+
+function syncAvisosReglasDifusionVisibility() {
+  const difusion = avisosReglasDifusionSelect?.value || "rol";
+  avisosReglasRolField?.classList.toggle("hidden", difusion !== "rol");
+  avisosReglasDestinatariosField?.classList.toggle("hidden", difusion !== "usuarios");
+}
+
+function resetAvisosReglasForm() {
+  avisosReglasForm?.reset();
+  if (avisosReglasIdInput) {
+    avisosReglasIdInput.value = "";
+  }
+  if (avisosReglasActivoCheckbox) {
+    avisosReglasActivoCheckbox.checked = true;
+  }
+  renderAvisosDestinatariosOptions(avisosReglasDestinatariosSelect);
+  syncAvisosReglasDifusionVisibility();
+  avisosReglasDeleteButton?.classList.add("hidden");
+  if (avisosReglasStatus) {
+    avisosReglasStatus.textContent = "";
+  }
+}
+
+function fillAvisosReglasForm(regla) {
+  if (avisosReglasIdInput) {
+    avisosReglasIdInput.value = regla.id;
+  }
+  if (avisosReglasNombreInput) {
+    avisosReglasNombreInput.value = regla.nombre || "";
+  }
+  if (avisosReglasTablaOrigenSelect) {
+    avisosReglasTablaOrigenSelect.value = regla.tabla_origen || "personal_bajas";
+  }
+  if (avisosReglasActivoCheckbox) {
+    avisosReglasActivoCheckbox.checked = Boolean(regla.activo);
+  }
+  if (avisosReglasPlantillaTituloInput) {
+    avisosReglasPlantillaTituloInput.value = regla.plantilla_titulo || "";
+  }
+  if (avisosReglasPlantillaCuerpoInput) {
+    avisosReglasPlantillaCuerpoInput.value = regla.plantilla_cuerpo || "";
+  }
+  if (avisosReglasDifusionSelect) {
+    avisosReglasDifusionSelect.value = regla.difusion || "rol";
+  }
+  if (avisosReglasRolSelect) {
+    avisosReglasRolSelect.value = regla.rol || "admin";
+  }
+  renderAvisosDestinatariosOptions(
+    avisosReglasDestinatariosSelect,
+    new Set(regla.destinatarios_usuario_ids || [])
+  );
+  syncAvisosReglasDifusionVisibility();
+  avisosReglasDeleteButton?.classList.remove("hidden");
+  if (avisosReglasStatus) {
+    avisosReglasStatus.textContent = "";
+  }
+}
+
+function renderAvisosReglasList() {
+  if (!avisosReglasListEl) {
+    return;
+  }
+  if (!avisosReglasRows.length) {
+    avisosReglasListEl.innerHTML = `<p class="empty-state">No hay reglas todavía.</p>`;
+    return;
+  }
+  avisosReglasListEl.innerHTML = avisosReglasRows
+    .map(
+      (regla) => `
+        <button
+          type="button"
+          class="avisos-reglas-list-item${regla.activo ? "" : " avisos-reglas-list-item-inactive"}"
+          data-avisos-regla-id="${escapeHtml(regla.id)}"
+        >
+          <strong>${escapeHtml(regla.nombre)}</strong>
+          <span>${escapeHtml(regla.tabla_origen)} · ${regla.activo ? "Activa" : "Inactiva"}</span>
+        </button>
+      `
+    )
+    .join("");
+}
+
+async function loadAvisosReglas() {
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("avisos_reglas")
+      .select("*")
+      .order("tabla_origen", { ascending: true })
+      .order("nombre", { ascending: true });
+    if (error) throw error;
+    avisosReglasRows = data || [];
+    renderAvisosReglasList();
+  } catch (error) {
+    if (avisosReglasListEl) {
+      avisosReglasListEl.innerHTML = `<p class="empty-state">${escapeHtml(
+        error?.message || "No se pudieron cargar las reglas."
+      )}</p>`;
+    }
+  }
+}
+
+async function openAvisosReglasPanel() {
+  await ensureAvisosDirectorio();
+  await loadAvisosReglas();
+  resetAvisosReglasForm();
+  avisosReglasPanel?.classList.remove("hidden");
+}
+
+function closeAvisosReglasPanel() {
+  avisosReglasPanel?.classList.add("hidden");
+}
+
+async function handleAvisosReglasSubmit(event) {
+  event.preventDefault();
+  const nombre = avisosReglasNombreInput?.value.trim();
+  const plantillaTitulo = avisosReglasPlantillaTituloInput?.value.trim();
+  const plantillaCuerpo = avisosReglasPlantillaCuerpoInput?.value.trim();
+  if (!nombre || !plantillaTitulo || !plantillaCuerpo) {
+    if (avisosReglasStatus) {
+      avisosReglasStatus.textContent = "Nombre, título y mensaje son obligatorios.";
+    }
+    return;
+  }
+  const difusion = avisosReglasDifusionSelect?.value || "rol";
+  const payload = {
+    nombre,
+    tabla_origen: avisosReglasTablaOrigenSelect?.value || "personal_bajas",
+    activo: Boolean(avisosReglasActivoCheckbox?.checked),
+    plantilla_titulo: plantillaTitulo,
+    plantilla_cuerpo: plantillaCuerpo,
+    difusion,
+    rol: difusion === "rol" ? avisosReglasRolSelect?.value || "admin" : null,
+    destinatarios_usuario_ids:
+      difusion === "usuarios"
+        ? Array.from(avisosReglasDestinatariosSelect?.selectedOptions || []).map((option) => option.value)
+        : [],
+  };
+
+  const reglaId = avisosReglasIdInput?.value;
+  if (avisosReglasStatus) {
+    avisosReglasStatus.textContent = "Guardando...";
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = reglaId
+      ? await supabase.from("avisos_reglas").update(payload).eq("id", reglaId)
+      : await supabase.from("avisos_reglas").insert(payload);
+    if (error) throw error;
+    await loadAvisosReglas();
+    resetAvisosReglasForm();
+    if (avisosReglasStatus) {
+      avisosReglasStatus.textContent = "Regla guardada.";
+    }
+  } catch (error) {
+    if (avisosReglasStatus) {
+      avisosReglasStatus.textContent = error?.message || "No se pudo guardar la regla.";
+    }
+  }
+}
+
+async function deleteCurrentAvisosRegla() {
+  const reglaId = avisosReglasIdInput?.value;
+  if (!reglaId) {
+    return;
+  }
+  const confirmed = window.confirm("¿Borrar esta regla? Los avisos ya generados no se ven afectados.");
+  if (!confirmed) {
+    return;
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.from("avisos_reglas").delete().eq("id", reglaId);
+    if (error) throw error;
+    await loadAvisosReglas();
+    resetAvisosReglasForm();
+  } catch (error) {
+    if (avisosReglasStatus) {
+      avisosReglasStatus.textContent = error?.message || "No se pudo borrar la regla.";
+    }
+  }
+}
+
+function bindAvisosPanel() {
+  avisosRefreshButton?.addEventListener("click", () => void fetchAvisos());
+  avisosFilterVistaSelect?.addEventListener("change", () => {
+    avisosVista = avisosFilterVistaSelect.value || "recibidos";
+    void fetchAvisos();
+  });
+  avisosListEl?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-avisos-id]");
+    if (!button) return;
+    void openAvisoDetail(button.dataset.avisosId);
+  });
+  avisosDetailCloseButton?.addEventListener("click", closeAvisoDetail);
+  avisosDetailOverlay?.addEventListener("click", closeAvisoDetail);
+  avisosDetailDeleteButton?.addEventListener("click", () => void deleteCurrentAviso());
+  avisosDetailAdjuntos?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-avisos-adjunto-path]");
+    if (!button) return;
+    void downloadAvisoAttachment(button.dataset.avisosAdjuntoPath, button.dataset.avisosAdjuntoNombre);
+  });
+
+  avisosNewButton?.addEventListener("click", () => void openAvisosNewPanel());
+  avisosNewCloseButton?.addEventListener("click", closeAvisosNewPanel);
+  avisosNewOverlay?.addEventListener("click", closeAvisosNewPanel);
+  avisosNewParaTodos?.addEventListener("change", syncAvisosNewDestinatariosVisibility);
+  avisosNewForm?.addEventListener("submit", (event) => void handleAvisosNewSubmit(event));
+
+  avisosNewDestAddButton?.addEventListener("click", () => {
+    moveAvisosNewDest(getSelectedOptionValues(avisosNewDestAvailableSelect), true);
+  });
+  avisosNewDestRemoveButton?.addEventListener("click", () => {
+    moveAvisosNewDest(getSelectedOptionValues(avisosNewDestSelectedSelect), false);
+  });
+  avisosNewDestAvailableSelect?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    const value = event.target.closest("option")?.value;
+    if (value) moveAvisosNewDest([value], true);
+  });
+  avisosNewDestSelectedSelect?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    const value = event.target.closest("option")?.value;
+    if (value) moveAvisosNewDest([value], false);
+  });
+  avisosNewDestFilterInput?.addEventListener("input", debounce(renderAvisosNewDestLists, 160));
+
+  avisosNewAdjuntosInput?.addEventListener("change", () => {
+    addAvisosNewFiles(avisosNewAdjuntosInput.files);
+    avisosNewAdjuntosInput.value = "";
+  });
+  avisosNewDropzone?.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    avisosNewDropzone.classList.add("dropzone-active");
+  });
+  avisosNewDropzone?.addEventListener("dragleave", () => {
+    avisosNewDropzone.classList.remove("dropzone-active");
+  });
+  avisosNewDropzone?.addEventListener("drop", (event) => {
+    event.preventDefault();
+    avisosNewDropzone.classList.remove("dropzone-active");
+    addAvisosNewFiles(event.dataTransfer?.files);
+    avisosNewAdjuntosInput.value = "";
+  });
+  avisosNewFilesList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-avisos-file-index]");
+    if (!button) return;
+    removeAvisosNewFile(Number(button.dataset.avisosFileIndex));
+  });
+
+  avisosReglasButton?.addEventListener("click", () => void openAvisosReglasPanel());
+  avisosReglasCloseButton?.addEventListener("click", closeAvisosReglasPanel);
+  avisosReglasOverlay?.addEventListener("click", closeAvisosReglasPanel);
+  avisosReglasDifusionSelect?.addEventListener("change", syncAvisosReglasDifusionVisibility);
+  avisosReglasClearButton?.addEventListener("click", resetAvisosReglasForm);
+  avisosReglasForm?.addEventListener("submit", (event) => void handleAvisosReglasSubmit(event));
+  avisosReglasDeleteButton?.addEventListener("click", () => void deleteCurrentAvisosRegla());
+  avisosReglasListEl?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-avisos-regla-id]");
+    if (!button) return;
+    const regla = avisosReglasRows.find((item) => String(item.id) === button.dataset.avisosReglaId);
+    if (regla) fillAvisosReglasForm(regla);
+  });
 }
 
 window.__curriculosHandleLogin = (event) => {
@@ -32881,6 +33926,12 @@ async function init() {
   const debouncedProgrammingPersonnelSettings = debounce(renderProgrammingPersonnelSettings, 160);
   const debouncedProgrammingInstallationSettings = debounce(renderProgrammingInstallationSettings, 160);
 
+  privateTabAvisosButton?.addEventListener("click", () => {
+    switchPrivateTab("avisos");
+    void refreshPrivateTabData("avisos").catch((error) => {
+      setStatus(error?.message || "No se pudieron cargar los avisos.", "error");
+    });
+  });
   privateTabSearchButton.addEventListener("click", () => {
     switchPrivateTab("search");
     void refreshPrivateTabData("search").catch((error) => {
@@ -33092,6 +34143,15 @@ async function init() {
   contractsNewButton?.addEventListener("click", () => openContractDetailPanel());
   contractsRefreshButton?.addEventListener("click", () => {
     void loadContractsManagement();
+  });
+  contractsTableEl?.querySelector("thead")?.addEventListener("click", (event) => {
+    const field = event.target.closest("[data-contracts-sort-field]")?.dataset.contractsSortField;
+    if (!field) return;
+    currentContractsSort = {
+      field,
+      direction: currentContractsSort.field === field && currentContractsSort.direction === "asc" ? "desc" : "asc",
+    };
+    renderContractsTable();
   });
   contractsShowInactiveInput?.addEventListener("change", () => {
     renderContractsTable();
@@ -33762,6 +34822,15 @@ async function init() {
     const row = bajasRows.find((item) => String(item.id) === String(id));
     if (row) void openBajasPanel(row);
   });
+  bajasTableEl?.querySelector("thead")?.addEventListener("click", (event) => {
+    const field = event.target.closest("[data-bajas-sort-field]")?.dataset.bajasSortField;
+    if (!field) return;
+    bajasSort = {
+      field,
+      direction: bajasSort.field === field && bajasSort.direction === "asc" ? "desc" : "asc",
+    };
+    renderBajasTable(bajasRows);
+  });
 
   permisosFiltersForm?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -33843,6 +34912,15 @@ async function init() {
     if (!id) return;
     const row = permisosRows.find((item) => String(item.id) === String(id));
     if (row) void openPermisosPanel(row);
+  });
+  permisosTableEl?.querySelector("thead")?.addEventListener("click", (event) => {
+    const field = event.target.closest("[data-permisos-sort-field]")?.dataset.permisosSortField;
+    if (!field) return;
+    permisosSort = {
+      field,
+      direction: permisosSort.field === field && permisosSort.direction === "asc" ? "desc" : "asc",
+    };
+    renderPermisosTable(permisosRows);
   });
 
   historialNewButton?.addEventListener("click", () => {
@@ -35553,6 +36631,7 @@ async function init() {
 bindPanelNavigation();
 bindMobileNav();
 bindMobileHomeActions();
+bindAvisosPanel();
 bindPwaInstall();
 registerServiceWorker();
 void init();
