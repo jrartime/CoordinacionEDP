@@ -350,8 +350,8 @@ const SETTINGS_CATALOGS = {
     ],
   },
   complementos: {
-    label: "Complementos y pluses",
-    singularLabel: "complemento",
+    label: "Conceptos Nómina",
+    singularLabel: "concepto",
     table: "nomina_conceptos_catalogo",
     order: "nombre",
     columns:
