@@ -88,6 +88,12 @@ execute function public.set_personal_complementos_updated_at();
 -- este los fija (tipo != 'variable'), ignorando lo que venga en la fila para
 -- evitar que una asignacion quede incoherente con su propio complemento.
 -- Cuando el catalogo es 'variable', exige que la asignacion indique el tipo.
+--
+-- ACTUALIZADA (esta funcion y get_personal_complementos_vigentes, mas abajo)
+-- en nomina_conceptos_catalogo_rename.sql (2026-09-11): la tabla
+-- nomina_complementos_catalogo se renombro a nomina_conceptos_catalogo. El
+-- texto de abajo (con el nombre viejo) es historico; el vigente esta en ese
+-- fichero.
 create or replace function public.set_personal_complemento_tipo()
 returns trigger
 language plpgsql

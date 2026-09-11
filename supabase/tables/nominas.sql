@@ -369,6 +369,11 @@ execute function public.normalize_nomina_historial_ids();
 -- Los complementos traen el suyo en el catalogo; los conceptos que genera el
 -- propio motor (y no son complementos asignables) van en el mapa fijo. Sus
 -- codigos los dio el usuario y estan documentados en nomina_complementos_codigos.sql.
+--
+-- ACTUALIZADA en nomina_conceptos_catalogo_rename.sql (2026-09-11): la tabla
+-- nomina_complementos_catalogo se renombro a nomina_conceptos_catalogo. El
+-- texto de abajo (con el nombre viejo) es historico; el vigente esta en ese
+-- fichero.
 create or replace function public.get_codigo_nomina_concepto(p_concepto text)
 returns integer
 language sql

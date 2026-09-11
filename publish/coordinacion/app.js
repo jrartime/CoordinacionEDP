@@ -352,23 +352,64 @@ const SETTINGS_CATALOGS = {
   complementos: {
     label: "Complementos y pluses",
     singularLabel: "complemento",
-    table: "nomina_complementos_catalogo",
+    table: "nomina_conceptos_catalogo",
     order: "nombre",
     columns:
-      "id,nombre,tipo,unidad,medida_horas,bases_aplicables,cotiza_en,orden_calculo,prorratea_en_extra,codigo_nomina,activo,notas",
+      "id,nombre,naturaleza,categoria,asignable,tipo,unidad,medida_horas,bases_aplicables,cotiza_en,orden_calculo,prorratea_en_extra,codigo_nomina,activo,notas",
     newDefaults: {
       orden_calculo: 100,
       prorratea_en_extra: false,
+      naturaleza: "devengo",
+      categoria: "complemento",
+      asignable: true,
       // Un concepto nuevo cotiza y tributa por todo mientras no se diga otra cosa.
       cotiza_en: ["comunes", "mei", "desempleo", "formacion", "irpf"],
     },
     fields: [
       { key: "nombre", label: "Nombre", type: "text", required: true },
       {
+        // Si está desmarcado (conceptos que solo calcula el motor: salario
+        // base, cotizaciones, IRPF, horas complementarias, festivo...) no
+        // aparece en el selector de "asignar complemento a una persona" ni
+        // en "+ Añadir complemento" de Gestión -- ver loadNominaComplementosCatalog
+        // y loadGestionExtraCatalogo. Tipo/unidad/medida/bases solo aplican
+        // cuando está marcado (se ocultan y se guardan a null si no).
+        key: "asignable",
+        label: "Asignable a una persona a mano",
+        type: "checkbox",
+      },
+      {
+        key: "naturaleza",
+        label: "Naturaleza",
+        type: "select",
+        required: true,
+        options: [
+          { value: "devengo", label: "Devengo" },
+          { value: "deduccion", label: "Deducción" },
+          { value: "ajuste", label: "Ajuste (no cotiza ni tributa)" },
+        ],
+      },
+      {
+        key: "categoria",
+        label: "Categoría",
+        type: "select",
+        required: true,
+        options: [
+          { value: "salario_base", label: "Salario base" },
+          { value: "plus", label: "Plus" },
+          { value: "complemento", label: "Complemento" },
+          { value: "cotizacion", label: "Cotización" },
+          { value: "irpf", label: "IRPF" },
+          { value: "ajuste", label: "Ajuste" },
+          { value: "especial", label: "Especial (enfermedad, finiquito…)" },
+        ],
+      },
+      {
         key: "tipo",
         label: "Tipo",
         type: "select",
         required: true,
+        showWhen: [{ field: "asignable", in: ["on"] }],
         options: [
           { value: "fijo", label: "Fijo" },
           { value: "porcentaje", label: "Porcentaje" },
@@ -379,7 +420,7 @@ const SETTINGS_CATALOGS = {
         key: "unidad",
         label: "Unidad",
         type: "select",
-        showWhen: [{ field: "tipo", in: ["fijo"] }],
+        showWhen: [{ field: "asignable", in: ["on"] }, { field: "tipo", in: ["fijo"] }],
         options: [
           { value: "mensual", label: "Mensual" },
           { value: "diario", label: "Diario (por día trabajado)" },
@@ -390,13 +431,17 @@ const SETTINGS_CATALOGS = {
         key: "medida_horas",
         label: "Medida de horas (p.ej. horas_nocturnas)",
         type: "text",
-        showWhen: [{ field: "tipo", in: ["fijo"] }, { field: "unidad", in: ["por_hora"] }],
+        showWhen: [
+          { field: "asignable", in: ["on"] },
+          { field: "tipo", in: ["fijo"] },
+          { field: "unidad", in: ["por_hora"] },
+        ],
       },
       {
         key: "bases_aplicables",
         label: "Bases sobre las que se aplica el %",
         type: "checkbox-group",
-        showWhen: [{ field: "tipo", in: ["porcentaje"] }],
+        showWhen: [{ field: "asignable", in: ["on"] }, { field: "tipo", in: ["porcentaje"] }],
         options: [
           { value: "salario_base", label: "Salario base" },
           { value: "pluses", label: "Pluses" },
@@ -425,7 +470,7 @@ const SETTINGS_CATALOGS = {
       { key: "activo", label: "Activo", type: "checkbox" },
       { key: "notas", label: "Notas", type: "textarea" },
     ],
-    listFields: ["nombre", "tipo", "codigo_nomina", "activo"],
+    listFields: ["nombre", "categoria", "asignable", "codigo_nomina", "activo"],
     titleField: "nombre",
     usageReferences: [],
   },
@@ -11593,8 +11638,9 @@ async function loadNominaComplementosCatalog() {
   nominaComplementosCatalogLoaded = true;
   const supabase = await getSupabaseClient();
   const { data, error } = await supabase
-    .from("nomina_complementos_catalogo")
+    .from("nomina_conceptos_catalogo")
     .select("id, nombre, tipo, unidad, medida_horas, bases_aplicables, activo")
+    .eq("asignable", true)
     .order("nombre", { ascending: true });
   if (error) {
     // No es admin, o la tabla aun no existe: la seccion se queda oculta.
@@ -21289,9 +21335,10 @@ async function loadGestionExtraCatalogo() {
   try {
     const supabase = await getSupabaseClient();
     const { data, error } = await supabase
-      .from("nomina_complementos_catalogo")
+      .from("nomina_conceptos_catalogo")
       .select("id, nombre, codigo_nomina, cotiza_en")
       .eq("activo", true)
+      .eq("asignable", true)
       .order("nombre");
     if (error) throw error;
     gestionExtraCatalogo = data || [];

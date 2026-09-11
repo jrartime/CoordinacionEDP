@@ -1,189 +1,255 @@
--- Nomina completa de la PERSONA (complemento de nomina_calculo.sql).
+-- Fase 1 del plan "catalogo de conceptos de nomina" (ver memoria
+-- nominas-conceptos-catalogo): renombrar nomina_complementos_catalogo a
+-- nomina_conceptos_catalogo y ampliar su alcance mas alla de los 8
+-- complementos/pluses *asignables* documentados en nomina_complementos.sql.
 --
--- Suma los devengos de todos los puestos que la persona tenga en el periodo
--- (cada uno ya viene filtrado por su puesto desde calcular_nomina_devengos) y
--- anade UNA SOLA VEZ lo que es de la persona:
---   * Desplazamiento: 1 por dia efectivamente trabajado. Si trabaja en dos
---     puestos el mismo dia, ese dia cuenta una vez (decision del usuario: el
---     desplazamiento no se reparte por puesto, va solo en este total).
---   * Complementos asignados a la persona (personal_complementos).
---   * Prorrateo de pagas extra (linea suma + desglose con detalle_de).
--- Y cierra con bases de cotizacion, deducciones y liquido.
+-- A fecha de esta migracion la tabla en produccion ya tenia 16 filas (no solo
+-- las 8 sembradas en el repo): alguien habia anadido a mano Plus de Festivos,
+-- Horas complementarias, Descuento Absentismo, Plus de disponibilidad, Parte
+-- Proporcional de vacaciones, Liquidacion Vacaciones no Disfrutadas,
+-- Complemento personal, Prestacion enfermedad Cargo Empresa y Enfermedad --
+-- estas 4 ultimas tocan el terreno de IT/Finiquito que el usuario decidio
+-- dejar diferido como Fase 4 (ver nominas-incapacidad-transitoria-pendiente y
+-- nominas-finiquito-pendiente), pero como catalogo ya existian y son
+-- asignables a mano igual que el resto -- no se tocan mas alla de clasificarlas.
 --
--- La tarifa de desplazamiento se toma como la MAYOR entre los historiales del
--- periodo que tengan el plus: la del historial predominante puede ser nula
--- aunque otro puesto de la persona si tenga tarifa (caso real: Monitorado con
--- convenio de instalaciones + Conc. Monitorado con convenio de ocio educativo,
--- que no lleva plus_transporte).
---
--- Los tipos de cotizacion y el numero de pagas salen del historial predominante
--- (el de mas dias en el rango). Con dos contratos de convenios distintos, en la
--- realidad habria dos cotizaciones separadas: limitacion conocida.
---
--- p_empresa_id acota la nomina a una empresa del grupo (EDP / INTECA). Sin el,
--- una persona con contrato simultaneo en las dos obtiene UNA nomina con los
--- devengos fundidos, que no corresponde a ninguna nomina real. La pestana
--- Gestion arranca filtrada por EDP justo por esto.
---
--- LIMITACION que el parametro NO resuelve: los complementos de
--- personal_complementos son de la PERSONA, no de la empresa, asi que se imputan
--- enteros a la nomina de cualquier empresa que se pida. Por eso, con pluriempleo,
--- la suma de las dos nominas por empresa es MAYOR que el calculo sin filtro:
--- complementos y desplazamiento se cuentan en ambas. Repartirlos exige decidir
--- que parte va a cada empresa.
+-- Esta fase NO cambia ningun calculo: solo renombra, anade columnas de
+-- metadatos (naturaleza/categoria/asignable) y relaja el check de coherencia
+-- para permitir en el futuro (Fase 2) filas no asignables (salario base,
+-- deducciones/cotizaciones, IRPF) que hoy no existen en la tabla.
 
--- p_historial_ids acota el calculo a unos periodos concretos. Sirve para el caso
--- de una persona con DOS vidas laborales que NO se solapan dentro del mismo mes
--- (alta, baja, y mas tarde otra alta): en la realidad son dos nominas separadas,
--- cada una con su alta y su baja en Seguridad Social, sus dias trabajados y sus
--- propios tipos de cotizacion, no una sola nomina por la suma. Pasando un solo
--- id se obtiene esa nomina; pasando los dos, la suma. Nulo = todos los del rango
--- (comportamiento de siempre).
---
--- Al acotar, los dias trabajados y las horas nocturnas se cuentan solo dentro de
--- las fechas de los periodos elegidos, no de todo el rango del filtro: si no, el
--- plus de transporte de una nomina se llevaria los dias de la otra.
+alter table public.nomina_complementos_catalogo
+  rename to nomina_conceptos_catalogo;
 
--- NOMINA MANUAL (p_manual_*). Fija el salario a mano y se impone a todo lo que
--- se derivaria del historial y del convenio: sustituye los devengos por puesto
--- (salario base, plus de disponibilidad, complemento de puesto, horas
--- complementarias) por el importe indicado. Lo demas -- complementos de la
--- persona, plus de transporte, bases, cotizaciones y liquido -- se sigue
--- calculando igual.
---
---   p_manual_modo: 'periodo' (el importe es el del periodo entero),
---     'diario' (importe x dias naturales de alta dentro del rango) u
---     'hora' (importe x horas trabajadas del periodo).
---   p_manual_pagas_incluidas: si el importe YA lleva dentro la prorrata de las
---     pagas extra, se parte (12/pagas para el salario base, el resto es la
---     prorrata). Si no, la prorrata se calcula encima como siempre.
---   p_manual_complementos / p_manual_transporte: lo que YA va dentro del importe
---     y por tanto no se vuelve a sumar. Marcar la antiguedad no la borra, la da
---     por pagada dentro del salario indicado.
---
--- Ejemplo: 91 EUR/dia en julio con pagas incluidas, marcando antiguedad y
--- transporte, sobre alguien con 14 pagas y un complemento absorbible de 420,84:
---   91 x 31 = 2821 -> base 2821 x 12/14 = 2418,00 y prorrata 403,00
---   + 420,84 del complemento no marcado = 3241,84 de bruto.
+comment on table public.nomina_conceptos_catalogo is
+  'Diccionario de conceptos de nomina y su codigo en el programa externo de la empresa. asignable=true son complementos/pluses que se pueden asignar a una persona (Fase 3, personal_complementos) o anadir a mano a una nomina concreta; asignable=false (a partir de la Fase 2) son conceptos que calcula el motor y nunca se asignan (salario base, cotizaciones, IRPF...).';
 
--- COMPLEMENTOS ANADIDOS A MANO (p_complementos_extra). Lista
--- [{"complemento_id": 15, "importe": 95.00}] con los conceptos que se suman
--- SOLO a esta nomina, sin tocar la ficha de la persona. Si la persona ya tiene
--- ese complemento asignado, salen las dos lineas y se suman las dos: es lo
--- pedido, no se sustituyen. Se emiten con orden 300+ (tras los asignados).
+-- ============================================================================
+-- Columnas nuevas: metadatos de clasificacion, no afectan a ningun calculo.
+-- ============================================================================
 
--- NOMINA MANUAL Y CONCEPTOS DEL PUESTO (2026-07-28). El importe manual sustituye
--- al SALARIO BASE, pero antes se llevaba por delante tambien el resto de lo que
--- genera el puesto (montaje, complementarias, disponibilidad, nocturnidad,
--- festivo, absentismo) sin que apareciera en ninguna parte: Denilson Santiago
--- perdia 439,84 EUR de montaje al fijarle un importe. Ahora esos conceptos SE
--- PAGAN APARTE por defecto y la lista "Complementos y pluses" del panel de
--- Gestion los muestra uno a uno (get_conceptos_puesto_nomina); marcarlos
--- significa "ya van dentro del importe" y entonces no se suman.
+alter table public.nomina_conceptos_catalogo
+  add column if not exists naturaleza text not null default 'devengo',
+  add column if not exists categoria text,
+  add column if not exists asignable boolean not null default true;
 
--- HORAS EN UN PUESTO SIN HISTORIAL (2026-07-27, revisado el 2026-07-29). Si
--- alguien cubre un servicio distinto del suyo, calcular_nomina_devengos descarta
--- esas horas al filtrar por r.puesto_id = h.puesto_id y se perdian en silencio
--- (caso real: Miguel Antonio Rodriguez, 5 horas complementarias como socorrista
--- con contrato de monitor). Las HCOMP y MONT se recogen aqui con
--- get_horas_sin_historial, a la tarifa del puesto DONDE se hicieron, en lineas
--- de orden 200+.
---
--- Las REG siguen sin pagarse como linea propia, por lo mismo de siempre: son
--- jornada y su salario base ya se cobra por el historial. Pero el 2026-07-27 se
--- decidio ademas NO CONTARLAS, y eso estaba mal en las modalidades que ajustan
--- por horas: alli la jornada realizada se compara con la teorica, asi que una
--- hora que no se cuenta no es que no se pague, es que RESTA. Manuel Enrique
--- Fernandez (julio 2026) hizo 169 h de 161 teoricas y cobro un descuento de
--- 123,87 EUR porque el motor solo veia las 145 h de su puesto.
---
--- Desde p_horas_otros_puestos (por defecto true) esas REG suman a la jornada
--- del historial PREDOMINANTE, que es quien aporta cotizaciones y pagas. No se
--- reparten entre todos los solapados: eso las pagaria una vez por puesto.
--- Desmarcarlo recupera el comportamiento anterior, que es lo que procede cuando
--- el puesto del registro esta mal elegido (un error de dato, no una cobertura).
+alter table public.nomina_conceptos_catalogo
+  drop constraint if exists nomina_conceptos_naturaleza_chk,
+  add constraint nomina_conceptos_naturaleza_chk
+    check (naturaleza in ('devengo', 'deduccion', 'ajuste'));
 
--- BASES DE COTIZACION POR CONCEPTO (2026-07-25). Antes las bases se calculaban
--- como "bruto menos excepciones". Ahora cada concepto declara a que bases suma
--- en nomina_complementos_catalogo.cotiza_en y aqui se acumulan una a una:
---   v_b_comunes / v_b_mei / v_b_desempleo / v_b_formacion / v_b_irpf.
--- Lo que no es complemento del catalogo (salario base, pluses de convenio,
--- disponibilidad, horas...) cotiza y tributa por TODO, que es el comportamiento
--- de siempre. El plus de transporte, aunque venga de la tarifa del convenio y
--- no de una asignacion, lee su cotiza_en del catalogo por codigo_nomina = 398.
---
--- Cada linea devuelve su cotiza_en para que la nomina emitida lo congele y
--- pueda explicar por si sola por que su base es la que es.
---
--- Las lineas 600/601/602 siguen siendo las tres bases visibles; si formacion
--- cotizara sobre una base distinta a desempleo, la 601 lo dice en su detalle y
--- cada deduccion lleva su base real en la columna `base`.
+alter table public.nomina_conceptos_catalogo
+  drop constraint if exists nomina_conceptos_categoria_chk,
+  add constraint nomina_conceptos_categoria_chk
+    check (categoria in ('salario_base', 'plus', 'complemento', 'cotizacion', 'irpf', 'ajuste', 'especial'));
 
-drop function if exists public.calcular_nomina_persona(integer, date, date);
-drop function if exists public.calcular_nomina_persona(integer, date, date, integer);
-drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text);
-drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text);
-drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[]);
--- Firma sin cantidad/precio en el returns table (hasta 2026-07-23). Un
--- `create or replace` no puede cambiar el tipo de retorno: hay que dropear.
-drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean);
--- Idem al anadir cotiza_en al returns table y p_complementos_extra (2026-07-25).
-drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb);
--- Idem al anadir p_manual_conceptos_dentro (2026-07-28).
-drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[]);
--- Idem al anadir p_horas_otros_puestos (2026-07-29) y, sobre la misma firma,
--- al anadir despues p_aplicar_topes_cotizacion (2026-08-31): sin dropear
--- antes, PostgREST puede ver la firma vieja y la nueva como un overload
--- ambiguo ("function is not unique").
-drop function if exists public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean);
+comment on column public.nomina_conceptos_catalogo.naturaleza is
+  'devengo/deduccion/ajuste: mismo vocabulario que nomina_lineas.seccion. Es el valor documental por defecto -- el motor sigue decidiendo la seccion real linea a linea en calcular_nomina_persona/emitir_nomina.';
+comment on column public.nomina_conceptos_catalogo.categoria is
+  'Agrupacion del concepto: salario_base, plus, complemento, cotizacion, irpf, ajuste (anticipos/reintegros/descuentos que no son salario), especial (enfermedad, finiquito -- ver memoria nominas-incapacidad-transitoria-pendiente y nominas-finiquito-pendiente).';
+comment on column public.nomina_conceptos_catalogo.asignable is
+  'Si tiene sentido asignarlo a mano a una persona (Configuracion > Complementos y pluses, o "+ Anadir complemento" en Gestion). false para conceptos que solo calcula el motor y nunca se asignan (Fase 2).';
 
--- ACTUALIZADA en nomina_conceptos_catalogo_rename.sql (2026-09-11): la tabla
--- nomina_complementos_catalogo se renombro a nomina_conceptos_catalogo. El
--- cuerpo de abajo (con el nombre viejo) es historico; el vigente esta en ese
--- fichero.
-create or replace function public.calcular_nomina_persona(
-  p_personal_id integer, p_desde date, p_hasta date,
-  p_empresa_id integer default null,
-  -- Sobrescribe el base_calculo de la tarifa de convenio para TODOS los puestos
-  -- del calculo. Vacio = cada convenio manda con el suyo.
-  p_base_calculo text default null,
-  -- Que hacer con la diferencia entre horas REG y jornada teorica:
-  -- 'exceso' (por defecto), 'ambos' (tambien descuenta el defecto), 'ninguno'.
-  p_ajuste_jornada text default null,
-  -- Periodos de historial laboral a incluir. Nulo = todos los del rango.
-  p_historial_ids bigint[] default null,
-  -- Nomina manual: importe del salario. Nulo = calculo normal.
-  p_manual_importe numeric default null,
-  p_manual_modo text default null,
-  p_manual_pagas_incluidas boolean default false,
-  p_manual_complementos bigint[] default null,
-  p_manual_transporte boolean default false,
-  -- Complementos anadidos a mano para ESTA nomina, sin tocar la ficha de la
-  -- persona: [{"complemento_id": 15, "importe": 95.00}, ...]. Se suman al bruto
-  -- ademas de los que la persona ya tenga asignados (si coinciden, van los dos).
-  p_complementos_extra jsonb default null,
-  -- Conceptos del puesto que se dan por INCLUIDOS en el importe manual y
-  -- por tanto no se pagan aparte. Vacio = todos se pagan aparte.
-  p_manual_conceptos_dentro text[] default null,
-  -- Contar como jornada las horas hechas en un puesto que la persona no tiene
-  -- contratado. Por defecto SI: son horas trabajadas y no contarlas no solo
-  -- deja de pagarlas, en modalidad Horas totales las convierte en descuento.
-  -- Se desmarca cuando el puesto del registro esta mal elegido (error de dato).
-  p_horas_otros_puestos boolean default true,
-  -- Aplicar el tope de cotizacion (minimo/maximo por grupo, cotizacion_topes).
-  -- Por defecto SI. Desmarcarlo calcula sin topar nada -- util para comparar
-  -- contra el calculo "en bruto" o mientras un grupo/tarifa no esta fiable.
-  p_aplicar_topes_cotizacion boolean default true
-)
--- cantidad/precio acompanan a cada linea con las UNIDADES y el PRECIO UNITARIO
--- que la produjeron. cotiza_en dice a que bases suma esa linea.
-returns table (
-  orden integer, seccion text, concepto text, detalle text,
-  base numeric, tipo numeric, cantidad numeric, precio numeric,
-  importe numeric, detalle_de text, cotiza_en text[]
-)
-language plpgsql stable security invoker set search_path = public
-as $$
+-- ============================================================================
+-- Backfill de categoria para las 16 filas ya sembradas hoy (todas devengo,
+-- todas asignables -- eso no cambia). Criterio: sigue el nombre literal ya
+-- existente ("Plus de..." -> plus, "Complemento..." -> complemento);
+-- Descuento Absentismo -> ajuste (reduce el devengo pero no es salario/plus/
+-- complemento); las 4 de IT/Finiquito -> especial.
+-- ============================================================================
+
+update public.nomina_conceptos_catalogo set categoria = case nombre
+  when 'Plus de transporte' then 'plus'
+  when 'Plus de nocturnidad' then 'plus'
+  when 'Plus de Festivos' then 'plus'
+  when 'Plus de disponibilidad' then 'plus'
+  when 'Complemento de movilidad' then 'complemento'
+  when 'Complemento de dedicación' then 'complemento'
+  when 'Complemento de antigüedad' then 'complemento'
+  when 'Complemento salarial' then 'complemento'
+  when 'Complemento de puesto' then 'complemento'
+  when 'Complemento personal' then 'complemento'
+  when 'Horas complementarias' then 'complemento'
+  when 'Descuento Absentismo' then 'ajuste'
+  when 'Parte Proporcional de vacaciones' then 'especial'
+  when 'Liquidación Vacaciones no Disfrutadas' then 'especial'
+  when 'Prestación enfermedad Cargo Empresa' then 'especial'
+  when 'Enfermedad' then 'especial'
+  else categoria
+end
+where categoria is null;
+
+-- Si aparece una fila que el criterio de arriba no cubre, mejor fallar aqui
+-- que dejarla en NULL silenciosamente.
+do $$
+declare v_sin_clasificar integer;
+begin
+  select count(*) into v_sin_clasificar
+  from public.nomina_conceptos_catalogo where categoria is null;
+  if v_sin_clasificar > 0 then
+    raise exception
+      'Quedan % filas de nomina_conceptos_catalogo sin categoria tras el backfill -- revisar antes de forzar NOT NULL.',
+      v_sin_clasificar;
+  end if;
+end $$;
+
+alter table public.nomina_conceptos_catalogo
+  alter column categoria set not null;
+
+-- ============================================================================
+-- Relajar tipo/coherencia para permitir filas NO asignables (Fase 2).
+-- ============================================================================
+
+alter table public.nomina_conceptos_catalogo
+  drop constraint if exists nomina_complementos_tipo_chk;
+alter table public.nomina_conceptos_catalogo
+  add constraint nomina_conceptos_tipo_chk
+  check (
+    (asignable and tipo in ('fijo', 'porcentaje', 'variable'))
+    or (not asignable and tipo is null)
+  );
+
+alter table public.nomina_conceptos_catalogo
+  drop constraint if exists nomina_complementos_coherencia_chk;
+alter table public.nomina_conceptos_catalogo
+  add constraint nomina_conceptos_coherencia_chk
+  check (
+    (tipo = 'fijo' and unidad is not null and bases_aplicables is null)
+    or
+    (tipo = 'porcentaje' and unidad is null and medida_horas is null
+      and bases_aplicables is not null and cardinality(bases_aplicables) > 0)
+    or
+    (tipo = 'variable' and unidad is null and medida_horas is null and bases_aplicables is null)
+    or
+    (tipo is null and unidad is null and medida_horas is null and bases_aplicables is null and not asignable)
+  );
+
+-- ============================================================================
+-- Politicas RLS: mismo criterio de siempre (admin-only), renombradas para
+-- reflejar la tabla nueva.
+-- ============================================================================
+
+drop policy if exists "nomina_complementos_catalogo_admin_can_read" on public.nomina_conceptos_catalogo;
+create policy "nomina_conceptos_catalogo_admin_can_read"
+on public.nomina_conceptos_catalogo for select to authenticated
+using (public.is_coordinacion_admin());
+
+drop policy if exists "nomina_complementos_catalogo_admin_can_insert" on public.nomina_conceptos_catalogo;
+create policy "nomina_conceptos_catalogo_admin_can_insert"
+on public.nomina_conceptos_catalogo for insert to authenticated
+with check (public.is_coordinacion_admin());
+
+drop policy if exists "nomina_complementos_catalogo_admin_can_update" on public.nomina_conceptos_catalogo;
+create policy "nomina_conceptos_catalogo_admin_can_update"
+on public.nomina_conceptos_catalogo for update to authenticated
+using (public.is_coordinacion_admin())
+with check (public.is_coordinacion_admin());
+
+drop policy if exists "nomina_complementos_catalogo_admin_can_delete" on public.nomina_conceptos_catalogo;
+create policy "nomina_conceptos_catalogo_admin_can_delete"
+on public.nomina_conceptos_catalogo for delete to authenticated
+using (public.is_coordinacion_admin());
+
+-- ============================================================================
+-- Funciones que referenciaban la tabla por su nombre literal en el cuerpo:
+-- se recrean identicas, solo con el nombre de la tabla actualizado. Sin
+-- cambios de logica ni de firma (comprobado contra pg_proc.prosrc antes de
+-- escribir esta migracion -- eran las 4 unicas).
+-- ============================================================================
+
+create or replace function public.set_personal_complemento_tipo()
+returns trigger
+language plpgsql
+set search_path to 'public'
+as $function$
+declare
+  v_catalogo public.nomina_conceptos_catalogo;
+begin
+  select * into v_catalogo
+  from public.nomina_conceptos_catalogo
+  where id = new.complemento_id;
+
+  if v_catalogo.id is null then
+    raise exception 'complemento_id % no existe en nomina_conceptos_catalogo', new.complemento_id;
+  end if;
+
+  if v_catalogo.tipo = 'variable' then
+    if new.tipo is null then
+      raise exception
+        '"%" es un complemento de tipo variable: indica si esta asignacion es fija o porcentual.',
+        v_catalogo.nombre;
+    end if;
+  else
+    new.tipo := v_catalogo.tipo;
+    new.unidad := v_catalogo.unidad;
+    new.medida_horas := v_catalogo.medida_horas;
+    new.bases_aplicables := v_catalogo.bases_aplicables;
+  end if;
+
+  return new;
+end;
+$function$;
+
+create or replace function public.get_codigo_nomina_concepto(p_concepto text)
+returns integer
+language sql
+stable
+set search_path to 'public'
+as $function$
+  select coalesce(
+    (select c.codigo_nomina
+       from public.nomina_conceptos_catalogo c
+      where lower(c.nombre) = lower(trim(p_concepto))
+      limit 1),
+    case lower(trim(coalesce(p_concepto, '')))
+      when 'plus de disponibilidad' then 93
+      when 'horas complementarias' then 67
+      when 'horas complementarias de otro puesto' then 67
+      when 'montaje de otro puesto' then 60
+      when 'plus festivo trabajado' then 12
+      when 'descuento por absentismo' then 790
+      when 'prorrateo pagas extra' then 30
+      when 'p.p. pagas extra (solo cotiza)' then 30
+      else null
+    end);
+$function$;
+
+create or replace function public.get_personal_complementos_vigentes(p_personal_id integer, p_fecha date default current_date)
+returns table(id bigint, complemento_id bigint, nombre text, codigo_nomina integer, tipo text, unidad text, medida_horas text, bases_aplicables text[], importe numeric, porcentaje numeric, prorratea_en_extra boolean, orden_calculo integer, fecha_desde date, fecha_hasta date, cotiza_en text[])
+language sql
+stable
+set search_path to 'public'
+as $function$
+  select
+    pc.id,
+    pc.complemento_id,
+    c.nombre,
+    c.codigo_nomina,
+    pc.tipo,
+    pc.unidad,
+    pc.medida_horas,
+    pc.bases_aplicables,
+    pc.importe,
+    pc.porcentaje,
+    pc.prorratea_en_extra,
+    c.orden_calculo,
+    pc.fecha_desde,
+    pc.fecha_hasta,
+    c.cotiza_en
+  from public.personal_complementos pc
+  join public.nomina_conceptos_catalogo c on c.id = pc.complemento_id
+  where pc.personal_id = p_personal_id
+    and pc.fecha_desde <= p_fecha
+    and (pc.fecha_hasta is null or pc.fecha_hasta >= p_fecha)
+  order by c.orden_calculo, c.nombre;
+$function$;
+
+create or replace function public.calcular_nomina_persona(p_personal_id integer, p_desde date, p_hasta date, p_empresa_id integer default null::integer, p_base_calculo text default null::text, p_ajuste_jornada text default null::text, p_historial_ids bigint[] default null::bigint[], p_manual_importe numeric default null::numeric, p_manual_modo text default null::text, p_manual_pagas_incluidas boolean default false, p_manual_complementos bigint[] default null::bigint[], p_manual_transporte boolean default false, p_complementos_extra jsonb default null::jsonb, p_manual_conceptos_dentro text[] default null::text[], p_horas_otros_puestos boolean default true, p_aplicar_topes_cotizacion boolean default true)
+returns table(orden integer, seccion text, concepto text, detalle text, base numeric, tipo numeric, cantidad numeric, precio numeric, importe numeric, detalle_de text, cotiza_en text[])
+language plpgsql
+stable
+set search_path to 'public'
+as $function$
 declare
   hp record;
   v_conv public.convenios_categorias_salarios;
@@ -292,9 +358,6 @@ begin
   from (
     select d.concepto, sum(d.importe) as importe
     from public.historiales_laborales h
-    -- Las horas de un puesto sin contratar se suman SOLO al historial
-    -- predominante (hp): repartirlas entre todos los solapados las pagaria
-    -- tantas veces como puestos tenga la persona.
     cross join lateral public.calcular_nomina_devengos(
       h.id, p_desde, p_hasta, p_base_calculo, p_ajuste_jornada,
       p_horas_otros_puestos and h.id = hp.id) d
@@ -311,9 +374,6 @@ begin
     else
       v_base_total := v_manual_total;
     end if;
-    -- Los conceptos del puesto (montaje, complementarias, disponibilidad,
-    -- nocturnidad...) ya NO se pierden al fijar un importe manual: se pagan
-    -- aparte, salvo los que se marquen como incluidos en ese importe.
     select coalesce(sum(cp.importe), 0) into v_manual_fuera
     from public.get_conceptos_puesto_nomina(
            p_personal_id, p_desde, p_hasta, p_empresa_id, p_historial_ids,
@@ -323,8 +383,6 @@ begin
     v_dev_puestos := v_base_total + v_manual_fuera;
   end if;
 
-  -- Los devengos del puesto (salario base, pluses de convenio, disponibilidad,
-  -- horas...) cotizan y tributan por todo: es el comportamiento de siempre.
   v_b_comunes := v_dev_puestos; v_b_mei := v_dev_puestos;
   v_b_desempleo := v_dev_puestos; v_b_formacion := v_dev_puestos;
   v_b_irpf := v_dev_puestos;
@@ -345,10 +403,8 @@ begin
     v_transporte := round(v_tarifa_transp * v_dias_trab, 2);
   end if;
 
-  -- El transporte es tarifa de convenio, no complemento asignado, pero su
-  -- comportamiento de cotizacion sale igualmente del catalogo (codigo 398).
   select c.cotiza_en into v_transp_cotiza
-  from public.nomina_complementos_catalogo c where c.codigo_nomina = 398 limit 1;
+  from public.nomina_conceptos_catalogo c where c.codigo_nomina = 398 limit 1;
   v_transp_cotiza := coalesce(v_transp_cotiza, v_todas);
   if v_transporte <> 0 then
     if 'comunes'   = any(v_transp_cotiza) then v_b_comunes   := v_b_comunes   + v_transporte; end if;
@@ -358,8 +414,6 @@ begin
     if 'irpf'      = any(v_transp_cotiza) then v_b_irpf      := v_b_irpf      + v_transporte; end if;
   end if;
 
-  -- Complementos asignados a la persona: cada uno suma a las bases que declare
-  -- su fila del catalogo.
   for r in
     select c.*, round(
       case c.tipo when 'porcentaje' then v_base_total * c.porcentaje
@@ -379,13 +433,12 @@ begin
     if 'irpf'      = any(coalesce(r.cotiza_en, v_todas)) then v_b_irpf      := v_b_irpf      + r.imp; end if;
   end loop;
 
-  -- Complementos anadidos a mano para esta nomina.
   if p_complementos_extra is not null and jsonb_typeof(p_complementos_extra) = 'array' then
     for r in
       select c.id, c.nombre, c.codigo_nomina, c.orden_calculo, c.cotiza_en,
              round(coalesce((e->>'importe')::numeric, 0), 2) as imp
       from jsonb_array_elements(p_complementos_extra) e
-      join public.nomina_complementos_catalogo c on c.id = (e->>'complemento_id')::bigint
+      join public.nomina_conceptos_catalogo c on c.id = (e->>'complemento_id')::bigint
     loop
       v_extra_total := v_extra_total + r.imp;
       if 'comunes'   = any(coalesce(r.cotiza_en, v_todas)) then v_b_comunes   := v_b_comunes   + r.imp; end if;
@@ -396,11 +449,6 @@ begin
     end loop;
   end if;
 
-  -- Horas HCOMP/MONT hechas en un puesto que la persona no tiene en su
-  -- historial (cubrio otro servicio). calcular_nomina_devengos las descarta al
-  -- filtrar por puesto, asi que se recogen aqui a la tarifa del puesto DONDE se
-  -- hicieron. Las REG no: son jornada y su salario base ya se cobra por el
-  -- historial, asi que sumarlas seria pagar dos veces (solo se avisa en Gestion).
   select coalesce(sum(round(hs.horas * coalesce(
            public.get_puesto_precio_hora(hs.puesto_id, hs.tipo_hora_id, p_desde), 0), 2)), 0)
     into v_huerf_total
@@ -425,8 +473,6 @@ begin
     where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
 
-  -- La prorrata de pagas extra SIEMPRE cotiza (art. 147 LGSS), se devengue o no.
-  -- Al IRPF solo va si se devenga (es el devengado real).
   v_b_comunes   := v_b_comunes   + v_pe_base + v_pe_compl;
   v_b_mei       := v_b_mei       + v_pe_base + v_pe_compl;
   v_b_desempleo := v_b_desempleo + v_pe_base + v_pe_compl;
@@ -503,8 +549,6 @@ begin
   from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
   where not (c.id = any(v_manual_excl));
 
-  -- Los anadidos a mano, tras los asignados. Si coinciden en concepto salen las
-  -- dos lineas: es lo pedido (se suman, no se sustituyen).
   if p_complementos_extra is not null and jsonb_typeof(p_complementos_extra) = 'array' then
     return query
     select (300 + row_number() over (order by c.orden_calculo, c.nombre))::integer,
@@ -513,7 +557,7 @@ begin
       round(coalesce((e->>'importe')::numeric, 0), 2), null::text,
       coalesce(c.cotiza_en, v_todas)
     from jsonb_array_elements(p_complementos_extra) e
-    join public.nomina_complementos_catalogo c on c.id = (e->>'complemento_id')::bigint;
+    join public.nomina_conceptos_catalogo c on c.id = (e->>'complemento_id')::bigint;
   end if;
 
   return query
@@ -557,45 +601,6 @@ begin
   v_bruto := v_dev_puestos + v_transporte + v_compl_total + v_extra_total + v_huerf_total
     + (case when coalesce(v_prorrateo, false) then v_pe_base + v_pe_compl else 0 end);
 
-  -- TOPES DE COTIZACION (2026-08-14). Bases minima/maxima por grupo de
-  -- cotizacion (BOE, cotizacion_topes), grupo del historial PREDOMINANTE (hp) --
-  -- mismo criterio que el resto de datos "de la persona" (tipos de cotizacion,
-  -- numero de pagas). Solo topan comunes/mei/desempleo/formacion; el IRPF
-  -- NUNCA se topa (no es una base de Seguridad Social).
-  --
-  -- "Dias de alta" para prorratear el tope = los mismos que ya usa el salario
-  -- base (dias_nomina: base 30 si el mes esta cubierto desde el dia 1, dias
-  -- reales si entra a mitad) -- decision del usuario, para no introducir un
-  -- tercer criterio de dias distinto de los dos que ya conviven en el motor.
-  -- Grupos 1-7 cotizan en €/mes (se prorratea /30 igual que el salario base);
-  -- grupos 8-11 en €/dia (el tope del periodo es la tarifa diaria x dias, sin
-  -- dividir entre 30).
-  --
-  -- Si el historial no tiene grupo_cotizacion asignado, NO se topa nada --
-  -- decision del usuario: no bloquear la nomina ni inventar un grupo, solo
-  -- avisar (linea 603 mas abajo). A 2026-08-14 el 60% de los historiales
-  -- vigentes no lo tienen asignado todavia.
-  --
-  -- MINIMO Y JORNADA PARCIAL (2026-08-28, corregido 2026-08-31). El maximo no
-  -- se prorratea por jornada -- es un techo unico del sistema (por eso el
-  -- maximo mensual de cotizacion_topes es identico en los grupos 1-7).
-  --
-  -- El minimo si distingue tiempo completo de tiempo parcial, pero NO con un
-  -- prorrateo simple del minimo mensual por el coeficiente de jornada -- la
-  -- SS fija para tiempo parcial una tarifa MINIMA POR HORA propia (BOE,
-  -- columna "Tiempo Parcial", cotizacion_topes.tiempo_parcial_hora), sobre las
-  -- horas teoricas del periodo (horas_teoricas_jornada, la misma funcion que
-  -- ya usa el ajuste de jornada en nomina_calculo.sql) redondeadas al entero
-  -- mas cercano. La primera version (coeficiente_temporalidad_miles) parecia
-  -- correcta con Pelayo Fernandez (historial 4164, grupo 6, 17h/40h, agosto
-  -- 2026: bruto 701,29€ > minimo prorrateado 605,37€, no topa en ningun caso)
-  -- pero ese caso no discrimina entre formulas -- ambas dan "no topa". La
-  -- diferencia aparecio y se verifico al centimo contra el a3nom real con
-  -- Vanesa Garcia Isidro (historial 5482, 7,5h/40h: horas teoricas 31,5 -> 32h
-  -- x 8,58€ = 274,56€), Santiago Puerta (historial 4882, 28,5h/40h: 119,7 ->
-  -- 120h x 8,58€ = 1.029,60€) y Maria Eugenia de Ugarriza (historial 5913,
-  -- 32h/40h: 134,4 -> 134h x 8,58€ = 1.149,72€) -- las tres coincidian con el
-  -- coeficiente y solo la formula por horas daba el importe real.
   if p_aplicar_topes_cotizacion and hp.grupo_cotizacion is not null then
     select t.* into v_tope
     from public.cotizacion_topes t
@@ -623,10 +628,6 @@ begin
         end if;
         v_tope_max := round(v_tope.base_maxima_mensual * v_tope_dias / 30.0, 2);
       else
-        -- Grupos 8-11 (unidad diaria): sin caso real verificado todavia, se
-        -- mantiene el prorrateo por coeficiente de jornada de la version
-        -- anterior. Revisar si aparece un caso real de tiempo parcial en
-        -- estos grupos.
         v_tope_min := round(v_tope.base_minima_diaria * v_tope_dias * v_coef_jornada, 2);
         v_tope_max := round(v_tope.base_maxima_diaria * v_tope_dias, 2);
       end if;
@@ -638,7 +639,6 @@ begin
     end if;
   end if;
 
-  -- Las bases ya vienen sumadas concepto a concepto segun su cotiza_en.
   v_base_cc := v_b_comunes;
   v_base_cp := v_b_desempleo;
   v_base_irpf := v_b_irpf;
@@ -687,7 +687,8 @@ begin
   return query select 810, 'total'::text, 'Líquido a percibir'::text, null::text, null::numeric, null::numeric, null::numeric, null::numeric, round(v_bruto - v_ded_total, 2), null::text, null::text[];
   return;
 end;
-$$;
+$function$;
 
-revoke all on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean, boolean) from public;
-grant execute on function public.calcular_nomina_persona(integer, date, date, integer, text, text, bigint[], numeric, text, boolean, bigint[], boolean, jsonb, text[], boolean, boolean) to authenticated;
+-- Sin revoke/grant aqui a proposito: CREATE OR REPLACE FUNCTION conserva el
+-- ACL que ya tuviera cada funcion (comprobado en pg_proc.proacl antes de
+-- escribir esta migracion). Tocar permisos no es parte de esta fase.
