@@ -6104,6 +6104,14 @@
               <div class="facturacion-section-title">
                 <div><p class="eyebrow">Trazabilidad</p><h3>Preparaciones guardadas</h3></div>
                 <div class="facturacion-generation-actions">
+                  <label>
+                    Factura
+                    <select id="facturacion-preparations-factura-filter">
+                      <option value="">Todas</option>
+                      <option value="sin_factura">Sin factura</option>
+                      <option value="con_factura">Con factura</option>
+                    </select>
+                  </label>
                   <button id="facturacion-preparations-pdf" type="button" class="warm-button" disabled>Descargar PDF de marcadas</button>
                 </div>
               </div>
@@ -10006,7 +10014,7 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260908-1" defer></script>
-    <script src="./facturacion.js?v=20260910-4" defer></script>
+    <script src="./facturacion.js?v=20260914-2" defer></script>
     <script src="./app.js?v=20260910-1" defer></script>
   </body>
 </html>
