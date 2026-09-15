@@ -6786,7 +6786,35 @@
           </div>
 
           <div id="alumnado-lectivo-view" class="hidden">
-            <form id="lectivo-alumnado-filters-form" class="filters-grid records-filters-compact">
+            <div class="results-toolbar section-summary-toolbar personal-stats-toolbar">
+              <div id="lectivo-alumnado-stats" class="results-summary">
+                <article class="summary-chip">
+                  <span class="summary-label">Alumnado apuntado</span>
+                  <strong id="lectivo-stat-apuntado">0</strong>
+                </article>
+                <article class="summary-chip">
+                  <span class="summary-label">Asistencia global · mes en curso</span>
+                  <strong id="lectivo-stat-global-actual">-</strong>
+                </article>
+                <article class="summary-chip">
+                  <span class="summary-label">Asistencia global · mes anterior</span>
+                  <strong id="lectivo-stat-global-anterior">-</strong>
+                </article>
+                <article class="summary-chip">
+                  <span class="summary-label">Asistencia del centro · mes en curso</span>
+                  <strong id="lectivo-stat-centro-actual">-</strong>
+                </article>
+                <article class="summary-chip">
+                  <span class="summary-label">Asistencia del centro · mes anterior</span>
+                  <strong id="lectivo-stat-centro-anterior">-</strong>
+                </article>
+              </div>
+            </div>
+
+            <form
+              id="lectivo-alumnado-filters-form"
+              class="filters-grid records-filters-compact personal-list-filters"
+            >
               <label class="filter-field">
                 Centro
                 <div class="filter-control-row">
@@ -6818,38 +6846,224 @@
               </label>
             </form>
 
-            <div class="results-toolbar section-summary-toolbar">
-              <div class="results-summary">
-                <p id="lectivo-students-panel-summary" class="summary-chip">Selecciona un centro.</p>
-              </div>
-              <div class="header-actions">
-                <button id="lectivo-students-new-button" type="button">
-                  Nuevo alumno
-                </button>
-              </div>
-            </div>
+            <div class="personal-management-layout">
+              <aside class="personal-list-panel">
+                <div class="results-toolbar section-summary-toolbar">
+                  <div class="results-summary">
+                    <p id="lectivo-students-panel-summary" class="muted-text">Selecciona un centro.</p>
+                  </div>
+                  <div class="header-actions">
+                    <button id="lectivo-students-new-button" type="button">
+                      Nuevo alumno
+                    </button>
+                  </div>
+                </div>
+                <div
+                  id="lectivo-students-list"
+                  class="personal-list"
+                  role="listbox"
+                  aria-label="Listado de alumnado lectivo"
+                >
+                  <p class="empty-state">Selecciona un centro.</p>
+                </div>
+              </aside>
 
-            <div class="table-wrap">
-              <table class="student-list-table">
-                <thead>
-                  <tr>
-                    <th>Alumnado</th>
-                    <th>Edad</th>
-                    <th>Correo</th>
-                    <th>Telefono</th>
-                    <th>Horario</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="lectivo-students-table-body">
-                  <tr>
-                    <td colspan="6" class="empty-state">Selecciona un centro.</td>
-                  </tr>
-                </tbody>
-              </table>
+              <section class="personal-detail-panel">
+                <div class="section-heading-row compact-heading-row personal-detail-heading">
+                  <div class="personal-detail-identity">
+                    <span id="lectivo-student-detail-avatar" class="personal-detail-avatar" aria-hidden="true"
+                      >+</span
+                    >
+                    <div>
+                      <p class="eyebrow">Alumnado Lectivo</p>
+                      <h2 id="lectivo-students-panel-title">Nuevo alumno lectivo</h2>
+                      <p id="lectivo-student-panel-summary" class="muted-text">Completa los datos del alumno.</p>
+                    </div>
+                  </div>
+                </div>
+
+            <form id="lectivo-student-form" class="activity-form side-panel-form">
+              <input id="lectivo-student-id" name="id" type="hidden" />
+
+              <div class="side-field-row cols-2">
+                <label>
+                  Centro
+                  <select id="lectivo-student-centro" name="centro_id" required></select>
+                </label>
+                <label class="checkbox-field">
+                  <input id="lectivo-student-activo" name="activo" type="checkbox" checked />
+                  Activo
+                </label>
+              </div>
+
+              <div class="side-field-row cols-2">
+                <label>
+                  Nombre
+                  <input id="lectivo-student-nombre" name="nombre" type="text" required />
+                </label>
+                <label>
+                  Apellidos
+                  <input id="lectivo-student-apellidos" name="apellidos" type="text" required />
+                </label>
+              </div>
+
+              <div class="side-field-row cols-3">
+                <label>
+                  Correo electronico
+                  <input id="lectivo-student-correo" name="correo_electronico" type="email" />
+                </label>
+                <label>
+                  Telefono 1
+                  <input id="lectivo-student-telefono1" name="telefono_1" type="tel" />
+                </label>
+                <label>
+                  Telefono 2
+                  <input id="lectivo-student-telefono2" name="telefono_2" type="tel" />
+                </label>
+              </div>
+
+              <div class="side-field-row cols-2">
+                <label>
+                  Edad
+                  <input id="lectivo-student-edad" name="edad" type="number" min="0" step="1" />
+                </label>
+              </div>
+
+              <div class="side-field-row cols-2">
+                <label>
+                  Autorizado 1 · Nombre
+                  <input id="lectivo-student-autorizado1-nombre" name="autorizado_1_nombre" type="text" />
+                </label>
+                <label>
+                  Autorizado 1 · DNI
+                  <input id="lectivo-student-autorizado1-dni" name="autorizado_1_dni" type="text" />
+                </label>
+              </div>
+
+              <div class="side-field-row cols-2">
+                <label>
+                  Autorizado 2 · Nombre
+                  <input id="lectivo-student-autorizado2-nombre" name="autorizado_2_nombre" type="text" />
+                </label>
+                <label>
+                  Autorizado 2 · DNI
+                  <input id="lectivo-student-autorizado2-dni" name="autorizado_2_dni" type="text" />
+                </label>
+              </div>
+
+              <div class="side-field-row cols-2">
+                <label>
+                  Autorizado 3 · Nombre
+                  <input id="lectivo-student-autorizado3-nombre" name="autorizado_3_nombre" type="text" />
+                </label>
+                <label>
+                  Autorizado 3 · DNI
+                  <input id="lectivo-student-autorizado3-dni" name="autorizado_3_dni" type="text" />
+                </label>
+              </div>
+
+              <div class="side-field-row cols-3">
+                <label>
+                  Autoriza: se va solo/a
+                  <select id="lectivo-student-autoriza-se-va-solo">
+                    <option value="">No indicado</option>
+                    <option value="true">Sí</option>
+                    <option value="false">No</option>
+                  </select>
+                </label>
+                <label>
+                  Autoriza: salidas del centro
+                  <select id="lectivo-student-autoriza-salidas-centro">
+                    <option value="">No indicado</option>
+                    <option value="true">Sí</option>
+                    <option value="false">No</option>
+                  </select>
+                </label>
+                <label>
+                  Autoriza: imágenes/vídeos
+                  <select id="lectivo-student-autoriza-imagenes">
+                    <option value="">No indicado</option>
+                    <option value="true">Sí</option>
+                    <option value="false">No</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="side-field-row">
+                <label>
+                  Alergias / intolerancias / tratamiento
+                  <textarea id="lectivo-student-alergias" name="alergias" rows="2"></textarea>
+                </label>
+              </div>
+
+              <div class="side-field-row">
+                <label>
+                  Observaciones / sugerencias
+                  <textarea id="lectivo-student-observaciones" name="observaciones" rows="2"></textarea>
+                </label>
+              </div>
+
+              <div class="side-field-row">
+                <label>
+                  Asistencia declarada (referencia)
+                  <textarea id="lectivo-student-asistencia-resumen" name="asistencia_resumen" rows="2"></textarea>
+                </label>
+              </div>
+
+              <fieldset class="lectivo-schedule-grid" data-lectivo-schedule-type="weekday">
+                <legend>Horario semanal (turno A / turno B)</legend>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Lunes</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="lunes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="lunes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
+                </div>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Martes</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="martes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="martes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
+                </div>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Miercoles</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="miercoles" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="miercoles" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
+                </div>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Jueves</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="jueves" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="jueves" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
+                </div>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Viernes</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="viernes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="viernes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
+                </div>
+              </fieldset>
+
+              <fieldset class="lectivo-schedule-grid lectivo-schedule-grid-weekend hidden" data-lectivo-schedule-type="weekend">
+                <legend>Horario de fin de semana (San Pedro)</legend>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Sabado</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="turno_1" data-lectivo-schedule-orden="1" />T1</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="turno_2" data-lectivo-schedule-orden="2" />T2</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="tarde" data-lectivo-schedule-orden="3" />Tarde</label>
+                </div>
+                <div class="lectivo-schedule-day">
+                  <span class="lectivo-schedule-day-label">Domingo</span>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="domingo" data-lectivo-schedule-turno="turno_1" data-lectivo-schedule-orden="1" />T1</label>
+                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="domingo" data-lectivo-schedule-turno="turno_2" data-lectivo-schedule-orden="2" />T2</label>
+                </div>
+              </fieldset>
+
+              <div class="activity-actions">
+                <button id="lectivo-student-back-button" class="secondary-button" type="button">
+                  Cancelar
+                </button>
+                <button type="submit">Guardar alumno</button>
+              </div>
+            </form>
+              </section>
             </div>
           </div>
-
           <div id="student-panel-backdrop" class="panel-backdrop hidden"></div>
           <div id="summary-panel-backdrop" class="panel-backdrop hidden"></div>
           <aside
@@ -7069,207 +7283,6 @@
             </form>
           </aside>
 
-          <div id="lectivo-students-panel-backdrop" class="panel-backdrop hidden"></div>
-          <aside
-            id="lectivo-students-panel"
-            class="side-panel hidden"
-            aria-labelledby="lectivo-students-panel-title"
-          >
-            <div class="side-panel-header">
-              <div class="section-heading">
-                <p class="eyebrow">Alumnado Lectivo</p>
-                <h2 id="lectivo-students-panel-title">Nuevo alumno lectivo</h2>
-                <p id="lectivo-student-panel-summary">Completa los datos del alumno.</p>
-              </div>
-              <button
-                id="close-lectivo-students-panel-button"
-                class="secondary-button compact-button"
-                type="button"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <form id="lectivo-student-form" class="activity-form side-panel-form">
-              <input id="lectivo-student-id" name="id" type="hidden" />
-
-              <div class="side-field-row cols-2">
-                <label>
-                  Centro
-                  <select id="lectivo-student-centro" name="centro_id" required></select>
-                </label>
-                <label class="checkbox-field">
-                  <input id="lectivo-student-activo" name="activo" type="checkbox" checked />
-                  Activo
-                </label>
-              </div>
-
-              <div class="side-field-row cols-2">
-                <label>
-                  Nombre
-                  <input id="lectivo-student-nombre" name="nombre" type="text" required />
-                </label>
-                <label>
-                  Apellidos
-                  <input id="lectivo-student-apellidos" name="apellidos" type="text" required />
-                </label>
-              </div>
-
-              <div class="side-field-row cols-3">
-                <label>
-                  Correo electronico
-                  <input id="lectivo-student-correo" name="correo_electronico" type="email" />
-                </label>
-                <label>
-                  Telefono 1
-                  <input id="lectivo-student-telefono1" name="telefono_1" type="tel" />
-                </label>
-                <label>
-                  Telefono 2
-                  <input id="lectivo-student-telefono2" name="telefono_2" type="tel" />
-                </label>
-              </div>
-
-              <div class="side-field-row cols-2">
-                <label>
-                  Edad
-                  <input id="lectivo-student-edad" name="edad" type="number" min="0" step="1" />
-                </label>
-              </div>
-
-              <div class="side-field-row cols-2">
-                <label>
-                  Autorizado 1 · Nombre
-                  <input id="lectivo-student-autorizado1-nombre" name="autorizado_1_nombre" type="text" />
-                </label>
-                <label>
-                  Autorizado 1 · DNI
-                  <input id="lectivo-student-autorizado1-dni" name="autorizado_1_dni" type="text" />
-                </label>
-              </div>
-
-              <div class="side-field-row cols-2">
-                <label>
-                  Autorizado 2 · Nombre
-                  <input id="lectivo-student-autorizado2-nombre" name="autorizado_2_nombre" type="text" />
-                </label>
-                <label>
-                  Autorizado 2 · DNI
-                  <input id="lectivo-student-autorizado2-dni" name="autorizado_2_dni" type="text" />
-                </label>
-              </div>
-
-              <div class="side-field-row cols-2">
-                <label>
-                  Autorizado 3 · Nombre
-                  <input id="lectivo-student-autorizado3-nombre" name="autorizado_3_nombre" type="text" />
-                </label>
-                <label>
-                  Autorizado 3 · DNI
-                  <input id="lectivo-student-autorizado3-dni" name="autorizado_3_dni" type="text" />
-                </label>
-              </div>
-
-              <div class="side-field-row cols-3">
-                <label>
-                  Autoriza: se va solo/a
-                  <select id="lectivo-student-autoriza-se-va-solo">
-                    <option value="">No indicado</option>
-                    <option value="true">Sí</option>
-                    <option value="false">No</option>
-                  </select>
-                </label>
-                <label>
-                  Autoriza: salidas del centro
-                  <select id="lectivo-student-autoriza-salidas-centro">
-                    <option value="">No indicado</option>
-                    <option value="true">Sí</option>
-                    <option value="false">No</option>
-                  </select>
-                </label>
-                <label>
-                  Autoriza: imágenes/vídeos
-                  <select id="lectivo-student-autoriza-imagenes">
-                    <option value="">No indicado</option>
-                    <option value="true">Sí</option>
-                    <option value="false">No</option>
-                  </select>
-                </label>
-              </div>
-
-              <div class="side-field-row">
-                <label>
-                  Alergias / intolerancias / tratamiento
-                  <textarea id="lectivo-student-alergias" name="alergias" rows="2"></textarea>
-                </label>
-              </div>
-
-              <div class="side-field-row">
-                <label>
-                  Observaciones / sugerencias
-                  <textarea id="lectivo-student-observaciones" name="observaciones" rows="2"></textarea>
-                </label>
-              </div>
-
-              <div class="side-field-row">
-                <label>
-                  Asistencia declarada (referencia)
-                  <textarea id="lectivo-student-asistencia-resumen" name="asistencia_resumen" rows="2"></textarea>
-                </label>
-              </div>
-
-              <fieldset class="lectivo-schedule-grid" data-lectivo-schedule-type="weekday">
-                <legend>Horario semanal (turno A / turno B)</legend>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Lunes</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="lunes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="lunes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
-                </div>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Martes</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="martes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="martes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
-                </div>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Miercoles</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="miercoles" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="miercoles" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
-                </div>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Jueves</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="jueves" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="jueves" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
-                </div>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Viernes</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="viernes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="viernes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
-                </div>
-              </fieldset>
-
-              <fieldset class="lectivo-schedule-grid lectivo-schedule-grid-weekend hidden" data-lectivo-schedule-type="weekend">
-                <legend>Horario de fin de semana (San Pedro)</legend>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Sabado</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="turno_1" data-lectivo-schedule-orden="1" />T1</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="turno_2" data-lectivo-schedule-orden="2" />T2</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="tarde" data-lectivo-schedule-orden="3" />Tarde</label>
-                </div>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Domingo</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="domingo" data-lectivo-schedule-turno="turno_1" data-lectivo-schedule-orden="1" />T1</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="domingo" data-lectivo-schedule-turno="turno_2" data-lectivo-schedule-orden="2" />T2</label>
-                </div>
-              </fieldset>
-
-              <div class="activity-actions">
-                <button id="lectivo-student-back-button" class="secondary-button" type="button">
-                  Cancelar
-                </button>
-                <button type="submit">Guardar alumno</button>
-              </div>
-            </form>
-          </aside>
         </section>
 
         <section
@@ -10102,7 +10115,7 @@
     <script src="./config.js" defer></script>
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260915-4" defer></script>
+    <script src="./concilia-integrated.js?v=20260915-6" defer></script>
     <script src="./facturacion.js?v=20260914-2" defer></script>
     <script src="./app.js?v=20260910-1" defer></script>
   </body>

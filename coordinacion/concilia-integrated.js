@@ -86,15 +86,18 @@
   const alumnadoLectivoView = document.querySelector("#alumnado-lectivo-view");
   const lectivoAlumnadoCentroFilter = document.querySelector("#lectivo-alumnado-centro-filter");
   const lectivoAlumnadoNameFilter = document.querySelector("#lectivo-alumnado-name-filter");
-  const lectivoStudentsPanelBackdrop = document.querySelector("#lectivo-students-panel-backdrop");
-  const lectivoStudentsPanel = document.querySelector("#lectivo-students-panel");
-  const closeLectivoStudentsPanelButton = document.querySelector("#close-lectivo-students-panel-button");
   const lectivoStudentPanelTitle = document.querySelector("#lectivo-students-panel-title");
   const lectivoStudentPanelSummary = document.querySelector("#lectivo-student-panel-summary");
+  const lectivoStudentDetailAvatar = document.querySelector("#lectivo-student-detail-avatar");
   const lectivoStudentsPanelSummary = document.querySelector("#lectivo-students-panel-summary");
   const lectivoStudentsCentroSelect = lectivoAlumnadoCentroFilter;
   const lectivoStudentsNewButton = document.querySelector("#lectivo-students-new-button");
-  const lectivoStudentsTableBody = document.querySelector("#lectivo-students-table-body");
+  const lectivoStudentsList = document.querySelector("#lectivo-students-list");
+  const lectivoStatApuntado = document.querySelector("#lectivo-stat-apuntado");
+  const lectivoStatGlobalActual = document.querySelector("#lectivo-stat-global-actual");
+  const lectivoStatGlobalAnterior = document.querySelector("#lectivo-stat-global-anterior");
+  const lectivoStatCentroActual = document.querySelector("#lectivo-stat-centro-actual");
+  const lectivoStatCentroAnterior = document.querySelector("#lectivo-stat-centro-anterior");
   const lectivoStudentForm = document.querySelector("#lectivo-student-form");
   const lectivoStudentBackButton = document.querySelector("#lectivo-student-back-button");
   const lectivoStudentIdInput = document.querySelector("#lectivo-student-id");
@@ -6652,41 +6655,41 @@
     );
   }
 
+  function getLectivoStudentInitials(row) {
+    const initial = (value) => (value ? value.trim().charAt(0) : "");
+    return (initial(row.nombre) + initial(row.apellidos)).toUpperCase() || "?";
+  }
+
   function renderLectivoStudentsList() {
     const rows = getLectivoAlumnadoFilteredRows();
 
     if (!rows.length) {
-      lectivoStudentsTableBody.innerHTML = lectivoStudentsRows.length
-        ? '<tr><td colspan="6" class="empty-state">Sin resultados para ese nombre.</td></tr>'
-        : '<tr><td colspan="6" class="empty-state">No hay alumnado en este centro.</td></tr>';
+      lectivoStudentsList.innerHTML = lectivoStudentsRows.length
+        ? '<p class="empty-state">Sin resultados para ese nombre.</p>'
+        : '<p class="empty-state">No hay alumnado en este centro.</p>';
       return;
     }
 
-    lectivoStudentsTableBody.innerHTML = rows
-      .map(
-        (row) => `
-          <tr>
-            <td>${escapeHtml(row.nombre)} ${escapeHtml(row.apellidos)}${row.activo ? "" : " (baja)"}</td>
-            <td>${escapeHtml(row.edad ?? "-")}</td>
-            <td>${escapeHtml(row.correo_electronico || "-")}</td>
-            <td>${escapeHtml(row.telefono_1 || "-")}</td>
-            <td>${escapeHtml(formatLectivoScheduleSummary(row.concilia_lectivo_horarios))}</td>
-            <td>
-              <button type="button" class="secondary-button compact-button" data-lectivo-student-edit="${escapeHtml(row.id)}">
-                Editar
-              </button>
-              <button
-                type="button"
-                class="secondary-button compact-button"
-                data-lectivo-student-toggle="${escapeHtml(row.id)}"
-                data-lectivo-student-next="${row.activo ? "false" : "true"}"
-              >
-                ${row.activo ? "Dar de baja" : "Reactivar"}
-              </button>
-            </td>
-          </tr>
-        `
-      )
+    lectivoStudentsList.innerHTML = rows
+      .map((row) => {
+        const isSelected = String(row.id) === String(lectivoStudentEditingId);
+        return `
+          <button
+            type="button"
+            class="personal-list-item${isSelected ? " active" : ""}"
+            data-lectivo-student-select="${escapeHtml(row.id)}"
+            role="option"
+            aria-selected="${isSelected}"
+          >
+            <span class="personal-list-avatar">${escapeHtml(getLectivoStudentInitials(row))}</span>
+            <span class="personal-list-item-body">
+              <span class="personal-list-item-name">${escapeHtml(row.nombre)} ${escapeHtml(row.apellidos)}</span>
+              <span class="personal-list-item-meta">${escapeHtml(formatLectivoScheduleSummary(row.concilia_lectivo_horarios))}</span>
+            </span>
+            ${row.activo ? "" : '<span class="personal-list-badge personal-list-badge-inactive">Baja</span>'}
+          </button>
+        `;
+      })
       .join("");
   }
 
@@ -6697,8 +6700,7 @@
     if (!centroId) {
       lectivoStudentsRows = [];
       lectivoStudentsPanelSummary.textContent = "Selecciona un centro.";
-      lectivoStudentsTableBody.innerHTML =
-        '<tr><td colspan="6" class="empty-state">Selecciona un centro.</td></tr>';
+      lectivoStudentsList.innerHTML = '<p class="empty-state">Selecciona un centro.</p>';
       return;
     }
 
@@ -6727,15 +6729,10 @@
     renderLectivoStudentsList();
   }
 
-  function openLectivoStudentFormPanel() {
-    lectivoStudentsPanelBackdrop.classList.remove("hidden");
-    lectivoStudentsPanel.classList.remove("hidden");
-    lectivoStudentNombre.focus();
-  }
-
-  function closeLectivoStudentFormPanel() {
-    lectivoStudentsPanelBackdrop.classList.add("hidden");
-    lectivoStudentsPanel.classList.add("hidden");
+  function setLectivoStudentDetailAvatar(text) {
+    if (lectivoStudentDetailAvatar) {
+      lectivoStudentDetailAvatar.textContent = text;
+    }
   }
 
   function setLectivoScheduleCheckbox(dia, turno, checked) {
@@ -6785,7 +6782,9 @@
     syncLectivoScheduleFieldsetVisibility(centroId);
     lectivoStudentPanelTitle.textContent = "Nuevo alumno lectivo";
     lectivoStudentPanelSummary.textContent = "Completa los datos del nuevo alumno.";
-    openLectivoStudentFormPanel();
+    setLectivoStudentDetailAvatar("+");
+    renderLectivoStudentsList();
+    lectivoStudentNombre.focus();
   }
 
   function openLectivoStudentEdit(id) {
@@ -6827,7 +6826,8 @@
 
     lectivoStudentPanelTitle.textContent = `Editar ${row.nombre} ${row.apellidos}`;
     lectivoStudentPanelSummary.textContent = "Actualiza los datos y guarda los cambios.";
-    openLectivoStudentFormPanel();
+    setLectivoStudentDetailAvatar(getLectivoStudentInitials(row));
+    renderLectivoStudentsList();
   }
 
   function collectLectivoScheduleSelection(centroId) {
@@ -6919,28 +6919,70 @@
       setStatus(lectivoStudentEditingId ? "Alumno actualizado." : "Alumno creado.", "success");
       await loadLectivoAlumnadoCentroFilterOptions(supabase);
       lectivoStudentsCentroSelect.value = String(centroId);
-      closeLectivoStudentFormPanel();
       await loadLectivoStudentsList(supabase);
+      openLectivoStudentEdit(usuarioId);
+      await loadLectivoAlumnadoStats(supabase);
     } catch (error) {
       setStatus(`No se pudo guardar el alumno: ${error.message}`, "error");
     }
   }
 
-  async function toggleLectivoStudentActivo(id, nextActivo) {
-    try {
-      const supabase = await getSupabaseClient();
-      const { error } = await supabase
-        .from("concilia_lectivo_usuarios")
-        .update({ activo: nextActivo })
-        .eq("id", id);
-      if (error) {
-        throw error;
-      }
-      setStatus(nextActivo ? "Alumno reactivado." : "Alumno dado de baja.", "success");
-      await loadLectivoStudentsList(supabase);
-    } catch (error) {
-      setStatus(`No se pudo actualizar el alumno: ${error.message}`, "error");
+  function getLectivoMonthRange(monthOffset) {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 0);
+    return { start: formatDateValue(start), end: formatDateValue(end) };
+  }
+
+  async function fetchLectivoAttendanceRate(supabase, range, centroId) {
+    let query = supabase
+      .from("concilia_lectivo_asistencias")
+      .select("presente")
+      .gte("fecha", range.start)
+      .lte("fecha", range.end);
+    if (centroId) {
+      query = query.eq("centro_id", centroId);
     }
+    const { data, error } = await query;
+    if (error || !data || !data.length) {
+      return null;
+    }
+    const presentes = data.filter((row) => row.presente).length;
+    return Math.round((presentes / data.length) * 100);
+  }
+
+  function setLectivoStatPercent(el, value) {
+    if (!el) {
+      return;
+    }
+    el.textContent = value === null || value === undefined ? "-" : `${value}%`;
+  }
+
+  async function loadLectivoAlumnadoStats(supabase) {
+    const { count: apuntadoCount } = await supabase
+      .from("concilia_lectivo_usuarios")
+      .select("id", { count: "exact", head: true })
+      .eq("curso_escolar", LECTIVO_STUDENT_CURSO_ESCOLAR)
+      .eq("activo", true);
+    if (lectivoStatApuntado) {
+      lectivoStatApuntado.textContent = apuntadoCount ?? 0;
+    }
+
+    const actual = getLectivoMonthRange(0);
+    const anterior = getLectivoMonthRange(-1);
+    const centroId = lectivoStudentsCurrentCentroId || null;
+
+    const [globalActual, globalAnterior, centroActual, centroAnterior] = await Promise.all([
+      fetchLectivoAttendanceRate(supabase, actual, null),
+      fetchLectivoAttendanceRate(supabase, anterior, null),
+      centroId ? fetchLectivoAttendanceRate(supabase, actual, centroId) : Promise.resolve(null),
+      centroId ? fetchLectivoAttendanceRate(supabase, anterior, centroId) : Promise.resolve(null),
+    ]);
+
+    setLectivoStatPercent(lectivoStatGlobalActual, globalActual);
+    setLectivoStatPercent(lectivoStatGlobalAnterior, globalAnterior);
+    setLectivoStatPercent(lectivoStatCentroActual, centroActual);
+    setLectivoStatPercent(lectivoStatCentroAnterior, centroAnterior);
   }
 
   function setAlumnadoView(view) {
@@ -6956,6 +6998,7 @@
         if (lectivoStudentsCentroSelect.value) {
           await loadLectivoStudentsList(supabase);
         }
+        await loadLectivoAlumnadoStats(supabase);
       });
     }
   }
@@ -8193,34 +8236,29 @@
     studentPanelBackdrop.addEventListener("click", closeStudentPanel);
     alumnadoViewNoLectivoButton?.addEventListener("click", () => setAlumnadoView("no_lectivo"));
     alumnadoViewLectivoButton?.addEventListener("click", () => setAlumnadoView("lectivo"));
-    closeLectivoStudentsPanelButton?.addEventListener("click", closeLectivoStudentFormPanel);
-    lectivoStudentsPanelBackdrop?.addEventListener("click", closeLectivoStudentFormPanel);
     lectivoStudentsCentroSelect?.addEventListener("change", () => {
-      void getSupabaseClient().then((supabase) => loadLectivoStudentsList(supabase));
+      void getSupabaseClient().then(async (supabase) => {
+        await loadLectivoStudentsList(supabase);
+        if (!lectivoStudentEditingId) {
+          openLectivoStudentCreate();
+        }
+        await loadLectivoAlumnadoStats(supabase);
+      });
     });
     lectivoAlumnadoNameFilter?.addEventListener("input", renderLectivoStudentsList);
     lectivoAlumnadoNameFilter?.addEventListener("change", renderLectivoStudentsList);
     lectivoStudentsNewButton?.addEventListener("click", openLectivoStudentCreate);
-    lectivoStudentBackButton?.addEventListener("click", closeLectivoStudentFormPanel);
+    lectivoStudentBackButton?.addEventListener("click", openLectivoStudentCreate);
     lectivoStudentCentroSelect?.addEventListener("change", () => {
       syncLectivoScheduleFieldsetVisibility(Number(lectivoStudentCentroSelect.value || "") || null);
     });
     lectivoStudentForm?.addEventListener("submit", (event) => {
       void handleLectivoStudentSubmit(event);
     });
-    lectivoStudentsTableBody?.addEventListener("click", (event) => {
-      const editButton = event.target.closest("[data-lectivo-student-edit]");
-      if (editButton) {
-        openLectivoStudentEdit(editButton.dataset.lectivoStudentEdit);
-        return;
-      }
-
-      const toggleButton = event.target.closest("[data-lectivo-student-toggle]");
-      if (toggleButton) {
-        void toggleLectivoStudentActivo(
-          toggleButton.dataset.lectivoStudentToggle,
-          toggleButton.dataset.lectivoStudentNext === "true"
-        );
+    lectivoStudentsList?.addEventListener("click", (event) => {
+      const item = event.target.closest("[data-lectivo-student-select]");
+      if (item) {
+        openLectivoStudentEdit(item.dataset.lectivoStudentSelect);
       }
     });
     clearStudentFormButton.addEventListener("click", () => {
