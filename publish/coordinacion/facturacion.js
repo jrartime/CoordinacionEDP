@@ -18,6 +18,7 @@
     preparationsLoaded: false,
     preparationSelectedIds: new Set(),
     preparationsSort: { field: "created_at", direction: "desc" },
+    preparationsFacturaFilter: "",
     invoicesSort: { field: "fecha", direction: "desc" },
     budgetsSort: { field: "fecha_inicio", direction: "asc" },
     controlMonthsSort: { field: "mes", direction: "asc" },
@@ -38,6 +39,7 @@
   const el = {};
   const money = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
   const percent = new Intl.NumberFormat("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const hoursFmt = new Intl.NumberFormat("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const dateFmt = new Intl.DateTimeFormat("es-ES");
 
   function q(selector) {
@@ -958,7 +960,7 @@
     }
     const hours = selected.reduce((sum, group) => sum + group.total, 0);
     el.generationSelectionSummary.textContent = selected.length
-      ? `Se guardarán ${selected.length} de ${generation.groups.length} servicios (${percent.format(hours)} h). Los desmarcados se quedan fuera de esta preparación.`
+      ? `Se guardarán ${selected.length} de ${generation.groups.length} servicios (${hoursFmt.format(hours)} h). Los desmarcados se quedan fuera de esta preparación.`
       : "No has dejado ningún servicio marcado: no hay nada que guardar.";
   }
 
@@ -997,7 +999,7 @@
     el.generationSummary.classList.remove("hidden");
     el.generationSummary.innerHTML = `
       <article><span>Registros incluidos</span><strong>${generation.records}</strong></article>
-      <article><span>Horas facturables</span><strong>${percent.format(totalHours)} h</strong></article>
+      <article><span>Horas facturables</span><strong>${hoursFmt.format(totalHours)} h</strong></article>
       <article><span>Base calculada</span><strong>${formatMoney(subtotal)}</strong></article>
       <article><span>Total con IVA</span><strong>${formatMoney(total)}</strong></article>`;
     el.generationAlerts.innerHTML = generation.alerts.map((alert) => `<li>${escapeHtml(alert)}</li>`).join("");
@@ -1011,9 +1013,9 @@
             <td>${index ? "" : escapeHtml(serviceNames(group.servicioIds))}</td>
             <td>${index ? "" : escapeHtml(group.funcion)}${index || !group.redirectedFrom.size ? "" : `<br><span class="muted-text" title="Horas trabajadas en otro contrato, redirigidas aquí para facturar">↪ ${escapeHtml(Array.from(group.redirectedFrom).join(", "))}</span>`}</td>
             <td>${escapeHtml(installation.instalacion)}</td>
-            <td class="numeric">${percent.format(installation.total)}</td>
-            <td class="numeric">${percent.format(installation.diurnal)}</td>
-            <td class="numeric">${percent.format(installation.nocturnal)}</td>
+            <td class="numeric">${hoursFmt.format(installation.total)}</td>
+            <td class="numeric">${hoursFmt.format(installation.diurnal)}</td>
+            <td class="numeric">${hoursFmt.format(installation.nocturnal)}</td>
             <td></td><td></td><td></td><td></td>
           </tr>`),
         `<tr class="facturacion-function-total${checked ? "" : " facturacion-generation-row-excluded"}">
@@ -1021,9 +1023,9 @@
         <td></td>
         <td></td>
         <td colspan="2">Total ${escapeHtml(group.funcion)}</td>
-        <td class="numeric">${percent.format(group.total)}</td>
-        <td class="numeric">${percent.format(group.diurnal)}</td>
-        <td class="numeric">${percent.format(group.nocturnal)}</td>
+        <td class="numeric">${hoursFmt.format(group.total)}</td>
+        <td class="numeric">${hoursFmt.format(group.diurnal)}</td>
+        <td class="numeric">${hoursFmt.format(group.nocturnal)}</td>
         <td>${escapeHtml(group.type)}</td>
         <td class="numeric">${formatMoney(group.priceDay)}</td>
         <td class="numeric">${formatMoney(group.priceNight)}</td>
@@ -1150,7 +1152,7 @@
         <h4>${escapeHtml(cluster.label)}</h4>
         <div class="facturacion-generation-summary">
           <article><span>Registros</span><strong>${cluster.lines.length}</strong></article>
-          <article><span>Horas</span><strong>${percent.format(cluster.diurnal + cluster.nocturnal)} h</strong></article>
+          <article><span>Horas</span><strong>${hoursFmt.format(cluster.diurnal + cluster.nocturnal)} h</strong></article>
           <article><span>Base imponible</span><strong>${formatMoney(cluster.baseImponible)}</strong></article>
           <article><span>Total con IVA</span><strong>${formatMoney(cluster.total)}</strong></article>
         </div>
@@ -1162,7 +1164,7 @@
                 <tr>
                   <td>${escapeHtml(item.servicio)}</td>
                   <td>${escapeHtml(item.funcion)}</td>
-                  <td class="numeric">${percent.format(item.total)}</td>
+                  <td class="numeric">${hoursFmt.format(item.total)}</td>
                   <td class="numeric">${formatMoney(item.subtotal)}</td>
                 </tr>`).join("")}
             </tbody>
@@ -1188,7 +1190,7 @@
           <table class="facturacion-table">
             <thead><tr><th>Instalación</th><th>Semana</th><th>Total</th><th>Diurnas</th><th>Nocturnas</th></tr></thead>
             <tbody>
-              ${group.weeks.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td>${item.week}</td><td class="numeric">${percent.format(item.total)}</td><td class="numeric">${percent.format(item.diurnal)}</td><td class="numeric">${percent.format(item.nocturnal)}</td></tr>`).join("")}
+              ${group.weeks.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td>${item.week}</td><td class="numeric">${hoursFmt.format(item.total)}</td><td class="numeric">${hoursFmt.format(item.diurnal)}</td><td class="numeric">${hoursFmt.format(item.nocturnal)}</td></tr>`).join("")}
             </tbody>
           </table>
         </div>
@@ -1330,7 +1332,12 @@
   function preparationsForSelection() {
     const contractNames = new Map(state.contracts.map((row) => [String(row.id), row.contrato]));
     const invoiceNames = new Map(state.invoices.map((row) => [String(row.id), [row.serie, row.n_documento].filter(Boolean).join("/") || `#${row.id}`]));
-    const rows = state.preparations.filter((row) => !state.contractId || String(row.contrato_id) === String(state.contractId));
+    const rows = state.preparations.filter((row) => {
+      if (state.contractId && String(row.contrato_id) !== String(state.contractId)) return false;
+      if (state.preparationsFacturaFilter === "sin_factura" && row.contrato_facturacion_id) return false;
+      if (state.preparationsFacturaFilter === "con_factura" && !row.contrato_facturacion_id) return false;
+      return true;
+    });
     return sortPreparations(rows, contractNames, invoiceNames);
   }
 
@@ -1517,7 +1524,7 @@
     });
 
     el.controlKpis.innerHTML = CONTROL_MONTH_STATES.map((estado) => `
-      <article><span class="record-billing-badge ${CONTROL_STATE_CLASS[estado]}">${escapeHtml(estado)}</span><strong>${percent.format(totals[estado] || 0)} h</strong></article>
+      <article><span class="record-billing-badge ${CONTROL_STATE_CLASS[estado]}">${escapeHtml(estado)}</span><strong>${hoursFmt.format(totals[estado] || 0)} h</strong></article>
     `).join("");
 
     const currentMonthStart = new Date();
@@ -1533,11 +1540,11 @@
           return `
             <tr class="${pendingGap ? "facturacion-control-gap" : ""}">
               <td>${escapeHtml(formatControlMonth(mes))}</td>
-              <td class="numeric">${pendingGap ? "⚠ " : ""}${percent.format(numeric(hours["Pendiente"]))} h</td>
-              <td class="numeric">${percent.format(numeric(hours["Redirigido"]))} h</td>
-              <td class="numeric">${percent.format(numeric(hours["En preparación"]))} h</td>
-              <td class="numeric">${percent.format(numeric(hours["Facturado"]))} h</td>
-              <td class="numeric">${percent.format(numeric(hours["Excluido"]))} h</td>
+              <td class="numeric">${pendingGap ? "⚠ " : ""}${hoursFmt.format(numeric(hours["Pendiente"]))} h</td>
+              <td class="numeric">${hoursFmt.format(numeric(hours["Redirigido"]))} h</td>
+              <td class="numeric">${hoursFmt.format(numeric(hours["En preparación"]))} h</td>
+              <td class="numeric">${hoursFmt.format(numeric(hours["Facturado"]))} h</td>
+              <td class="numeric">${hoursFmt.format(numeric(hours["Excluido"]))} h</td>
             </tr>`;
         }).join("")
       : '<tr><td colspan="6" class="empty-state">No hay registros en el periodo.</td></tr>';
@@ -1552,7 +1559,7 @@
               <td>${escapeHtml(label)}</td>
               <td>${invoice ? formatDate(invoice.fecha) : "—"}</td>
               <td class="numeric">${row.registros}</td>
-              <td class="numeric">${percent.format(numeric(row.horas))} h</td>
+              <td class="numeric">${hoursFmt.format(numeric(row.horas))} h</td>
             </tr>`;
         }).join("")
       : '<tr><td colspan="4" class="empty-state">No hay horas facturadas en el periodo.</td></tr>';
@@ -1892,8 +1899,8 @@
             <table class="facturacion-table">
               <thead><tr><th>Instalación</th><th>Total</th><th>Diurnas</th><th>Nocturnas</th></tr></thead>
               <tbody>
-                ${bucket.installations.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td class="numeric">${percent.format(item.total)}</td><td class="numeric">${percent.format(item.diurnal)}</td><td class="numeric">${percent.format(item.nocturnal)}</td></tr>`).join("")}
-                <tr class="facturacion-function-total"><td>TOTAL</td><td class="numeric">${percent.format(bucket.total)}</td><td class="numeric">${percent.format(bucket.diurnal)}</td><td class="numeric">${percent.format(bucket.nocturnal)}</td></tr>
+                ${bucket.installations.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td class="numeric">${hoursFmt.format(item.total)}</td><td class="numeric">${hoursFmt.format(item.diurnal)}</td><td class="numeric">${hoursFmt.format(item.nocturnal)}</td></tr>`).join("")}
+                <tr class="facturacion-function-total"><td>TOTAL</td><td class="numeric">${hoursFmt.format(bucket.total)}</td><td class="numeric">${hoursFmt.format(bucket.diurnal)}</td><td class="numeric">${hoursFmt.format(bucket.nocturnal)}</td></tr>
                 <tr><td>PRECIO (${escapeHtml(bucket.tipoPrecio || "—")})</td><td class="numeric" colspan="2">${formatMoney(bucket.precioDia)}${bucket.precioNoche != null && bucket.precioNoche !== bucket.precioDia ? ` / ${formatMoney(bucket.precioNoche)}` : ""}</td><td></td></tr>
                 <tr class="facturacion-function-total"><td>Subtotal ${escapeHtml(bucket.funcion)}</td><td class="numeric" colspan="2"></td><td class="numeric">${formatMoney(bucket.subtotal)}</td></tr>
               </tbody>
@@ -1904,7 +1911,7 @@
             <table class="facturacion-table">
               <thead><tr><th>Instalación</th><th>Semana</th><th>Total</th><th>Diurnas</th><th>Nocturnas</th></tr></thead>
               <tbody>
-                ${bucket.weeks.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td>${item.week}</td><td class="numeric">${percent.format(item.total)}</td><td class="numeric">${percent.format(item.diurnal)}</td><td class="numeric">${percent.format(item.nocturnal)}</td></tr>`).join("")}
+                ${bucket.weeks.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td>${item.week}</td><td class="numeric">${hoursFmt.format(item.total)}</td><td class="numeric">${hoursFmt.format(item.diurnal)}</td><td class="numeric">${hoursFmt.format(item.nocturnal)}</td></tr>`).join("")}
               </tbody>
             </table>
           </div>
@@ -2248,6 +2255,10 @@
       else rows.forEach((row) => state.preparationSelectedIds.delete(String(row.id)));
       renderPreparations();
     });
+    el.preparationsFacturaFilter?.addEventListener("change", () => {
+      state.preparationsFacturaFilter = el.preparationsFacturaFilter.value;
+      renderPreparations();
+    });
     el.preparationsPdf?.addEventListener("click", () => void exportSelectedPreparationsPdf());
     el.preparationsTable?.querySelector("thead")?.addEventListener("click", (event) => {
       const field = event.target.closest("[data-preparations-sort-field]")?.dataset.preparationsSortField;
@@ -2394,6 +2405,7 @@
       preparationsTable: q("#facturacion-preparations-table"),
       preparationsBody: q("#facturacion-preparations-body"),
       preparationsCheckAll: q("#facturacion-preparations-check-all"),
+      preparationsFacturaFilter: q("#facturacion-preparations-factura-filter"),
       preparationsPdf: q("#facturacion-preparations-pdf"),
       preparationPreviewDialog: q("#facturacion-preparation-preview-dialog"),
       preparationPreviewBody: q("#facturacion-preparation-preview-body"),
