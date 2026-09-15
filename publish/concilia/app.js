@@ -637,6 +637,121 @@
       .replaceAll("'", "&#39;");
   }
 
+  // Aviso de cambios sin guardar al cambiar de registro sin guardar (portado de
+  // coordinacion/app.js, que lo expone como window.CoordinacionUnsaved para
+  // Concilia integrado; esta app standalone no tiene ese global, así que lleva
+  // su propia copia).
+  const formBaselineSnapshots = new WeakMap();
+
+  function getFormSnapshot(form) {
+    if (!form) {
+      return "";
+    }
+    const fields = Array.from(form.querySelectorAll("input, select, textarea")).map((field) => {
+      const key = field.id || field.name || field.type;
+      if (field.type === "checkbox" || field.type === "radio") {
+        return [key, field.checked];
+      }
+      if (field.multiple) {
+        return [key, Array.from(field.selectedOptions || []).map((option) => option.value)];
+      }
+      return [key, field.value ?? ""];
+    });
+    return JSON.stringify(fields);
+  }
+
+  function markFormPristine(form) {
+    if (form) {
+      formBaselineSnapshots.set(form, getFormSnapshot(form));
+    }
+  }
+
+  function hasUnsavedFormChanges(form) {
+    return Boolean(form) && formBaselineSnapshots.get(form) !== getFormSnapshot(form);
+  }
+
+  // Diálogo modal reutilizable con 3 salidas: "save" | "discard" | "cancel".
+  function showUnsavedChangesDialog(options = {}) {
+    const {
+      title = "Cambios sin guardar",
+      message = "Hay cambios sin guardar en este panel. ¿Qué quieres hacer?",
+      saveLabel = "Guardar",
+      discardLabel = "Descartar",
+      cancelLabel = "Cancelar",
+    } = options;
+
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "unsaved-dialog-overlay";
+      overlay.innerHTML = `
+        <div class="unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="unsaved-dialog-title">
+          <h3 id="unsaved-dialog-title">${escapeHtml(title)}</h3>
+          <p>${escapeHtml(message)}</p>
+          <div class="unsaved-dialog-actions">
+            <button type="button" class="secondary-button" data-choice="cancel">${escapeHtml(cancelLabel)}</button>
+            <button type="button" class="danger-button" data-choice="discard">${escapeHtml(discardLabel)}</button>
+            <button type="button" class="primary-button" data-choice="save">${escapeHtml(saveLabel)}</button>
+          </div>
+        </div>`;
+
+      const finish = (choice) => {
+        document.removeEventListener("keydown", onKeydown, true);
+        overlay.remove();
+        resolve(choice);
+      };
+      const onKeydown = (event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          finish("cancel");
+        }
+      };
+
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) {
+          finish("cancel");
+          return;
+        }
+        const choice = event.target.closest("[data-choice]")?.dataset.choice;
+        if (choice) {
+          finish(choice);
+        }
+      });
+      document.addEventListener("keydown", onKeydown, true);
+      document.body.appendChild(overlay);
+      overlay.querySelector('[data-choice="save"]')?.focus();
+    });
+  }
+
+  // Devuelve true si el panel puede cerrarse/cambiarse (no había cambios, se
+  // descartaron o se guardaron con éxito) y false si el usuario canceló o el
+  // guardado falló. saveFn: async, persiste y devuelve true/false; no debe
+  // cerrar el panel por su cuenta.
+  async function confirmCloseWithSave(form, saveFn) {
+    if (!hasUnsavedFormChanges(form)) {
+      return true;
+    }
+    const choice = await showUnsavedChangesDialog();
+    if (choice === "cancel") {
+      return false;
+    }
+    if (choice === "discard") {
+      return true;
+    }
+    if (typeof saveFn !== "function") {
+      return true;
+    }
+    let result;
+    try {
+      result = await saveFn();
+    } catch (_error) {
+      return false;
+    }
+    if (result === true || result === false) {
+      return result;
+    }
+    return !hasUnsavedFormChanges(form);
+  }
+
   function getInitialModuleTab() {
     return allowedModuleTabTargets.has(INITIAL_MODULE_TAB) ? INITIAL_MODULE_TAB : "asistencia";
   }
@@ -4869,13 +4984,17 @@
     if (!rows.length) {
       lectivoStudentsList.innerHTML = lectivoStudentsRows.length
         ? '<p class="empty-state">Sin resultados para ese nombre.</p>'
-        : '<p class="empty-state">No hay alumnado en este centro.</p>';
+        : '<p class="empty-state">No hay alumnado lectivo.</p>';
       return;
     }
 
+    const showCentro = !lectivoStudentsCurrentCentroId;
     lectivoStudentsList.innerHTML = rows
       .map((row) => {
         const isSelected = String(row.id) === String(lectivoStudentEditingId);
+        const centroLabel = showCentro
+          ? `${row.instalaciones?.instalacion || `Centro ${row.centro_id}`} · `
+          : "";
         return `
           <button
             type="button"
@@ -4887,7 +5006,7 @@
             <span class="personal-list-avatar">${escapeHtml(getLectivoStudentInitials(row))}</span>
             <span class="personal-list-item-body">
               <span class="personal-list-item-name">${escapeHtml(row.nombre)} ${escapeHtml(row.apellidos)}</span>
-              <span class="personal-list-item-meta">${escapeHtml(formatLectivoScheduleSummary(row.concilia_lectivo_horarios))}</span>
+              <span class="personal-list-item-meta">${escapeHtml(centroLabel)}${escapeHtml(formatLectivoScheduleSummary(row.concilia_lectivo_horarios))}</span>
             </span>
             ${row.activo ? "" : '<span class="personal-list-badge personal-list-badge-inactive">Baja</span>'}
           </button>
@@ -4900,27 +5019,26 @@
     const centroId = Number(lectivoStudentsCentroSelect.value || "") || null;
     lectivoStudentsCurrentCentroId = centroId;
 
-    if (!centroId) {
-      lectivoStudentsRows = [];
-      lectivoStudentsPanelSummary.textContent = "Selecciona un centro.";
-      lectivoStudentsList.innerHTML = '<p class="empty-state">Selecciona un centro.</p>';
-      return;
-    }
-
-    const { data, error } = await supabase
+    let query = supabase
       .from("concilia_lectivo_usuarios")
       .select(
-        "id, nombre, apellidos, correo_electronico, telefono_1, telefono_2, edad, activo, " +
+        "id, centro_id, nombre, apellidos, correo_electronico, telefono_1, telefono_2, edad, activo, " +
           "autorizado_1_nombre, autorizado_1_dni, autorizado_2_nombre, autorizado_2_dni, " +
           "autorizado_3_nombre, autorizado_3_dni, autoriza_se_va_solo, autoriza_salidas_centro, " +
           "autoriza_imagenes, alergias, observaciones, asistencia_resumen, " +
+          "instalaciones(instalacion), " +
           "concilia_lectivo_horarios(dia_semana, turno, matriculado)"
       )
-      .eq("centro_id", centroId)
       .eq("curso_escolar", LECTIVO_STUDENT_CURSO_ESCOLAR)
       .order("activo", { ascending: false })
       .order("nombre", { ascending: true })
       .order("apellidos", { ascending: true });
+
+    if (centroId) {
+      query = query.eq("centro_id", centroId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       setStatus(`No se pudo cargar el alumnado: ${error.message}`, "error");
@@ -4987,6 +5105,7 @@
     lectivoStudentPanelSummary.textContent = "Completa los datos del nuevo alumno.";
     setLectivoStudentDetailAvatar("+");
     renderLectivoStudentsList();
+    markFormPristine(lectivoStudentForm);
     lectivoStudentNombre.focus();
   }
 
@@ -5000,7 +5119,7 @@
     lectivoStudentForm.reset();
     lectivoStudentIdInput.value = row.id;
     lectivoStudentEditingId = row.id;
-    lectivoStudentCentroSelect.value = String(lectivoStudentsCurrentCentroId);
+    lectivoStudentCentroSelect.value = String(row.centro_id);
     lectivoStudentActivo.checked = Boolean(row.activo);
     lectivoStudentNombre.value = row.nombre ?? "";
     lectivoStudentApellidos.value = row.apellidos ?? "";
@@ -5021,7 +5140,7 @@
     lectivoStudentObservaciones.value = row.observaciones ?? "";
     lectivoStudentAsistenciaResumen.value = row.asistencia_resumen ?? "";
 
-    syncLectivoScheduleFieldsetVisibility(lectivoStudentsCurrentCentroId);
+    syncLectivoScheduleFieldsetVisibility(row.centro_id);
     resetLectivoScheduleCheckboxes();
     (row.concilia_lectivo_horarios ?? [])
       .filter((horario) => horario.matriculado)
@@ -5031,6 +5150,11 @@
     lectivoStudentPanelSummary.textContent = "Actualiza los datos y guarda los cambios.";
     setLectivoStudentDetailAvatar(getLectivoStudentInitials(row));
     renderLectivoStudentsList();
+    markFormPristine(lectivoStudentForm);
+  }
+
+  function saveLectivoStudentForUnsavedGuard() {
+    return handleLectivoStudentSubmit({ preventDefault() {} });
   }
 
   function collectLectivoScheduleSelection(centroId) {
@@ -5121,7 +5245,6 @@
 
       setStatus(lectivoStudentEditingId ? "Alumno actualizado." : "Alumno creado.", "success");
       await loadLectivoAlumnadoCentroFilterOptions(supabase);
-      lectivoStudentsCentroSelect.value = String(centroId);
       await loadLectivoStudentsList(supabase);
       openLectivoStudentEdit(usuarioId);
       await loadLectivoAlumnadoStats(supabase);
@@ -5198,9 +5321,7 @@
     if (isLectivo) {
       void getSupabaseClient().then(async (supabase) => {
         await Promise.all([loadLectivoStudentsCentros(supabase), loadLectivoAlumnadoCentroFilterOptions(supabase)]);
-        if (lectivoStudentsCentroSelect.value) {
-          await loadLectivoStudentsList(supabase);
-        }
+        await loadLectivoStudentsList(supabase);
         await loadLectivoAlumnadoStats(supabase);
       });
     }
@@ -6430,14 +6551,23 @@
       void getSupabaseClient().then(async (supabase) => {
         await loadLectivoStudentsList(supabase);
         if (!lectivoStudentEditingId) {
-          openLectivoStudentCreate();
+          const canProceed = await confirmCloseWithSave(lectivoStudentForm, saveLectivoStudentForUnsavedGuard);
+          if (canProceed) {
+            openLectivoStudentCreate();
+          }
         }
         await loadLectivoAlumnadoStats(supabase);
       });
     });
     lectivoAlumnadoNameFilter?.addEventListener("input", renderLectivoStudentsList);
     lectivoAlumnadoNameFilter?.addEventListener("change", renderLectivoStudentsList);
-    lectivoStudentsNewButton?.addEventListener("click", openLectivoStudentCreate);
+    lectivoStudentsNewButton?.addEventListener("click", () => {
+      void confirmCloseWithSave(lectivoStudentForm, saveLectivoStudentForUnsavedGuard).then((canProceed) => {
+        if (canProceed) {
+          openLectivoStudentCreate();
+        }
+      });
+    });
     lectivoStudentBackButton?.addEventListener("click", openLectivoStudentCreate);
     lectivoStudentCentroSelect?.addEventListener("change", () => {
       syncLectivoScheduleFieldsetVisibility(Number(lectivoStudentCentroSelect.value || "") || null);
@@ -6447,9 +6577,15 @@
     });
     lectivoStudentsList?.addEventListener("click", (event) => {
       const item = event.target.closest("[data-lectivo-student-select]");
-      if (item) {
-        openLectivoStudentEdit(item.dataset.lectivoStudentSelect);
+      if (!item || item.dataset.lectivoStudentSelect === String(lectivoStudentEditingId)) {
+        return;
       }
+      const targetId = item.dataset.lectivoStudentSelect;
+      void confirmCloseWithSave(lectivoStudentForm, saveLectivoStudentForUnsavedGuard).then((canProceed) => {
+        if (canProceed) {
+          openLectivoStudentEdit(targetId);
+        }
+      });
     });
     clearStudentFormButton.addEventListener("click", () => {
       if (studentId.value) {

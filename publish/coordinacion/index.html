@@ -31,7 +31,7 @@
     </style>
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
-    <link rel="stylesheet" href="./concilia-integrated.css?v=20260915-3" />
+    <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-1" />
     <link rel="stylesheet" href="./styles.css?v=20260909-4" />
   </head>
   <body>
@@ -5616,14 +5616,11 @@
                   </div>
                 </div>
                 <div class="toolbar-actions">
-                  <button
-                    id="personal-edit-button"
-                    type="button"
-                    class="secondary-button hidden"
-                    data-icon="edit"
-                    aria-label="Editar persona"
-                  >
-                    Editar persona
+                  <button id="personal-cancel-button" type="button" class="secondary-button hidden">
+                    Descartar cambios
+                  </button>
+                  <button id="personal-save-button" type="submit" form="personal-form" class="hidden">
+                    Guardar persona
                   </button>
                 </div>
               </div>
@@ -5631,18 +5628,6 @@
               <form id="personal-form" class="form-grid personal-form">
                 <input type="hidden" name="personal" />
                 <div id="personal-form-fields" class="form-grid full-width"></div>
-                <div class="detail-actions full-width">
-                  <button
-                    id="personal-cancel-button"
-                    type="button"
-                    class="secondary-button hidden"
-                  >
-                    Descartar cambios
-                  </button>
-                  <button id="personal-save-button" type="submit" class="hidden">
-                    Guardar persona
-                  </button>
-                </div>
               </form>
 
               <section id="personal-complementos-section" class="personal-complementos-section hidden">
@@ -6850,7 +6835,7 @@
               <aside class="personal-list-panel">
                 <div class="results-toolbar section-summary-toolbar">
                   <div class="results-summary">
-                    <p id="lectivo-students-panel-summary" class="muted-text">Selecciona un centro.</p>
+                    <p id="lectivo-students-panel-summary" class="muted-text">Cargando alumnado...</p>
                   </div>
                   <div class="header-actions">
                     <button id="lectivo-students-new-button" type="button">
@@ -6864,7 +6849,7 @@
                   role="listbox"
                   aria-label="Listado de alumnado lectivo"
                 >
-                  <p class="empty-state">Selecciona un centro.</p>
+                  <p class="empty-state">Cargando alumnado...</p>
                 </div>
               </aside>
 
@@ -6879,6 +6864,12 @@
                       <h2 id="lectivo-students-panel-title">Nuevo alumno lectivo</h2>
                       <p id="lectivo-student-panel-summary" class="muted-text">Completa los datos del alumno.</p>
                     </div>
+                  </div>
+                  <div class="toolbar-actions">
+                    <button id="lectivo-student-back-button" type="button" class="secondary-button">
+                      Cancelar
+                    </button>
+                    <button type="submit" form="lectivo-student-form">Guardar alumno</button>
                   </div>
                 </div>
 
@@ -7053,13 +7044,6 @@
                   <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="domingo" data-lectivo-schedule-turno="turno_2" data-lectivo-schedule-orden="2" />T2</label>
                 </div>
               </fieldset>
-
-              <div class="activity-actions">
-                <button id="lectivo-student-back-button" class="secondary-button" type="button">
-                  Cancelar
-                </button>
-                <button type="submit">Guardar alumno</button>
-              </div>
             </form>
               </section>
             </div>
@@ -10115,8 +10099,8 @@
     <script src="./config.js" defer></script>
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260915-6" defer></script>
+    <script src="./concilia-integrated.js?v=20260916-2" defer></script>
     <script src="./facturacion.js?v=20260914-2" defer></script>
-    <script src="./app.js?v=20260910-1" defer></script>
+    <script src="./app.js?v=20260916-1" defer></script>
   </body>
 </html>

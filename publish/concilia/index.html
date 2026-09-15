@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Concilia EDP</title>
-    <link rel="stylesheet" href="./styles.css?v=20260915-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260916-2" />
   </head>
   <body>
     <main class="app-shell">
@@ -451,7 +451,7 @@
               <aside class="personal-list-panel">
                 <div class="results-toolbar section-summary-toolbar">
                   <div class="results-summary">
-                    <p id="lectivo-students-panel-summary" class="muted-text">Selecciona un centro.</p>
+                    <p id="lectivo-students-panel-summary" class="muted-text">Cargando alumnado...</p>
                   </div>
                   <div class="header-actions">
                     <button id="lectivo-students-new-button" type="button">
@@ -465,7 +465,7 @@
                   role="listbox"
                   aria-label="Listado de alumnado lectivo"
                 >
-                  <p class="empty-state">Selecciona un centro.</p>
+                  <p class="empty-state">Cargando alumnado...</p>
                 </div>
               </aside>
 
@@ -481,8 +481,13 @@
                       <p id="lectivo-student-panel-summary" class="muted-text">Completa los datos del alumno.</p>
                     </div>
                   </div>
+                  <div class="toolbar-actions">
+                    <button id="lectivo-student-back-button" type="button" class="secondary-button">
+                      Cancelar
+                    </button>
+                    <button type="submit" form="lectivo-student-form">Guardar alumno</button>
+                  </div>
                 </div>
-
 
             <form id="lectivo-student-form" class="activity-form side-panel-form">
               <input id="lectivo-student-id" name="id" type="hidden" />
@@ -655,13 +660,6 @@
                   <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="domingo" data-lectivo-schedule-turno="turno_2" data-lectivo-schedule-orden="2" />T2</label>
                 </div>
               </fieldset>
-
-              <div class="activity-actions">
-                <button id="lectivo-student-back-button" class="secondary-button" type="button">
-                  Cancelar
-                </button>
-                <button type="submit">Guardar alumno</button>
-              </div>
             </form>
               </section>
             </div>
@@ -1332,6 +1330,6 @@
     <script src="./config.js"></script>
     <script src="./shared/supabase-client.js"></script>
     <script src="./shared/auth.js"></script>
-    <script src="./app.js?v=20260915-6"></script>
+    <script src="./app.js?v=20260916-2"></script>
   </body>
 </html>

@@ -1177,7 +1177,8 @@ td {
   align-self: end;
 }
 
-.side-panel label {
+.side-panel label,
+#lectivo-student-form label {
   gap: 1px;
   font-family: inherit;
   font-size: 0.72rem;
@@ -1185,7 +1186,10 @@ td {
 
 .side-panel input:not([type="checkbox"]):not([type="radio"]),
 .side-panel select,
-.side-panel textarea {
+.side-panel textarea,
+#lectivo-student-form input:not([type="checkbox"]):not([type="radio"]),
+#lectivo-student-form select,
+#lectivo-student-form textarea {
   height: 28px;
   min-height: 28px;
   padding: 3px 6px;
@@ -1194,7 +1198,8 @@ td {
   line-height: 1.2;
 }
 
-.side-panel textarea {
+.side-panel textarea,
+#lectivo-student-form textarea {
   height: auto;
   min-height: 56px;
   line-height: 1.25;

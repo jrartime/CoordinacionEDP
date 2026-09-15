@@ -1504,7 +1504,6 @@ const personalDetailAvatar = document.querySelector("#personal-detail-avatar");
 const personalDetailMeta = document.querySelector("#personal-detail-meta");
 const personalForm = document.querySelector("#personal-form");
 const personalFormFields = document.querySelector("#personal-form-fields");
-const personalEditButton = document.querySelector("#personal-edit-button");
 const personalSaveButton = document.querySelector("#personal-save-button");
 const personalCancelButton = document.querySelector("#personal-cancel-button");
 const personalComplementosSection = document.querySelector("#personal-complementos-section");
@@ -11394,7 +11393,6 @@ function setPersonalFormEditing(isEditing) {
       input.readOnly = false;
     }
   });
-  personalEditButton?.classList.toggle("hidden", isEditing || currentPersonalMode === "new" || !currentSelectedPersonalId);
   personalSaveButton?.classList.toggle("hidden", !isEditing);
   personalCancelButton?.classList.toggle("hidden", !isEditing);
 }
@@ -11597,13 +11595,14 @@ function renderPersonalList() {
 function selectPersonal(personalId) {
   const row = currentPersonalRows.find((item) => String(item.id) === String(personalId));
   currentSelectedPersonalId = row ? String(row.id) : "";
-  currentPersonalMode = "view";
+  currentPersonalMode = row ? "edit" : "view";
   if (personalFormTitle) {
     personalFormTitle.textContent = row ? getPersonalDisplayName(row) : "Ficha de personal";
   }
   fillPersonalForm(row);
   renderPersonalDetailHeader(row);
-  setPersonalFormEditing(false);
+  setPersonalFormEditing(Boolean(row));
+  markFormPristine(personalForm);
   renderPersonalList();
   void refreshPersonalComplementosPanel();
 }
@@ -11617,18 +11616,16 @@ function startNewPersonal() {
   renderPersonalDetailHeader(null);
   clearPersonalForm();
   setPersonalFormEditing(true);
+  markFormPristine(personalForm);
   getPersonalFieldInput("nombre")?.focus();
   void refreshPersonalComplementosPanel();
 }
 
-function startEditPersonal() {
-  if (!currentSelectedPersonalId) {
-    setPersonalStatus("Selecciona una persona antes de editar.", "error");
-    return;
-  }
-  currentPersonalMode = "edit";
-  setPersonalFormEditing(true);
-  getPersonalFieldInput("nombre")?.focus();
+// saveFn compartido por el aviso de cambios sin guardar (confirmCloseWithSave):
+// reutiliza savePersonal con un evento simulado, ya que se dispara fuera del
+// propio submit del formulario (al cambiar de persona o pulsar "Nueva persona").
+function savePersonalForUnsavedGuard() {
+  return savePersonal({ preventDefault() {} });
 }
 
 async function loadNominaComplementosCatalog() {
@@ -34273,7 +34270,13 @@ async function init() {
     }
     toggleHistorialImportRow(checkbox.dataset.historialImportSelect, Boolean(checkbox.checked));
   });
-  personalNewButton?.addEventListener("click", startNewPersonal);
+  personalNewButton?.addEventListener("click", () => {
+    void confirmCloseWithSave(personalForm, savePersonalForUnsavedGuard).then((canProceed) => {
+      if (canProceed) {
+        startNewPersonal();
+      }
+    });
+  });
   personalRefreshButton?.addEventListener("click", () => {
     void loadPersonalManagement();
   });
@@ -34313,12 +34316,16 @@ async function init() {
   });
   personalList?.addEventListener("click", (event) => {
     const item = event.target.closest("[data-personal-id]");
-    if (!item) {
+    if (!item || item.dataset.personalId === currentSelectedPersonalId) {
       return;
     }
-    selectPersonal(item.dataset.personalId);
+    const targetId = item.dataset.personalId;
+    void confirmCloseWithSave(personalForm, savePersonalForUnsavedGuard).then((canProceed) => {
+      if (canProceed) {
+        selectPersonal(targetId);
+      }
+    });
   });
-  personalEditButton?.addEventListener("click", startEditPersonal);
   personalCancelButton?.addEventListener("click", () => {
     if (currentPersonalMode === "new") {
       selectPersonal(filteredPersonalRows[0]?.id || "");
