@@ -2388,6 +2388,7 @@
         throw error;
       }
 
+      lectivoAttendanceByKey.set(`${lectivoUsuarioId}__${fecha}__${turno}`, presente);
       setStatus(presente ? "Asistencia marcada." : "Asistencia retirada.", "success");
       return true;
     } catch (error) {
