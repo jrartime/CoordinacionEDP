@@ -11607,6 +11607,19 @@ function selectPersonal(personalId) {
   void refreshPersonalComplementosPanel();
 }
 
+function showPersonalFormEmpty() {
+  currentSelectedPersonalId = "";
+  currentPersonalMode = "view";
+  if (personalFormTitle) {
+    personalFormTitle.textContent = "Ficha de personal";
+  }
+  renderPersonalDetailHeader(null);
+  clearPersonalForm();
+  setPersonalFormEditing(false);
+  renderPersonalList();
+  markFormPristine(personalForm);
+}
+
 function startNewPersonal() {
   currentSelectedPersonalId = "";
   currentPersonalMode = "new";
@@ -12632,21 +12645,12 @@ async function loadPersonalManagement(preferredPersonalId = currentSelectedPerso
   const selectedId =
     preferredPersonalId && currentPersonalRows.some((row) => String(row.id) === String(preferredPersonalId))
       ? String(preferredPersonalId)
-      : filteredPersonalRows[0]?.id
-        ? String(filteredPersonalRows[0].id)
-        : "";
+      : "";
 
   if (selectedId) {
     selectPersonal(selectedId);
   } else {
-    currentSelectedPersonalId = "";
-    currentPersonalMode = "view";
-    if (personalFormTitle) {
-      personalFormTitle.textContent = "Ficha de personal";
-    }
-    renderPersonalDetailHeader(null);
-    clearPersonalForm();
-    setPersonalFormEditing(false);
+    showPersonalFormEmpty();
   }
 
   setPersonalStatus(currentPersonalRows.length ? "" : "No hay personal cargado.");
@@ -34328,7 +34332,7 @@ async function init() {
   });
   personalCancelButton?.addEventListener("click", () => {
     if (currentPersonalMode === "new") {
-      selectPersonal(filteredPersonalRows[0]?.id || "");
+      showPersonalFormEmpty();
       return;
     }
     selectPersonal(currentSelectedPersonalId);
