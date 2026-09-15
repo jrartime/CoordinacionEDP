@@ -2321,21 +2321,25 @@
   }
 
   function renderLectivoFichaFields(usuario) {
-    return LECTIVO_FICHA_FIELDS.map((field) => {
+    const fieldsHtml = LECTIVO_FICHA_FIELDS.map((field) => {
       const rawValue = usuario[field.key];
-      const displayValue =
-        field.type === "boolean"
-          ? formatLectivoBooleanLabel(rawValue)
-          : rawValue === null || rawValue === undefined || rawValue === ""
-          ? "-"
-          : String(rawValue);
+      const isEmpty = field.type === "boolean" ? rawValue === null || rawValue === undefined : !rawValue;
+      if (isEmpty) {
+        return null;
+      }
+      const displayValue = field.type === "boolean" ? formatLectivoBooleanLabel(rawValue) : String(rawValue);
       return `
         <div class="lectivo-ficha-field${field.wide ? " lectivo-ficha-field-wide" : ""}">
-          <span class="lectivo-ficha-label">${escapeHtml(field.label)}</span>
+          <span class="lectivo-ficha-label">${escapeHtml(field.label)}:</span>
           <span class="lectivo-ficha-value">${escapeHtml(displayValue)}</span>
         </div>
       `;
-    }).join("");
+    }).filter(Boolean);
+
+    if (!fieldsHtml.length) {
+      return '<p class="empty-state">Sin datos adicionales registrados.</p>';
+    }
+    return fieldsHtml.join("");
   }
 
   function renderLectivoFichaAttendance(usuario) {

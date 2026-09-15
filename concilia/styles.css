@@ -1140,14 +1140,15 @@ td {
 .lectivo-ficha-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  padding: 10px 0;
+  gap: 6px 14px;
+  padding: 8px 0;
 }
 
 .lectivo-ficha-field {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -1161,6 +1162,7 @@ td {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .lectivo-ficha-value {
