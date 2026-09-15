@@ -31,7 +31,7 @@
     </style>
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
-    <link rel="stylesheet" href="./concilia-integrated.css?v=20260907-4" />
+    <link rel="stylesheet" href="./concilia-integrated.css?v=20260915-1" />
     <link rel="stylesheet" href="./styles.css?v=20260909-4" />
   </head>
   <body>
@@ -7343,16 +7343,9 @@
 
             <p id="lectivo-summary" class="summary-chip">Selecciona un centro para pasar lista.</p>
 
-            <div class="table-wrap lectivo-table-wrap">
-              <table class="lectivo-attendance-table" id="lectivo-attendance-table">
-                <thead id="lectivo-attendance-table-head"></thead>
-                <tbody id="lectivo-attendance-table-body">
-                  <tr>
-                    <td class="empty-state">Selecciona un centro para pasar lista.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <ul class="lectivo-student-list" id="lectivo-student-list">
+              <li class="empty-state">Selecciona un centro para pasar lista.</li>
+            </ul>
           </div>
 
           <div id="attendance-report-backdrop" class="panel-backdrop hidden"></div>
@@ -10013,7 +10006,7 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260908-1" defer></script>
+    <script src="./concilia-integrated.js?v=20260915-1" defer></script>
     <script src="./facturacion.js?v=20260914-2" defer></script>
     <script src="./app.js?v=20260910-1" defer></script>
   </body>

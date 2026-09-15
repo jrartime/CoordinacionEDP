@@ -128,8 +128,7 @@
   const attendanceLectivoView = document.querySelector("#attendance-lectivo-view");
   const lectivoCentroSelect = document.querySelector("#lectivo-centro-select");
   const lectivoSummary = document.querySelector("#lectivo-summary");
-  const lectivoAttendanceTableHead = document.querySelector("#lectivo-attendance-table-head");
-  const lectivoAttendanceTableBody = document.querySelector("#lectivo-attendance-table-body");
+  const lectivoStudentList = document.querySelector("#lectivo-student-list");
   const attendanceMobileStart = document.querySelector("#attendance-mobile-start");
   const attendanceMobileList = document.querySelector("#attendance-mobile-list");
   const attendanceMobileCenterFilter = document.querySelector("#attendance-mobile-center-filter");
@@ -2208,6 +2207,37 @@
   let lectivoCentrosLoaded = false;
   let lectivoCurrentCentroId = null;
   let lectivoWeekMonday = null;
+  let lectivoAttendanceUsuarios = [];
+  let lectivoAttendanceByKey = new Map();
+  let lectivoExpandedUsuarioId = null;
+  const LECTIVO_FICHA_FIELDS = [
+    { key: "correo_electronico", label: "Correo electrónico" },
+    { key: "telefono_1", label: "Teléfono 1" },
+    { key: "telefono_2", label: "Teléfono 2" },
+    { key: "edad", label: "Edad" },
+    { key: "autorizado_1_nombre", label: "Autorizado 1 · Nombre" },
+    { key: "autorizado_1_dni", label: "Autorizado 1 · DNI" },
+    { key: "autorizado_2_nombre", label: "Autorizado 2 · Nombre" },
+    { key: "autorizado_2_dni", label: "Autorizado 2 · DNI" },
+    { key: "autorizado_3_nombre", label: "Autorizado 3 · Nombre" },
+    { key: "autorizado_3_dni", label: "Autorizado 3 · DNI" },
+    { key: "autoriza_se_va_solo", label: "Autoriza: se va solo/a", type: "boolean" },
+    { key: "autoriza_salidas_centro", label: "Autoriza: salidas del centro", type: "boolean" },
+    { key: "autoriza_imagenes", label: "Autoriza: imágenes/vídeos", type: "boolean" },
+    { key: "alergias", label: "Alergias / intolerancias / tratamiento", wide: true },
+    { key: "observaciones", label: "Observaciones / sugerencias", wide: true },
+    { key: "asistencia_resumen", label: "Asistencia declarada (referencia)", wide: true },
+  ];
+
+  function formatLectivoBooleanLabel(value) {
+    if (value === true) {
+      return "Sí";
+    }
+    if (value === false) {
+      return "No";
+    }
+    return "No indicado";
+  }
 
   function getCurrentWeekMonday(date = new Date()) {
     return addDays(date, -(getSpanishWeekday(date) - 1));
@@ -2290,90 +2320,115 @@
     return groups;
   }
 
-  function renderLectivoAttendanceTable(usuarios, columns, asistenciasByKey) {
+  function renderLectivoFichaFields(usuario) {
+    return LECTIVO_FICHA_FIELDS.map((field) => {
+      const rawValue = usuario[field.key];
+      const displayValue =
+        field.type === "boolean"
+          ? formatLectivoBooleanLabel(rawValue)
+          : rawValue === null || rawValue === undefined || rawValue === ""
+          ? "-"
+          : String(rawValue);
+      return `
+        <div class="lectivo-ficha-field${field.wide ? " lectivo-ficha-field-wide" : ""}">
+          <span class="lectivo-ficha-label">${escapeHtml(field.label)}</span>
+          <span class="lectivo-ficha-value">${escapeHtml(displayValue)}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderLectivoFichaAttendance(usuario) {
+    const columns = buildLectivoColumns([usuario]);
     if (!columns.length) {
-      lectivoAttendanceTableHead.innerHTML = "";
-      lectivoAttendanceTableBody.innerHTML =
-        '<tr><td class="empty-state">Este centro no tiene horarios de matricula configurados.</td></tr>';
-      return;
+      return '<p class="empty-state">Este alumno no tiene horarios de matricula configurados.</p>';
     }
 
+    const horarios = usuario.concilia_lectivo_horarios ?? [];
     const dayGroups = groupLectivoColumnsByDay(columns);
 
-    lectivoAttendanceTableHead.innerHTML = `
-      <tr>
-        <th class="lectivo-name-col" rowspan="2">Alumnado</th>
-        ${dayGroups
-          .map((day) => {
-            const date = lectivoColumnDate(day.columns[0]);
-            const dayLabel = LECTIVO_DAY_ORDER[day.diaSemana]?.label || day.diaSemana;
-            const dateLabel = date
-              ? date.toLocaleDateString("es-ES", { day: "numeric", month: "numeric" })
-              : "";
-            return `<th colspan="${day.columns.length}">${escapeHtml(dayLabel)} ${escapeHtml(dateLabel)}</th>`;
+    return dayGroups
+      .map((day) => {
+        const date = lectivoColumnDate(day.columns[0]);
+        const dayLabel = LECTIVO_DAY_ORDER[day.diaSemana]?.label || day.diaSemana;
+        const dateLabel = date ? date.toLocaleDateString("es-ES", { day: "numeric", month: "numeric" }) : "";
+        const turnoInputs = day.columns
+          .map((column) => {
+            const matriculado = horarios.some(
+              (horario) =>
+                horario.matriculado && horario.dia_semana === column.diaSemana && horario.turno === column.turno
+            );
+            if (!matriculado) {
+              return "";
+            }
+            const fecha = date ? formatDateValue(date) : "";
+            const key = `${usuario.id}__${fecha}__${column.turno}`;
+            const presente = lectivoAttendanceByKey.get(key) === true;
+            return `
+              <label class="lectivo-ficha-turno">
+                <input
+                  class="lectivo-attendance-checkbox"
+                  type="checkbox"
+                  data-lectivo-usuario-id="${escapeHtml(usuario.id)}"
+                  data-lectivo-fecha="${escapeHtml(fecha)}"
+                  data-lectivo-dia-semana="${escapeHtml(column.diaSemana)}"
+                  data-lectivo-turno="${escapeHtml(column.turno)}"
+                  ${presente ? "checked" : ""}
+                  aria-label="Marcar presente ${escapeHtml(usuario.nombre)} ${escapeHtml(dayLabel)} ${escapeHtml(LECTIVO_TURNO_LABELS[column.turno] || column.turno)}"
+                />
+                ${escapeHtml(LECTIVO_TURNO_LABELS[column.turno] || column.turno)}
+              </label>
+            `;
           })
-          .join("")}
-      </tr>
-      <tr>
-        ${dayGroups
-          .map((day) =>
-            day.columns
-              .map(
-                (column) =>
-                  `<th class="lectivo-turno-col">${escapeHtml(LECTIVO_TURNO_LABELS[column.turno] || column.turno)}</th>`
-              )
-              .join("")
-          )
-          .join("")}
-      </tr>
-    `;
+          .join("");
+        return `
+          <div class="lectivo-ficha-day">
+            <span class="lectivo-ficha-day-label">${escapeHtml(dayLabel)} ${escapeHtml(dateLabel)}</span>
+            ${turnoInputs}
+          </div>
+        `;
+      })
+      .join("");
+  }
 
-    if (!usuarios.length) {
-      lectivoAttendanceTableBody.innerHTML =
-        '<tr><td class="empty-state">No hay alumnado matriculado en este centro.</td></tr>';
+  function renderLectivoFicha(usuario) {
+    return `
+      <div class="lectivo-ficha" data-lectivo-ficha="${escapeHtml(usuario.id)}">
+        <div class="lectivo-ficha-grid">
+          ${renderLectivoFichaFields(usuario)}
+        </div>
+        <div class="lectivo-ficha-attendance">
+          <p class="lectivo-ficha-attendance-title">Asistencia — semana en curso</p>
+          <div class="lectivo-ficha-days">
+            ${renderLectivoFichaAttendance(usuario)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderLectivoAttendanceList() {
+    if (!lectivoAttendanceUsuarios.length) {
+      lectivoStudentList.innerHTML = '<li class="empty-state">No hay alumnado matriculado en este centro.</li>';
       return;
     }
 
-    lectivoAttendanceTableBody.innerHTML = usuarios
+    lectivoStudentList.innerHTML = lectivoAttendanceUsuarios
       .map((usuario) => {
-        const horarios = usuario.concilia_lectivo_horarios ?? [];
+        const expanded = String(usuario.id) === String(lectivoExpandedUsuarioId);
         return `
-          <tr>
-            <th class="lectivo-name-col" scope="row">
-              <span class="lectivo-name-text">${escapeHtml(usuario.nombre)} ${escapeHtml(usuario.apellidos)}</span>
-            </th>
-            ${columns
-              .map((column) => {
-                const matriculado = horarios.some(
-                  (horario) =>
-                    horario.matriculado &&
-                    horario.dia_semana === column.diaSemana &&
-                    horario.turno === column.turno
-                );
-                if (!matriculado) {
-                  return '<td class="attendance-check-cell attendance-check-cell-empty">-</td>';
-                }
-                const date = lectivoColumnDate(column);
-                const fecha = date ? formatDateValue(date) : "";
-                const key = `${usuario.id}__${fecha}__${column.turno}`;
-                const presente = asistenciasByKey.get(key) === true;
-                return `
-                  <td class="attendance-check-cell">
-                    <input
-                      class="lectivo-attendance-checkbox"
-                      type="checkbox"
-                      data-lectivo-usuario-id="${escapeHtml(usuario.id)}"
-                      data-lectivo-fecha="${escapeHtml(fecha)}"
-                      data-lectivo-dia-semana="${escapeHtml(column.diaSemana)}"
-                      data-lectivo-turno="${escapeHtml(column.turno)}"
-                      ${presente ? "checked" : ""}
-                      aria-label="Marcar presente ${escapeHtml(usuario.nombre)}"
-                    />
-                  </td>
-                `;
-              })
-              .join("")}
-          </tr>
+          <li class="lectivo-student-item">
+            <button
+              type="button"
+              class="lectivo-student-name-button"
+              data-lectivo-student-toggle="${escapeHtml(usuario.id)}"
+              aria-expanded="${expanded}"
+            >
+              <span class="lectivo-student-name-text">${escapeHtml(usuario.nombre)} ${escapeHtml(usuario.apellidos)}</span>
+              <span class="lectivo-student-chevron">${expanded ? "▴" : "▾"}</span>
+            </button>
+            ${expanded ? renderLectivoFicha(usuario) : ""}
+          </li>
         `;
       })
       .join("");
@@ -2382,12 +2437,11 @@
   async function loadLectivoAttendance(supabase) {
     const centroId = Number(lectivoCentroSelect.value || "") || null;
     lectivoCurrentCentroId = centroId;
+    lectivoExpandedUsuarioId = null;
 
     if (!centroId) {
       lectivoSummary.textContent = "Selecciona un centro para pasar lista.";
-      lectivoAttendanceTableHead.innerHTML = "";
-      lectivoAttendanceTableBody.innerHTML =
-        '<tr><td class="empty-state">Selecciona un centro para pasar lista.</td></tr>';
+      lectivoStudentList.innerHTML = '<li class="empty-state">Selecciona un centro para pasar lista.</li>';
       return;
     }
 
@@ -2399,7 +2453,13 @@
       await Promise.all([
         supabase
           .from("concilia_lectivo_usuarios")
-          .select("id, nombre, apellidos, concilia_lectivo_horarios(dia_semana, turno, turno_orden, matriculado)")
+          .select(
+            "id, nombre, apellidos, correo_electronico, telefono_1, telefono_2, edad, " +
+              "autorizado_1_nombre, autorizado_1_dni, autorizado_2_nombre, autorizado_2_dni, " +
+              "autorizado_3_nombre, autorizado_3_dni, autoriza_se_va_solo, autoriza_salidas_centro, " +
+              "autoriza_imagenes, alergias, observaciones, asistencia_resumen, " +
+              "concilia_lectivo_horarios(dia_semana, turno, turno_orden, matriculado)"
+          )
           .eq("centro_id", centroId)
           .eq("activo", true)
           .order("nombre", { ascending: true })
@@ -2421,19 +2481,21 @@
       return;
     }
 
-    const asistenciasByKey = new Map();
+    lectivoAttendanceByKey = new Map();
     (asistencias ?? []).forEach((row) => {
-      asistenciasByKey.set(`${row.lectivo_usuario_id}__${row.fecha}__${row.turno}`, row.presente);
+      lectivoAttendanceByKey.set(`${row.lectivo_usuario_id}__${row.fecha}__${row.turno}`, row.presente);
     });
 
-    const columns = buildLectivoColumns(usuarios ?? []);
-    renderLectivoAttendanceTable(usuarios ?? [], columns, asistenciasByKey);
+    lectivoAttendanceUsuarios = (usuarios ?? []).slice().sort((a, b) => {
+      return a.nombre.localeCompare(b.nombre, "es") || a.apellidos.localeCompare(b.apellidos, "es");
+    });
+    renderLectivoAttendanceList();
 
     const semanaLabel = `${lectivoWeekMonday.toLocaleDateString("es-ES", {
       day: "2-digit",
       month: "2-digit",
     })} - ${addDays(lectivoWeekMonday, 6).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })}`;
-    lectivoSummary.textContent = `${(usuarios ?? []).length} alumnos. Semana del ${semanaLabel}.`;
+    lectivoSummary.textContent = `${lectivoAttendanceUsuarios.length} alumnos. Semana del ${semanaLabel}.`;
   }
 
   async function updateLectivoAttendance(lectivoUsuarioId, fecha, diaSemana, turno, presente) {
@@ -6428,7 +6490,16 @@
     lectivoCentroSelect?.addEventListener("change", () => {
       void getSupabaseClient().then((supabase) => loadLectivoAttendance(supabase));
     });
-    lectivoAttendanceTableBody?.addEventListener("change", (event) => {
+    lectivoStudentList?.addEventListener("click", (event) => {
+      const toggleButton = event.target.closest("[data-lectivo-student-toggle]");
+      if (!toggleButton) {
+        return;
+      }
+      const id = toggleButton.dataset.lectivoStudentToggle;
+      lectivoExpandedUsuarioId = String(lectivoExpandedUsuarioId) === String(id) ? null : id;
+      renderLectivoAttendanceList();
+    });
+    lectivoStudentList?.addEventListener("change", (event) => {
       const checkbox = event.target.closest(".lectivo-attendance-checkbox");
       if (!checkbox) {
         return;

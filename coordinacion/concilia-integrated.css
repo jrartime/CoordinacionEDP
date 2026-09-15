@@ -931,47 +931,141 @@ td {
   opacity: 0.65;
 }
 
-.lectivo-attendance-table {
-  min-width: 640px;
+.lectivo-student-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.lectivo-attendance-table th,
-.lectivo-attendance-table td {
-  text-align: center;
+.lectivo-student-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
 }
 
-.lectivo-attendance-table thead th:first-child,
-.lectivo-attendance-table tbody th {
+.lectivo-student-name-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
   text-align: left;
 }
 
-.lectivo-attendance-table tbody th {
-  min-width: 200px;
+.lectivo-student-name-button:hover {
+  background: #f7f9fc;
+}
+
+.lectivo-student-chevron {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.lectivo-ficha {
+  padding: 4px 14px 14px;
+  border-top: 1px solid var(--line);
+  background: #f7f9fc;
+}
+
+.lectivo-ficha-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.lectivo-ficha-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lectivo-ficha-field-wide {
+  grid-column: 1 / -1;
+}
+
+.lectivo-ficha-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.lectivo-ficha-value {
+  font-size: 0.88rem;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.lectivo-ficha-attendance {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.lectivo-ficha-attendance-title {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.lectivo-ficha-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.lectivo-ficha-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   background: #ffffff;
 }
 
-.lectivo-name-col {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  background: #ffffff;
+.lectivo-ficha-day-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
 }
 
-.lectivo-attendance-table .lectivo-attendance-checkbox {
-  width: 22px;
-  height: 22px;
+.lectivo-ficha-turno {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.lectivo-ficha-turno input {
+  width: 20px;
+  height: 20px;
   margin: 0;
   accent-color: var(--accent);
   cursor: pointer;
 }
 
-.lectivo-attendance-table .lectivo-attendance-checkbox:disabled {
+.lectivo-ficha-turno input:disabled {
   cursor: wait;
   opacity: 0.65;
-}
-
-.attendance-check-cell-empty {
-  color: var(--muted);
 }
 
 .nee-filters-grid {
@@ -2144,22 +2238,7 @@ code {
     font-weight: 800;
   }
 
-  .lectivo-name-col {
-    min-width: 96px;
-    max-width: 96px;
-    width: 96px;
-  }
-
-  .lectivo-name-text {
-    display: inline-block;
-    max-width: 75%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: bottom;
-  }
-
-  .lectivo-turno-col {
-    min-width: 44px;
+  .lectivo-ficha-grid {
+    grid-template-columns: 1fr;
   }
 }

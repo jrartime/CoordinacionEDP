@@ -30,6 +30,24 @@ create table if not exists public.concilia_lectivo_usuarios (
 alter table public.concilia_lectivo_usuarios
 add column if not exists correo_electronico text;
 
+-- Ficha ampliada (Asistencia WEB, curso 2026-2027): autorizados para recoger al
+-- alumno, autorizaciones de salida/imagenes, alergias/observaciones, y el texto
+-- libre original de "ASISTENCIA" del Excel como referencia humana (la matricula
+-- real, ya estructurada por dia/turno, vive en concilia_lectivo_horarios).
+alter table public.concilia_lectivo_usuarios
+add column if not exists autorizado_1_nombre text,
+add column if not exists autorizado_1_dni text,
+add column if not exists autorizado_2_nombre text,
+add column if not exists autorizado_2_dni text,
+add column if not exists autorizado_3_nombre text,
+add column if not exists autorizado_3_dni text,
+add column if not exists autoriza_se_va_solo boolean,
+add column if not exists autoriza_salidas_centro boolean,
+add column if not exists autoriza_imagenes boolean,
+add column if not exists alergias text,
+add column if not exists observaciones text,
+add column if not exists asistencia_resumen text;
+
 create index if not exists concilia_lectivo_usuarios_centro_idx
 on public.concilia_lectivo_usuarios (centro_id);
 

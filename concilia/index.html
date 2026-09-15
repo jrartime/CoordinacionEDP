@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Concilia EDP</title>
-    <link rel="stylesheet" href="./styles.css?v=20260907-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260915-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -1043,16 +1043,9 @@
 
             <p id="lectivo-summary" class="summary-chip">Selecciona un centro para pasar lista.</p>
 
-            <div class="table-wrap lectivo-table-wrap">
-              <table class="lectivo-attendance-table" id="lectivo-attendance-table">
-                <thead id="lectivo-attendance-table-head"></thead>
-                <tbody id="lectivo-attendance-table-body">
-                  <tr>
-                    <td class="empty-state">Selecciona un centro para pasar lista.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <ul class="lectivo-student-list" id="lectivo-student-list">
+              <li class="empty-state">Selecciona un centro para pasar lista.</li>
+            </ul>
           </div>
 
           <div id="attendance-report-backdrop" class="panel-backdrop hidden"></div>
@@ -1207,6 +1200,6 @@
     <script src="./config.js"></script>
     <script src="../shared/supabase-client.js"></script>
     <script src="../shared/auth.js"></script>
-    <script src="./app.js?v=20260706-1"></script>
+    <script src="./app.js?v=20260915-1"></script>
   </body>
 </html>
