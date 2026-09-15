@@ -16968,6 +16968,7 @@ function buildPersonReportData(rows) {
       horaFin: String(row.hora_fin || "").slice(0, 5),
       horas,
       tipoHora,
+      situacion: String(row.situacion || "").trim() || "-",
     });
   }
 
@@ -17043,6 +17044,7 @@ function renderPersonReportPreview(data, range) {
           <td>${escapeHtml(row.horaFin)}</td>
           <td class="numeric-cell">${escapeHtml(formatRecordHours(row.horas))}</td>
           <td>${escapeHtml(row.tipoHora)}</td>
+          <td>${escapeHtml(row.situacion)}</td>
         </tr>
       `
     )
@@ -17096,6 +17098,7 @@ function renderPersonReportPreview(data, range) {
               <th>Hora fin</th>
               <th class="numeric-heading">Horas</th>
               <th>Tipo hora</th>
+              <th>Situación</th>
             </tr>
           </thead>
           <tbody>${detailRowsHtml}</tbody>
@@ -17201,7 +17204,7 @@ function exportRecordsPersonReportCsv() {
     return;
   }
   const { data, range } = recordsPersonReportPayload;
-  const headers = ["Fecha", "Puesto", "Hora inicio", "Hora fin", "Horas", "Tipo hora"];
+  const headers = ["Fecha", "Puesto", "Hora inicio", "Hora fin", "Horas", "Tipo hora", "Situación"];
   const lines = [
     headers.map(toCsvValue).join(","),
     ...data.detailRows.map((row) =>
@@ -17212,6 +17215,7 @@ function exportRecordsPersonReportCsv() {
         row.horaFin,
         formatRecordHours(row.horas),
         row.tipoHora,
+        row.situacion,
       ]
         .map(toCsvValue)
         .join(",")
@@ -17296,12 +17300,13 @@ async function exportRecordsPersonReportPdf() {
       ...tableDefaults,
       y,
       columns: [
-        { key: "fecha", label: "Fecha", width: 24, align: "left" },
-        { key: "puesto", label: "Puesto", width: 52, align: "left" },
-        { key: "horaInicio", label: "Inicio", width: 20, align: "center" },
-        { key: "horaFin", label: "Fin", width: 20, align: "center" },
-        { key: "horas", label: "Horas", width: 22, align: "right" },
-        { key: "tipoHora", label: "Tipo hora", width: 48, align: "left" },
+        { key: "fecha", label: "Fecha", width: 22, align: "left" },
+        { key: "puesto", label: "Puesto", width: 42, align: "left" },
+        { key: "horaInicio", label: "Inicio", width: 18, align: "center" },
+        { key: "horaFin", label: "Fin", width: 18, align: "center" },
+        { key: "horas", label: "Horas", width: 20, align: "right" },
+        { key: "tipoHora", label: "Tipo hora", width: 38, align: "left" },
+        { key: "situacion", label: "Situación", width: 28, align: "left" },
       ],
       rows: data.detailRows.map((row) => ({
         fecha: formatDisplayDate(row.fecha),
@@ -17310,6 +17315,7 @@ async function exportRecordsPersonReportPdf() {
         horaFin: row.horaFin,
         horas: formatRecordHours(row.horas),
         tipoHora: row.tipoHora,
+        situacion: row.situacion,
       })),
     });
     y += 8;
@@ -17487,11 +17493,12 @@ function drawRecordsPersonReportImage(data, range) {
   ];
   const detailColumns = [
     { key: "fecha", label: "Fecha", width: 150 },
-    { key: "puesto", label: "Puesto", width: 340 },
-    { key: "inicio", label: "Inicio", width: 110 },
-    { key: "fin", label: "Fin", width: 110 },
-    { key: "horas", label: "Horas", width: 120 },
-    { key: "tipoHora", label: "Tipo hora", width: 260 },
+    { key: "puesto", label: "Puesto", width: 300 },
+    { key: "inicio", label: "Inicio", width: 100 },
+    { key: "fin", label: "Fin", width: 100 },
+    { key: "horas", label: "Horas", width: 110 },
+    { key: "tipoHora", label: "Tipo hora", width: 220 },
+    { key: "situacion", label: "Situación", width: 200 },
   ];
   const puestoColumns = [
     { key: "label", label: "Puesto", width: 340 },
@@ -17532,6 +17539,7 @@ function drawRecordsPersonReportImage(data, range) {
     fin: row.horaFin || "-",
     horas: formatRecordHours(row.horas),
     tipoHora: row.tipoHora,
+    situacion: row.situacion,
   }));
   const puestoRows = data.byPuesto.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) }));
   const tipoHoraRows = data.byTipoHora.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) }));
