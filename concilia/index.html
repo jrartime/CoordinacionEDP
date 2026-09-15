@@ -219,24 +219,24 @@
 
           <div class="control-view-toggle" role="group" aria-label="Vista de Alumnado">
             <button
-              id="alumnado-view-no-lectivo-button"
-              type="button"
-              class="control-view-toggle-button active"
-              data-alumnado-view="no_lectivo"
-            >
-              No lectivo
-            </button>
-            <button
               id="alumnado-view-lectivo-button"
               type="button"
-              class="control-view-toggle-button"
+              class="control-view-toggle-button active"
               data-alumnado-view="lectivo"
             >
               Lectivo
             </button>
+            <button
+              id="alumnado-view-no-lectivo-button"
+              type="button"
+              class="control-view-toggle-button"
+              data-alumnado-view="no_lectivo"
+            >
+              No lectivo
+            </button>
           </div>
 
-          <div id="alumnado-no-lectivo-view">
+          <div id="alumnado-no-lectivo-view" class="hidden">
           <form id="students-filters-form" class="filters-grid records-filters-compact">
             <label class="filter-field">
               Centro
@@ -386,7 +386,7 @@
           </div>
           </div>
 
-          <div id="alumnado-lectivo-view" class="hidden">
+          <div id="alumnado-lectivo-view">
             <div class="results-toolbar section-summary-toolbar personal-stats-toolbar">
               <div id="lectivo-alumnado-stats" class="results-summary">
                 <article class="summary-chip">
@@ -906,24 +906,24 @@
 
           <div class="control-view-toggle" role="group" aria-label="Vista de Asistencia">
             <button
-              id="attendance-view-no-lectivo-button"
-              type="button"
-              class="control-view-toggle-button active"
-              data-attendance-view="no_lectivo"
-            >
-              No lectivo
-            </button>
-            <button
               id="attendance-view-lectivo-button"
               type="button"
-              class="control-view-toggle-button"
+              class="control-view-toggle-button active"
               data-attendance-view="lectivo"
             >
               Lectivo
             </button>
+            <button
+              id="attendance-view-no-lectivo-button"
+              type="button"
+              class="control-view-toggle-button"
+              data-attendance-view="no_lectivo"
+            >
+              No lectivo
+            </button>
           </div>
 
-          <div id="attendance-no-lectivo-view">
+          <div id="attendance-no-lectivo-view" class="hidden">
           <form id="attendance-filters-form" class="filters-grid records-filters-compact attendance-filters-grid">
             <label class="filter-field">
               Centro
@@ -1137,7 +1137,7 @@
           </div>
           </div>
 
-          <div id="attendance-lectivo-view" class="hidden">
+          <div id="attendance-lectivo-view">
             <form id="lectivo-filters-form" class="filters-grid records-filters-compact attendance-filters-grid">
               <label class="filter-field">
                 Centro
@@ -1331,6 +1331,6 @@
     <script src="./config.js"></script>
     <script src="../shared/supabase-client.js"></script>
     <script src="../shared/auth.js"></script>
-    <script src="./app.js?v=20260916-3"></script>
+    <script src="./app.js?v=20260916-4"></script>
   </body>
 </html>

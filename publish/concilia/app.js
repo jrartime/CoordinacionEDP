@@ -785,11 +785,13 @@
 
     if (target === "alumnado") {
       await loadStudents();
+      setAlumnadoView(alumnadoViewLectivoButton?.classList.contains("active") ? "lectivo" : "no_lectivo");
       return;
     }
 
     if (target === "asistencia") {
       await loadAttendanceMatrix(supabase);
+      setAttendanceView(attendanceViewLectivoButton?.classList.contains("active") ? "lectivo" : "no_lectivo");
       return;
     }
 
