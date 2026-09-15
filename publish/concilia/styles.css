@@ -1373,6 +1373,20 @@ td {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.side-field-row.cols-name-edad {
+  grid-template-columns: 3.5fr 3.5fr 1fr;
+}
+
+.side-field-row.lectivo-autorizados-horario-split {
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+}
+
+.lectivo-autorizados-stack {
+  display: grid;
+  gap: 8px 10px;
+}
+
 .side-field-row .checkbox-field {
   align-self: end;
 }
@@ -2201,7 +2215,9 @@ code {
   .activity-form,
   .side-field-row,
   .side-field-row.cols-2,
-  .side-field-row.cols-3 {
+  .side-field-row.cols-3,
+  .side-field-row.cols-name-edad,
+  .side-field-row.lectivo-autorizados-horario-split {
     grid-template-columns: 1fr;
   }
 

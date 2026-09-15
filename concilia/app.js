@@ -5092,6 +5092,28 @@
     return select.value === "true";
   }
 
+  function setLectivoStudentFormEditing(isEditing) {
+    lectivoStudentForm.querySelectorAll("input, select, textarea").forEach((field) => {
+      field.disabled = !isEditing;
+    });
+  }
+
+  function showLectivoStudentFormEmpty() {
+    lectivoStudentForm.reset();
+    lectivoStudentIdInput.value = "";
+    lectivoStudentEditingId = null;
+    resetLectivoScheduleCheckboxes();
+    lectivoStudentActivo.checked = true;
+    lectivoStudentCentroSelect.value = "";
+    syncLectivoScheduleFieldsetVisibility(null);
+    lectivoStudentPanelTitle.textContent = "Ficha de alumno";
+    lectivoStudentPanelSummary.textContent = 'Selecciona un alumno del listado o pulsa "Nuevo alumno".';
+    setLectivoStudentDetailAvatar("+");
+    setLectivoStudentFormEditing(false);
+    renderLectivoStudentsList();
+    markFormPristine(lectivoStudentForm);
+  }
+
   function openLectivoStudentCreate() {
     lectivoStudentForm.reset();
     lectivoStudentIdInput.value = "";
@@ -5104,6 +5126,7 @@
     lectivoStudentPanelTitle.textContent = "Nuevo alumno lectivo";
     lectivoStudentPanelSummary.textContent = "Completa los datos del nuevo alumno.";
     setLectivoStudentDetailAvatar("+");
+    setLectivoStudentFormEditing(true);
     renderLectivoStudentsList();
     markFormPristine(lectivoStudentForm);
     lectivoStudentNombre.focus();
@@ -5149,6 +5172,7 @@
     lectivoStudentPanelTitle.textContent = `Editar ${row.nombre} ${row.apellidos}`;
     lectivoStudentPanelSummary.textContent = "Actualiza los datos y guarda los cambios.";
     setLectivoStudentDetailAvatar(getLectivoStudentInitials(row));
+    setLectivoStudentFormEditing(true);
     renderLectivoStudentsList();
     markFormPristine(lectivoStudentForm);
   }
@@ -5322,6 +5346,9 @@
       void getSupabaseClient().then(async (supabase) => {
         await Promise.all([loadLectivoStudentsCentros(supabase), loadLectivoAlumnadoCentroFilterOptions(supabase)]);
         await loadLectivoStudentsList(supabase);
+        if (!lectivoStudentEditingId) {
+          showLectivoStudentFormEmpty();
+        }
         await loadLectivoAlumnadoStats(supabase);
       });
     }
@@ -6553,7 +6580,7 @@
         if (!lectivoStudentEditingId) {
           const canProceed = await confirmCloseWithSave(lectivoStudentForm, saveLectivoStudentForUnsavedGuard);
           if (canProceed) {
-            openLectivoStudentCreate();
+            showLectivoStudentFormEmpty();
           }
         }
         await loadLectivoAlumnadoStats(supabase);
@@ -6568,7 +6595,13 @@
         }
       });
     });
-    lectivoStudentBackButton?.addEventListener("click", openLectivoStudentCreate);
+    lectivoStudentBackButton?.addEventListener("click", () => {
+      if (lectivoStudentEditingId) {
+        openLectivoStudentEdit(lectivoStudentEditingId);
+      } else {
+        showLectivoStudentFormEmpty();
+      }
+    });
     lectivoStudentCentroSelect?.addEventListener("change", () => {
       syncLectivoScheduleFieldsetVisibility(Number(lectivoStudentCentroSelect.value || "") || null);
     });

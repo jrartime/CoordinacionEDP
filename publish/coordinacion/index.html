@@ -31,7 +31,7 @@
     </style>
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
-    <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-1" />
+    <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-2" />
     <link rel="stylesheet" href="./styles.css?v=20260909-4" />
   </head>
   <body>
@@ -6887,7 +6887,7 @@
                 </label>
               </div>
 
-              <div class="side-field-row cols-2">
+              <div class="side-field-row cols-name-edad">
                 <label>
                   Nombre
                   <input id="lectivo-student-nombre" name="nombre" type="text" required />
@@ -6895,6 +6895,10 @@
                 <label>
                   Apellidos
                   <input id="lectivo-student-apellidos" name="apellidos" type="text" required />
+                </label>
+                <label>
+                  Edad
+                  <input id="lectivo-student-edad" name="edad" type="number" min="0" step="1" />
                 </label>
               </div>
 
@@ -6913,44 +6917,85 @@
                 </label>
               </div>
 
-              <div class="side-field-row cols-2">
-                <label>
-                  Edad
-                  <input id="lectivo-student-edad" name="edad" type="number" min="0" step="1" />
-                </label>
-              </div>
+              <div class="side-field-row lectivo-autorizados-horario-split">
+                <div class="lectivo-autorizados-stack">
+                  <div class="side-field-row cols-2">
+                    <label>
+                      Autorizado 1 · Nombre
+                      <input id="lectivo-student-autorizado1-nombre" name="autorizado_1_nombre" type="text" />
+                    </label>
+                    <label>
+                      Autorizado 1 · DNI
+                      <input id="lectivo-student-autorizado1-dni" name="autorizado_1_dni" type="text" />
+                    </label>
+                  </div>
 
-              <div class="side-field-row cols-2">
-                <label>
-                  Autorizado 1 · Nombre
-                  <input id="lectivo-student-autorizado1-nombre" name="autorizado_1_nombre" type="text" />
-                </label>
-                <label>
-                  Autorizado 1 · DNI
-                  <input id="lectivo-student-autorizado1-dni" name="autorizado_1_dni" type="text" />
-                </label>
-              </div>
+                  <div class="side-field-row cols-2">
+                    <label>
+                      Autorizado 2 · Nombre
+                      <input id="lectivo-student-autorizado2-nombre" name="autorizado_2_nombre" type="text" />
+                    </label>
+                    <label>
+                      Autorizado 2 · DNI
+                      <input id="lectivo-student-autorizado2-dni" name="autorizado_2_dni" type="text" />
+                    </label>
+                  </div>
 
-              <div class="side-field-row cols-2">
-                <label>
-                  Autorizado 2 · Nombre
-                  <input id="lectivo-student-autorizado2-nombre" name="autorizado_2_nombre" type="text" />
-                </label>
-                <label>
-                  Autorizado 2 · DNI
-                  <input id="lectivo-student-autorizado2-dni" name="autorizado_2_dni" type="text" />
-                </label>
-              </div>
+                  <div class="side-field-row cols-2">
+                    <label>
+                      Autorizado 3 · Nombre
+                      <input id="lectivo-student-autorizado3-nombre" name="autorizado_3_nombre" type="text" />
+                    </label>
+                    <label>
+                      Autorizado 3 · DNI
+                      <input id="lectivo-student-autorizado3-dni" name="autorizado_3_dni" type="text" />
+                    </label>
+                  </div>
+                </div>
 
-              <div class="side-field-row cols-2">
-                <label>
-                  Autorizado 3 · Nombre
-                  <input id="lectivo-student-autorizado3-nombre" name="autorizado_3_nombre" type="text" />
-                </label>
-                <label>
-                  Autorizado 3 · DNI
-                  <input id="lectivo-student-autorizado3-dni" name="autorizado_3_dni" type="text" />
-                </label>
+                <fieldset class="lectivo-schedule-grid" data-lectivo-schedule-type="weekday">
+                  <legend>Horario semanal (turno A / turno B)</legend>
+                  <div class="lectivo-schedule-day">
+                    <span class="lectivo-schedule-day-label">Lunes</span>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="lunes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="lunes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
+                  </div>
+                  <div class="lectivo-schedule-day">
+                    <span class="lectivo-schedule-day-label">Martes</span>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="martes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="martes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
+                  </div>
+                  <div class="lectivo-schedule-day">
+                    <span class="lectivo-schedule-day-label">Miercoles</span>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="miercoles" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="miercoles" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
+                  </div>
+                  <div class="lectivo-schedule-day">
+                    <span class="lectivo-schedule-day-label">Jueves</span>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="jueves" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="jueves" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
+                  </div>
+                  <div class="lectivo-schedule-day">
+                    <span class="lectivo-schedule-day-label">Viernes</span>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="viernes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="viernes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="lectivo-schedule-grid lectivo-schedule-grid-weekend hidden" data-lectivo-schedule-type="weekend">
+                  <legend>Horario de fin de semana (San Pedro)</legend>
+                  <div class="lectivo-schedule-day">
+                    <span class="lectivo-schedule-day-label">Sabado</span>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="turno_1" data-lectivo-schedule-orden="1" />T1</label>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="turno_2" data-lectivo-schedule-orden="2" />T2</label>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="tarde" data-lectivo-schedule-orden="3" />Tarde</label>
+                  </div>
+                  <div class="lectivo-schedule-day">
+                    <span class="lectivo-schedule-day-label">Domingo</span>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="domingo" data-lectivo-schedule-turno="turno_1" data-lectivo-schedule-orden="1" />T1</label>
+                    <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="domingo" data-lectivo-schedule-turno="turno_2" data-lectivo-schedule-orden="2" />T2</label>
+                  </div>
+                </fieldset>
               </div>
 
               <div class="side-field-row cols-3">
@@ -7000,50 +7045,6 @@
                   <textarea id="lectivo-student-asistencia-resumen" name="asistencia_resumen" rows="2"></textarea>
                 </label>
               </div>
-
-              <fieldset class="lectivo-schedule-grid" data-lectivo-schedule-type="weekday">
-                <legend>Horario semanal (turno A / turno B)</legend>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Lunes</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="lunes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="lunes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
-                </div>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Martes</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="martes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="martes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
-                </div>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Miercoles</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="miercoles" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="miercoles" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
-                </div>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Jueves</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="jueves" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="jueves" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
-                </div>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Viernes</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="viernes" data-lectivo-schedule-turno="A" data-lectivo-schedule-orden="1" />A</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="viernes" data-lectivo-schedule-turno="B" data-lectivo-schedule-orden="2" />B</label>
-                </div>
-              </fieldset>
-
-              <fieldset class="lectivo-schedule-grid lectivo-schedule-grid-weekend hidden" data-lectivo-schedule-type="weekend">
-                <legend>Horario de fin de semana (San Pedro)</legend>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Sabado</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="turno_1" data-lectivo-schedule-orden="1" />T1</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="turno_2" data-lectivo-schedule-orden="2" />T2</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="sabado" data-lectivo-schedule-turno="tarde" data-lectivo-schedule-orden="3" />Tarde</label>
-                </div>
-                <div class="lectivo-schedule-day">
-                  <span class="lectivo-schedule-day-label">Domingo</span>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="domingo" data-lectivo-schedule-turno="turno_1" data-lectivo-schedule-orden="1" />T1</label>
-                  <label class="checkbox-field"><input type="checkbox" data-lectivo-schedule-day="domingo" data-lectivo-schedule-turno="turno_2" data-lectivo-schedule-orden="2" />T2</label>
-                </div>
-              </fieldset>
             </form>
               </section>
             </div>
@@ -10099,7 +10100,7 @@
     <script src="./config.js" defer></script>
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260916-2" defer></script>
+    <script src="./concilia-integrated.js?v=20260916-3" defer></script>
     <script src="./facturacion.js?v=20260914-2" defer></script>
     <script src="./app.js?v=20260916-1" defer></script>
   </body>
