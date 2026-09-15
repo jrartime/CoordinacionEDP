@@ -474,7 +474,8 @@ textarea {
 .attendance-mobile-start,
 .attendance-mobile-list,
 .attendance-mobile-comedor-backdrop,
-.attendance-mobile-comedor-view {
+.attendance-mobile-comedor-view,
+.lectivo-mobile-toolbar {
   display: none;
 }
 
@@ -2187,6 +2188,7 @@ code {
   #module-panel-asistencia > .module-header,
   #module-panel-asistencia > .section-summary-toolbar,
   #attendance-filters-form,
+  #lectivo-filters-form,
   #module-panel-asistencia .attendance-table-wrap,
   #module-panel-asistencia .pagination-bar {
     display: none;
@@ -2208,6 +2210,30 @@ code {
   .attendance-mobile-start select {
     min-height: 42px;
     font-size: 1rem;
+  }
+
+  .lectivo-mobile-toolbar {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #ffffff;
+  }
+
+  .lectivo-mobile-toolbar.hidden {
+    display: none;
+  }
+
+  .lectivo-mobile-toolbar p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-align: right;
   }
 
   .attendance-mobile-list {

@@ -129,6 +129,12 @@
   const lectivoCentroSelect = document.querySelector("#lectivo-centro-select");
   const lectivoSummary = document.querySelector("#lectivo-summary");
   const lectivoStudentList = document.querySelector("#lectivo-student-list");
+  const lectivoMobileStart = document.querySelector("#lectivo-mobile-start");
+  const lectivoMobileCentroSelect = document.querySelector("#lectivo-mobile-centro-select");
+  const lectivoMobileStartButton = document.querySelector("#lectivo-mobile-start-button");
+  const lectivoMobileToolbar = document.querySelector("#lectivo-mobile-toolbar");
+  const lectivoMobileBackButton = document.querySelector("#lectivo-mobile-back-button");
+  const lectivoMobileContext = document.querySelector("#lectivo-mobile-context");
   const attendanceMobileStart = document.querySelector("#attendance-mobile-start");
   const attendanceMobileList = document.querySelector("#attendance-mobile-list");
   const attendanceMobileCenterFilter = document.querySelector("#attendance-mobile-center-filter");
@@ -2266,13 +2272,27 @@
     });
     const centros = [...centrosById.entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
 
-    lectivoCentroSelect.innerHTML =
+    const optionsHtml =
       '<option value="">Selecciona un centro...</option>' +
       centros
         .map(([id, nombre]) => `<option value="${escapeHtml(id)}">${escapeHtml(nombre)}</option>`)
         .join("");
 
+    lectivoCentroSelect.innerHTML = optionsHtml;
+    if (lectivoMobileCentroSelect) {
+      lectivoMobileCentroSelect.innerHTML = optionsHtml;
+    }
+
     lectivoCentrosLoaded = true;
+  }
+
+  function setLectivoMobileScreen(isListOpen) {
+    lectivoMobileStart?.classList.toggle("hidden", isListOpen);
+    lectivoMobileToolbar?.classList.toggle("hidden", !isListOpen);
+    if (isListOpen && lectivoMobileContext) {
+      const nombre = lectivoCentroSelect.selectedOptions?.[0]?.textContent || "";
+      lectivoMobileContext.textContent = nombre;
+    }
   }
 
   function buildLectivoColumns(usuarios) {
@@ -2544,6 +2564,10 @@
     if (isLectivo) {
       void getSupabaseClient().then(async (supabase) => {
         await loadLectivoCentros(supabase);
+        if (lectivoMobileCentroSelect) {
+          lectivoMobileCentroSelect.value = lectivoCentroSelect.value;
+        }
+        setLectivoMobileScreen(Boolean(lectivoCentroSelect.value));
         if (lectivoCentroSelect.value) {
           await loadLectivoAttendance(supabase);
         }
@@ -6492,7 +6516,24 @@
     attendanceViewNoLectivoButton?.addEventListener("click", () => setAttendanceView("no_lectivo"));
     attendanceViewLectivoButton?.addEventListener("click", () => setAttendanceView("lectivo"));
     lectivoCentroSelect?.addEventListener("change", () => {
+      if (lectivoMobileCentroSelect) {
+        lectivoMobileCentroSelect.value = lectivoCentroSelect.value;
+      }
+      setLectivoMobileScreen(Boolean(lectivoCentroSelect.value));
       void getSupabaseClient().then((supabase) => loadLectivoAttendance(supabase));
+    });
+    lectivoMobileStartButton?.addEventListener("click", () => {
+      if (!lectivoMobileCentroSelect?.value) {
+        setStatus("Selecciona un centro para pasar lista.", "error");
+        return;
+      }
+
+      lectivoCentroSelect.value = lectivoMobileCentroSelect.value;
+      setLectivoMobileScreen(true);
+      void getSupabaseClient().then((supabase) => loadLectivoAttendance(supabase));
+    });
+    lectivoMobileBackButton?.addEventListener("click", () => {
+      setLectivoMobileScreen(false);
     });
     lectivoStudentList?.addEventListener("click", (event) => {
       const toggleButton = event.target.closest("[data-lectivo-student-toggle]");
