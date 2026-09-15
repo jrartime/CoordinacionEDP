@@ -106,6 +106,18 @@
   const lectivoStudentTelefono1 = document.querySelector("#lectivo-student-telefono1");
   const lectivoStudentTelefono2 = document.querySelector("#lectivo-student-telefono2");
   const lectivoStudentEdad = document.querySelector("#lectivo-student-edad");
+  const lectivoStudentAutorizado1Nombre = document.querySelector("#lectivo-student-autorizado1-nombre");
+  const lectivoStudentAutorizado1Dni = document.querySelector("#lectivo-student-autorizado1-dni");
+  const lectivoStudentAutorizado2Nombre = document.querySelector("#lectivo-student-autorizado2-nombre");
+  const lectivoStudentAutorizado2Dni = document.querySelector("#lectivo-student-autorizado2-dni");
+  const lectivoStudentAutorizado3Nombre = document.querySelector("#lectivo-student-autorizado3-nombre");
+  const lectivoStudentAutorizado3Dni = document.querySelector("#lectivo-student-autorizado3-dni");
+  const lectivoStudentAutorizaSeVaSolo = document.querySelector("#lectivo-student-autoriza-se-va-solo");
+  const lectivoStudentAutorizaSalidasCentro = document.querySelector("#lectivo-student-autoriza-salidas-centro");
+  const lectivoStudentAutorizaImagenes = document.querySelector("#lectivo-student-autoriza-imagenes");
+  const lectivoStudentAlergias = document.querySelector("#lectivo-student-alergias");
+  const lectivoStudentObservaciones = document.querySelector("#lectivo-student-observaciones");
+  const lectivoStudentAsistenciaResumen = document.querySelector("#lectivo-student-asistencia-resumen");
   const openSummaryPanelButton = document.querySelector("#open-summary-panel-button");
   const closeSummaryPanelButton = document.querySelector("#close-summary-panel-button");
   const summaryPanelBackdrop = document.querySelector("#summary-panel-backdrop");
@@ -6539,8 +6551,18 @@
   // Alumnado Lectivo — CRUD de concilia_lectivo_usuarios / concilia_lectivo_horarios
   // desde la pestana Alumnado (independiente del CRUD de concilia_usuarios de arriba)
   // -----------------------------------------------
-  const LECTIVO_STUDENT_CURSO_ESCOLAR = "2025-2026";
-  const LECTIVO_SCHEDULE_DAYS = ["lunes", "martes", "miercoles", "jueves", "viernes"];
+  const LECTIVO_STUDENT_CURSO_ESCOLAR = "2026-2027";
+  const LECTIVO_SCHEDULE_DAY_LABELS = {
+    lunes: "L",
+    martes: "M",
+    miercoles: "X",
+    jueves: "J",
+    viernes: "V",
+    sabado: "Sa",
+    domingo: "Do",
+  };
+  const LECTIVO_SCHEDULE_DAY_ORDER = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"];
+  const LECTIVO_WEEKEND_CENTRO_IDS = new Set([233]);
   let lectivoStudentsAllCentrosLoaded = false;
   let lectivoStudentsCurrentCentroId = null;
   let lectivoStudentsRows = [];
@@ -6604,7 +6626,6 @@
   }
 
   function formatLectivoScheduleSummary(horarios) {
-    const dayLabels = { lunes: "L", martes: "M", miercoles: "X", jueves: "J", viernes: "V" };
     const byDay = new Map();
     (horarios ?? [])
       .filter((horario) => horario.matriculado)
@@ -6615,8 +6636,8 @@
         byDay.get(horario.dia_semana).push(horario.turno);
       });
 
-    const summary = LECTIVO_SCHEDULE_DAYS.filter((day) => byDay.has(day))
-      .map((day) => `${dayLabels[day]}(${byDay.get(day).sort().join(",")})`)
+    const summary = LECTIVO_SCHEDULE_DAY_ORDER.filter((day) => byDay.has(day))
+      .map((day) => `${LECTIVO_SCHEDULE_DAY_LABELS[day]}(${byDay.get(day).sort().join(",")})`)
       .join(" ");
     return summary || "-";
   }
@@ -6684,7 +6705,11 @@
     const { data, error } = await supabase
       .from("concilia_lectivo_usuarios")
       .select(
-        "id, nombre, apellidos, correo_electronico, telefono_1, telefono_2, edad, activo, concilia_lectivo_horarios(dia_semana, turno, matriculado)"
+        "id, nombre, apellidos, correo_electronico, telefono_1, telefono_2, edad, activo, " +
+          "autorizado_1_nombre, autorizado_1_dni, autorizado_2_nombre, autorizado_2_dni, " +
+          "autorizado_3_nombre, autorizado_3_dni, autoriza_se_va_solo, autoriza_salidas_centro, " +
+          "autoriza_imagenes, alergias, observaciones, asistencia_resumen, " +
+          "concilia_lectivo_horarios(dia_semana, turno, matriculado)"
       )
       .eq("centro_id", centroId)
       .eq("curso_escolar", LECTIVO_STUDENT_CURSO_ESCOLAR)
@@ -6714,16 +6739,39 @@
   }
 
   function setLectivoScheduleCheckbox(dia, turno, checked) {
-    const input = lectivoStudentForm.querySelector(`[data-lectivo-schedule="${dia}-${turno}"]`);
+    const input = lectivoStudentForm.querySelector(
+      `[data-lectivo-schedule-day="${dia}"][data-lectivo-schedule-turno="${turno}"]`
+    );
     if (input) {
       input.checked = checked;
     }
   }
 
   function resetLectivoScheduleCheckboxes() {
-    lectivoStudentForm.querySelectorAll("[data-lectivo-schedule]").forEach((input) => {
+    lectivoStudentForm.querySelectorAll("[data-lectivo-schedule-day]").forEach((input) => {
       input.checked = false;
     });
+  }
+
+  function syncLectivoScheduleFieldsetVisibility(centroId) {
+    const type = LECTIVO_WEEKEND_CENTRO_IDS.has(centroId) ? "weekend" : "weekday";
+    lectivoStudentForm.querySelectorAll("[data-lectivo-schedule-type]").forEach((fieldset) => {
+      fieldset.classList.toggle("hidden", fieldset.dataset.lectivoScheduleType !== type);
+    });
+  }
+
+  function setLectivoTriStateSelect(select, value) {
+    if (!select) {
+      return;
+    }
+    select.value = value === null || value === undefined ? "" : String(Boolean(value));
+  }
+
+  function getLectivoTriStateValue(select) {
+    if (!select || select.value === "") {
+      return null;
+    }
+    return select.value === "true";
   }
 
   function openLectivoStudentCreate() {
@@ -6732,9 +6780,9 @@
     lectivoStudentEditingId = null;
     resetLectivoScheduleCheckboxes();
     lectivoStudentActivo.checked = true;
-    lectivoStudentCentroSelect.value = lectivoStudentsCurrentCentroId
-      ? String(lectivoStudentsCurrentCentroId)
-      : "";
+    const centroId = lectivoStudentsCurrentCentroId || null;
+    lectivoStudentCentroSelect.value = centroId ? String(centroId) : "";
+    syncLectivoScheduleFieldsetVisibility(centroId);
     lectivoStudentPanelTitle.textContent = "Nuevo alumno lectivo";
     lectivoStudentPanelSummary.textContent = "Completa los datos del nuevo alumno.";
     openLectivoStudentFormPanel();
@@ -6758,7 +6806,20 @@
     lectivoStudentTelefono1.value = row.telefono_1 ?? "";
     lectivoStudentTelefono2.value = row.telefono_2 ?? "";
     lectivoStudentEdad.value = row.edad ?? "";
+    lectivoStudentAutorizado1Nombre.value = row.autorizado_1_nombre ?? "";
+    lectivoStudentAutorizado1Dni.value = row.autorizado_1_dni ?? "";
+    lectivoStudentAutorizado2Nombre.value = row.autorizado_2_nombre ?? "";
+    lectivoStudentAutorizado2Dni.value = row.autorizado_2_dni ?? "";
+    lectivoStudentAutorizado3Nombre.value = row.autorizado_3_nombre ?? "";
+    lectivoStudentAutorizado3Dni.value = row.autorizado_3_dni ?? "";
+    setLectivoTriStateSelect(lectivoStudentAutorizaSeVaSolo, row.autoriza_se_va_solo);
+    setLectivoTriStateSelect(lectivoStudentAutorizaSalidasCentro, row.autoriza_salidas_centro);
+    setLectivoTriStateSelect(lectivoStudentAutorizaImagenes, row.autoriza_imagenes);
+    lectivoStudentAlergias.value = row.alergias ?? "";
+    lectivoStudentObservaciones.value = row.observaciones ?? "";
+    lectivoStudentAsistenciaResumen.value = row.asistencia_resumen ?? "";
 
+    syncLectivoScheduleFieldsetVisibility(lectivoStudentsCurrentCentroId);
     resetLectivoScheduleCheckboxes();
     (row.concilia_lectivo_horarios ?? [])
       .filter((horario) => horario.matriculado)
@@ -6769,15 +6830,15 @@
     openLectivoStudentFormPanel();
   }
 
-  function collectLectivoScheduleSelection() {
-    const selection = [];
-    LECTIVO_SCHEDULE_DAYS.forEach((dia) => {
-      ["A", "B"].forEach((turno) => {
-        const input = lectivoStudentForm.querySelector(`[data-lectivo-schedule="${dia}-${turno}"]`);
-        selection.push({ dia_semana: dia, turno, matriculado: Boolean(input?.checked) });
-      });
-    });
-    return selection;
+  function collectLectivoScheduleSelection(centroId) {
+    const type = LECTIVO_WEEKEND_CENTRO_IDS.has(centroId) ? "weekend" : "weekday";
+    const fieldset = lectivoStudentForm.querySelector(`[data-lectivo-schedule-type="${type}"]`);
+    return [...(fieldset?.querySelectorAll("[data-lectivo-schedule-day]") ?? [])].map((input) => ({
+      dia_semana: input.dataset.lectivoScheduleDay,
+      turno: input.dataset.lectivoScheduleTurno,
+      turno_orden: Number(input.dataset.lectivoScheduleOrden),
+      matriculado: input.checked,
+    }));
   }
 
   async function handleLectivoStudentSubmit(event) {
@@ -6802,6 +6863,18 @@
       telefono_2: nullableInputValue(lectivoStudentTelefono2),
       edad: nullableInputValue(lectivoStudentEdad) ? Number(trimInputValue(lectivoStudentEdad)) : null,
       activo: Boolean(lectivoStudentActivo.checked),
+      autorizado_1_nombre: nullableInputValue(lectivoStudentAutorizado1Nombre),
+      autorizado_1_dni: nullableInputValue(lectivoStudentAutorizado1Dni),
+      autorizado_2_nombre: nullableInputValue(lectivoStudentAutorizado2Nombre),
+      autorizado_2_dni: nullableInputValue(lectivoStudentAutorizado2Dni),
+      autorizado_3_nombre: nullableInputValue(lectivoStudentAutorizado3Nombre),
+      autorizado_3_dni: nullableInputValue(lectivoStudentAutorizado3Dni),
+      autoriza_se_va_solo: getLectivoTriStateValue(lectivoStudentAutorizaSeVaSolo),
+      autoriza_salidas_centro: getLectivoTriStateValue(lectivoStudentAutorizaSalidasCentro),
+      autoriza_imagenes: getLectivoTriStateValue(lectivoStudentAutorizaImagenes),
+      alergias: nullableInputValue(lectivoStudentAlergias),
+      observaciones: nullableInputValue(lectivoStudentObservaciones),
+      asistencia_resumen: nullableInputValue(lectivoStudentAsistenciaResumen),
     };
 
     try {
@@ -6828,11 +6901,11 @@
         usuarioId = data.id;
       }
 
-      const scheduleRows = collectLectivoScheduleSelection().map((slot) => ({
+      const scheduleRows = collectLectivoScheduleSelection(centroId).map((slot) => ({
         lectivo_usuario_id: usuarioId,
         dia_semana: slot.dia_semana,
         turno: slot.turno,
-        turno_orden: slot.turno === "A" ? 1 : 2,
+        turno_orden: slot.turno_orden,
         matriculado: slot.matriculado,
       }));
 
@@ -8129,6 +8202,9 @@
     lectivoAlumnadoNameFilter?.addEventListener("change", renderLectivoStudentsList);
     lectivoStudentsNewButton?.addEventListener("click", openLectivoStudentCreate);
     lectivoStudentBackButton?.addEventListener("click", closeLectivoStudentFormPanel);
+    lectivoStudentCentroSelect?.addEventListener("change", () => {
+      syncLectivoScheduleFieldsetVisibility(Number(lectivoStudentCentroSelect.value || "") || null);
+    });
     lectivoStudentForm?.addEventListener("submit", (event) => {
       void handleLectivoStudentSubmit(event);
     });

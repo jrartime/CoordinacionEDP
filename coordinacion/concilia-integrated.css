@@ -1343,6 +1343,10 @@ td {
   background: #f7f9fc;
 }
 
+.lectivo-schedule-grid-weekend {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .lectivo-schedule-grid legend {
   grid-column: 1 / -1;
   padding: 0 0 4px;
