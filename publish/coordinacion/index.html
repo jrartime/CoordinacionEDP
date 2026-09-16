@@ -31,7 +31,7 @@
     </style>
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
-    <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-2" />
+    <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-4" />
     <link rel="stylesheet" href="./styles.css?v=20260909-4" />
   </head>
   <body>
@@ -7805,6 +7805,9 @@
               <button id="refresh-activities-button" type="button" class="secondary-button">
                 Actualizar
               </button>
+              <button id="activities-overlap-button" type="button" class="secondary-button">
+                Ver solapes
+              </button>
               <button id="open-activities-report-button" class="secondary-button" type="button">
                 Informe
               </button>
@@ -7886,6 +7889,13 @@
                   Descargar PDF
                 </button>
                 <button
+                  id="activities-schedule-report-image-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Ver PNG
+                </button>
+                <button
                   id="close-activities-schedule-report-button"
                   class="secondary-button compact-button"
                   type="button"
@@ -7899,6 +7909,43 @@
               class="activities-schedule-report-content"
             ></div>
           </aside>
+
+          <section id="activities-schedule-report-image-panel" class="detail-panel detail-panel-floating hidden">
+            <div id="activities-schedule-report-image-backdrop" class="detail-overlay"></div>
+            <div class="image-preview-dialog">
+              <div class="detail-header">
+                <div>
+                  <p class="eyebrow">Actividades</p>
+                  <h3>Vista previa PNG</h3>
+                </div>
+                <button
+                  id="close-activities-schedule-report-image-button"
+                  type="button"
+                  class="secondary-button"
+                >
+                  Cerrar
+                </button>
+              </div>
+              <div class="event-report-image-actions">
+                <button id="copy-activities-schedule-report-image-button" type="button">
+                  Copiar imagen
+                </button>
+                <button
+                  id="download-activities-schedule-report-image-button"
+                  class="secondary-button"
+                  type="button"
+                >
+                  Descargar PNG
+                </button>
+              </div>
+              <div class="event-report-image-preview">
+                <img
+                  id="activities-schedule-report-image-preview"
+                  alt="Vista previa del informe de horarios de actividades"
+                />
+              </div>
+            </div>
+          </section>
           <aside
             id="activity-create-panel"
             class="side-panel hidden"
@@ -7942,16 +7989,23 @@
               </label>
 
               <label>
-                Servicio
-                <select id="activity-servicio" name="servicio_id">
-                  <option value="">Seleccionar servicio</option>
+                Instalacion
+                <select id="activity-instalacion" name="instalacion_id" required>
+                  <option value="">Seleccionar instalacion</option>
                 </select>
               </label>
 
               <label>
-                Instalacion
-                <select id="activity-instalacion" name="instalacion_id" required>
-                  <option value="">Seleccionar instalacion</option>
+                Tipo de hora
+                <select id="activity-tipo-hora" name="tipo_hora_id" required>
+                  <option value="">Seleccionar tipo de hora</option>
+                </select>
+              </label>
+
+              <label>
+                Situacion
+                <select id="activity-situacion" name="situacion_id" required>
+                  <option value="">Seleccionar situacion</option>
                 </select>
               </label>
 
@@ -7977,17 +8031,13 @@
               </label>
 
               <label>
-                Situacion
-                <select id="activity-situacion" name="situacion_id" required>
-                  <option value="">Seleccionar situacion</option>
-                </select>
+                Fecha inicio
+                <input id="activity-fecha-inicio" name="fecha_inicio" type="date" required />
               </label>
 
               <label>
-                Tipo de hora
-                <select id="activity-tipo-hora" name="tipo_hora_id" required>
-                  <option value="">Seleccionar tipo de hora</option>
-                </select>
+                Fecha fin
+                <input id="activity-fecha-fin" name="fecha_fin" type="date" required />
               </label>
 
               <label class="checkbox-field">
@@ -8007,16 +8057,6 @@
                 <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="7" /> Domingo</span><input type="time" data-weekday-start="7" aria-label="Inicio del domingo" /><input type="time" data-weekday-end="7" aria-label="Fin del domingo" /></label>
                 <small>Indica el horario de cada dia marcado.</small>
               </fieldset>
-
-              <label>
-                Fecha inicio
-                <input id="activity-fecha-inicio" name="fecha_inicio" type="date" required />
-              </label>
-
-              <label>
-                Fecha fin
-                <input id="activity-fecha-fin" name="fecha_fin" type="date" required />
-              </label>
 
               <label class="activity-notes-field">
                 Observaciones
@@ -8328,9 +8368,14 @@
                       </button>
                     </th>
                     <th class="activity-installation-column">
-                      <button class="sort-button" type="button" data-activity-sort-field="instalacion">
-                        Instalacion
-                      </button>
+                      <div class="stacked-sort-buttons">
+                        <button class="sort-button" type="button" data-activity-sort-field="instalacion">
+                          Instalacion
+                        </button>
+                        <button class="sort-button" type="button" data-activity-sort-field="modalidad">
+                          Modalidad
+                        </button>
+                      </div>
                     </th>
                     <th class="activity-position-column">
                       <div class="stacked-sort-buttons">
@@ -8410,6 +8455,7 @@
 
             <form id="activity-edit-form" class="activity-form side-panel-form" novalidate>
               <input id="edit-activity-id" name="id" type="hidden" />
+              <input id="edit-activity-servicio" name="servicio_id" type="hidden" />
 
               <label>
                 Personal
@@ -8433,16 +8479,23 @@
               </label>
 
               <label>
-                Servicio
-                <select id="edit-activity-servicio" name="servicio_id">
-                  <option value="">Seleccionar servicio</option>
+                Instalacion
+                <select id="edit-activity-instalacion" name="instalacion_id" required>
+                  <option value="">Seleccionar instalacion</option>
                 </select>
               </label>
 
               <label>
-                Instalacion
-                <select id="edit-activity-instalacion" name="instalacion_id" required>
-                  <option value="">Seleccionar instalacion</option>
+                Tipo de hora
+                <select id="edit-activity-tipo-hora" name="tipo_hora_id" required>
+                  <option value="">Seleccionar tipo de hora</option>
+                </select>
+              </label>
+
+              <label>
+                Situacion
+                <select id="edit-activity-situacion" name="situacion_id" required>
+                  <option value="">Seleccionar situacion</option>
                 </select>
               </label>
 
@@ -8468,17 +8521,13 @@
               </label>
 
               <label>
-                Situacion
-                <select id="edit-activity-situacion" name="situacion_id" required>
-                  <option value="">Seleccionar situacion</option>
-                </select>
+                Fecha inicio
+                <input id="edit-activity-fecha-inicio" name="fecha_inicio" type="date" required />
               </label>
 
               <label>
-                Tipo de hora
-                <select id="edit-activity-tipo-hora" name="tipo_hora_id" required>
-                  <option value="">Seleccionar tipo de hora</option>
-                </select>
+                Fecha fin
+                <input id="edit-activity-fecha-fin" name="fecha_fin" type="date" required />
               </label>
 
               <label class="checkbox-field">
@@ -8498,16 +8547,6 @@
                 <label class="weekday-schedule-row"><span><input type="checkbox" name="dias_semana" value="7" /> Domingo</span><input type="time" data-weekday-start="7" aria-label="Inicio del domingo" /><input type="time" data-weekday-end="7" aria-label="Fin del domingo" /></label>
                 <small>Indica el horario de cada dia marcado.</small>
               </fieldset>
-
-              <label>
-                Fecha inicio
-                <input id="edit-activity-fecha-inicio" name="fecha_inicio" type="date" required />
-              </label>
-
-              <label>
-                Fecha fin
-                <input id="edit-activity-fecha-fin" name="fecha_fin" type="date" required />
-              </label>
 
               <label class="activity-notes-field">
                 Observaciones
@@ -10100,7 +10139,7 @@
     <script src="./config.js" defer></script>
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260916-4" defer></script>
+    <script src="./concilia-integrated.js?v=20260916-8" defer></script>
     <script src="./facturacion.js?v=20260914-2" defer></script>
     <script src="./app.js?v=20260916-2" defer></script>
   </body>

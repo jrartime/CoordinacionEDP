@@ -576,13 +576,19 @@ begin
   -- como se paga el registro. Ver "Bolsa de horas en modalidad Jornada" mas
   -- abajo para el porque de NO generar ninguna linea "Horas pagadas con la
   -- bolsa".
-  select coalesce(sum(x.horas) filter (where x.tipo_hora_id = 1), 0)::numeric,
-         coalesce(sum(x.horas) filter (where x.tipo_hora_id = 5), 0)::numeric,
-         coalesce(sum(x.horas) filter (where x.tipo_hora_id = 3), 0)::numeric,
-         coalesce(sum(x.horas) filter (where x.tipo_hora_id = 2), 0)::numeric
-    into v_horas_reg, v_horas_pnr, v_horas_mont, v_horas_hcomp
-  from (
-    select r.horas, r.tipo_hora_id
+  -- Fusion de intervalos solapados (decision confirmada 2026-09-16): cuando
+  -- dos actividades del mismo dia se superponen en el tiempo (p.ej. una
+  -- clase concreta dentro de un horario general de monitorizacion), la
+  -- persona no la trabaja dos veces. Se paga la UNION de los intervalos
+  -- solapados por dia+tipo_hora, no la suma de cada registro por separado;
+  -- la facturacion no se toca (sigue sumando cada registro tal cual, fuera
+  -- de esta funcion). Solo afecta a nominas calculadas/emitidas a partir de
+  -- ahora: las ya emitidas quedan congeladas en nomina_historiales/lineas y
+  -- no se recalculan. Los registros sin hora_inicio/hora_fin (import
+  -- historico sin horario preciso) no se pueden fusionar por intervalo y se
+  -- suman tal cual, como antes.
+  with elegibles as (
+    select r.id, r.fecha, r.tipo_hora_id, r.horas, r.hora_inicio, r.hora_fin
     from public.registros r
     where r.personal_id = h.personal_id
       and (r.puesto_id = h.puesto_id or (p_incluir_huerfanas
@@ -591,7 +597,58 @@ begin
       and (h.empresa_id is null or r.empresa_id = h.empresa_id)
       and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
       and r.fecha >= v_desde and r.fecha <= v_hasta
-  ) x;
+      and r.tipo_hora_id in (1, 2, 3, 5)
+  ),
+  con_horario as (
+    select id, fecha, tipo_hora_id,
+      extract(epoch from hora_inicio)::numeric / 60 as s,
+      case when hora_fin >= hora_inicio then extract(epoch from hora_fin)::numeric / 60
+           else extract(epoch from hora_fin)::numeric / 60 + 1440 end as e
+    from elegibles
+    where hora_inicio is not null and hora_fin is not null
+  ),
+  ordenados as (
+    select *,
+      max(e) over (
+        partition by fecha, tipo_hora_id
+        order by s, id
+        rows between unbounded preceding and 1 preceding
+      ) as e_previo
+    from con_horario
+  ),
+  islas as (
+    select *,
+      sum(case when e_previo is null or s > e_previo then 1 else 0 end)
+        over (partition by fecha, tipo_hora_id order by s, id) as isla
+    from ordenados
+  ),
+  fusionados as (
+    select tipo_hora_id, sum(e - s) / 60.0 as horas
+    from (
+      select fecha, tipo_hora_id, isla, min(s) as s, max(e) as e
+      from islas
+      group by fecha, tipo_hora_id, isla
+    ) rangos
+    group by tipo_hora_id
+  ),
+  sin_horario as (
+    select tipo_hora_id, sum(coalesce(horas, 0)) as horas
+    from elegibles
+    where hora_inicio is null or hora_fin is null
+    group by tipo_hora_id
+  ),
+  totales as (
+    select * from fusionados
+    union all
+    select * from sin_horario
+  )
+  select
+    coalesce(sum(horas) filter (where tipo_hora_id = 1), 0)::numeric,
+    coalesce(sum(horas) filter (where tipo_hora_id = 5), 0)::numeric,
+    coalesce(sum(horas) filter (where tipo_hora_id = 3), 0)::numeric,
+    coalesce(sum(horas) filter (where tipo_hora_id = 2), 0)::numeric
+    into v_horas_reg, v_horas_pnr, v_horas_mont, v_horas_hcomp
+  from totales;
 
   -- Bolsa de horas, lado ENTRADA (registro_apuntes, BOLSA_ENTRA): resta del
   -- bucket de tarifa que la origino (concepto_id) -- ese dia se sigue

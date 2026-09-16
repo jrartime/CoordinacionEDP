@@ -183,7 +183,6 @@
   const activityForm = document.querySelector("#activity-form");
   const activityPersonal = document.querySelector("#activity-personal");
   const activityContrato = document.querySelector("#activity-contrato");
-  const activityServicio = document.querySelector("#activity-servicio");
   const activityEmpresa = document.querySelector("#activity-empresa");
   const activityInstalacion = document.querySelector("#activity-instalacion");
   const activityPuesto = document.querySelector("#activity-puesto");
@@ -199,6 +198,7 @@
   const activitiesListSummary = document.querySelector("#activities-list-summary");
   const activitiesTableBody = document.querySelector("#activities-table-body");
   const refreshActivitiesButton = document.querySelector("#refresh-activities-button");
+  const activitiesOverlapButton = document.querySelector("#activities-overlap-button");
   const openActivitiesReportButton = document.querySelector("#open-activities-report-button");
   const openActivitiesPersonalReportButton = document.querySelector(
     "#open-activities-personal-report-button"
@@ -223,6 +223,27 @@
   );
   const activitiesScheduleReportContent = document.querySelector(
     "#activities-schedule-report-content"
+  );
+  const activitiesScheduleReportImageButton = document.querySelector(
+    "#activities-schedule-report-image-button"
+  );
+  const activitiesScheduleReportImagePanel = document.querySelector(
+    "#activities-schedule-report-image-panel"
+  );
+  const activitiesScheduleReportImageBackdrop = document.querySelector(
+    "#activities-schedule-report-image-backdrop"
+  );
+  const closeActivitiesScheduleReportImageButton = document.querySelector(
+    "#close-activities-schedule-report-image-button"
+  );
+  const copyActivitiesScheduleReportImageButton = document.querySelector(
+    "#copy-activities-schedule-report-image-button"
+  );
+  const downloadActivitiesScheduleReportImageButton = document.querySelector(
+    "#download-activities-schedule-report-image-button"
+  );
+  const activitiesScheduleReportImagePreview = document.querySelector(
+    "#activities-schedule-report-image-preview"
   );
   const closeActivitiesReportButton = document.querySelector("#close-activities-report-button");
   const downloadActivitiesReportPdfButton = document.querySelector(
@@ -2956,8 +2977,6 @@
         "contrato",
         "Todos los contratos"
       );
-      renderActivityServiceOptions(activityServicio, activityContrato.value);
-      renderActivityServiceOptions(editActivityServicio, editActivityContrato.value);
       renderActivityContractScopedOptions(activityForm);
       renderActivityContractScopedOptions(activityEditForm);
       renderCatalogOptions(activityEmpresa, empresaRows, "id", "empresa", "Seleccionar empresa");
@@ -3120,26 +3139,6 @@
     if (option) {
       select.value = option.value;
     }
-  }
-
-  function renderActivityServiceOptions(select, contratoId, selectedServicioId = select?.value || "") {
-    if (!select) {
-      return;
-    }
-
-    const normalizedContratoId = Number(contratoId);
-    const services = activityServiceRows.filter(
-      (service) => Number(service.contrato_id) === normalizedContratoId
-    );
-    select.innerHTML = [
-      '<option value="">Seleccionar servicio</option>',
-      ...services.map(
-        (service) => `<option value="${escapeHtml(service.id)}">${escapeHtml(service.servicio)}</option>`
-      ),
-    ].join("");
-    const selectedValue = String(selectedServicioId || "");
-    select.value = services.some((service) => String(service.id) === selectedValue) ? selectedValue : "";
-    select.disabled = !normalizedContratoId || !services.length;
   }
 
   function applyActivityFormDefaults() {
@@ -3325,6 +3324,7 @@
 
   function renderActivitiesTable() {
     activitiesListSummary.textContent = `${filteredActivitiesRows.length} actividades mostradas de ${activitiesRows.length}`;
+    updateActivitiesOverlapButton();
     const visibleColumnCount = activitiesRecordsSelectionMode ? 6 : 5;
     activitiesRecordsSelectHeader?.classList.toggle("hidden", !activitiesRecordsSelectionMode);
 
@@ -3343,7 +3343,12 @@
             tabindex="0"
             role="button"
             aria-label="Editar actividad ${escapeHtml(activity.personal || activity.id)}"
-            class="${String(editActivityId?.value || "") === String(activity.id) ? "activity-row-selected" : ""}"
+            class="${[
+              String(editActivityId?.value || "") === String(activity.id) ? "activity-row-selected" : "",
+              activitiesOverlapMap.has(String(activity.id)) ? "activity-row-solape" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}"
           >
             ${
               activitiesRecordsSelectionMode
@@ -3361,10 +3366,14 @@
               activity.personal_asignado_actualmente,
               activity.personal_asignacion_estado
             )}</td>
-            <td class="activity-installation-column">${escapeHtml(activity.instalacion)}${renderActivityAssignmentState(
-              activity.instalacion_asignada_actualmente,
-              activity.instalacion_asignacion_estado
-            )}</td>
+            <td class="activity-installation-column">
+              ${escapeHtml(activity.instalacion)}${renderActivityAssignmentState(
+                activity.instalacion_asignada_actualmente,
+                activity.instalacion_asignacion_estado
+              )}
+              <br />
+              <span class="muted-text">${escapeHtml(activity.modalidad || "")}</span>
+            </td>
             <td class="activity-position-column">
               ${escapeHtml(activity.puesto)}
               <br />
@@ -3375,7 +3384,7 @@
               <span class="muted-text">${escapeHtml(formatDate(activity.fecha_fin))}</span>
             </td>
             <td class="activity-schedule-column">
-              ${escapeHtml(formatActivityScheduleSummary(activity))}
+              ${escapeHtml(formatActivityScheduleSummary(activity))}${renderActivityOverlapBadge(activity)}
             </td>
           </tr>
         `
@@ -3442,8 +3451,16 @@
       filtersChanged = renderActivityFilterOptions();
     }
 
+    // Los solapes se cruzan sobre todo lo cargado, no sobre lo ya filtrado
+    // (mismo criterio que Registros): si el filtro deja fuera a la actividad
+    // que choca, la marca de la que si se ve sigue siendo correcta.
+    refreshActivitiesOverlaps();
+
     const filters = getActivityFilterValues();
     let nextFilteredActivitiesRows = activitiesRows.filter((activity) => {
+      if (activitiesOverlapOnly && !activitiesOverlapMap.has(String(activity.id))) {
+        return false;
+      }
       return activityMatchesFilterValues(activity, filters);
     });
 
@@ -4689,10 +4706,182 @@
     return getActivityScheduleEntries(activity).reduce((total, entry) => total + entry.hours, 0);
   }
 
+  // Fusiona intervalos [start,end) en minutos ya ordenados por start, uniendo
+  // los que se tocan o se solapan para no contar dos veces el tramo comun.
+  function mergeMinuteIntervals(intervals) {
+    const sorted = [...intervals].sort((a, b) => a.start - b.start);
+    const merged = [];
+    sorted.forEach((interval) => {
+      const last = merged[merged.length - 1];
+      if (last && interval.start <= last.end) {
+        last.end = Math.max(last.end, interval.end);
+      } else {
+        merged.push({ ...interval });
+      }
+    });
+    return merged;
+  }
+
+  // Horas semanales reales de un grupo de actividades de la misma persona:
+  // varias actividades pueden compartir dia y horario (p.ej. una clase
+  // concreta dentro de un horario general de monitorizacion) y no se puede
+  // sumar sin mas sus horas por separado, o el total sale inflado con horas
+  // que la persona no llega a trabajar dos veces.
+  function getActivityGroupWeeklyHours(rows) {
+    const byDay = new Map();
+    rows.forEach((activity) => {
+      getActivityScheduleEntries(activity).forEach((entry) => {
+        const start = parseTimeMinutes(entry.hora_inicio);
+        const end = parseTimeMinutes(entry.hora_fin);
+        if (start === null || end === null) {
+          return;
+        }
+        const normalizedEnd = end >= start ? end : end + 24 * 60;
+        if (!byDay.has(entry.day)) {
+          byDay.set(entry.day, []);
+        }
+        byDay.get(entry.day).push({ start, end: normalizedEnd });
+      });
+    });
+
+    let total = 0;
+    byDay.forEach((intervals) => {
+      mergeMinuteIntervals(intervals).forEach((interval) => {
+        total += (interval.end - interval.start) / 60;
+      });
+    });
+    return Math.round(total * 100) / 100;
+  }
+
   function formatActivityContractServiceLabel(activity) {
     const contract = String(activity.contrato || "-").trim();
     const service = String(activity.servicio || "").trim();
     return service ? `${contract} · ${service}` : contract;
+  }
+
+  // --- Solapes de horario en Actividades ---
+  // Mismo criterio que Registros (computeRecordsOverlaps en app.js): una
+  // persona no puede estar en dos actividades a la vez. Se cruza dentro de
+  // las actividades ya cargadas (activitiesRows), agrupando por persona y
+  // dia de la semana; dos entradas de la MISMA actividad nunca se comparan
+  // entre si (cada dia de una actividad aparece una sola vez).
+  let activitiesOverlapMap = new Map();
+  let activitiesOverlapOnly = false;
+
+  function computeActivityOverlaps(rows) {
+    const map = new Map();
+    const byPerson = new Map();
+    rows.forEach((activity) => {
+      if (activity.personal_id == null) return;
+      if (!byPerson.has(activity.personal_id)) {
+        byPerson.set(activity.personal_id, []);
+      }
+      byPerson.get(activity.personal_id).push(activity);
+    });
+
+    byPerson.forEach((activities) => {
+      const byDay = new Map();
+      activities.forEach((activity) => {
+        getActivityScheduleEntries(activity).forEach((entry) => {
+          const start = parseTimeMinutes(entry.hora_inicio);
+          const end = parseTimeMinutes(entry.hora_fin);
+          if (start === null || end === null) {
+            return;
+          }
+          if (!byDay.has(entry.day)) {
+            byDay.set(entry.day, []);
+          }
+          byDay.get(entry.day).push({
+            activity,
+            label: entry.label,
+            hora_inicio: entry.hora_inicio,
+            hora_fin: entry.hora_fin,
+            start,
+            end: end >= start ? end : end + 24 * 60,
+          });
+        });
+      });
+
+      byDay.forEach((entries) => {
+        for (let i = 0; i < entries.length; i += 1) {
+          for (let j = i + 1; j < entries.length; j += 1) {
+            const a = entries[i];
+            const b = entries[j];
+            if (a.activity.id === b.activity.id || a.start >= b.end || b.start >= a.end) {
+              continue;
+            }
+            [[a, b], [b, a]].forEach(([entry, other]) => {
+              const id = String(entry.activity.id);
+              if (!map.has(id)) {
+                map.set(id, []);
+              }
+              map.get(id).push({
+                label: other.label,
+                hora_inicio: other.hora_inicio,
+                hora_fin: other.hora_fin,
+                instalacion: other.activity.instalacion,
+                puesto: other.activity.puesto,
+              });
+            });
+          }
+        }
+      });
+    });
+
+    return map;
+  }
+
+  function refreshActivitiesOverlaps() {
+    activitiesOverlapMap = computeActivityOverlaps(activitiesRows);
+  }
+
+  function getActivityOverlapInfo(activity) {
+    const others = activitiesOverlapMap.get(String(activity?.id));
+    if (!others?.length) {
+      return null;
+    }
+    const detalle = others
+      .map(
+        (other) =>
+          `${other.label} ${formatTime(other.hora_inicio)}-${formatTime(other.hora_fin)} · ${
+            other.instalacion || other.puesto || "otra actividad"
+          }`
+      )
+      .join(" · ");
+    return {
+      count: others.length,
+      title: `Se solapa con ${others.length === 1 ? "otra actividad" : `${others.length} actividades`} de esta persona: ${detalle}`,
+    };
+  }
+
+  function renderActivityOverlapBadge(activity) {
+    const info = getActivityOverlapInfo(activity);
+    if (!info) {
+      return "";
+    }
+    return ` <span class="activity-overlap-badge" title="${escapeHtml(info.title)}">&#9888; Solape</span>`;
+  }
+
+  function updateActivitiesOverlapButton() {
+    if (!activitiesOverlapButton) {
+      return;
+    }
+    const total = activitiesRows.filter((activity) => activitiesOverlapMap.has(String(activity.id))).length;
+    activitiesOverlapButton.disabled = total === 0 && !activitiesOverlapOnly;
+    activitiesOverlapButton.classList.toggle("is-active", activitiesOverlapOnly);
+    activitiesOverlapButton.textContent = activitiesOverlapOnly
+      ? "Ver todas las actividades"
+      : total
+        ? `Ver solapes (${total})`
+        : "Sin solapes";
+    activitiesOverlapButton.title = total
+      ? "Actividades de una misma persona que se pisan en el horario."
+      : "No hay actividades que se pisen en el horario.";
+  }
+
+  function toggleActivitiesOverlapOnly() {
+    activitiesOverlapOnly = !activitiesOverlapOnly;
+    applyActivitiesFilters();
   }
 
   function getActivityScheduleReportRow(activity) {
@@ -4709,6 +4898,7 @@
       horas: dailyHours || formatHours(0),
       horasSemana: formatHours(weeklyHours),
       weeklyHours,
+      overlapInfo: getActivityOverlapInfo(activity),
     };
   }
 
@@ -4724,7 +4914,7 @@
 
     activitiesScheduleReportContent.innerHTML = groups
       .map((group) => {
-        let groupWeeklyTotal = 0;
+        const groupWeeklyTotal = getActivityGroupWeeklyHours(group.rows);
         const personDetails = [
           group.dni ? `DNI: ${group.dni}` : "",
           group.ss ? `SS: ${group.ss}` : "",
@@ -4733,13 +4923,16 @@
         const rows = group.rows
           .map((activity) => {
             const row = getActivityScheduleReportRow(activity);
-            groupWeeklyTotal += row.weeklyHours;
             return `
-              <tr>
+              <tr class="${row.overlapInfo ? "activity-row-solape" : ""}">
                 <td>${escapeHtml(row.contrato)}</td>
                 <td>${escapeHtml(row.inicio)}</td>
                 <td>${escapeHtml(row.fin)}</td>
-                <td>${escapeHtml(row.horario)}</td>
+                <td>${escapeHtml(row.horario)}${
+                  row.overlapInfo
+                    ? ` <span class="activity-overlap-badge" title="${escapeHtml(row.overlapInfo.title)}">&#9888; Solape</span>`
+                    : ""
+                }</td>
                 <td>${escapeHtml(row.puesto)}</td>
                 <td>${escapeHtml(row.instalacion)}</td>
                 <td class="numeric-cell">${escapeHtml(row.horas)}</td>
@@ -4888,10 +5081,9 @@
         y += 5;
         drawTableHeader();
 
-        let groupWeeklyTotal = 0;
+        const groupWeeklyTotal = getActivityGroupWeeklyHours(group.rows);
         group.rows.forEach((activity) => {
           const row = getActivityScheduleReportRow(activity);
-          groupWeeklyTotal += row.weeklyHours;
           const rowHeight = Math.max(
             6,
             Math.min(
@@ -4905,6 +5097,10 @@
           );
 
           ensureSpace(rowHeight + 2);
+          if (row.overlapInfo) {
+            doc.setFillColor(254, 226, 226);
+            doc.rect(marginX, y - 2, pageWidth - marginX * 2, rowHeight, "F");
+          }
           doc.setDrawColor(224, 228, 234);
           doc.line(marginX, y - 2, pageWidth - marginX, y - 2);
           doc.setFont("helvetica", "normal");
@@ -4912,7 +5108,9 @@
           let x = marginX;
           columns.forEach((column) => {
             const isNumeric = column.key === "horas" || column.key === "horasSemana";
-            drawCell(row[column.key], x, y - 1, column.width, 2, isNumeric ? "right" : "left");
+            const value =
+              column.key === "horario" && row.overlapInfo ? `⚠ ${row.horario}` : row[column.key];
+            drawCell(value, x, y - 1, column.width, 2, isNumeric ? "right" : "left");
             x += column.width;
           });
           y += rowHeight;
@@ -4946,6 +5144,213 @@
         `No se pudo generar el informe de horarios: ${error?.message ?? "error desconocido"}`,
         "error"
       );
+    }
+  }
+
+  // Imagen del informe de horarios (mismo patron de copiar/descargar PNG que
+  // el informe individual de Registros): un canvas dibujado a mano, con una
+  // seccion de tabla por persona. Reutiliza layoutCanvasTableRows/canvasToBlob/
+  // triggerDownload de app.js (globales, ver getJsPdfClient un poco mas arriba
+  // para el mismo patron de dependencia cruzada entre ficheros).
+  let currentActivitiesScheduleReportImageCanvas = null;
+
+  function drawActivitiesScheduleReportImage(groups) {
+    const scale = 2;
+    const margin = 40;
+    const cellPadding = 10;
+    const lineHeight = 24;
+    const headerHeight = 40;
+    const minRowHeight = 44;
+    const titleHeight = 60;
+    const groupHeaderHeight = 62;
+    const totalRowHeight = 44;
+    const groupGap = 28;
+    const footerHeight = 40;
+
+    const columns = [
+      { key: "contrato", label: "Contrato / Servicio", width: 300 },
+      { key: "inicio", label: "Inicio", width: 110 },
+      { key: "fin", label: "Fin", width: 110 },
+      { key: "horario", label: "Horario", width: 240 },
+      { key: "puesto", label: "Puesto", width: 240 },
+      { key: "instalacion", label: "Instalacion", width: 300 },
+      { key: "horas", label: "Horas", width: 100 },
+      { key: "horasSemana", label: "H. Se", width: 100 },
+    ];
+    const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+    const canvasWidth = tableWidth + margin * 2;
+
+    const scratchCanvas = document.createElement("canvas");
+    const scratchContext = scratchCanvas.getContext("2d");
+    scratchContext.font = "18px Arial";
+    const layoutOptions = { lineHeight, cellPadding, minRowHeight };
+
+    const groupData = groups.map((group) => {
+      const reportRows = group.rows.map((activity) => getActivityScheduleReportRow(activity));
+      const cellRows = reportRows.map((row) => ({
+        contrato: row.contrato,
+        inicio: row.inicio,
+        fin: row.fin,
+        horario: row.overlapInfo ? `⚠ ${row.horario}` : row.horario,
+        puesto: row.puesto,
+        instalacion: row.instalacion,
+        horas: row.horas,
+        horasSemana: row.horasSemana,
+      }));
+      const rowLayouts = layoutCanvasTableRows(scratchContext, columns, cellRows, layoutOptions).map(
+        (layout, index) => ({ ...layout, highlight: Boolean(reportRows[index].overlapInfo) })
+      );
+      const personDetails = [
+        group.dni ? `DNI: ${group.dni}` : "",
+        group.ss ? `SS: ${group.ss}` : "",
+        group.fechaNacimiento ? `Nacimiento: ${formatDate(group.fechaNacimiento)}` : "",
+      ]
+        .filter(Boolean)
+        .join("   ");
+      const tableHeight =
+        headerHeight + rowLayouts.reduce((total, layout) => total + layout.rowHeight, 0) + totalRowHeight;
+      return {
+        person: group.person,
+        personDetails,
+        rowLayouts,
+        groupWeeklyTotal: getActivityGroupWeeklyHours(group.rows),
+        sectionHeight: groupHeaderHeight + tableHeight,
+      };
+    });
+
+    const canvasHeight =
+      titleHeight +
+      groupData.reduce((total, group) => total + group.sectionHeight + groupGap, 0) +
+      footerHeight;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = canvasWidth * scale;
+    canvas.height = canvasHeight * scale;
+    const context = canvas.getContext("2d");
+    context.scale(scale, scale);
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
+    context.fillStyle = "#001f54";
+    context.font = "bold 28px Arial";
+    context.fillText("Horarios de actividades", margin, 42);
+
+    let y = titleHeight;
+    groupData.forEach((group) => {
+      context.fillStyle = "#001f54";
+      context.font = "bold 22px Arial";
+      context.fillText(group.person, margin, y + 22);
+      if (group.personDetails) {
+        context.fillStyle = "#475569";
+        context.font = "16px Arial";
+        context.fillText(group.personDetails, margin, y + 44);
+      }
+      y += groupHeaderHeight;
+
+      let x = margin;
+      context.font = "bold 16px Arial";
+      columns.forEach((column) => {
+        context.fillStyle = "#e5e7eb";
+        context.fillRect(x, y, column.width, headerHeight);
+        context.strokeStyle = "#94a3b8";
+        context.strokeRect(x, y, column.width, headerHeight);
+        context.fillStyle = "#111827";
+        context.fillText(column.label, x + cellPadding, y + headerHeight - 13);
+        x += column.width;
+      });
+      y += headerHeight;
+
+      group.rowLayouts.forEach(({ cellLines, rowHeight, highlight }) => {
+        x = margin;
+        if (highlight) {
+          context.fillStyle = "#fee2e2";
+          context.fillRect(margin, y, tableWidth, rowHeight);
+        }
+        context.font = "16px Arial";
+        columns.forEach((column, columnIndex) => {
+          context.strokeStyle = "#d6dbe7";
+          context.strokeRect(x, y, column.width, rowHeight);
+          context.fillStyle = highlight ? "#991b1b" : "#001f54";
+          cellLines[columnIndex].forEach((line, lineIndex) => {
+            context.fillText(line, x + cellPadding, y + cellPadding + 16 + lineIndex * lineHeight);
+          });
+          x += column.width;
+        });
+        y += rowHeight;
+      });
+
+      context.fillStyle = "#f1f5f9";
+      context.fillRect(margin, y, tableWidth, totalRowHeight);
+      context.strokeStyle = "#94a3b8";
+      context.strokeRect(margin, y, tableWidth, totalRowHeight);
+      context.fillStyle = "#001f54";
+      context.font = "bold 18px Arial";
+      context.fillText("Total semanal", margin + cellPadding, y + 28);
+      context.fillText(
+        `${formatHours(group.groupWeeklyTotal)} h`,
+        margin + tableWidth - 110,
+        y + 28
+      );
+      y += totalRowHeight + groupGap;
+    });
+
+    context.fillStyle = "#64748b";
+    context.font = "14px Arial";
+    context.fillText(`Generado: ${new Date().toLocaleString("es-ES")}`, margin, canvasHeight - 12);
+
+    return canvas;
+  }
+
+  function showActivitiesScheduleReportImage() {
+    try {
+      const groups = getActivityScheduleReportGroups();
+      if (!groups.length) {
+        setStatus("No hay actividades filtradas para generar la imagen.", "error");
+        return;
+      }
+      currentActivitiesScheduleReportImageCanvas = drawActivitiesScheduleReportImage(groups);
+      if (activitiesScheduleReportImagePreview) {
+        activitiesScheduleReportImagePreview.src = currentActivitiesScheduleReportImageCanvas.toDataURL(
+          "image/png"
+        );
+      }
+      activitiesScheduleReportImagePanel?.classList.remove("hidden");
+      setStatus("Imagen del informe de horarios generada correctamente.", "success");
+    } catch (error) {
+      setStatus(error?.message || "No se pudo generar la imagen del informe.", "error");
+    }
+  }
+
+  function closeActivitiesScheduleReportImagePanel() {
+    activitiesScheduleReportImagePanel?.classList.add("hidden");
+  }
+
+  async function copyActivitiesScheduleReportImageToClipboard() {
+    try {
+      if (!currentActivitiesScheduleReportImageCanvas) {
+        throw new Error("Genera primero la imagen del informe.");
+      }
+      if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
+        throw new Error("El navegador no permite copiar imagenes al portapapeles.");
+      }
+      const blob = await canvasToBlob(currentActivitiesScheduleReportImageCanvas);
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      setStatus("Imagen copiada al portapapeles.", "success");
+    } catch (error) {
+      setStatus(error?.message || "No se pudo copiar la imagen.", "error");
+    }
+  }
+
+  async function downloadActivitiesScheduleReportImage() {
+    try {
+      if (!currentActivitiesScheduleReportImageCanvas) {
+        throw new Error("Genera primero la imagen del informe.");
+      }
+      const blob = await canvasToBlob(currentActivitiesScheduleReportImageCanvas);
+      triggerDownload(blob, `informe-horarios-actividades-${new Date().toISOString().slice(0, 10)}.png`);
+      setStatus("Imagen descargada correctamente.", "success");
+    } catch (error) {
+      setStatus(error?.message || "No se pudo descargar la imagen.", "error");
     }
   }
 
@@ -5587,12 +5992,12 @@
       activity.contrato
     );
     editActivityContrato.value = String(activity.contrato_id);
-    renderActivityServiceOptions(editActivityServicio, activity.contrato_id, activity.servicio_id);
-    preserveActivityEditSelectValue(
-      editActivityServicio,
-      activity.servicio_id,
-      activity.servicio
-    );
+    // El campo Servicio ya no es editable desde este panel (ver
+    // campo-servicio-eliminacion): se conserva el valor existente sin
+    // tocarlo para no perder el dato en actividades que ya lo tenian.
+    if (editActivityServicio) {
+      editActivityServicio.value = activity.servicio_id ? String(activity.servicio_id) : "";
+    }
     renderActivityContractScopedOptions(
       activityEditForm,
       activity.personal_id,
@@ -5690,7 +6095,6 @@
       activityForm.reset();
       activityPersonal.value = "";
       activityContrato.value = editActivityContrato.value;
-      renderActivityServiceOptions(activityServicio, activityContrato.value, editActivityServicio.value);
       renderActivityContractScopedOptions(activityForm, "", editActivityInstalacion.value);
       activityEmpresa.value = editActivityEmpresa.value;
       activityInstalacion.value = editActivityInstalacion.value;
@@ -8595,17 +8999,20 @@
     });
     activityForm.addEventListener("input", () => clearActivityValidationError(activityForm));
     activityContrato?.addEventListener("change", () => {
-      renderActivityServiceOptions(activityServicio, activityContrato.value, "");
       renderActivityContractScopedOptions(activityForm);
     });
     editActivityContrato?.addEventListener("change", () => {
-      renderActivityServiceOptions(editActivityServicio, editActivityContrato.value, "");
+      // Un servicio conservado de otro contrato ya no encajaria: se limpia
+      // al cambiar de contrato para no bloquear el guardado con la
+      // validacion de "servicio no pertenece al contrato".
+      if (editActivityServicio) {
+        editActivityServicio.value = "";
+      }
       renderActivityContractScopedOptions(activityEditForm);
     });
     clearActivityFormButton.addEventListener("click", () => {
       activityForm.reset();
       clearActivityValidationError(activityForm);
-      renderActivityServiceOptions(activityServicio, "");
       renderActivityContractScopedOptions(activityForm);
       applyActivityFormDefaults();
       activitiesSummary.textContent = "Completa los campos para crear una actividad.";
@@ -8616,10 +9023,20 @@
     refreshActivitiesButton.addEventListener("click", () => {
       void loadActivities();
     });
+    activitiesOverlapButton?.addEventListener("click", toggleActivitiesOverlapOnly);
     setupActivitiesHistorialPanel();
     openActivitiesReportButton.addEventListener("click", () => openActivitiesReport("installation"));
     openActivitiesPersonalReportButton.addEventListener("click", () => openActivitiesReport("personal"));
     openActivitiesScheduleReportButton?.addEventListener("click", openActivitiesScheduleReportPreview);
+    activitiesScheduleReportImageButton?.addEventListener("click", showActivitiesScheduleReportImage);
+    closeActivitiesScheduleReportImageButton?.addEventListener("click", closeActivitiesScheduleReportImagePanel);
+    activitiesScheduleReportImageBackdrop?.addEventListener("click", closeActivitiesScheduleReportImagePanel);
+    copyActivitiesScheduleReportImageButton?.addEventListener("click", () => {
+      void copyActivitiesScheduleReportImageToClipboard();
+    });
+    downloadActivitiesScheduleReportImageButton?.addEventListener("click", () => {
+      void downloadActivitiesScheduleReportImage();
+    });
     downloadActivitiesScheduleReportPdfButton?.addEventListener("click", () => {
       void downloadActivitiesScheduleReportPdf();
     });

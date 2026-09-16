@@ -1221,7 +1221,12 @@ td {
 
 #activity-form,
 #activity-edit-form {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#activity-create-panel,
+#activity-edit-panel {
+  width: min(760px, 100vw);
 }
 
 #activity-form label,
@@ -1470,6 +1475,38 @@ td {
 
 .activities-table tbody tr.activity-row-selected td {
   background: #eef6ff;
+}
+
+/* Solape: la misma persona en dos actividades a la vez. Mismo criterio
+   visual que .record-row-solape/.record-overlap-badge en Registros. Se
+   aplica tanto al listado (.activities-table) como al informe de horarios
+   (.activities-schedule-report-table). */
+.activities-table tbody tr.activity-row-solape td,
+.activities-schedule-report-table tbody tr.activity-row-solape td {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.activities-table tbody tr.activity-row-solape td:first-child {
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+
+#activities-overlap-button.is-active {
+  background: #fee2e2;
+  border-color: #dc2626;
+  color: #991b1b;
+}
+
+.activity-overlap-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .activities-table tbody tr[data-activity-row]:focus-visible {
