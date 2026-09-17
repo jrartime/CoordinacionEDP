@@ -755,7 +755,7 @@ const PERSONAL_FIELD_GROUPS = [
       ["prorrateo_pagas", "num_pagas_extra", "irpf"],
     ],
   },
-  { key: "otros", label: "Otros" },
+  { key: "otros", label: "Otros", narrow: true },
 ];
 const PERSONAL_VINCULACION_TONE = {
   1: "activo",
@@ -11208,6 +11208,19 @@ function getPersonalFieldInput(fieldKey) {
 
 function renderPersonalFieldControl(field) {
   const required = field.required ? " required" : "";
+  if (field.key === "carpeta") {
+    return `
+      <label>
+        ${escapeHtml(field.label)}
+        <div class="personal-carpeta-control">
+          <input name="carpeta" type="text" disabled${required} />
+          <button type="button" class="secondary-button personal-carpeta-open-btn" data-personal-open-carpeta title="Abrir esta carpeta">
+            Abrir
+          </button>
+        </div>
+      </label>
+    `;
+  }
   if (field.type === "boolean") {
     return `
       <label class="checkbox-item with-label">
@@ -11320,13 +11333,36 @@ function renderPersonalFormFields() {
         return "";
       }
 
-      return `
-        <fieldset class="full-width personal-form-section">
+      const wrapperClass = groupDef.narrow ? "personal-form-section personal-form-section-narrow" : "full-width personal-form-section";
+      const gridClass = groupDef.narrow
+        ? "form-grid personal-form-section-grid personal-form-section-grid-narrow"
+        : "form-grid personal-form-section-grid";
+      const fieldsetHtml = `
+        <fieldset class="${wrapperClass}">
           <legend>${escapeHtml(groupDef.label)}</legend>
-          <div class="form-grid personal-form-section-grid">
+          <div class="${gridClass}">
             ${visibleFields.map((field) => renderPersonalFieldControl(field)).join("")}
           </div>
         </fieldset>
+      `;
+      // El panel de documentos se pinta como hermano de "Otros" (mismo ancho
+      // "narrow"), para que el grid de 2 columnas los deje uno junto al otro.
+      if (groupDef.key !== "otros") {
+        return fieldsetHtml;
+      }
+      return `
+        ${fieldsetHtml}
+        <div class="personal-form-section personal-form-section-narrow personal-carpeta-docs-panel">
+          <div class="personal-carpeta-docs-header">
+            <span class="personal-carpeta-docs-title">Documentos de la carpeta</span>
+            <button type="button" class="secondary-button" data-personal-carpeta-docs-refresh title="Actualizar listado">
+              Actualizar
+            </button>
+          </div>
+          <div id="personal-carpeta-docs-body" class="personal-carpeta-docs-body">
+            <p class="personal-carpeta-docs-empty">Selecciona una persona con carpeta configurada.</p>
+          </div>
+        </div>
       `;
     })
     .join("");
@@ -11423,6 +11459,111 @@ function syncPersonalNameField() {
   const nombre = getPersonalFieldInput("nombre")?.value || "";
   const apellido = getPersonalFieldInput("apellido")?.value || "";
   personalInput.value = [nombre, apellido].map((part) => part.trim()).filter(Boolean).join(" ");
+}
+
+// Chrome bloquea la navegacion a file:// desde una pagina http(s)
+// ("Not allowed to load local resource"), asi que abrir la carpeta pasa por
+// el ayudante local (scripts/carpeta_helper.ps1) que escucha en 127.0.0.1 y
+// abre el Explorador real en esta maquina.
+const PERSONAL_CARPETA_HELPER_URL = "http://127.0.0.1:51837";
+
+async function abrirRutaLocal(ruta, errorFallback) {
+  let data = null;
+  try {
+    const response = await fetch(`${PERSONAL_CARPETA_HELPER_URL}/abrir?ruta=${encodeURIComponent(ruta)}`);
+    data = await response.json().catch(() => null);
+  } catch (error) {
+    window.alert(
+      "No se pudo conectar con el ayudante local para abrir carpetas. Comprueba que este en marcha en este ordenador (deberia arrancar solo al encenderlo)."
+    );
+    return;
+  }
+  if (!data || !data.ok) {
+    window.alert(data?.error || errorFallback);
+  }
+}
+
+async function openPersonalCarpeta() {
+  const rawPath = getPersonalFieldInput("carpeta")?.value?.trim();
+  if (!rawPath) {
+    window.alert("Esta persona no tiene una carpeta configurada en el campo Carpeta.");
+    return;
+  }
+  await abrirRutaLocal(rawPath, "No se pudo abrir la carpeta.");
+}
+
+async function openPersonalCarpetaDoc(ruta) {
+  if (!ruta) {
+    return;
+  }
+  await abrirRutaLocal(ruta, "No se pudo abrir el documento.");
+}
+
+// Los documentos de la carpeta siguen el patron "Nombre de la persona -
+// resto.ext"; como el nombre ya se sabe (es la persona seleccionada), se
+// oculta y solo se muestra lo que va despues del primer " - ".
+function stripPersonalCarpetaDocPrefix(filename) {
+  const separatorIndex = filename.indexOf(" - ");
+  if (separatorIndex === -1) {
+    return filename;
+  }
+  const rest = filename.slice(separatorIndex + 3).trim();
+  return rest || filename;
+}
+
+// Token para descartar respuestas tardias si el usuario cambia de persona
+// (o refresca) antes de que responda una peticion anterior.
+let personalCarpetaDocsRequestToken = 0;
+
+async function refreshPersonalCarpetaDocs() {
+  const body = document.getElementById("personal-carpeta-docs-body");
+  if (!body) {
+    return;
+  }
+  const requestToken = ++personalCarpetaDocsRequestToken;
+  const rawPath = getPersonalFieldInput("carpeta")?.value?.trim();
+  if (!rawPath) {
+    body.innerHTML = `<p class="personal-carpeta-docs-empty">Esta persona no tiene una carpeta configurada.</p>`;
+    return;
+  }
+  body.innerHTML = `<p class="personal-carpeta-docs-empty">Cargando documentos...</p>`;
+  let data = null;
+  try {
+    const response = await fetch(`${PERSONAL_CARPETA_HELPER_URL}/listar?ruta=${encodeURIComponent(rawPath)}`);
+    data = await response.json().catch(() => null);
+  } catch (error) {
+    if (requestToken !== personalCarpetaDocsRequestToken) {
+      return;
+    }
+    body.innerHTML = `<p class="personal-carpeta-docs-empty">No se pudo conectar con el ayudante local para abrir carpetas.</p>`;
+    return;
+  }
+  if (requestToken !== personalCarpetaDocsRequestToken) {
+    return;
+  }
+  if (!data || !data.ok) {
+    body.innerHTML = `<p class="personal-carpeta-docs-empty">${escapeHtml(data?.error || "No se pudo leer la carpeta.")}</p>`;
+    return;
+  }
+  const archivos = data.archivos || [];
+  if (!archivos.length) {
+    body.innerHTML = `<p class="personal-carpeta-docs-empty">La carpeta no tiene documentos.</p>`;
+    return;
+  }
+  body.innerHTML = archivos
+    .map(
+      (archivo) => `
+        <button
+          type="button"
+          class="personal-carpeta-doc-item"
+          data-personal-carpeta-doc-ruta="${escapeHtml(archivo.ruta)}"
+          title="${escapeHtml(archivo.nombre)}"
+        >
+          ${escapeHtml(stripPersonalCarpetaDocPrefix(archivo.nombre))}
+        </button>
+      `
+    )
+    .join("");
 }
 
 function normalizeAccountNumber(value) {
@@ -11605,6 +11746,7 @@ function selectPersonal(personalId) {
   markFormPristine(personalForm);
   renderPersonalList();
   void refreshPersonalComplementosPanel();
+  void refreshPersonalCarpetaDocs();
 }
 
 function showPersonalFormEmpty() {
@@ -11618,6 +11760,7 @@ function showPersonalFormEmpty() {
   setPersonalFormEditing(false);
   renderPersonalList();
   markFormPristine(personalForm);
+  void refreshPersonalCarpetaDocs();
 }
 
 function startNewPersonal() {
@@ -11632,6 +11775,7 @@ function startNewPersonal() {
   markFormPristine(personalForm);
   getPersonalFieldInput("nombre")?.focus();
   void refreshPersonalComplementosPanel();
+  void refreshPersonalCarpetaDocs();
 }
 
 // saveFn compartido por el aviso de cambios sin guardar (confirmCloseWithSave):
@@ -34346,6 +34490,25 @@ async function init() {
     }
     if (event.target?.name === "nombre" || event.target?.name === "apellido") {
       syncPersonalNameField();
+    }
+  });
+  personalForm?.addEventListener("click", (event) => {
+    const openCarpetaButton = event.target.closest("[data-personal-open-carpeta]");
+    if (openCarpetaButton) {
+      event.preventDefault();
+      void openPersonalCarpeta();
+      return;
+    }
+    const refreshDocsButton = event.target.closest("[data-personal-carpeta-docs-refresh]");
+    if (refreshDocsButton) {
+      event.preventDefault();
+      void refreshPersonalCarpetaDocs();
+      return;
+    }
+    const docItem = event.target.closest("[data-personal-carpeta-doc-ruta]");
+    if (docItem) {
+      event.preventDefault();
+      void openPersonalCarpetaDoc(docItem.dataset.personalCarpetaDocRuta);
     }
   });
   personalComplementoForm?.addEventListener("submit", (event) => {
