@@ -9,7 +9,6 @@ from openpyxl import load_workbook
 TARGET_COLUMNS = [
     "personal_id",
     "contrato_id",
-    "servicio_id",
     "empresa_id",
     "instalacion_id",
     "puesto_id",
@@ -41,11 +40,6 @@ def parse_args():
         required=True,
         help="XLSX original que conserva hora_inicio y hora_fin correctamente.",
     )
-    parser.add_argument(
-        "--services",
-        type=Path,
-        help="CSV convertido anterior del que recuperar servicio_id por actividad equivalente.",
-    )
     return parser.parse_args()
 
 
@@ -76,32 +70,6 @@ def load_days(path):
     return result
 
 
-def activity_key(row):
-    return (
-        str(row["personal_id"]).strip(),
-        str(row["contrato_id"]).strip(),
-        str(row["empresa_id"]).strip(),
-        str(row["instalacion_id"]).strip(),
-        str(row["puesto_id"]).strip(),
-        str(row["situacion_id"]).strip(),
-        str(row["tipo_hora_id"]).strip(),
-        str(row["fecha_inicio"]).strip(),
-        str(row["fecha_fin"]).strip(),
-        str(row["dias_semana"]).strip(),
-    )
-
-
-def load_services(path):
-    if not path:
-        return {}
-    with path.open(encoding="utf-8-sig", newline="") as source:
-        rows = list(csv.DictReader(source))
-    return {
-        activity_key(row): str(row.get("servicio_id") or "").strip()
-        for row in rows
-    }
-
-
 def load_times(path):
     workbook = load_workbook(path, read_only=True, data_only=True)
     worksheet = workbook.active
@@ -117,7 +85,7 @@ def load_times(path):
     return result
 
 
-def convert_rows(source_path, day_map, service_map, time_map):
+def convert_rows(source_path, day_map, time_map):
     converted = []
     discarded = []
     with source_path.open(encoding="utf-8-sig", newline="") as source:
@@ -137,7 +105,6 @@ def convert_rows(source_path, day_map, service_map, time_map):
             target = {
                 "personal_id": source_row["personal_id"].strip(),
                 "contrato_id": source_row["contrato_id"].strip(),
-                "servicio_id": "",
                 "empresa_id": source_row["empresa_id"].strip(),
                 "instalacion_id": source_row["instalacion_id"].strip(),
                 "puesto_id": source_row["puesto_id"].strip(),
@@ -154,7 +121,6 @@ def convert_rows(source_path, day_map, service_map, time_map):
                 "respuesta_llamamiento": "",
                 "observaciones": observations,
             }
-            target["servicio_id"] = service_map.get(activity_key(target), "")
             converted.append(target)
     return converted, discarded
 
@@ -162,9 +128,8 @@ def convert_rows(source_path, day_map, service_map, time_map):
 def main():
     args = parse_args()
     day_map = load_days(args.days)
-    service_map = load_services(args.services)
     time_map = load_times(args.times)
-    converted, discarded = convert_rows(args.source, day_map, service_map, time_map)
+    converted, discarded = convert_rows(args.source, day_map, time_map)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8-sig", newline="") as output:
         writer = csv.DictWriter(output, fieldnames=TARGET_COLUMNS)

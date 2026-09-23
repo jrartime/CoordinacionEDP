@@ -1040,7 +1040,18 @@ legend {
 }
 
 #personal-form-fields {
-  grid-template-columns: minmax(0, 1fr);
+  /* 2 columnas explicitas: las 3 filas "narrow" (Documentacion/Economico/
+     Otros) y el panel de documentos las necesitan a partes iguales. Antes
+     era 1 sola columna; con grid-column:2 en el panel de documentos, esa 2a
+     columna se creaba implicita y se ajustaba al contenido en vez de repartir
+     el espacio al 50%. El resto de fieldsets son .full-width y siguen
+     ocupando la fila entera igual. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* dense: el "grid-row: span 3" del panel de documentos deja un hueco en la
+     otra columna que el packing "sparse" (por defecto) no rellena hacia
+     atras — con "dense" si lo hace, y Documentacion/Economico/Otros quedan
+     alineados fila a fila con el panel en vez de una fila mas abajo. */
+  grid-auto-flow: row dense;
   gap: 16px;
 }
 
@@ -1067,7 +1078,7 @@ legend {
 }
 
 .personal-form-section-narrow {
-  grid-column: auto;
+  grid-column: 1;
 }
 
 .personal-form-section-grid-narrow {
@@ -1095,6 +1106,11 @@ legend {
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px 12px;
+  /* Hermano de las 3 filas "narrow" (Documentacion/Economico/Otros): ocupa la
+     2a columna del grid de la ficha, estirado a lo alto de esas 3 filas. */
+  grid-column: 2;
+  grid-row: span 3;
+  min-height: 0;
 }
 
 .personal-carpeta-docs-header {
@@ -1121,7 +1137,14 @@ legend {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 260px;
+  flex: 1;
+  min-height: 0;
+  /* Tope duro: sin el, una lista larga de documentos no solo desbordaria
+     este panel — al ser "grid-row: span 3" sobre filas de alto "auto", el
+     grid estiraria las 3 filas de la izquierda (Documentacion/Economico/
+     Otros) para hacerle sitio. Con el tope, el panel deja de crecer y esta
+     lista concreta hace scroll interno. */
+  max-height: 420px;
   overflow-y: auto;
 }
 
@@ -1183,6 +1206,15 @@ legend {
 #private-tab-panel-personal .personal-checks-grid .checkbox-item input {
   width: 14px;
   height: 14px;
+}
+
+/* Panel "Documentacion y equipamiento" estrecho: en vez de 5 columnas
+   iguales (que fuerzan cada casilla a 1/5 del ancho completo), las casillas
+   ocupan solo el ancho de su propia etiqueta y van saltando de linea segun
+   el hueco disponible. */
+#private-tab-panel-personal .personal-checks-grid-narrow {
+  display: flex;
+  flex-wrap: wrap;
 }
 
 .compact-heading-row {
@@ -2918,8 +2950,8 @@ button:focus-visible,
   line-height: 1.35;
 }
 
-/* Tabla de actividades del informe de Historial laboral: solo 6 columnas
-   compactas (Incluir/Puesto/Instalacion/Horario/Horas/Servicio), muy por
+/* Tabla de actividades del informe de Historial laboral: solo 5 columnas
+   compactas (Incluir/Puesto/Instalacion/Horario/Horas), muy por
    debajo de los min-width de .records-table (1800px) y .personal-import-table
    (900px) pensados para tablas con muchas mas columnas. El selector de
    elemento (table.) sube la especificidad para que gane sin depender del
@@ -3207,7 +3239,7 @@ button.tag-chip.warm-button:hover {
   grid-template-columns: 145px 145px 140px 90px minmax(80px, 1fr) minmax(80px, 1fr) 100px auto;
 }
 
-/* Registros: contrato y servicio algo más anchos; personal e instalación más
+/* Registros: contrato algo más ancho; personal e instalación más
    estrechos. (Historial comparte la clase, por eso se escopa al form de registros.)
    Fecha desde/hasta a 145px, igual que el resto de pestañas (antes 155px, con
    un recorte de padding propio que ya no hace falta al usar el ancho estándar). */
@@ -5942,6 +5974,68 @@ th {
   color: var(--muted);
   box-shadow: none;
   font-size: 1.35rem;
+}
+
+.cv-preview-dialog {
+  width: min(900px, calc(100vw - 32px));
+  border: 0;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 24px 48px rgba(16, 24, 40, 0.2);
+}
+
+.cv-preview-dialog::backdrop {
+  background: rgba(16, 24, 40, 0.45);
+}
+
+.cv-preview-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.cv-preview-dialog-header h3 {
+  margin: 0;
+}
+
+.cv-preview-dialog-header button {
+  min-height: 32px;
+  padding: 3px 10px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  font-size: 1.35rem;
+}
+
+.cv-preview-body {
+  min-height: 220px;
+  max-height: 75vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+.cv-preview-body iframe {
+  width: 100%;
+  height: 70vh;
+  border: 0;
+  border-radius: 8px;
+}
+
+.cv-preview-body img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.cv-preview-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .facturacion-form-grid {

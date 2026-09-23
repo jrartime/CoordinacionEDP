@@ -259,7 +259,6 @@
   const activitiesReportContent = document.querySelector("#activities-report-content");
   const activitiesFiltersForm = document.querySelector("#activities-filters-form");
   const filterActivityContrato = document.querySelector("#filter-activity-contrato");
-  const filterActivityServicio = document.querySelector("#filter-activity-servicio");
   const filterActivityPuesto = document.querySelector("#filter-activity-puesto");
   const filterActivityPersonal = document.querySelector("#filter-activity-personal");
   const filterActivityPersonalSuggestions = document.querySelector(
@@ -329,7 +328,6 @@
   const editActivityId = document.querySelector("#edit-activity-id");
   const editActivityPersonal = document.querySelector("#edit-activity-personal");
   const editActivityContrato = document.querySelector("#edit-activity-contrato");
-  const editActivityServicio = document.querySelector("#edit-activity-servicio");
   const editActivityEmpresa = document.querySelector("#edit-activity-empresa");
   const editActivityInstalacion = document.querySelector("#edit-activity-instalacion");
   const editActivityPuesto = document.querySelector("#edit-activity-puesto");
@@ -415,7 +413,6 @@
   let activityPersonalRows = [];
   let activityAllInstallationRows = [];
   let activityInstallationRows = [];
-  let activityServiceRows = [];
   let activityContractNocturnidad = new Map();
   // Situaciones cuyo turno NO lo realiza la persona de la actividad: CAMB (lo cubrio
   // otra) y LG (licencia). El registro se genera igual para dejar traza del turno,
@@ -552,7 +549,6 @@
     fecha_inicio: { label: "Fecha inicio", type: "date" },
     fecha_fin: { label: "Fecha fin", type: "date" },
     contrato_id: { label: "Contrato", type: "select", source: "contrato" },
-    servicio_id: { label: "Servicio", type: "select", source: "servicio", nullable: true },
     personal_id: { label: "Personal", type: "select", source: "personal" },
     empresa_id: { label: "Empresa", type: "select", source: "empresa" },
     instalacion_id: { label: "Instalación", type: "select", source: "instalacion" },
@@ -1708,7 +1704,6 @@
   function getActivityFilterValues() {
     return {
       contrato: getSelectValues(filterActivityContrato),
-      servicio: String(filterActivityServicio.value || ""),
       puesto: String(filterActivityPuesto.value || ""),
       personal: filterActivityPersonal.value.trim(),
       instalacion: String(filterActivityInstalacion.value || ""),
@@ -1806,10 +1801,6 @@
       excludedFilter === "contrato" ||
       !filters.contrato.length ||
       filters.contrato.some((value) => matchesNullable(activity.contrato_id, value));
-    const matchesServicio =
-      excludedFilter === "servicio" ||
-      !filters.servicio ||
-      matchesNullable(activity.servicio_id, filters.servicio);
     const matchesPuesto =
       excludedFilter === "puesto" ||
       !filters.puesto ||
@@ -1839,7 +1830,6 @@
 
     return (
       matchesContrato &&
-      matchesServicio &&
       matchesPuesto &&
       matchesPersonal &&
       matchesInstalacion &&
@@ -1887,17 +1877,6 @@
       "label",
       "Todos los contratos"
     );
-    const servicioChanged = renderCatalogOptions(
-      filterActivityServicio,
-      getUniqueActivityFilterRows(
-        getActivityRowsForFilterOptions("servicio"),
-        "servicio_id",
-        "servicio"
-      ),
-      "id",
-      "label",
-      "Todos los servicios"
-    );
     const puestoChanged = renderCatalogOptions(
       filterActivityPuesto,
       getUniqueActivityFilterRows(
@@ -1927,7 +1906,7 @@
       "Todas las instalaciones"
     );
 
-    return contratoChanged || servicioChanged || puestoChanged || personalChanged || instalacionChanged;
+    return contratoChanged || puestoChanged || personalChanged || instalacionChanged;
   }
 
   function formatDate(value) {
@@ -2872,8 +2851,6 @@
         modalidadRows,
         situacionRows,
         tipoHoraRows,
-        servicioRows,
-        contractServiceRows,
         contractPersonalRows,
         contractInstallationRows,
       ] = await Promise.all([
@@ -2902,13 +2879,6 @@
         ]),
         fetchCatalog(supabase, "situaciones", "id,situacion", "situacion"),
         fetchCatalog(supabase, "tipo_horas", "id,tipo_hora", "tipo_hora"),
-        fetchCatalog(supabase, "servicios", "id,servicio", "servicio", [
-          { column: "activo", value: true },
-        ]),
-        supabase
-          .from("contrato_servicios")
-          .select("contrato_id,servicio_id")
-          .eq("activo", true),
         supabase
           .from("contrato_personal")
           .select("contrato_id,personal_id,activo,fecha_inicio,fecha_fin,removed_at"),
@@ -2919,9 +2889,6 @@
 
       if (contractPersonalRows.error && !isMissingTableError(contractPersonalRows.error, "contrato_personal")) {
         throw contractPersonalRows.error;
-      }
-      if (contractServiceRows.error) {
-        throw contractServiceRows.error;
       }
       if (
         contractInstallationRows.error &&
@@ -2939,11 +2906,6 @@
       activityUsesContractAssignments = !contractPersonalRows.error && !contractInstallationRows.error;
       activityPersonalRows = personalRows;
       activityInstallationRows = instalacionRows;
-      const serviceById = new Map(servicioRows.map((row) => [String(row.id), row]));
-      activityServiceRows = (contractServiceRows.data ?? []).flatMap((assignment) => {
-        const service = serviceById.get(String(assignment.servicio_id));
-        return service ? [{ ...service, contrato_id: assignment.contrato_id }] : [];
-      });
 
       activitySituacionesSinHoras = new Set(
         (situacionRows ?? [])
@@ -3193,33 +3155,6 @@
       return null;
     }
 
-    if (formData.get("servicio_id")) {
-      const editedActivity = activitiesRows.find(
-        (activity) => String(activity.id) === String(editActivityId?.value || "")
-      );
-      const selectedService = activityServiceRows.find(
-        (service) =>
-          String(service.id) === String(formData.get("servicio_id")) &&
-          String(service.contrato_id) === String(formData.get("contrato_id"))
-      ) || (
-        editedActivity &&
-        String(editedActivity.servicio_id) === String(formData.get("servicio_id"))
-          ? { id: editedActivity.servicio_id, contrato_id: editedActivity.contrato_id }
-          : null
-      );
-      if (
-        !selectedService ||
-        String(selectedService.contrato_id) !== String(formData.get("contrato_id"))
-      ) {
-        showActivityValidationError(
-          form,
-          "el servicio seleccionado no pertenece al contrato de la actividad.",
-          form.elements.servicio_id
-        );
-        return null;
-      }
-    }
-
     if (fechaFin < fechaInicio) {
       showActivityValidationError(
         form,
@@ -3246,7 +3181,6 @@
     return {
       personal_id: Number(formData.get("personal_id")),
       contrato_id: Number(formData.get("contrato_id")),
-      servicio_id: formData.get("servicio_id") ? Number(formData.get("servicio_id")) : null,
       empresa_id: Number(formData.get("empresa_id")),
       instalacion_id: Number(formData.get("instalacion_id")),
       puesto_id: Number(formData.get("puesto_id")),
@@ -3273,7 +3207,7 @@
       const { data, error } = await supabase
         .from("actividades_detalle")
         .select(
-          "id,personal_id,personal,contrato_id,contrato,servicio_id,servicio,empresa_id,empresa,instalacion_id,instalacion,puesto_id,puesto,funcion_id,funcion,modalidad_id,modalidad,situacion_id,situacion,tipo_hora_id,tipo_hora,activo,dias_semana,horarios_personalizados,fecha_inicio,fecha_fin,hora_inicio,hora_fin,observaciones,personal_asignado_actualmente,personal_asignacion_estado,instalacion_asignada_actualmente,instalacion_asignacion_estado,updated_at"
+          "id,personal_id,personal,contrato_id,contrato,empresa_id,empresa,instalacion_id,instalacion,puesto_id,puesto,funcion_id,funcion,modalidad_id,modalidad,situacion_id,situacion,tipo_hora_id,tipo_hora,activo,dias_semana,horarios_personalizados,fecha_inicio,fecha_fin,hora_inicio,hora_fin,observaciones,personal_asignado_actualmente,personal_asignacion_estado,instalacion_asignada_actualmente,instalacion_asignacion_estado,updated_at"
         )
         .order("fecha_inicio", { ascending: false })
         .order("hora_inicio", { ascending: true });
@@ -3708,14 +3642,6 @@
         .map((option) => ({ value: option.value, label: option.textContent }));
     }
 
-    if (source === "servicio") {
-      return activityServiceRows
-        .map((service) => ({
-          value: service.id,
-          label: `${service.servicio} · ${getActivityBulkContractLabel(service.contrato_id)}`,
-        }));
-    }
-
     if (source === "instalacion") {
       return activityAllInstallationRows.map((row) => ({ value: row.id, label: row.instalacion }));
     }
@@ -3863,7 +3789,6 @@
       return;
     }
     const controls = {
-      servicio_id: filterActivityServicio,
       puesto_id: filterActivityPuesto,
       instalacion_id: filterActivityInstalacion,
       activo: filterActivityActivo,
@@ -3938,29 +3863,12 @@
     return String(value ?? "").trim() || "vacío";
   }
 
-  function getActivityServiceContractId(serviceId) {
-    return Number(
-      activityServiceRows.find((service) => String(service.id) === String(serviceId))?.contrato_id
-    );
-  }
-
   function getActivityBulkUpdatePayload(field, config, newValue) {
     const updateValue =
       newValue === ACTIVITY_BULK_EMPTY_VALUE ||
       ((config.type === "text" || config.source === "respuesta") && newValue === "")
         ? null
         : newValue;
-
-    if (field === "contrato_id") {
-      return { contrato_id: updateValue, servicio_id: null };
-    }
-
-    if (field === "servicio_id") {
-      const serviceContractId = getActivityServiceContractId(updateValue);
-      return updateValue === null
-        ? { servicio_id: null }
-        : { servicio_id: updateValue, contrato_id: serviceContractId };
-    }
 
     return { [field]: updateValue };
   }
@@ -4123,25 +4031,10 @@
       return;
     }
 
-    if (field === "servicio_id") {
-      const serviceContractId = getActivityServiceContractId(newValue);
-      if (newValue !== ACTIVITY_BULK_EMPTY_VALUE && !Number.isFinite(serviceContractId)) {
-        setStatus("Selecciona un servicio valido.", "error");
-        return;
-      }
-    }
-
-    const warning =
-      field === "contrato_id"
-        ? "\n\nAviso: al cambiar el contrato se dejará el servicio sin asignar en esas actividades. Después tendrás que asignar un servicio del nuevo contrato."
-        : field === "servicio_id" && newValue !== ACTIVITY_BULK_EMPTY_VALUE
-          ? "\n\nAviso: si el servicio pertenece a otro contrato, se actualizará también el contrato de esas actividades."
-        : "";
     const confirmed = window.confirm(
-      (activitiesRecordsSelectionMode
+      activitiesRecordsSelectionMode
         ? `Vas a cambiar ${config.label} a ${formatActivityBulkValue(newValue, config)} en ${matches.length} actividad${matches.length === 1 ? "" : "es"} seleccionada${matches.length === 1 ? "" : "s"}.`
-        : `Vas a cambiar ${config.label} de ${formatActivityBulkValue(currentValue, config)} a ${formatActivityBulkValue(newValue, config)} en ${matches.length} actividad${matches.length === 1 ? "" : "es"} filtrada${matches.length === 1 ? "" : "s"}.`) +
-        warning
+        : `Vas a cambiar ${config.label} de ${formatActivityBulkValue(currentValue, config)} a ${formatActivityBulkValue(newValue, config)} en ${matches.length} actividad${matches.length === 1 ? "" : "es"} filtrada${matches.length === 1 ? "" : "s"}.`
     );
     if (!confirmed) {
       return;
@@ -4166,9 +4059,7 @@
     await loadActivities();
     setActivitiesRecordsSelectionMode(false);
     setStatus(
-      field === "contrato_id"
-        ? `Asignacion masiva aplicada a ${matches.length} actividad${matches.length === 1 ? "" : "es"}. El servicio se ha dejado sin asignar.`
-        : `Asignacion masiva aplicada a ${matches.length} actividad${matches.length === 1 ? "" : "es"}.`,
+      `Asignacion masiva aplicada a ${matches.length} actividad${matches.length === 1 ? "" : "es"}.`,
       "success"
     );
   }
@@ -4645,9 +4536,6 @@
             String(left.contrato || "").localeCompare(String(right.contrato || ""), "es", {
               sensitivity: "base",
             }),
-            String(left.servicio || "").localeCompare(String(right.servicio || ""), "es", {
-              sensitivity: "base",
-            }),
             String(left.fecha_inicio || "").localeCompare(String(right.fecha_inicio || "")),
             String(getActivityEarliestSchedule(left)?.hora_inicio || "").localeCompare(
               String(getActivityEarliestSchedule(right)?.hora_inicio || "")
@@ -4754,9 +4642,7 @@
   }
 
   function formatActivityContractServiceLabel(activity) {
-    const contract = String(activity.contrato || "-").trim();
-    const service = String(activity.servicio || "").trim();
-    return service ? `${contract} · ${service}` : contract;
+    return String(activity.contrato || "-").trim();
   }
 
   // --- Solapes de horario en Actividades ---
@@ -4952,7 +4838,7 @@
               <table class="activities-schedule-report-table">
                 <thead>
                   <tr>
-                    <th>Contrato / Servicio</th>
+                    <th>Contrato</th>
                     <th>Inicio</th>
                     <th>Fin</th>
                     <th>Horario</th>
@@ -5006,7 +4892,7 @@
       const lineHeight = 4;
       const headerHeight = 7;
       const columns = [
-        { key: "contrato", label: "Contrato / Servicio", width: 45 },
+        { key: "contrato", label: "Contrato", width: 45 },
         { key: "inicio", label: "Inicio", width: 18 },
         { key: "fin", label: "Fin", width: 18 },
         { key: "horario", label: "Horario", width: 30 },
@@ -5168,7 +5054,7 @@
     const footerHeight = 40;
 
     const columns = [
-      { key: "contrato", label: "Contrato / Servicio", width: 300 },
+      { key: "contrato", label: "Contrato", width: 300 },
       { key: "inicio", label: "Inicio", width: 110 },
       { key: "fin", label: "Fin", width: 110 },
       { key: "horario", label: "Horario", width: 240 },
@@ -5671,7 +5557,6 @@
         const hours = sinHoras ? null : getActivityGeneratedHours(schedule);
         return {
         actividad_id: activity.id,
-        servicio_id: activity.servicio_id || null,
         fecha: date,
         personal_id: activity.personal_id,
         contrato_id: activity.contrato_id,
@@ -5992,12 +5877,6 @@
       activity.contrato
     );
     editActivityContrato.value = String(activity.contrato_id);
-    // El campo Servicio ya no es editable desde este panel (ver
-    // campo-servicio-eliminacion): se conserva el valor existente sin
-    // tocarlo para no perder el dato en actividades que ya lo tenian.
-    if (editActivityServicio) {
-      editActivityServicio.value = activity.servicio_id ? String(activity.servicio_id) : "";
-    }
     renderActivityContractScopedOptions(
       activityEditForm,
       activity.personal_id,
@@ -9002,12 +8881,6 @@
       renderActivityContractScopedOptions(activityForm);
     });
     editActivityContrato?.addEventListener("change", () => {
-      // Un servicio conservado de otro contrato ya no encajaria: se limpia
-      // al cambiar de contrato para no bloquear el guardado con la
-      // validacion de "servicio no pertenece al contrato".
-      if (editActivityServicio) {
-        editActivityServicio.value = "";
-      }
       renderActivityContractScopedOptions(activityEditForm);
     });
     clearActivityFormButton.addEventListener("click", () => {

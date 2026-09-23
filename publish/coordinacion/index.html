@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260917-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260923-1" />
   </head>
   <body>
     <script>
@@ -792,21 +792,6 @@
                     ></select>
                   </label>
                   <label class="filter-field">
-                    Servicio
-                    <div class="filter-control-row">
-                      <select id="records-filter-servicio" name="servicio_id">
-                        <option value="">Todos</option>
-                      </select>
-                      <button
-                        type="button"
-                        class="filter-reset-button"
-                        data-reset-filter="servicio_id"
-                        aria-label="Restablecer servicio"
-                        title="Restablecer"
-                      >&times;</button>
-                    </div>
-                  </label>
-                  <label class="filter-field">
                     Personal
                     <div class="filter-field-stack personal-picker-stack">
                       <input
@@ -911,7 +896,6 @@
                         <option value="fecha">Fecha</option>
                         <option value="empresa_id">Empresa</option>
                         <option value="contrato_id">Contrato</option>
-                        <option value="servicio_id">Servicio</option>
                         <option value="personal_id">Personal</option>
                         <option value="instalacion_id">Instalacion</option>
                         <option value="puesto_id">Puesto</option>
@@ -928,7 +912,6 @@
                         <option value="nota">Nota</option>
                         <option value="observacion">Observacion</option>
                         <option value="facturacion_destino_contrato_id">Contrato de facturación</option>
-                        <option value="facturacion_destino_servicio_id">Servicio de facturación</option>
                         <option value="facturacion_destino_funcion_id">Función de facturación</option>
                         <option value="facturacion_destino_instalacion_id">Instalación de facturación</option>
                       </select>
@@ -1251,7 +1234,7 @@
                           <th>Registro</th>
                           <th>Fecha</th>
                           <th>Personal</th>
-                          <th>Contrato / servicio</th>
+                          <th>Contrato</th>
                           <th>Usuario</th>
                           <th>Acciones</th>
                         </tr>
@@ -1300,11 +1283,6 @@
                       <div class="detail-field-row cols-2">
                         <label>Contrato de facturación
                           <select id="record-detail-billing-redirect-contrato">
-                            <option value="">— mismo que el registro —</option>
-                          </select>
-                        </label>
-                        <label>Servicio de facturación
-                          <select id="record-detail-billing-redirect-servicio">
                             <option value="">— mismo que el registro —</option>
                           </select>
                         </label>
@@ -1550,10 +1528,6 @@
                     <label>
                       Contrato de facturación
                       <select id="records-bulk-billing-redirect-contrato"></select>
-                    </label>
-                    <label>
-                      Servicio de facturación
-                      <select id="records-bulk-billing-redirect-servicio"></select>
                     </label>
                     <label>
                       Función de facturación
@@ -2541,12 +2515,11 @@
                           <th>Instalación</th>
                           <th>Horario</th>
                           <th>Horas</th>
-                          <th>Servicio</th>
                         </tr>
                       </thead>
                       <tbody id="historial-report-activities-table-body">
                         <tr>
-                          <td colspan="6" class="empty-state">Selecciona un periodo para revisar actividades.</td>
+                          <td colspan="5" class="empty-state">Selecciona un periodo para revisar actividades.</td>
                         </tr>
                       </tbody>
                     </table>
@@ -2939,7 +2912,7 @@
                   </div>
                   <div class="table-wrapper gestion-records-table-wrapper">
                     <table class="records-table gestion-compact-table">
-                      <thead><tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Horas</th><th>Contrato / Servicio</th><th>Puesto</th><th>Situación</th><th>Tipo hora</th></tr></thead>
+                      <thead><tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Horas</th><th>Contrato</th><th>Puesto</th><th>Situación</th><th>Tipo hora</th></tr></thead>
                       <tbody id="gestion-records-table-body"><tr><td colspan="8" class="empty-state">Abre el detalle para cargar registros.</td></tr></tbody>
                     </table>
                   </div>
@@ -5794,7 +5767,7 @@
           <div class="section-heading-row">
             <div>
               <p class="eyebrow">Administración</p>
-              <h3>Contratos y servicios</h3>
+              <h3>Contratos</h3>
             </div>
             <div class="toolbar-actions">
               <label class="checkbox-item contracts-show-inactive-toggle">
@@ -5857,7 +5830,7 @@
           </div>
 
           <p class="muted-text">
-            Gestiona los contratos y los servicios asociados a cada contrato.
+            Gestiona los contratos.
           </p>
 
           <p id="contracts-status" class="panel-status-message"></p>
@@ -5870,13 +5843,12 @@
                   <th><button type="button" class="sort-button" data-contracts-sort-field="contrato">Contrato</button></th>
                   <th><button type="button" class="sort-button" data-contracts-sort-field="cliente">Cliente</button></th>
                   <th><button type="button" class="sort-button" data-contracts-sort-field="expediente">Expediente</button></th>
-                  <th><button type="button" class="sort-button" data-contracts-sort-field="servicios">Servicios</button></th>
                   <th><button type="button" class="sort-button" data-contracts-sort-field="estado">Estado</button></th>
                 </tr>
               </thead>
               <tbody id="contracts-table-body">
                 <tr>
-                  <td colspan="6" class="empty-state">No hay contratos cargados.</td>
+                  <td colspan="5" class="empty-state">No hay contratos cargados.</td>
                 </tr>
               </tbody>
             </table>
@@ -6057,6 +6029,7 @@
                   <button id="facturacion-generation-calculate" type="button">Calcular</button>
                   <button id="facturacion-generation-preview" type="button" class="secondary-button" disabled>Vista previa de agrupación</button>
                   <button id="facturacion-generation-weekly" type="button" class="secondary-button" disabled>Desglose por semanas</button>
+                  <button id="facturacion-generation-center" type="button" class="secondary-button" disabled>Desglose por centros</button>
                   <button id="facturacion-generation-save" type="button" class="secondary-button" disabled>Guardar preparación</button>
                   <button id="facturacion-generation-pdf" type="button" class="warm-button" disabled>Descargar PDF</button>
                 </div>
@@ -6066,7 +6039,7 @@
                 precio diurno y nocturno; las tarifas por mes o globales se aplican una vez por
                 contrato y función en el periodo. Guardar la preparación deja constancia de qué
                 registros entraron y evita que se vuelvan a facturar; una factura nunca cruza contratos.
-                Desmarca el tick de un servicio para dejarlo fuera de esta preparación.
+                Desmarca el tick de un grupo para dejarlo fuera de esta preparación.
               </p>
               <p id="facturacion-generation-selection-summary" class="muted-text"></p>
               <div id="facturacion-generation-summary" class="facturacion-generation-summary hidden"></div>
@@ -6075,13 +6048,13 @@
                 <table class="facturacion-table">
                   <thead>
                     <tr>
-                      <th></th><th>Contrato</th><th>Servicio</th><th>Función</th><th>Instalación</th>
+                      <th></th><th>Contrato</th><th>Función</th><th>Instalación</th>
                       <th>Horas</th><th>Diurnas</th><th>Nocturnas</th>
                       <th>Tipo</th><th>Precio día</th><th>Precio noche</th><th>Importe</th>
                     </tr>
                   </thead>
                   <tbody id="facturacion-generation-body">
-                    <tr><td colspan="12" class="empty-state">Selecciona el periodo y pulsa Calcular.</td></tr>
+                    <tr><td colspan="11" class="empty-state">Selecciona el periodo y pulsa Calcular.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -6138,7 +6111,7 @@
                 Horas de este contrato según su estado de facturación. Un mes ya cerrado con horas
                 "Pendiente" es un hueco: horas que debían facturarse y no se han preparado todavía.
                 "Redirigido" son horas con la facturación movida manualmente a otro contrato,
-                servicio, función o instalación (ver el registro para el detalle).
+                función o instalación (ver el registro para el detalle).
               </p>
               <div id="facturacion-control-kpis" class="facturacion-kpis"></div>
               <div class="facturacion-section-title">
@@ -6181,20 +6154,6 @@
 
             <section data-facturacion-panel="configuracion" class="facturacion-view hidden">
               <div class="facturacion-config-grid">
-                <article class="card facturacion-config-card">
-                  <div class="facturacion-section-title">
-                    <div><p class="eyebrow">Contrato seleccionado</p><h3>Funciones y tarifas</h3></div>
-                    <button id="facturacion-new-rate" type="button">Nueva tarifa</button>
-                  </div>
-                  <p class="muted-text">Relaciona las funciones del contrato con sus precios diurno y nocturno, mensual o global.</p>
-                  <div class="table-scroll">
-                    <table class="facturacion-table">
-                      <thead><tr><th>Función</th><th>Servicio</th><th>Descripción</th><th>Tipo</th><th>Precio 1</th><th>Precio 2</th><th>Estado</th><th></th></tr></thead>
-                      <tbody id="facturacion-rates-body"></tbody>
-                    </table>
-                  </div>
-                </article>
-
                 <article class="card facturacion-config-card">
                   <div class="facturacion-section-title">
                     <div><p class="eyebrow">Vigencia</p><h3>Periodos contractuales</h3></div>
@@ -6270,36 +6229,6 @@
             </form>
           </dialog>
 
-          <dialog id="facturacion-rate-dialog" class="facturacion-dialog">
-            <form id="facturacion-rate-form">
-              <input name="id" type="hidden" />
-              <div class="facturacion-dialog-header"><h3>Función y tarifa</h3><button type="button" data-close-dialog aria-label="Cerrar">×</button></div>
-              <div class="facturacion-form-grid">
-                <label class="wide">Función<select name="funcion_id" required></select></label>
-                <label class="wide">
-                  Servicio(s)
-                  <select name="servicio_ids" multiple size="4"></select>
-                  <span class="muted-text">Ctrl/Cmd + clic para elegir varios. Si esta función se comparte entre servicios, esos servicios se agrupan siempre juntos al facturar (no se reparten horas).</span>
-                </label>
-                <label>Tipo de precio
-                  <select name="tipo_precio" required>
-                    <option value="hora">Por hora</option>
-                    <option value="mes">Por mes</option>
-                    <option value="global">Global</option>
-                  </select>
-                </label>
-                <label class="facturacion-check"><input name="activo" type="checkbox" /><span>Tarifa activa</span></label>
-                <label>Precio 1 / diurno<input name="precio_01" type="number" step="0.0001" /></label>
-                <label>Precio 2 / nocturno<input name="precio_02" type="number" step="0.0001" /></label>
-                <label class="wide">Descripción<input name="observacion" /></label>
-              </div>
-              <div class="facturacion-dialog-footer">
-                <button id="facturacion-delete-rate" type="button" class="danger-button hidden">Eliminar</button>
-                <div class="detail-actions"><button type="button" class="secondary-button" data-close-dialog>Cancelar</button><button type="submit">Guardar</button></div>
-              </div>
-            </form>
-          </dialog>
-
           <dialog id="facturacion-period-dialog" class="facturacion-dialog">
             <form id="facturacion-period-form">
               <input name="id" type="hidden" />
@@ -6355,9 +6284,6 @@
             </button>
             <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="instalaciones" aria-pressed="false">
               Instalaciones
-            </button>
-            <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="servicios" aria-pressed="false">
-              Servicios
             </button>
             <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="empresas" aria-pressed="false">
               Empresas
@@ -8092,22 +8018,6 @@
               </label>
 
               <label class="filter-field">
-                Servicio
-                <div class="filter-control-row">
-                  <select id="filter-activity-servicio" name="servicio_id">
-                    <option value="">Todos los servicios</option>
-                  </select>
-                  <button
-                    type="button"
-                    class="filter-reset-button"
-                    data-reset-filter="servicio_id"
-                    aria-label="Restablecer servicio"
-                    title="Restablecer"
-                  >&times;</button>
-                </div>
-              </label>
-
-              <label class="filter-field">
                 Puesto
                 <div class="filter-control-row">
                   <select id="filter-activity-puesto" name="puesto_id">
@@ -8284,7 +8194,6 @@
                     <option value="fecha_inicio">Fecha inicio</option>
                     <option value="fecha_fin">Fecha fin</option>
                     <option value="contrato_id">Contrato</option>
-                    <option value="servicio_id">Servicio</option>
                     <option value="personal_id">Personal</option>
                     <option value="empresa_id">Empresa</option>
                     <option value="instalacion_id">Instalación</option>
@@ -8455,7 +8364,6 @@
 
             <form id="activity-edit-form" class="activity-form side-panel-form" novalidate>
               <input id="edit-activity-id" name="id" type="hidden" />
-              <input id="edit-activity-servicio" name="servicio_id" type="hidden" />
 
               <label>
                 Personal
@@ -9004,64 +8912,6 @@
               </div>
             </form>
 
-            <section id="contract-services-section" class="settings-section contract-services-section">
-              <h4>Servicios asociados</h4>
-              <p class="muted-text">
-                Los servicios son un catálogo global: el mismo servicio puede estar habilitado en
-                varios contratos. Haz doble clic para mover uno entre las dos listas, o crea uno
-                nuevo si todavía no existe.
-              </p>
-              <p class="contract-autosave-note">
-                Los cambios de asignación se guardan automáticamente.
-              </p>
-              <label class="contract-assignment-filter">
-                Filtrar servicio
-                <input
-                  id="contract-service-filter"
-                  type="search"
-                  placeholder="Nombre de servicio"
-                />
-              </label>
-              <div class="dual-list">
-                <section>
-                  <h5>Disponibles</h5>
-                  <select id="contract-service-available-select" multiple size="12"></select>
-                </section>
-                <div class="dual-list-actions" aria-label="Cambiar servicios del contrato">
-                  <button
-                    id="contract-service-add-button"
-                    type="button"
-                    data-icon="move-right"
-                    aria-label="Asignar servicio al contrato"
-                    title="Asignar servicio al contrato"
-                  >&gt;</button>
-                  <button
-                    id="contract-service-remove-button"
-                    type="button"
-                    class="secondary-button"
-                    data-icon="move-left"
-                    aria-label="Quitar servicio del contrato"
-                    title="Quitar servicio del contrato"
-                  >
-                    &lt;
-                  </button>
-                </div>
-                <section>
-                  <h5>Asignados</h5>
-                  <select id="contract-service-selected-select" multiple size="12"></select>
-                </section>
-              </div>
-              <form id="contract-service-new-form" class="detail-form compact-detail-form hidden">
-                <label>
-                  Crear y asignar servicio nuevo
-                  <input id="contract-service-new-name" type="text" placeholder="Nombre del servicio" />
-                </label>
-                <button type="submit" class="secondary-button" data-icon="new" data-icon-mode="icon-text">
-                  Crear servicio
-                </button>
-              </form>
-            </section>
-
             <section id="contract-personal-section" class="settings-section contract-services-section">
               <h4>Personal asignado</h4>
               <p class="muted-text">
@@ -9157,8 +9007,49 @@
                 </section>
               </div>
             </section>
+
+            <section id="contract-rates-section" class="settings-section contract-services-section">
+              <div class="section-heading-row">
+                <h4>Funciones y tarifas</h4>
+                <button id="contract-rate-new-button" type="button">Nueva tarifa</button>
+              </div>
+              <p class="muted-text">
+                Relaciona las funciones del contrato con sus precios diurno y nocturno, mensual o global.
+              </p>
+              <div class="table-scroll">
+                <table class="facturacion-table">
+                  <thead><tr><th>Función</th><th>Descripción</th><th>Tipo</th><th>Precio 1</th><th>Precio 2</th><th>Estado</th><th></th></tr></thead>
+                  <tbody id="contract-rates-body"></tbody>
+                </table>
+              </div>
+            </section>
           </aside>
         </section>
+
+        <dialog id="contract-rate-dialog" class="facturacion-dialog">
+          <form id="contract-rate-form">
+            <input name="id" type="hidden" />
+            <div class="facturacion-dialog-header"><h3>Función y tarifa</h3><button type="button" id="contract-rate-dialog-close" aria-label="Cerrar">×</button></div>
+            <div class="facturacion-form-grid">
+              <label class="wide">Función<select name="funcion_id" required></select></label>
+              <label>Tipo de precio
+                <select name="tipo_precio" required>
+                  <option value="hora">Por hora</option>
+                  <option value="mes">Por mes</option>
+                  <option value="global">Global</option>
+                </select>
+              </label>
+              <label class="facturacion-check"><input name="activo" type="checkbox" /><span>Tarifa activa</span></label>
+              <label>Precio 1 / diurno<input name="precio_01" type="number" step="0.0001" /></label>
+              <label>Precio 2 / nocturno<input name="precio_02" type="number" step="0.0001" /></label>
+              <label class="wide">Descripción<input name="observacion" /></label>
+            </div>
+            <div class="facturacion-dialog-footer">
+              <button id="contract-rate-delete-button" type="button" class="danger-button hidden">Eliminar</button>
+              <div class="detail-actions"><button type="button" id="contract-rate-cancel-button" class="secondary-button">Cancelar</button><button type="submit">Guardar</button></div>
+            </div>
+          </form>
+        </dialog>
 
         <section class="card status-card">
           <p id="status-message" class="status-message"></p>
@@ -10130,6 +10021,20 @@
           </aside>
         </section>
 
+        <dialog id="candidate-cv-preview-dialog" class="cv-preview-dialog">
+          <div class="cv-preview-dialog-header">
+            <h3 id="candidate-cv-preview-title">Vista previa del currículum</h3>
+            <button type="button" data-close-cv-preview aria-label="Cerrar">×</button>
+          </div>
+          <div id="candidate-cv-preview-body" class="cv-preview-body">
+            <p class="muted-text">Cargando vista previa...</p>
+          </div>
+          <div class="cv-preview-dialog-footer">
+            <button type="button" class="secondary-button" data-close-cv-preview>Cerrar</button>
+            <button type="button" id="candidate-cv-preview-download-button" disabled>Descargar</button>
+          </div>
+        </dialog>
+
         <div id="public-toast" class="toast-message hidden" role="status" aria-live="polite">
           Candidatura enviada correctamente.
         </div>
@@ -10139,8 +10044,8 @@
     <script src="./config.js" defer></script>
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260916-8" defer></script>
-    <script src="./facturacion.js?v=20260914-2" defer></script>
-    <script src="./app.js?v=20260917-3" defer></script>
+    <script src="./concilia-integrated.js?v=20260923-1" defer></script>
+    <script src="./facturacion.js?v=20260923-1" defer></script>
+    <script src="./app.js?v=20260923-1" defer></script>
   </body>
 </html>

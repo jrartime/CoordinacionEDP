@@ -35,7 +35,7 @@ COLUMNS = [
     "hc", "hf", "hm", "hd", "bolsa_horas", "horas_diurnas", "horas_nocturnas",
     "clases", "horas_2", "descanso", "activo", "festivo", "sustitucion",
     "facturar", "abonar", "tipo_hora_id", "situacion_id", "anio", "observacion",
-    "control", "factura", "servicio_id", "sustituye_registro_id", "legacy_id_hora",
+    "control", "factura", "sustituye_registro_id", "legacy_id_hora",
 ]
 
 
