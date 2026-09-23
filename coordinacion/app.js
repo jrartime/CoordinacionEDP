@@ -28981,7 +28981,7 @@ async function openHistorialDetail(historialId) {
   historialDetailPanel.classList.remove("hidden");
 }
 
-// `copy` distingue el duplicado real (arrastra todos los campos) de un alta que
+// `copy` distingue el duplicado (conserva los campos que procedan) de un alta que
 // solo llega con algún valor prerrellenado, como la persona desde Actividades.
 async function openHistorialNew(seedRow = null, { copy = Boolean(seedRow) } = {}) {
   if (!historialDetailPanel) {
@@ -29287,6 +29287,18 @@ async function duplicateHistorialDetail() {
       const control = historialDetailForm?.elements[field.key];
       const rawValue = field.type === "boolean" ? Boolean(control?.checked) : control?.value;
       seed[field.key] = parseHistorialFieldValue(rawValue, field);
+    });
+    // Una copia sirve como base para un nuevo periodo, no como repetición de sus
+    // fechas, trámites ni datos propios del alta y la baja.
+    Object.assign(seed, {
+      fecha_alta: null,
+      fecha_baja: null,
+      horarios: null,
+      tipo_contratacion_id: null,
+      motivo_baja_id: null,
+      enviado: false,
+      gestionado: false,
+      tramitado: false,
     });
     await openHistorialNew(seed);
   } catch (error) {

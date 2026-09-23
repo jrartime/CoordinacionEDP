@@ -4649,10 +4649,29 @@
   // Mismo criterio que Registros (computeRecordsOverlaps en app.js): una
   // persona no puede estar en dos actividades a la vez. Se cruza dentro de
   // las actividades ya cargadas (activitiesRows), agrupando por persona y
-  // dia de la semana; dos entradas de la MISMA actividad nunca se comparan
-  // entre si (cada dia de una actividad aparece una sola vez).
+  // dia de la semana, horario y vigencia de fechas; dos entradas de la MISMA
+  // actividad nunca se comparan entre si (cada dia aparece una sola vez).
   let activitiesOverlapMap = new Map();
   let activitiesOverlapOnly = false;
+
+  function activityDateRangesShareWeekday(a, b, weekday) {
+    const aStart = parseDateValue(a?.fecha_inicio);
+    const aEnd = parseDateValue(a?.fecha_fin);
+    const bStart = parseDateValue(b?.fecha_inicio);
+    const bEnd = parseDateValue(b?.fecha_fin);
+    if (!aStart || !aEnd || !bStart || !bEnd) {
+      return false;
+    }
+
+    const overlapStart = aStart > bStart ? aStart : bStart;
+    const overlapEnd = aEnd < bEnd ? aEnd : bEnd;
+    if (overlapStart > overlapEnd) {
+      return false;
+    }
+
+    const daysUntilWeekday = (Number(weekday) - getSpanishWeekday(overlapStart) + 7) % 7;
+    return addDays(overlapStart, daysUntilWeekday) <= overlapEnd;
+  }
 
   function computeActivityOverlaps(rows) {
     const map = new Map();
@@ -4679,6 +4698,7 @@
           }
           byDay.get(entry.day).push({
             activity,
+            day: entry.day,
             label: entry.label,
             hora_inicio: entry.hora_inicio,
             hora_fin: entry.hora_fin,
@@ -4693,7 +4713,12 @@
           for (let j = i + 1; j < entries.length; j += 1) {
             const a = entries[i];
             const b = entries[j];
-            if (a.activity.id === b.activity.id || a.start >= b.end || b.start >= a.end) {
+            if (
+              a.activity.id === b.activity.id ||
+              a.start >= b.end ||
+              b.start >= a.end ||
+              !activityDateRangesShareWeekday(a.activity, b.activity, a.day)
+            ) {
               continue;
             }
             [[a, b], [b, a]].forEach(([entry, other]) => {

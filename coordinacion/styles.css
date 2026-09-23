@@ -2310,6 +2310,32 @@ textarea {
   align-items: end;
 }
 
+/* Las pestañas pueden quedar estrechas aunque la ventana siga siendo grande
+   (menú lateral, paneles divididos, etc.). Los filtros deben responder al
+   ancho disponible en su propio panel y no solo a media queries del viewport. */
+.private-tab-panel,
+#module-panel-actividades {
+  container-type: inline-size;
+}
+
+.private-tab-panel > *,
+#module-panel-actividades > * {
+  min-width: 0;
+}
+
+@container (max-width: 1350px) {
+  .filters-grid,
+  .private-tab-panel .filters-grid,
+  .private-tab-panel .records-filters-compact,
+  #module-panel-actividades .records-filters-compact {
+    grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)) !important;
+  }
+
+  .programming-activity-filter {
+    grid-column: auto;
+  }
+}
+
 .control-filters-grid,
 .programming-filters-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -3216,6 +3242,19 @@ button.tag-chip.warm-button:hover {
 }
 
 .table-wrapper {
+  overflow-x: auto;
+}
+
+/* Cualquier listado que supere el ancho de su tarjeta conserva su ancho de
+   lectura y desplaza solo la tabla, sin ensanchar ni cortar el panel. */
+.table-wrapper,
+.table-scroll,
+.table-wrap,
+[class$="-table-wrap"],
+[class$="-table-wrapper"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
 }
 
