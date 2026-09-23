@@ -15,6 +15,16 @@ $port = 51837
 $allowedOrigins = @(
   "https://coordinacion.edpsl.es"
 )
+$logPath = Join-Path $PSScriptRoot "carpeta_helper.log"
+
+function Write-CrashLog($mensaje) {
+  try {
+    $linea = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $mensaje"
+    Add-Content -LiteralPath $logPath -Value $linea -Encoding UTF8
+  } catch {
+    # Si ni siquiera se puede escribir el log, no hay nada mas que hacer.
+  }
+}
 
 function Test-AllowedOrigin($origin) {
   if (-not $origin) {
@@ -149,7 +159,17 @@ try {
 }
 
 while ($listener.IsListening) {
-  $context = $listener.GetContext()
+  # GetContext() estaba fuera del try/catch de mas abajo: si lanzaba una
+  # excepcion (peticion malformada, cierre brusco de conexion...) tiraba
+  # abajo el proceso entero sin dejar rastro — asi es como se "paraba" el
+  # ayudante sin que nadie lo cerrase a proposito. Ahora se registra y se
+  # sigue escuchando en vez de morir.
+  try {
+    $context = $listener.GetContext()
+  } catch {
+    Write-CrashLog "GetContext fallo: $($_.Exception.Message)"
+    continue
+  }
   $request = $context.Request
   $origin = $request.Headers["Origin"]
   $allowOrigin = $null
@@ -237,6 +257,13 @@ while ($listener.IsListening) {
 
     Send-JsonResponse $context 404 @{ ok = $false; error = "No encontrado" } $allowOrigin
   } catch {
-    Send-JsonResponse $context 500 @{ ok = $false; error = "Error interno del ayudante" } $allowOrigin
+    Write-CrashLog "Error atendiendo $($request.Url): $($_.Exception.Message)"
+    try {
+      Send-JsonResponse $context 500 @{ ok = $false; error = "Error interno del ayudante" } $allowOrigin
+    } catch {
+      Write-CrashLog "Tambien fallo al responder: $($_.Exception.Message)"
+    }
   }
 }
+
+Write-CrashLog "El ayudante ha terminado (listener.IsListening = false)."

@@ -96,9 +96,10 @@ revoke all on function public.get_convenio_salario_vigente(integer, date) from p
 grant execute on function public.get_convenio_salario_vigente(integer, date) to authenticated;
 
 -- ============================================================================
--- Seed de datos: tbl_convenios.xlsx (21 categorias).
+-- Seed de datos: tbl_convenios.xlsx (20 categorias; id 7 borrado, era una nota
+-- de trabajo sin usar por ningun puesto, ver git log).
 -- Vigencia 2026-01-01: columnas base del Excel (las vigentes actualmente).
--- Vigencia 2025-01-01 (solo ids 1-7, "IV Convenio... instalaciones deportivas"):
+-- Vigencia 2025-01-01 (solo ids 1-6, "IV Convenio... instalaciones deportivas"):
 -- columnas "Salario anual 2025" / "Salario mensual 2025" del Excel, que eran
 -- mas bajas que las columnas base -> es la tarifa anterior, no una subida futura.
 -- Los demas conceptos (pluses, hora_complementaria...) no se conocen para esa
@@ -112,7 +113,6 @@ insert into public.convenios_categorias (id, convenio, nivel, grupo_nivel, enlac
 (4, 'IV Convenio colectivo estatal de instalaciones deportivas y gimnasios.', 'Nivel I: Se incluye en este grupo todas aquellas actividades correspondientes a las siguientes categorías: coordinador fitness, actividades aeróbicas, de piscina, de raqueta, de clases colectivas, de mantenimiento de instalaciones, oficial administrativo 1.ª, oficial de 1.ª de mantenimiento de instalaciones, coordinador recepción.', '3.1 Instalaciones', '#https://www.boe.es/diario_boe/txt.php?id=BOE-A-2024-1506#'),
 (5, 'IV Convenio colectivo estatal de instalaciones deportivas y gimnasios.', 'Nivel II: Se incluyen en este nivel todas aquellas actividades correspondientes a las categorías: Fisioterapeutas, DUE, Contable, Secretaria/o de Dirección, Jefe de Mantenimiento, etc.', '2.2 Instalaciones', '#https://www.boe.es/diario_boe/txt.php?id=BOE-A-2024-1506#'),
 (6, 'IV Convenio colectivo estatal de instalaciones deportivas y gimnasios.', 'Nivel I: Se incluyen en este nivel todas aquellas actividades correspondientes a los siguientes puestos de trabajo: directores de departamento, tales como financiero, recursos humanos, comercial, marketing, de actividades técnicas, así como, médico, etc.', '2.1 Instalaciones', '#https://www.boe.es/diario_boe/txt.php?id=BOE-A-2024-1506#'),
-(7, 'IV Convenio colectivo estatal de instalaciones deportivas y gimnasios.', 'Se incluyen en este Grupo, los Directores Generales, Gerentes de los Gimnasios o Centros de Actividad Físico-Deportiva.', '1 Instalaciones', '#https://www.boe.es/diario_boe/txt.php?id=BOE-A-2024-1506#'),
 (8, 'Convenio Colectivo de Sector de OCIO EDUCATIVO Y ANIMACION SOCIOCULTURAL (99100055012011', 'Monitor/a de ocio educativo y tiempo libre: Es la persona que, con la titulación académica requerida por la legislación vigente y/o experiencia acreditada en la actividad, dinamiza el desarrollo de los programas de ocio educativo y/o tiempo libre, dentro del marco pedagógico establecido por la actividad de acuerdo con la legislación vigente, transmitiendo sus conocimientos, métodos y estrategias, dirigidos al desarrollo grupal e individual de sus componentes.', '4.2 Ocio educativo', '#https://www.iberley.es/convenios/sector/convenio-colectivo-ocio-educativo-animacion-sociocultural-estatal-1601239#'),
 (9, 'Convenio Colectivo de Sector de OCIO EDUCATIVO Y ANIMACION SOCIOCULTURAL (99100055012011', 'Coordinador/a de proyectos pedagógicos, de ocio y tiempo libre: Es quien supervisa los coordinadores/as de los diferentes centros de trabajo y los proyectos de su área asignada, en el marco pedagógico establecido por la empresa y / o entidad, así como el seguimiento de contactos con los clientes, organizar reuniones, controlar y gestionar el material, y elaborar las memorias.
 
@@ -150,7 +150,6 @@ values
 (4, '2026-01-01', 1261.62, null, 14.0, 10.08, 3.1, 10.44, 1.51, 0.1, null),
 (5, '2026-01-01', 1306.40, null, 14.0, 10.44, 3.1, 10.44, 1.57, 0.1, null),
 (6, '2026-01-01', 1348.43, null, 14.0, 10.78, 3.1, 10.44, 1.62, 0.1, null),
-(7, '2026-01-01', 1471.02, null, 14.0, 11.75, 3.1, 10.44, 1.76, 0.1, null),
 (8, '2026-01-01', 1250.21, 17502.89, 14.0, 10.05, null, 10.10, null, null, null),
 (9, '2026-01-01', 1474.08, 20637.15, 14.0, 11.85, null, 10.10, null, null, null),
 (11, '2026-01-01', 2600.00, null, null, 11.75, 3.1, 10.44, 1.76, 0.1, null),
@@ -170,8 +169,7 @@ values
 (3, '2025-01-01', 1191.49, 16680.87, null, null, null, null, null, null, null),
 (4, '2025-01-01', 1220.13, 17081.85, null, null, null, null, null, null, null),
 (5, '2025-01-01', 1263.45, 17688.26, null, null, null, null, null, null, null),
-(6, '2025-01-01', 1304.09, 18257.32, null, null, null, null, null, null, null),
-(7, '2025-01-01', 1422.65, 19917.08, null, null, null, null, null, null, null)
+(6, '2025-01-01', 1304.09, 18257.32, null, null, null, null, null, null, null)
 on conflict (convenio_categoria_id, vigente_desde) do update set
   salario_mensual = excluded.salario_mensual,
   salario_anual = excluded.salario_anual,
