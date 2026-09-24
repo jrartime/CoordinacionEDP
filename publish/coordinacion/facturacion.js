@@ -25,6 +25,9 @@
     contractId: "",
     year: "",
     generation: null,
+    // Último "Desglose por centros" mostrado en la vista previa: fuente para
+    // el botón "Descargar PDF" del propio diálogo, sin recalcular.
+    centerBreakdown: null,
     // Ticks por grupo calculado (contrato+función): se puede excluir del
     // guardado sin tener que recalcular. Guarda las group.key desmarcadas;
     // vacío = se guarda todo lo calculado (el estado por defecto). Se
@@ -1117,15 +1120,11 @@
     el.preparationPreviewDialog.showModal();
   }
 
-  // Desglose por instalación, personal y semana de los grupos marcados en
-  // el cálculo: una tabla por centro, una fila por persona y una columna por
-  // semana con las horas trabajadas, más el total de la persona y el total
-  // del centro. Mismo dato origen que "Desglose por semanas" (group.records,
-  // ya con facturar=true por venir de fetchBillingRecords), reagrupado por
-  // persona en vez de por instalación+semana a secas.
-  function previewGenerationByCenter() {
-    const selectedGroups = getSelectedGenerationGroups();
-    if (!selectedGroups.length || !el.preparationPreviewDialog) return;
+  // Agrupa group.records (mismo origen que "Desglose por semanas") por
+  // instalación y, dentro de cada una, por persona y semana. Fuente
+  // compartida entre la vista previa en pantalla y el PDF, igual que
+  // groupPreparationLines para las preparaciones ya guardadas.
+  function buildCenterBreakdown(selectedGroups) {
     const centers = new Map();
     const weekSet = new Set();
     selectedGroups.forEach((group) => {
@@ -1146,52 +1145,256 @@
       });
     });
     const weeks = Array.from(weekSet).sort((a, b) => a - b);
-    const centerList = Array.from(centers.values()).sort((a, b) => a.instalacion.localeCompare(b.instalacion, "es"));
-    const grandTotal = centerList.reduce(
-      (sum, center) => sum + Array.from(center.personnel.values()).reduce((s, p) => s + p.total, 0),
-      0
-    );
-    el.preparationPreviewBody.innerHTML = `
-      <p class="muted-text">Desglose por instalación, personal y semana de los grupos marcados. Esto no guarda nada.</p>
-      ${centerList.map((center) => {
+    const centerList = Array.from(centers.values())
+      .map((center) => {
         const people = Array.from(center.personnel.values()).sort((a, b) => a.personal.localeCompare(b.personal, "es"));
-        const centerTotal = people.reduce((sum, person) => sum + person.total, 0);
-        return `
-          <h4>${escapeHtml(center.instalacion)}</h4>
-          <div class="table-scroll">
-            <table class="facturacion-table">
-              <thead>
-                <tr>
-                  <th>Personal</th>
-                  ${weeks.map((week) => `<th class="numeric">Sem ${week}</th>`).join("")}
-                  <th class="numeric">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${people.map((person) => `
-                  <tr>
-                    <td>${escapeHtml(person.personal)}</td>
-                    ${weeks.map((week) => `<td class="numeric">${person.weeks.has(week) ? hoursFmt.format(person.weeks.get(week)) : ""}</td>`).join("")}
-                    <td class="numeric">${hoursFmt.format(person.total)}</td>
-                  </tr>`).join("")}
-                <tr class="facturacion-function-total">
-                  <td>Total ${escapeHtml(center.instalacion)}</td>
-                  ${weeks.map((week) => {
-                    const weekTotal = people.reduce((sum, person) => sum + (person.weeks.get(week) || 0), 0);
-                    return `<td class="numeric">${weekTotal ? hoursFmt.format(weekTotal) : ""}</td>`;
-                  }).join("")}
-                  <td class="numeric">${hoursFmt.format(centerTotal)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        `;
-      }).join("")}
+        const total = people.reduce((sum, person) => sum + person.total, 0);
+        return { instalacion: center.instalacion, people, total };
+      })
+      .sort((a, b) => a.instalacion.localeCompare(b.instalacion, "es"));
+    const grandTotal = centerList.reduce((sum, center) => sum + center.total, 0);
+    return { weeks, centers: centerList, grandTotal };
+  }
+
+  // Desglose por función, instalación, personal y semana de los grupos
+  // marcados en el cálculo: como "Desglose por semanas", agrupa primero por
+  // función (cada grupo calculado ya es un contrato+función) y, dentro de
+  // cada una, una tabla por centro con una fila por persona y una columna
+  // por semana, más el total de la persona y el del centro. Mismo dato
+  // origen que "Desglose por semanas" (group.records, ya con facturar=true
+  // por venir de fetchBillingRecords). Se guarda en state.centerBreakdown
+  // para que los botones "Descargar PDF"/"Descargar Excel" del propio
+  // diálogo exporten exactamente lo que se está viendo.
+  function previewGenerationByCenter() {
+    const generation = state.generation;
+    const selectedGroups = getSelectedGenerationGroups();
+    if (!generation || !selectedGroups.length || !el.preparationPreviewDialog) return;
+    const funciones = selectedGroups
+      .map((group) => ({ contrato: group.contrato, funcion: group.funcion, ...buildCenterBreakdown([group]) }))
+      .filter((item) => item.centers.length);
+    const grandTotal = funciones.reduce((sum, item) => sum + item.grandTotal, 0);
+    state.centerBreakdown = { from: generation.from, to: generation.to, funciones, grandTotal };
+    el.preparationPreviewBody.innerHTML = `
+      <p class="muted-text">Desglose por función, instalación, personal y semana de los grupos marcados. Esto no guarda nada.</p>
+      <div class="facturacion-preview-toolbar">
+        <button type="button" class="secondary-button" data-download-center-pdf>Descargar PDF</button>
+        <button type="button" class="secondary-button" data-download-center-excel>Descargar Excel</button>
+      </div>
+      ${funciones.length ? funciones.map((item) => `
+        <h4>${escapeHtml(item.contrato)} · ${escapeHtml(item.funcion)}</h4>
+        ${renderCenterBreakdownTables(item)}
+        <div class="facturacion-generation-summary">
+          <article><span>Total ${escapeHtml(item.funcion)}</span><strong>${hoursFmt.format(item.grandTotal)} h</strong></article>
+        </div>
+      `).join("") : '<p class="muted-text">No hay horas que desglosar.</p>'}
       <div class="facturacion-generation-summary">
         <article><span>Total del periodo</span><strong>${hoursFmt.format(grandTotal)} h</strong></article>
       </div>
     `;
     el.preparationPreviewDialog.showModal();
+  }
+
+  // PDF del desglose por centros mostrado en la vista previa (state.centerBreakdown).
+  // En horizontal porque el número de columnas (una por semana) es variable;
+  // si no caben todas a la vez con un ancho legible, se reparten en varios
+  // bloques de columnas para el mismo centro en vez de encogerlas hasta ser
+  // ilegibles.
+  async function exportCenterBreakdownPdf() {
+    const data = state.centerBreakdown;
+    if (!data || !data.funciones.length) return;
+    const button = el.preparationPreviewBody?.querySelector("[data-download-center-pdf]");
+    if (button) button.disabled = true;
+    setStatus("Generando PDF…");
+    try {
+      const { jsPDF } = await import("https://esm.sh/jspdf@2.5.1");
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = 297;
+      const pageHeight = 210;
+      const margin = 14;
+      let y = margin;
+
+      const pageBreak = (needed = 12) => {
+        if (y + needed <= pageHeight - 16) return;
+        doc.addPage();
+        y = margin;
+      };
+      const row = (values, widths, bold = false) => {
+        pageBreak(7);
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        doc.setFontSize(8);
+        let x = margin;
+        values.forEach((value, index) => {
+          doc.rect(x, y, widths[index], 6);
+          doc.text(String(value ?? ""), x + 1.5, y + 4.1, { maxWidth: widths[index] - 3 });
+          x += widths[index];
+        });
+        y += 6;
+      };
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text("Desglose por centros", margin, y);
+      y += 6;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(`Periodo ${formatDate(data.from)} – ${formatDate(data.to)}`, margin, y);
+      y += 8;
+
+      const personalWidth = 60;
+      const totalWidth = 20;
+      const minWeekWidth = 14;
+      const available = pageWidth - margin * 2 - personalWidth - totalWidth;
+
+      data.funciones.forEach((item) => {
+        pageBreak(14);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.text(`${item.contrato} · ${item.funcion}`, margin, y);
+        y += 7;
+
+        const weeksPerBlock = item.weeks.length
+          ? Math.max(1, Math.floor(available / minWeekWidth))
+          : 0;
+        const weekBlocks = [];
+        for (let i = 0; i < item.weeks.length; i += weeksPerBlock) {
+          weekBlocks.push(item.weeks.slice(i, i + weeksPerBlock));
+        }
+        if (!weekBlocks.length) weekBlocks.push([]);
+
+        item.centers.forEach((center) => {
+          weekBlocks.forEach((block, blockIndex) => {
+            pageBreak(16);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.text(
+              blockIndex === 0 ? center.instalacion : `${center.instalacion} (cont.)`,
+              margin,
+              y
+            );
+            y += 6;
+            const weekWidth = block.length ? available / block.length : available;
+            const widths = [personalWidth, ...block.map(() => weekWidth), totalWidth];
+            row(["Personal", ...block.map((week) => `Sem ${week}`), "Total"], widths, true);
+            center.people.forEach((person) =>
+              row(
+                [
+                  person.personal,
+                  ...block.map((week) => (person.weeks.has(week) ? hoursFmt.format(person.weeks.get(week)) : "")),
+                  hoursFmt.format(person.total),
+                ],
+                widths
+              ));
+            row(
+              [
+                `Total ${center.instalacion}`,
+                ...block.map((week) => {
+                  const weekTotal = center.people.reduce((sum, person) => sum + (person.weeks.get(week) || 0), 0);
+                  return weekTotal ? hoursFmt.format(weekTotal) : "";
+                }),
+                hoursFmt.format(center.total),
+              ],
+              widths,
+              true
+            );
+            y += 4;
+          });
+        });
+
+        pageBreak(8);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text(`Total ${item.funcion}: ${hoursFmt.format(item.grandTotal)} h`, margin, y);
+        y += 8;
+      });
+
+      pageBreak(10);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(`Total del periodo: ${hoursFmt.format(data.grandTotal)} h`, margin, y);
+
+      doc.save(`desglose-centros-${data.from}-${data.to}.pdf`);
+      setStatus("PDF de desglose por centros generado.", "success");
+    } catch (error) {
+      setStatus(`No se pudo generar el PDF: ${error.message}`, "error");
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  // Excel del desglose por centros mostrado en la vista previa
+  // (state.centerBreakdown, igual que el PDF de al lado): una sola hoja,
+  // filas de personal por instalación con las semanas como columnas -así
+  // se puede filtrar/ordenar en Excel, a diferencia de bloques con huecos
+  // en blanco entre instalaciones-, más la fila TOTAL de cada instalación y
+  // el total del periodo al final.
+  async function exportCenterBreakdownExcel() {
+    const data = state.centerBreakdown;
+    if (!data || !data.funciones.length) return;
+    const button = el.preparationPreviewBody?.querySelector("[data-download-center-excel]");
+    if (button) button.disabled = true;
+    setStatus("Preparando Excel…");
+    try {
+      const xlsxModule = await import("https://esm.sh/xlsx@0.18.5");
+      const XLSX = xlsxModule.default || xlsxModule;
+      // Semanas unidas de todas las funciones marcadas, para una sola hoja
+      // con columnas fijas (una función puede no tener horas en una semana
+      // que otra sí tiene).
+      const allWeeksSet = new Set();
+      data.funciones.forEach((item) => item.weeks.forEach((week) => allWeeksSet.add(week)));
+      const allWeeks = Array.from(allWeeksSet).sort((a, b) => a - b);
+      const weekHeaders = allWeeks.map((week) => `Sem ${week}`);
+      const rows = [];
+      data.funciones.forEach((item) => {
+        item.centers.forEach((center) => {
+          center.people.forEach((person) => {
+            const row = { Función: item.funcion, Instalación: center.instalacion, Personal: person.personal };
+            allWeeks.forEach((week, index) => {
+              row[weekHeaders[index]] = person.weeks.has(week) ? numeric(person.weeks.get(week)) : "";
+            });
+            row.Total = numeric(person.total);
+            rows.push(row);
+          });
+          const centerTotalRow = { Función: item.funcion, Instalación: center.instalacion, Personal: `Total ${center.instalacion}` };
+          allWeeks.forEach((week, index) => {
+            const weekTotal = center.people.reduce((sum, person) => sum + (person.weeks.get(week) || 0), 0);
+            centerTotalRow[weekHeaders[index]] = weekTotal || "";
+          });
+          centerTotalRow.Total = numeric(center.total);
+          rows.push(centerTotalRow);
+        });
+        const funcionTotalRow = { Función: item.funcion, Instalación: "", Personal: `Total ${item.funcion}` };
+        allWeeks.forEach((week, index) => {
+          const weekTotal = item.centers.reduce(
+            (sum, center) => sum + center.people.reduce((s, person) => s + (person.weeks.get(week) || 0), 0),
+            0
+          );
+          funcionTotalRow[weekHeaders[index]] = weekTotal || "";
+        });
+        funcionTotalRow.Total = numeric(item.grandTotal);
+        rows.push(funcionTotalRow);
+      });
+      const grandTotalRow = { Función: "", Instalación: "", Personal: "Total del periodo" };
+      weekHeaders.forEach((header) => { grandTotalRow[header] = ""; });
+      grandTotalRow.Total = numeric(data.grandTotal);
+      rows.push(grandTotalRow);
+
+      const worksheet = XLSX.utils.json_to_sheet(rows, { header: ["Función", "Instalación", "Personal", ...weekHeaders, "Total"] });
+      worksheet["!cols"] = [
+        { wch: 22 }, { wch: 26 }, { wch: 28 }, ...weekHeaders.map(() => ({ wch: 9 })), { wch: 10 },
+      ];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Desglose por centros");
+      const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      downloadBlob(
+        new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+        `desglose-centros-${data.from}-${data.to}.xlsx`
+      );
+      setStatus("Excel de desglose por centros exportado.", "success");
+    } catch (error) {
+      setStatus(`No se pudo exportar el Excel: ${error.message}`, "error");
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   async function saveBillingGeneration() {
@@ -1756,93 +1959,327 @@
       });
   }
 
+  // Tablas del desglose por centros de UNA función (instalación → personal →
+  // semana): sin toolbar ni total general, porque "Desglose por centros"
+  // ahora agrupa primero por función (como "Desglose por semanas") y esto se
+  // repite una vez por función, con su propio subtotal fuera de esta función.
+  function renderCenterBreakdownTables({ weeks, centers }) {
+    if (!centers.length) return "";
+    return centers.map((center) => `
+          <p class="eyebrow">${escapeHtml(center.instalacion)}</p>
+          <div class="table-scroll">
+            <table class="facturacion-table">
+              <thead>
+                <tr>
+                  <th>Personal</th>
+                  ${weeks.map((week) => `<th class="numeric">Sem ${week}</th>`).join("")}
+                  <th class="numeric">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${center.people.map((person) => `
+                  <tr>
+                    <td>${escapeHtml(person.personal)}</td>
+                    ${weeks.map((week) => `<td class="numeric">${person.weeks.has(week) ? hoursFmt.format(person.weeks.get(week)) : ""}</td>`).join("")}
+                    <td class="numeric">${hoursFmt.format(person.total)}</td>
+                  </tr>`).join("")}
+                <tr class="facturacion-function-total">
+                  <td>Total ${escapeHtml(center.instalacion)}</td>
+                  ${weeks.map((week) => {
+                    const weekTotal = center.people.reduce((sum, person) => sum + (person.weeks.get(week) || 0), 0);
+                    return `<td class="numeric">${weekTotal ? hoursFmt.format(weekTotal) : ""}</td>`;
+                  }).join("")}
+                  <td class="numeric">${hoursFmt.format(center.total)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        `).join("");
+  }
+
+  // Construye y descarga el PDF de una o varias preparaciones ya guardadas
+  // (instalación/total/diurnas/nocturnas por función + desglose por
+  // semanas), reconstruido desde sus líneas congeladas. Fuente compartida
+  // entre "Descargar PDF de marcadas" (varias, con tick) y el botón
+  // "Descargar PDF" de la propia "Vista previa" de una preparación (una
+  // sola, sin tener que marcarla ni salir del diálogo).
+  async function generatePreparationsPdf(ids) {
+    const linesByPrep = await fetchPreparationLines(ids);
+    const contracts = new Map(state.contracts.map((item) => [String(item.id), item]));
+    const { jsPDF } = await import("https://esm.sh/jspdf@2.5.1");
+    const idSet = new Set(ids.map(String));
+    const preparations = state.preparations
+      .filter((item) => idSet.has(String(item.id)))
+      .sort((a, b) => String(a.fecha_desde).localeCompare(String(b.fecha_desde)) || a.id - b.id);
+    const pageHeight = 297;
+    const margin = 14;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    let firstPrep = true;
+
+    for (const prep of preparations) {
+      if (!firstPrep) doc.addPage();
+      firstPrep = false;
+      let y = margin;
+      const pageBreak = (needed = 12) => {
+        if (y + needed <= pageHeight - 16) return;
+        doc.addPage();
+        y = margin;
+      };
+      const row = (values, widths, bold = false) => {
+        pageBreak(7);
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        doc.setFontSize(8);
+        let x = margin;
+        values.forEach((value, index) => {
+          doc.rect(x, y, widths[index], 6);
+          doc.text(String(value ?? ""), x + 1.5, y + 4.1, { maxWidth: widths[index] - 3 });
+          x += widths[index];
+        });
+        y += 6;
+      };
+
+      const contract = contracts.get(String(prep.contrato_id));
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(`Fecha inicial   ${formatDate(prep.fecha_desde)}     Fecha fin   ${formatDate(prep.fecha_hasta)}`, margin, y);
+      y += 7;
+      doc.text(`Contrato        ${contract?.contrato || `Contrato ${prep.contrato_id}`}`, margin, y);
+      y += 7;
+      doc.text(`Expediente      ${contract?.expediente || "—"}`, margin, y);
+      y += 7;
+      doc.text(`Vigencia        ${formatDate(contract?.fecha_inicio)} – ${formatDate(contract?.fecha_fin)}`, margin, y);
+      y += 7;
+      doc.text(`Agrupación      ${preparationGroupingLabel(prep)}`, margin, y);
+      y += 7;
+      doc.text(`Estado          ${prep.estado}${prep.estado !== "vigente" && prep.anulada_motivo ? ` · ${prep.anulada_motivo}` : ""}`, margin, y);
+      y += 7;
+      if (prep.observacion) {
+        doc.text(`Observación     ${prep.observacion}`, margin, y, { maxWidth: 180 });
+        y += 7;
+      }
+      y += 2;
+      row(["Base imponible", formatMoney(prep.base_imponible), "IVA", formatMoney(prep.iva)], [50, 45, 25, 62], true);
+      row(["Total con IVA", formatMoney(prep.total), "", ""], [50, 45, 25, 62], true);
+      y += 5;
+
+      groupPreparationLines(linesByPrep.get(String(prep.id))).forEach((bucket) => {
+        pageBreak(20);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text(bucket.funcion, margin, y);
+        y += 3;
+        row(["Instalación", "Total", "Diurnas", "Nocturnas"], [100, 28, 28, 28], true);
+        bucket.installations.forEach((item) => row([item.instalacion, pdfNumber(item.total), pdfNumber(item.diurnal), pdfNumber(item.nocturnal)], [100, 28, 28, 28]));
+        row(["TOTAL", pdfNumber(bucket.total), pdfNumber(bucket.diurnal), pdfNumber(bucket.nocturnal)], [100, 28, 28, 28], true);
+        y += 3;
+        row(["PRECIO", bucket.tipoPrecio || "—", formatMoney(bucket.precioDia), formatMoney(bucket.precioNoche ?? bucket.precioDia)], [100, 28, 28, 28], true);
+        row([`Subtotal ${bucket.funcion}`, pdfNumber(bucket.total), "", formatMoney(bucket.subtotal)], [100, 28, 28, 28], true);
+        y += 5;
+      });
+    }
+    const todayIso = new Date().toISOString().slice(0, 10);
+    doc.save(preparations.length === 1
+      ? `preparacion-${preparations[0].id}-${preparations[0].fecha_desde}-${preparations[0].fecha_hasta}.pdf`
+      : `preparaciones-facturas-${todayIso}.pdf`);
+    return preparations.length;
+  }
+
   async function exportSelectedPreparationsPdf() {
     const ids = Array.from(state.preparationSelectedIds);
     if (!ids.length) return;
     el.preparationsPdf.disabled = true;
     setStatus("Generando PDF de las preparaciones marcadas…");
     try {
-      const linesByPrep = await fetchPreparationLines(ids);
-      const contracts = new Map(state.contracts.map((item) => [String(item.id), item]));
-      const { jsPDF } = await import("https://esm.sh/jspdf@2.5.1");
-      const preparations = state.preparations
-        .filter((item) => state.preparationSelectedIds.has(String(item.id)))
-        .sort((a, b) => String(a.fecha_desde).localeCompare(String(b.fecha_desde)) || a.id - b.id);
-      const pageHeight = 297;
-      const margin = 14;
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      let firstPrep = true;
-
-      for (const prep of preparations) {
-        if (!firstPrep) doc.addPage();
-        firstPrep = false;
-        let y = margin;
-        const pageBreak = (needed = 12) => {
-          if (y + needed <= pageHeight - 16) return;
-          doc.addPage();
-          y = margin;
-        };
-        const row = (values, widths, bold = false) => {
-          pageBreak(7);
-          doc.setFont("helvetica", bold ? "bold" : "normal");
-          doc.setFontSize(8);
-          let x = margin;
-          values.forEach((value, index) => {
-            doc.rect(x, y, widths[index], 6);
-            doc.text(String(value ?? ""), x + 1.5, y + 4.1, { maxWidth: widths[index] - 3 });
-            x += widths[index];
-          });
-          y += 6;
-        };
-
-        const contract = contracts.get(String(prep.contrato_id));
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.text(`Fecha inicial   ${formatDate(prep.fecha_desde)}     Fecha fin   ${formatDate(prep.fecha_hasta)}`, margin, y);
-        y += 7;
-        doc.text(`Contrato        ${contract?.contrato || `Contrato ${prep.contrato_id}`}`, margin, y);
-        y += 7;
-        doc.text(`Expediente      ${contract?.expediente || "—"}`, margin, y);
-        y += 7;
-        doc.text(`Vigencia        ${formatDate(contract?.fecha_inicio)} – ${formatDate(contract?.fecha_fin)}`, margin, y);
-        y += 7;
-        doc.text(`Agrupación      ${preparationGroupingLabel(prep)}`, margin, y);
-        y += 7;
-        doc.text(`Estado          ${prep.estado}${prep.estado !== "vigente" && prep.anulada_motivo ? ` · ${prep.anulada_motivo}` : ""}`, margin, y);
-        y += 7;
-        if (prep.observacion) {
-          doc.text(`Observación     ${prep.observacion}`, margin, y, { maxWidth: 180 });
-          y += 7;
-        }
-        y += 2;
-        row(["Base imponible", formatMoney(prep.base_imponible), "IVA", formatMoney(prep.iva)], [50, 45, 25, 62], true);
-        row(["Total con IVA", formatMoney(prep.total), "", ""], [50, 45, 25, 62], true);
-        y += 5;
-
-        groupPreparationLines(linesByPrep.get(String(prep.id))).forEach((bucket) => {
-          pageBreak(20);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "bold");
-          doc.text(bucket.funcion, margin, y);
-          y += 3;
-          row(["Instalación", "Total", "Diurnas", "Nocturnas"], [100, 28, 28, 28], true);
-          bucket.installations.forEach((item) => row([item.instalacion, pdfNumber(item.total), pdfNumber(item.diurnal), pdfNumber(item.nocturnal)], [100, 28, 28, 28]));
-          row(["TOTAL", pdfNumber(bucket.total), pdfNumber(bucket.diurnal), pdfNumber(bucket.nocturnal)], [100, 28, 28, 28], true);
-          y += 3;
-          row(["PRECIO", bucket.tipoPrecio || "—", formatMoney(bucket.precioDia), formatMoney(bucket.precioNoche ?? bucket.precioDia)], [100, 28, 28, 28], true);
-          row([`Subtotal ${bucket.funcion}`, pdfNumber(bucket.total), "", formatMoney(bucket.subtotal)], [100, 28, 28, 28], true);
-          y += 5;
-        });
-      }
-      const todayIso = new Date().toISOString().slice(0, 10);
-      doc.save(preparations.length === 1
-        ? `preparacion-${preparations[0].id}-${preparations[0].fecha_desde}-${preparations[0].fecha_hasta}.pdf`
-        : `preparaciones-facturas-${todayIso}.pdf`);
-      setStatus(`PDF generado con ${preparations.length} ${preparations.length === 1 ? "preparación" : "preparaciones"}.`, "success");
+      const count = await generatePreparationsPdf(ids);
+      setStatus(`PDF generado con ${count} ${count === 1 ? "preparación" : "preparaciones"}.`, "success");
     } catch (error) {
       setStatus(`No se pudo generar el PDF: ${error.message}`, "error");
     } finally {
       el.preparationsPdf.disabled = !state.preparationSelectedIds.size;
+    }
+  }
+
+  // PDF de una sola preparación con el mismo contenido exacto que su "Vista
+  // previa" en pantalla: cabecera con los importes congelados, tabla por
+  // función/instalación y, a diferencia de generatePreparationsPdf (el de
+  // "Descargar PDF de marcadas", que deliberadamente no lleva semanas), el
+  // desglose por semanas de cada función también. Informe distinto a
+  // propósito, no una llamada a generatePreparationsPdf.
+  async function exportPreparationPreviewPdf(id) {
+    const button = el.preparationPreviewBody?.querySelector("[data-download-preparation-pdf]");
+    if (button) button.disabled = true;
+    setStatus("Generando PDF…");
+    try {
+      const prep = state.preparations.find((item) => String(item.id) === String(id));
+      if (!prep) throw new Error("Preparación no encontrada.");
+      const linesByPrep = await fetchPreparationLines([id]);
+      const buckets = groupPreparationLines(linesByPrep.get(String(id)));
+      const contract = state.contracts.find((item) => String(item.id) === String(prep.contrato_id));
+      const { jsPDF } = await import("https://esm.sh/jspdf@2.5.1");
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageHeight = 297;
+      const margin = 14;
+      let y = margin;
+      const pageBreak = (needed = 12) => {
+        if (y + needed <= pageHeight - 16) return;
+        doc.addPage();
+        y = margin;
+      };
+      const row = (values, widths, bold = false) => {
+        pageBreak(7);
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        doc.setFontSize(8);
+        let x = margin;
+        values.forEach((value, index) => {
+          doc.rect(x, y, widths[index], 6);
+          doc.text(String(value ?? ""), x + 1.5, y + 4.1, { maxWidth: widths[index] - 3 });
+          x += widths[index];
+        });
+        y += 6;
+      };
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(`Fecha inicial   ${formatDate(prep.fecha_desde)}     Fecha fin   ${formatDate(prep.fecha_hasta)}`, margin, y);
+      y += 7;
+      doc.text(`Contrato        ${contract?.contrato || `Contrato ${prep.contrato_id}`}`, margin, y);
+      y += 7;
+      doc.text(`Expediente      ${contract?.expediente || "—"}`, margin, y);
+      y += 7;
+      doc.text(`Vigencia        ${formatDate(contract?.fecha_inicio)} – ${formatDate(contract?.fecha_fin)}`, margin, y);
+      y += 7;
+      doc.text(`Agrupación      ${preparationGroupingLabel(prep)}`, margin, y);
+      y += 7;
+      doc.text(`Estado          ${prep.estado}${prep.estado !== "vigente" && prep.anulada_motivo ? ` · ${prep.anulada_motivo}` : ""}`, margin, y);
+      y += 7;
+      if (prep.observacion) {
+        doc.text(`Observación     ${prep.observacion}`, margin, y, { maxWidth: 180 });
+        y += 7;
+      }
+      y += 2;
+      row(["Base imponible", formatMoney(prep.base_imponible), "IVA", formatMoney(prep.iva)], [50, 45, 25, 62], true);
+      row(["Total con IVA", formatMoney(prep.total), "", ""], [50, 45, 25, 62], true);
+      y += 5;
+
+      buckets.forEach((bucket) => {
+        pageBreak(20);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text(bucket.funcion, margin, y);
+        y += 3;
+        row(["Instalación", "Total", "Diurnas", "Nocturnas"], [100, 28, 28, 28], true);
+        bucket.installations.forEach((item) => row([item.instalacion, pdfNumber(item.total), pdfNumber(item.diurnal), pdfNumber(item.nocturnal)], [100, 28, 28, 28]));
+        row(["TOTAL", pdfNumber(bucket.total), pdfNumber(bucket.diurnal), pdfNumber(bucket.nocturnal)], [100, 28, 28, 28], true);
+        y += 3;
+        row(["PRECIO", bucket.tipoPrecio || "—", formatMoney(bucket.precioDia), formatMoney(bucket.precioNoche ?? bucket.precioDia)], [100, 28, 28, 28], true);
+        row([`Subtotal ${bucket.funcion}`, pdfNumber(bucket.total), "", formatMoney(bucket.subtotal)], [100, 28, 28, 28], true);
+        y += 5;
+
+        pageBreak(14);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("Desglose por semanas", margin, y);
+        y += 3;
+        row(["Instalación", "Semana", "Total", "Diurnas", "Nocturnas"], [76, 20, 28, 29, 29], true);
+        bucket.weeks.forEach((item) => row([item.instalacion, item.week, pdfNumber(item.total), pdfNumber(item.diurnal), pdfNumber(item.nocturnal)], [76, 20, 28, 29, 29]));
+        y += 5;
+      });
+
+      doc.save(`preparacion-${prep.id}-${prep.fecha_desde}-${prep.fecha_hasta}.pdf`);
+      setStatus("PDF de la preparación generado.", "success");
+    } catch (error) {
+      setStatus(`No se pudo generar el PDF: ${error.message}`, "error");
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  // Excel de una sola preparación con el mismo contenido que su "Vista
+  // previa" y el PDF de al lado (resumen + instalaciones por función +
+  // semanas), pero en formato tabular de verdad -las "tarjetas" del resumen
+  // no tienen sentido en una hoja, así que van como pares Campo/Valor-. Tres
+  // hojas porque instalaciones y semanas tienen columnas distintas; mezclarlas
+  // en una obligaría a repetir o vaciar celdas.
+  async function exportPreparationPreviewExcel(id) {
+    const button = el.preparationPreviewBody?.querySelector("[data-download-preparation-excel]");
+    if (button) button.disabled = true;
+    setStatus("Preparando Excel…");
+    try {
+      const prep = state.preparations.find((item) => String(item.id) === String(id));
+      if (!prep) throw new Error("Preparación no encontrada.");
+      const linesByPrep = await fetchPreparationLines([id]);
+      const buckets = groupPreparationLines(linesByPrep.get(String(id)));
+      const contract = state.contracts.find((item) => String(item.id) === String(prep.contrato_id));
+      const xlsxModule = await import("https://esm.sh/xlsx@0.18.5");
+      const XLSX = xlsxModule.default || xlsxModule;
+
+      const summaryRows = [
+        ["Periodo", `${formatDate(prep.fecha_desde)} – ${formatDate(prep.fecha_hasta)}`],
+        ["Contrato", contract?.contrato || `Contrato ${prep.contrato_id}`],
+        ["Expediente", contract?.expediente || "—"],
+        ["Vigencia", `${formatDate(contract?.fecha_inicio)} – ${formatDate(contract?.fecha_fin)}`],
+        ["Agrupación", preparationGroupingLabel(prep)],
+        ["Estado", `${prep.estado}${prep.estado !== "vigente" && prep.anulada_motivo ? ` · ${prep.anulada_motivo}` : ""}`],
+        ["Base imponible", numeric(prep.base_imponible)],
+        ["IVA", numeric(prep.iva)],
+        ["Total con IVA", numeric(prep.total)],
+        ...(prep.observacion ? [["Observación", prep.observacion]] : []),
+      ];
+
+      const installationRows = [];
+      const weekRows = [];
+      buckets.forEach((bucket) => {
+        bucket.installations.forEach((item) => {
+          installationRows.push({
+            Función: bucket.funcion,
+            Instalación: item.instalacion,
+            Total: numeric(item.total),
+            Diurnas: numeric(item.diurnal),
+            Nocturnas: numeric(item.nocturnal),
+          });
+        });
+        installationRows.push({
+          Función: bucket.funcion,
+          Instalación: "TOTAL",
+          Total: numeric(bucket.total),
+          Diurnas: numeric(bucket.diurnal),
+          Nocturnas: numeric(bucket.nocturnal),
+        });
+        bucket.weeks.forEach((item) => {
+          weekRows.push({
+            Función: bucket.funcion,
+            Instalación: item.instalacion,
+            Semana: item.week,
+            Total: numeric(item.total),
+            Diurnas: numeric(item.diurnal),
+            Nocturnas: numeric(item.nocturnal),
+          });
+        });
+      });
+
+      const workbook = XLSX.utils.book_new();
+      const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+      summarySheet["!cols"] = [{ wch: 16 }, { wch: 40 }];
+      XLSX.utils.book_append_sheet(workbook, summarySheet, "Resumen");
+
+      const installationSheet = XLSX.utils.json_to_sheet(installationRows);
+      installationSheet["!cols"] = [{ wch: 24 }, { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(workbook, installationSheet, "Instalaciones");
+
+      const weekSheet = XLSX.utils.json_to_sheet(weekRows);
+      weekSheet["!cols"] = [{ wch: 24 }, { wch: 30 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(workbook, weekSheet, "Semanas");
+
+      const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      downloadBlob(
+        new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+        `preparacion-${prep.id}-${prep.fecha_desde}-${prep.fecha_hasta}.xlsx`
+      );
+      setStatus("Excel de la preparación exportado.", "success");
+    } catch (error) {
+      setStatus(`No se pudo exportar el Excel: ${error.message}`, "error");
+    } finally {
+      if (button) button.disabled = false;
     }
   }
 
@@ -1871,7 +2308,8 @@
     el.preparationPreviewDialog.showModal();
     try {
       const linesByPrep = await fetchPreparationLines([id]);
-      const buckets = groupPreparationLines(linesByPrep.get(String(id)));
+      const lines = linesByPrep.get(String(id));
+      const buckets = groupPreparationLines(lines);
       const contract = state.contracts.find((item) => String(item.id) === String(prep.contrato_id));
       el.preparationPreviewBody.innerHTML = `
         <div class="facturacion-generation-summary">
@@ -1886,6 +2324,10 @@
           <article><span>Total con IVA</span><strong>${formatMoney(prep.total)}</strong></article>
         </div>
         ${prep.observacion ? `<p class="muted-text"><strong>Observación:</strong> ${escapeHtml(prep.observacion)}</p>` : ""}
+        <div class="facturacion-preview-toolbar">
+          <button type="button" class="secondary-button" data-download-preparation-pdf="${prep.id}">Descargar PDF</button>
+          <button type="button" class="secondary-button" data-download-preparation-excel="${prep.id}">Descargar Excel</button>
+        </div>
         ${buckets.length ? buckets.map((bucket) => `
           <h4>${escapeHtml(bucket.funcion)}</h4>
           <div class="table-scroll">
@@ -2175,6 +2617,23 @@
     el.generationPreview.addEventListener("click", previewGenerationClustering);
     el.generationWeekly.addEventListener("click", previewGenerationWeekly);
     el.generationCenter.addEventListener("click", previewGenerationByCenter);
+    el.preparationPreviewBody.addEventListener("click", (event) => {
+      if (event.target.closest("[data-download-center-pdf]")) {
+        void exportCenterBreakdownPdf();
+        return;
+      }
+      if (event.target.closest("[data-download-center-excel]")) {
+        void exportCenterBreakdownExcel();
+        return;
+      }
+      const prepPdfId = event.target.closest("[data-download-preparation-pdf]")?.dataset.downloadPreparationPdf;
+      if (prepPdfId) {
+        void exportPreparationPreviewPdf(prepPdfId);
+        return;
+      }
+      const prepExcelId = event.target.closest("[data-download-preparation-excel]")?.dataset.downloadPreparationExcel;
+      if (prepExcelId) void exportPreparationPreviewExcel(prepExcelId);
+    });
     el.generationSave.addEventListener("click", () => void saveBillingGeneration());
     el.generationPdf.addEventListener("click", () => void exportBillingGenerationPdf());
     el.generationBody.addEventListener("change", (event) => {

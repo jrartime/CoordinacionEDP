@@ -187,6 +187,16 @@ const RECORD_NUMERIC_FIELDS = new Set(
     (column) => column.key
   )
 );
+// RD 723/2026 — documentos fijos de empresa que se adjuntan a la
+// documentación entregada (empresas_documentos). Catálogo fijo, no editable:
+// son categorías legales, no una tabla maestra más.
+const EMPRESA_DOCUMENTO_TIPOS = [
+  { value: "plan_igualdad", label: "Plan de Igualdad" },
+  { value: "protocolo_lgtbi", label: "Protocolo LGTBI" },
+  { value: "protocolo_acoso", label: "Protocolo de acoso sexual" },
+  { value: "plan_desconexion_digital", label: "Plan de desconexión digital" },
+];
+
 const SETTINGS_CATALOGS = {
   puestos: {
     label: "Puestos",
@@ -288,7 +298,9 @@ const SETTINGS_CATALOGS = {
     table: "empresas",
     order: "empresa",
     columns:
-      "id,empresa,razon_social,cif,logo_url,logo_data_url,logo_alt,firma_data_url,firmante_nombre,firmante_dni,firmante_cargo,ciudad_firma,direccion_pie,telefono_pie,email_pie,web_pie,notas",
+      "id,empresa,razon_social,cif,logo_url,logo_data_url,logo_alt,firma_data_url,firmante_nombre,firmante_dni,firmante_cargo,ciudad_firma,direccion_pie,telefono_pie,email_pie,web_pie," +
+      "mutua_nombre,mutua_numero,mutua_direccion,mutua_telefono,mutua_instrucciones,lugar_consulta_documentos,usa_sistemas_algoritmicos,sistemas_algoritmicos_detalle," +
+      "notas",
     fallbackColumns: "id,empresa,razon_social,cif",
     fallbackFieldKeys: ["id", "empresa", "razon_social", "cif"],
     fields: [
@@ -308,6 +320,28 @@ const SETTINGS_CATALOGS = {
       { key: "telefono_pie", label: "Teléfono pie", type: "text" },
       { key: "email_pie", label: "Email pie", type: "email" },
       { key: "web_pie", label: "Web pie", type: "text" },
+      // RD 723/2026 — datos por empresa para el anexo informativo de
+      // condiciones laborales (ver rd723_condiciones_laborales.sql).
+      { key: "mutua_nombre", label: "Mutua colaboradora con la Seguridad Social", type: "text" },
+      { key: "mutua_numero", label: "Número de Mutua (código de registro del Ministerio)", type: "text" },
+      { key: "mutua_direccion", label: "Dirección de la Mutua", type: "text" },
+      { key: "mutua_telefono", label: "Teléfono de la Mutua", type: "text" },
+      {
+        key: "mutua_instrucciones",
+        label: "Instrucciones en caso de accidente/incidente",
+        type: "textarea",
+      },
+      // Plan de Igualdad, Protocolo LGTBI y Protocolo de acoso ya no son texto
+      // libre aquí: viven como documentos adjuntables en empresas_documentos
+      // (sección "Documentos que se adjuntan" bajo este formulario).
+      { key: "lugar_consulta_documentos", label: "Lugar o medio para consultar estos documentos", type: "text" },
+      { key: "usa_sistemas_algoritmicos", label: "Usa sistemas algorítmicos o automatizados de decisión", type: "checkbox" },
+      {
+        key: "sistemas_algoritmicos_detalle",
+        label: "Cuáles, finalidad y pautas de funcionamiento",
+        type: "textarea",
+        showWhen: [{ field: "usa_sistemas_algoritmicos", in: ["on"] }],
+      },
       { key: "notas", label: "Notas", type: "textarea" },
     ],
     listFields: ["empresa", "razon_social", "cif", "firmante_nombre"],
@@ -1598,6 +1632,8 @@ const settingsDetailForm = document.querySelector("#settings-detail-form");
 const settingsDetailFields = document.querySelector("#settings-detail-fields");
 const settingsDetailDeleteButton = document.querySelector("#settings-detail-delete-button");
 const settingsDetailClearButton = document.querySelector("#settings-detail-clear-button");
+const settingsEmpresaDocumentosBox = document.querySelector("#settings-empresa-documentos-box");
+const settingsEmpresaDocumentosList = document.querySelector("#settings-empresa-documentos-list");
 const controlDetailPanel = document.querySelector("#control-detail-panel");
 const controlDetailOverlay = document.querySelector("#control-detail-overlay");
 const closeControlDetailButton = document.querySelector("#close-control-detail-button");
@@ -1841,6 +1877,7 @@ let currentSettingsEditingId = "";
 let currentSettingsSortField = "puesto";
 let currentSettingsSortDirection = "asc";
 let currentSettingsAvailableFieldKeys = null;
+let currentSettingsEmpresaDocumentos = [];
 // Opciones de los select que se cargan de otra tabla (field.optionsFrom),
 // p.ej. la categoría de convenio al editar una tarifa. Clave: field.key.
 let currentSettingsDynamicOptions = new Map();
@@ -14260,6 +14297,167 @@ async function handleSettingsFileDataUrlChange(input) {
   }
 }
 
+// RD 723/2026 — documentos de empresa (empresas_documentos): tick "se
+// adjunta" + PDF real, reutilizando supabaseConfig.bucket bajo el prefijo
+// empresas/<empresa_id>/<tipo>/... (mismo patrón que avisos_adjuntos, sin
+// policy de Storage nueva). Solo visible editando una empresa existente.
+function getEmpresaDocumentoRow(tipo) {
+  return currentSettingsEmpresaDocumentos.find((row) => row.tipo === tipo) || null;
+}
+
+function formatEmpresaDocumentoSize(bytes) {
+  if (!bytes) return "";
+  const kb = bytes / 1024;
+  return kb < 1024 ? `${kb.toFixed(0)} KB` : `${(kb / 1024).toFixed(1)} MB`;
+}
+
+function renderEmpresaDocumentosList() {
+  if (!settingsEmpresaDocumentosList) return;
+  settingsEmpresaDocumentosList.innerHTML = EMPRESA_DOCUMENTO_TIPOS.map((tipoDef) => {
+    const row = getEmpresaDocumentoRow(tipoDef.value);
+    const hasFile = Boolean(row?.ruta_storage);
+    const statusText = hasFile
+      ? `Archivo: ${escapeHtml(row.nombre_archivo || "")}${row.tamano_bytes ? ` (${formatEmpresaDocumentoSize(row.tamano_bytes)})` : ""}`
+      : "Sin archivo adjunto todavía.";
+    return `
+      <div class="empresa-documento-row" data-documento-tipo="${tipoDef.value}">
+        <label class="checkbox-item">
+          <input type="checkbox" data-documento-tick="${tipoDef.value}" ${row?.se_adjunta ? "checked" : ""} />
+          <span>${escapeHtml(tipoDef.label)}</span>
+        </label>
+        <div class="empresa-documento-actions">
+          <input type="file" accept="application/pdf" class="hidden" data-documento-file-input="${tipoDef.value}" />
+          <button type="button" class="secondary-button" data-documento-upload="${tipoDef.value}">${hasFile ? "Reemplazar PDF" : "Subir PDF"}</button>
+          <button type="button" class="secondary-button" data-documento-download="${tipoDef.value}"${hasFile ? "" : " disabled"}>Descargar</button>
+          <button type="button" class="danger-button" data-documento-remove="${tipoDef.value}"${hasFile ? "" : " hidden"}>Quitar</button>
+        </div>
+        <span class="empresa-documento-status">${statusText}</span>
+      </div>
+    `;
+  }).join("");
+}
+
+async function loadEmpresaDocumentos(empresaId) {
+  currentSettingsEmpresaDocumentos = [];
+  if (!empresaId) {
+    renderEmpresaDocumentosList();
+    return;
+  }
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase.from("empresas_documentos").select("*").eq("empresa_id", empresaId);
+  if (!error) {
+    currentSettingsEmpresaDocumentos = data || [];
+  }
+  renderEmpresaDocumentosList();
+}
+
+async function toggleEmpresaDocumentoSeAdjunta(tipo, checked) {
+  const empresaId = Number(currentSettingsEditingId);
+  if (!empresaId) return;
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase
+    .from("empresas_documentos")
+    .upsert({ empresa_id: empresaId, tipo, se_adjunta: checked }, { onConflict: "empresa_id,tipo" });
+  if (error) {
+    setSettingsStatus(`No se pudo actualizar: ${error.message}`, "error");
+    return;
+  }
+  await loadEmpresaDocumentos(empresaId);
+}
+
+async function uploadEmpresaDocumento(tipo, file) {
+  const empresaId = Number(currentSettingsEditingId);
+  if (!empresaId || !file) return;
+  if (file.type !== "application/pdf") {
+    setSettingsStatus("Solo se admiten archivos PDF.", "error");
+    return;
+  }
+  const supabase = await getSupabaseClient();
+  const previous = getEmpresaDocumentoRow(tipo);
+  const path = `empresas/${empresaId}/${tipo}/${Date.now()}-${sanitizeFileName(file.name)}`;
+  const { error: uploadError } = await supabase.storage.from(supabaseConfig.bucket).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type || "application/pdf",
+  });
+  if (uploadError) {
+    setSettingsStatus(`No se pudo subir el archivo: ${uploadError.message}`, "error");
+    return;
+  }
+  const { error: upsertError } = await supabase.from("empresas_documentos").upsert(
+    {
+      empresa_id: empresaId,
+      tipo,
+      se_adjunta: true,
+      nombre_archivo: file.name,
+      ruta_storage: path,
+      tipo_mime: file.type || null,
+      tamano_bytes: file.size || null,
+    },
+    { onConflict: "empresa_id,tipo" }
+  );
+  if (upsertError) {
+    setSettingsStatus(`No se pudo guardar el documento: ${upsertError.message}`, "error");
+    return;
+  }
+  if (previous?.ruta_storage && previous.ruta_storage !== path) {
+    await supabase.storage.from(supabaseConfig.bucket).remove([previous.ruta_storage]);
+  }
+  await loadEmpresaDocumentos(empresaId);
+  setSettingsStatus("Documento subido correctamente.", "success");
+}
+
+async function downloadEmpresaDocumento(tipo) {
+  const row = getEmpresaDocumentoRow(tipo);
+  if (!row?.ruta_storage) return;
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase.storage.from(supabaseConfig.bucket).download(row.ruta_storage);
+    if (error) throw error;
+    const url = URL.createObjectURL(data);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = row.nombre_archivo || "documento.pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    setSettingsStatus(error?.message || "No se pudo descargar el documento.", "error");
+  }
+}
+
+async function removeEmpresaDocumento(tipo) {
+  const empresaId = Number(currentSettingsEditingId);
+  const row = getEmpresaDocumentoRow(tipo);
+  if (!empresaId || !row) return;
+  if (!window.confirm("¿Quitar este documento adjunto? Esta acción no se puede deshacer.")) return;
+  const supabase = await getSupabaseClient();
+  if (row.ruta_storage) {
+    await supabase.storage.from(supabaseConfig.bucket).remove([row.ruta_storage]);
+  }
+  const { error } = await supabase
+    .from("empresas_documentos")
+    .update({ ruta_storage: null, nombre_archivo: null, tipo_mime: null, tamano_bytes: null, se_adjunta: false })
+    .eq("id", row.id);
+  if (error) {
+    setSettingsStatus(`No se pudo quitar el documento: ${error.message}`, "error");
+    return;
+  }
+  await loadEmpresaDocumentos(empresaId);
+}
+
+function syncSettingsEmpresaDocumentosVisibility(mode) {
+  const isEmpresasEdit = currentSettingsCatalog === "empresas" && mode === "edit";
+  settingsEmpresaDocumentosBox?.classList.toggle("hidden", !isEmpresasEdit);
+  if (isEmpresasEdit) {
+    void loadEmpresaDocumentos(Number(currentSettingsEditingId));
+  } else {
+    currentSettingsEmpresaDocumentos = [];
+    renderEmpresaDocumentosList();
+  }
+}
+
 function openSettingsDetail(mode = "new", rowId = "") {
   const config = getSettingsCatalogConfig();
   currentSettingsMode = mode;
@@ -14277,6 +14475,7 @@ function openSettingsDetail(mode = "new", rowId = "") {
     settingsDetailDeleteButton.innerHTML = renderIcon("delete");
   }
   renderSettingsDetailFields(row);
+  syncSettingsEmpresaDocumentosVisibility(mode);
   markFormPristine(settingsDetailForm);
   settingsDetailPanel?.classList.remove("hidden");
 }
@@ -14290,6 +14489,7 @@ async function closeSettingsDetail(options = {}) {
   currentSettingsMode = "new";
   currentSettingsEditingId = "";
   settingsDetailDeleteButton?.classList.add("hidden");
+  syncSettingsEmpresaDocumentosVisibility("new");
   markFormPristine(settingsDetailForm);
   return true;
 }
@@ -34163,6 +34363,36 @@ async function init() {
       clearSettingsImageField(button.dataset.settingsImageClear);
     }
   });
+  settingsEmpresaDocumentosList?.addEventListener("change", (event) => {
+    const tickInput = event.target.closest("[data-documento-tick]");
+    if (tickInput) {
+      void toggleEmpresaDocumentoSeAdjunta(tickInput.dataset.documentoTick, tickInput.checked);
+      return;
+    }
+    const fileInput = event.target.closest("[data-documento-file-input]");
+    if (fileInput?.files?.[0]) {
+      void uploadEmpresaDocumento(fileInput.dataset.documentoFileInput, fileInput.files[0]);
+      fileInput.value = "";
+    }
+  });
+  settingsEmpresaDocumentosList?.addEventListener("click", (event) => {
+    const uploadButton = event.target.closest("[data-documento-upload]");
+    if (uploadButton) {
+      settingsEmpresaDocumentosList
+        .querySelector(`[data-documento-file-input="${uploadButton.dataset.documentoUpload}"]`)
+        ?.click();
+      return;
+    }
+    const downloadButton = event.target.closest("[data-documento-download]");
+    if (downloadButton) {
+      void downloadEmpresaDocumento(downloadButton.dataset.documentoDownload);
+      return;
+    }
+    const removeButton = event.target.closest("[data-documento-remove]");
+    if (removeButton) {
+      void removeEmpresaDocumento(removeButton.dataset.documentoRemove);
+    }
+  });
   settingsTableHead?.addEventListener("click", (event) => {
     const sortField = event.target.closest("[data-settings-sort]")?.dataset.settingsSort;
     if (!sortField) {
@@ -35101,11 +35331,22 @@ async function init() {
     void loadGestion();
   });
   gestionFilterDesde?.addEventListener("change", () => {
+    syncFilterResetButtons(gestionFiltersForm);
     void loadGestion();
   });
   gestionFilterHasta?.addEventListener("change", () => {
+    syncFilterResetButtons(gestionFiltersForm);
     void loadGestion();
   });
+  gestionFiltersForm?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-reset-filter]");
+    if (!button || !resetRecordsNamedFilterControl(gestionFiltersForm, button.dataset.resetFilter)) {
+      return;
+    }
+    syncFilterResetButtons(gestionFiltersForm);
+    void loadGestion();
+  });
+  syncFilterResetButtons(gestionFiltersForm);
   gestionFilterEmpresa?.addEventListener("change", () => {
     void loadGestion();
   });
@@ -35136,6 +35377,7 @@ async function init() {
     // reset() deja el select en su opción del HTML ("Todas"), no en EDP:
     // se vuelve a poner el valor por defecto a mano.
     resetGestionEmpresaPorDefecto();
+    syncFilterResetButtons(gestionFiltersForm);
     void loadGestion();
   });
   gestionRefreshButton?.addEventListener("click", () => {
@@ -35477,18 +35719,29 @@ async function init() {
     reloadContabilidadFromFilters();
   });
   contabilidadFiltersForm?.addEventListener("change", (event) => {
+    syncFilterResetButtons(contabilidadFiltersForm);
     // Los buscadores de texto se gestionan con debounce en 'input'.
     if (event.target === contabilidadFilterServicio || event.target === contabilidadFilterSearch) {
       return;
     }
     reloadContabilidadFromFilters();
   });
+  contabilidadFiltersForm?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-reset-filter]");
+    if (!button || !resetRecordsNamedFilterControl(contabilidadFiltersForm, button.dataset.resetFilter)) {
+      return;
+    }
+    syncFilterResetButtons(contabilidadFiltersForm);
+    reloadContabilidadFromFilters();
+  });
   contabilidadFilterServicio?.addEventListener("input", debouncedContabilidadFilters);
   contabilidadFilterSearch?.addEventListener("input", debouncedContabilidadFilters);
   contabilidadClearFiltersButton?.addEventListener("click", () => {
     contabilidadFiltersForm?.reset();
+    syncFilterResetButtons(contabilidadFiltersForm);
     reloadContabilidadFromFilters();
   });
+  syncFilterResetButtons(contabilidadFiltersForm);
   contabilidadRefreshButton?.addEventListener("click", () => {
     void loadContabilidad();
   });
@@ -35549,16 +35802,27 @@ async function init() {
     reloadBancoFromFilters();
   });
   bancoFiltersForm?.addEventListener("change", (event) => {
+    syncFilterResetButtons(bancoFiltersForm);
     if (event.target === bancoFilterSearch) {
       return;
     }
     reloadBancoFromFilters();
   });
+  bancoFiltersForm?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-reset-filter]");
+    if (!button || !resetRecordsNamedFilterControl(bancoFiltersForm, button.dataset.resetFilter)) {
+      return;
+    }
+    syncFilterResetButtons(bancoFiltersForm);
+    reloadBancoFromFilters();
+  });
   bancoFilterSearch?.addEventListener("input", debouncedBancoFilters);
   bancoClearFiltersButton?.addEventListener("click", () => {
     bancoFiltersForm?.reset();
+    syncFilterResetButtons(bancoFiltersForm);
     reloadBancoFromFilters();
   });
+  syncFilterResetButtons(bancoFiltersForm);
   bancoRefreshButton?.addEventListener("click", () => {
     void loadContabilidadBanco();
   });
@@ -35598,16 +35862,27 @@ async function init() {
     reloadResultadosFromFilters();
   });
   resultadosFiltersForm?.addEventListener("change", (event) => {
+    syncFilterResetButtons(resultadosFiltersForm);
     if (event.target === resultadosFilterSearch) {
       return;
     }
     reloadResultadosFromFilters();
   });
+  resultadosFiltersForm?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-reset-filter]");
+    if (!button || !resetRecordsNamedFilterControl(resultadosFiltersForm, button.dataset.resetFilter)) {
+      return;
+    }
+    syncFilterResetButtons(resultadosFiltersForm);
+    reloadResultadosFromFilters();
+  });
   resultadosFilterSearch?.addEventListener("input", debouncedResultadosFilters);
   resultadosClearFiltersButton?.addEventListener("click", () => {
     resultadosFiltersForm?.reset();
+    syncFilterResetButtons(resultadosFiltersForm);
     reloadResultadosFromFilters();
   });
+  syncFilterResetButtons(resultadosFiltersForm);
   resultadosRefreshButton?.addEventListener("click", () => {
     void loadResultados();
   });
@@ -35664,15 +35939,27 @@ async function init() {
     void loadConciliacion();
   });
   conciliacionFilterDesde?.addEventListener("change", () => {
+    syncFilterResetButtons(conciliacionFiltersForm);
     void loadConciliacion();
   });
   conciliacionFilterHasta?.addEventListener("change", () => {
+    syncFilterResetButtons(conciliacionFiltersForm);
+    void loadConciliacion();
+  });
+  conciliacionFiltersForm?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-reset-filter]");
+    if (!button || !resetRecordsNamedFilterControl(conciliacionFiltersForm, button.dataset.resetFilter)) {
+      return;
+    }
+    syncFilterResetButtons(conciliacionFiltersForm);
     void loadConciliacion();
   });
   conciliacionClearFiltersButton?.addEventListener("click", () => {
     conciliacionFiltersForm?.reset();
+    syncFilterResetButtons(conciliacionFiltersForm);
     renderConciliacionEmpty("Selecciona un intervalo de fechas (Desde y Hasta).");
   });
+  syncFilterResetButtons(conciliacionFiltersForm);
   conciliacionRefreshButton?.addEventListener("click", () => {
     void loadConciliacion();
   });

@@ -3080,6 +3080,35 @@ table.historial-report-activities-table td:nth-child(5) {
   font-size: 0.85rem;
 }
 
+.empresa-documentos-list {
+  display: grid;
+  gap: 10px;
+}
+
+.empresa-documento-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.empresa-documento-status {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.empresa-documento-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .settings-section {
   display: grid;
   gap: 12px;
@@ -3280,19 +3309,55 @@ button.tag-chip.warm-button:hover {
 
 /* Registros: contrato algo más ancho; personal e instalación más
    estrechos. (Historial comparte la clase, por eso se escopa al form de registros.)
-   Fecha desde/hasta a 145px, igual que el resto de pestañas (antes 155px, con
-   un recorte de padding propio que ya no hace falta al usar el ancho estándar). */
+   Fecha desde/hasta a 134px, probado a mano hasta que el hueco fecha-icono
+   queda igual de ajustado que el hueco icono-x. Personal a 220px: gana
+   ancho frente al original (150px) pero sin forzar overflow -254px se
+   probo y se salia del panel por la derecha-. Contrato baja de 250 a
+   215px: con 250 la casilla "Mostrar todos" del final se salia un poco del
+   panel por la derecha (el margen que se veia en las pruebas no siempre se
+   repetia igual). Lo que sobra frente a la suma de columnas no hay que
+   repartirlo a mano: la columna de Busqueda es minmax(120px, 1fr), asi que
+   el grid ya se lo queda ella sola. */
 .private-tab-panel #records-filters-form.records-filters-compact {
-  grid-template-columns: 145px 145px 250px 150px 120px 110px minmax(120px, 1fr) auto;
+  grid-template-columns: 134px 134px 215px 220px 120px 110px minmax(120px, 1fr) auto;
+}
+
+/* Igual que el generico de mas arriba, pero solo cuando el panel tiene
+   sitio de sobra (>=1100px): a partir de ahi la suma de las 8 columnas de
+   arriba cabe sin desbordar y usamos ese layout fijo y afinado en vez del
+   reparto igualado. Por debajo de 1100px cae al @container generico
+   (reparte columnas iguales, envolviendo a varias filas) -asi Registros
+   vuelve a ser responsive en pantallas pequeñas, cosa que se perdio cuando
+   esta regla forzaba el layout fijo con !important siempre, sin condicion
+   de ancho-. En el solape con el generico (hasta 1350px) hace falta el
+   mismo !important para ganar por especificidad de ID. */
+@container (min-width: 1100px) {
+  .private-tab-panel #records-filters-form.records-filters-compact {
+    grid-template-columns: 134px 134px 215px 220px 120px 110px minmax(120px, 1fr) auto !important;
+  }
 }
 
 /* Actividades reutiliza las mismas métricas tipográficas y de control que
-   Registros, adaptando la rejilla a sus filtros. */
+   Registros, adaptando la rejilla a sus filtros. Personal (3ª columna) sube
+   de 110px a 150px -era la mas estrecha con diferencia, un picker de texto
+   para buscar nombre necesita mas sitio que un select-; las fechas bajan a
+   134px como en el resto de la web. Con el panel a menos de 1350px de
+   ancho el @container generico (mas abajo en este fichero) reparte columnas
+   iguales con !important e ignora este ancho -por eso hace falta forzarlo
+   tambien aqui con el mismo peso, igual que en Registros-. */
 #module-panel-actividades #activities-filters-form.records-filters-compact {
   grid-template-columns:
-    185px 125px 110px minmax(150px, 1fr) 125px 80px
-    145px 145px auto;
+    185px 125px 150px minmax(150px, 1fr) 125px 80px
+    134px 134px auto;
   gap: 3px 6px;
+}
+
+@container (min-width: 1050px) {
+  #module-panel-actividades #activities-filters-form.records-filters-compact {
+    grid-template-columns:
+      185px 125px 150px minmax(150px, 1fr) 125px 80px
+      134px 134px auto !important;
+  }
 }
 
 #module-panel-actividades .records-filters-compact label,
@@ -3326,44 +3391,95 @@ button.tag-chip.warm-button:hover {
   line-height: normal;
 }
 
+/* Mismo criterio que Registros/Control/Historial/etc. (ver la RECETA junto
+   al bloque de la x, mas abajo en este fichero): x pegada al borde (6px),
+   32px de padding para el icono nativo, 134px de ancho de campo -antes
+   tenia sus propios valores (38px/20px/16px), unificado para que se vea
+   igual en toda la web. */
 #activities-filters-form .filter-control-row > input[type="date"] {
-  padding-right: 38px;
+  padding-right: 32px;
 }
 
 #activities-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button {
-  right: 20px;
-  width: 16px;
+  right: 6px;
 }
 
-/* Historial laboral: fechas algo más anchas (alta desde/alta hasta y baja
-   hasta/baja desde apiladas), estados estrechos como "Enviado" y personal ancho. */
+#activities-filters-form .filter-control-row:has(> input[type="date"]) {
+  max-width: 134px;
+}
+
+/* Historial laboral: fechas apiladas (alta desde/alta hasta y baja
+   hasta/baja desde) a 134px -como el resto de la web tras la RECETA de la x,
+   ver mas abajo-, estados estrechos como "Enviado" y personal ancho. Personal
+   ya era minmax(190px,1fr): al ahorrar 11px por fecha (145->134), ese hueco
+   fluye solo hacia Personal por ser la unica columna 1fr, sin tocar nada mas.
+   Version con @container un poco mas abajo: por debajo de 1350px de
+   contenedor, el @container generico gana con !important e ignora este
+   ancho -mismo problema que tuvo Registros-. */
 .private-tab-panel #historial-filters-form.records-filters-compact {
-  grid-template-columns: 145px 145px 150px 90px 90px 90px minmax(190px, 1fr) auto;
+  grid-template-columns: 134px 134px 150px 90px 90px 90px minmax(190px, 1fr) auto;
 }
 
-/* Control personal: fechas al mismo ancho que Historial laboral (145px,
-   el mínimo con el que la fecha completa entra con el padding genérico),
-   Personal más estrecho y Centro/Puesto (un 50% más anchos que antes). */
+@container (min-width: 1000px) {
+  .private-tab-panel #historial-filters-form.records-filters-compact {
+    grid-template-columns: 134px 134px 150px 90px 90px 90px minmax(190px, 1fr) auto !important;
+  }
+}
+
+/* Control personal: fechas a 134px. Personal sube el minimo de 110px a
+   140px -era la columna mas estrecha de la fila, y con el hueco que se
+   ahorra en las fechas (145->134 x2 = 22px) hay margen de sobra-; sigue
+   siendo 1fr, así que crece por encima del minimo si sobra mas sitio. */
 .private-tab-panel #control-filters-form.records-filters-compact {
-  grid-template-columns: 145px 145px minmax(110px, 1fr) 225px 225px;
+  grid-template-columns: 134px 134px minmax(140px, 1fr) 225px 225px;
+}
+
+@container (min-width: 1000px) {
+  .private-tab-panel #control-filters-form.records-filters-compact {
+    grid-template-columns: 134px 134px minmax(140px, 1fr) 225px 225px !important;
+  }
 }
 
 /* Gestión solo tiene cuatro filtros, así que la rejilla de ocho columnas que
    comparte con Registros le venía grande: Personal caía en la columna de 90px.
    Personal lleva ancho fijo y el sobrante se lo come una última columna vacía:
-   con 1fr en Personal el buscador se estiraba a lo ancho de la tarjeta. */
+   con 1fr en Personal el buscador se estiraba a lo ancho de la tarjeta.
+   Fechas a 134px; el hueco que se ahorra fluye a la columna vacia (1fr),
+   no a Personal (que es fija a proposito, ver arriba), pero 190px ya es un
+   ancho comodo -mismo criterio que Registros tras ensancharlo-, no hace
+   falta tocarlo. */
 .private-tab-panel #gestion-filters-form.records-filters-compact {
-  grid-template-columns: 145px 145px 140px 190px auto minmax(0, 1fr);
+  grid-template-columns: 134px 134px 140px 190px auto minmax(0, 1fr);
 }
 
-/* Candidaturas: buscar texto ancho, tres catálogos y dos fechas. */
+@container (min-width: 1000px) {
+  .private-tab-panel #gestion-filters-form.records-filters-compact {
+    grid-template-columns: 134px 134px 140px 190px auto minmax(0, 1fr) !important;
+  }
+}
+
+/* Candidaturas: buscar texto ancho, tres catálogos y dos fechas a 134px
+   (sin campo de Personal: es un listado de candidatos, no de plantilla). */
 .private-tab-panel #filters-form.records-filters-compact {
-  grid-template-columns: minmax(160px, 1fr) 140px 140px 140px 145px 145px auto;
+  grid-template-columns: minmax(160px, 1fr) 140px 140px 140px 134px 134px auto;
 }
 
-/* Eventos deportivos: nombre ancho, contrato/instalación y dos fechas. */
+@container (min-width: 1000px) {
+  .private-tab-panel #filters-form.records-filters-compact {
+    grid-template-columns: minmax(160px, 1fr) 140px 140px 140px 134px 134px auto !important;
+  }
+}
+
+/* Eventos deportivos: nombre ancho, contrato/instalación y dos fechas a
+   134px (sin campo de Personal en este filtro). */
 .private-tab-panel #events-filters-form.records-filters-compact {
-  grid-template-columns: minmax(160px, 1fr) 160px 160px 145px 145px auto;
+  grid-template-columns: minmax(160px, 1fr) 160px 160px 134px 134px auto;
+}
+
+@container (min-width: 1000px) {
+  .private-tab-panel #events-filters-form.records-filters-compact {
+    grid-template-columns: minmax(160px, 1fr) 160px 160px 134px 134px auto !important;
+  }
 }
 
 /* Programación (pestaña): fecha/instalación/deporte estrechos, personal y
@@ -4618,6 +4734,51 @@ th {
   padding-right: 26px;
 }
 
+/* ---- RECETA para un campo de fecha nuevo en cualquier records-filters-compact ----
+   Lo generico (clase, ya vale para cualquier formulario) esta justo debajo:
+   fila relativa, input al 100%, padding-right:44px, boton a right:24px.
+   Con eso el campo ya funciona, pero queda con la x lejos del icono nativo
+   y el propio campo mas ancho de lo necesario (visto en Registros/Control
+   personal, hueco grande antes del siguiente campo). Si se quiere el mismo
+   acabado ajustado, son 3 reglas por ID de formulario (no tocar lo generico):
+     1) .filter-control-row:has(> input[type="date"]) .filter-reset-button { right: 6px; }
+        -pega la x al borde, igual que Busqueda/Personal.
+     2) input[type="date"] { padding-right: 32px; }
+        -el icono nativo se ancla al padding-right, NO a su propio margin
+        (probado: subir margin-right en el icono no lo acerca, lo aleja mas
+        -se suma al padding generico de 44px-). Con la x a right:6px+18px
+        de ancho (=24px reservados), 32px de padding deja ~8px de hueco
+        entre icono y x, igual que el hueco que se quiere entre fecha e
+        icono (ver el 3).
+     3) .filter-control-row:has(> input[type="date"]) { max-width: Wpx; }
+        -el ancho real del campo. NO se puede fijar por el ancho de columna
+        del grid: por debajo de 1350px de contenedor, el @container
+        generico reparte columnas iguales con !important e ignora cualquier
+        grid-template-columns propio -por eso hace falta max-width sobre el
+        propio campo, que manda pase lo que pase con el contenedor-.
+        W se calcula a mano, probando en el navegador (bisección: empezar
+        ancho y bajar hasta que "dd/mm/aaaa" -el placeholder vacio, mas
+        ancho que cualquier fecha ya rellenada- se corte, ese es el limite;
+        subir unos px de margen) hasta que el hueco fecha->icono (parte 2)
+        quede igual de ajustado que el hueco icono->x. Depende de la
+        tipografia de ESE formulario (tamaño/peso de fuente), no es un
+        numero universal: en Registros y Control personal (0.74rem/600,
+        heredado del generico mas abajo) salio 134px; con otra tipografia
+        hay que repetir la bisección, no copiar el numero.
+   Si el formulario tiene ademas grid-template-columns fijo en vez de
+   dejarlo en manos del auto-fit generico (como Registros, mas arriba en
+   este fichero), esa columna necesita el mismo ancho que el max-width de
+   la regla 3 para no dejar hueco muerto en la celda, Y esa regla de
+   columnas fijas necesita ir dentro de un @container (min-width: Npx) con
+   !important -si no, el @container generico (hasta 1350px, tambien
+   !important) la gana por peso igual pero orden/especificidad segun el
+   caso-. N se calcula sumando el ancho de las columnas fijas + gaps y
+   comprobando en el navegador que el formulario no se sale del panel a esa
+   anchura (ver Registros: min-width:1100px). Por debajo de N cae solo al
+   reparto igualado generico, que sí envuelve a varias filas -asi el campo
+   nuevo hereda el mismo comportamiento responsive sin tener que reimplementarlo-.
+*/
+
 /* ---- ✕ de filtros DENTRO del control (cualquier formulario records-filters-compact) ----
    El botón de limpiar se superpone en el borde derecho del propio campo, a la
    izquierda del chevron / icono nativo, y solo se ve cuando el campo tiene valor.
@@ -4667,15 +4828,83 @@ th {
   justify-content: center;
 }
 
-/* Control personal: x e icono nativo del calendario 5px mas a la izquierda
-   que el valor generico (24px), a modo de prueba. Va DESPUES del bloque
-   generico de arriba: gana por especificidad de ID, no por orden. */
-#control-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button {
-  right: 29px;
+/* Misma x pegada al borde (6px) que ya usa Busqueda/Personal en estos
+   mismos formularios, en todos los formularios de filtro compactos que
+   tienen fecha (recogidos en la "RECETA" de mas arriba). Va DESPUES del
+   bloque generico de arriba: gana por especificidad de ID, no por orden.
+   Actividades tiene su propio bloque (mismos valores ya, ver mas arriba en
+   este fichero) porque su selector base es distinto (#activities-filters-form
+   .filter-control-row, sin :has en algunas reglas). Gestion y Contabilidad
+   (Apuntes/Banco/Resultados/Conciliacion) no tenian boton de borrado hasta
+   ahora -sus fechas iban sueltas en el filter-field-: se les añadio el
+   mismo botón (HTML + wiring en app.js, ver resetRecordsNamedFilterControl/
+   syncFilterResetButtons) para poder aplicarles la misma receta. */
+#control-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#records-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#historial-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#bajas-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#permisos-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#events-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#gestion-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#contabilidad-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#banco-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#resultados-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#conciliacion-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button {
+  right: 6px;
 }
 
-#control-filters-form input[type="date"]::-webkit-calendar-picker-indicator {
-  margin-right: 5px;
+/* El ancho de columna de la rejilla fija de cada formulario (mas arriba en
+   este fichero, una por pestaña) NO se aplica cuando el panel mide menos
+   de 1350px: ahi el @container generico reparte columnas iguales e ignora
+   ese valor. Comprobado en real con Registros: el input llegaba a 166px de
+   ancho aunque la columna deberia medir menos, dejando un hueco grande
+   antes del icono. Este max-width actua sobre el propio campo, no sobre la
+   columna: funciona pase lo que pase con el contenedor, dejando el resto
+   de la celda en blanco si sobra. 134px probado con el valor y con el
+   placeholder vacio "dd/mm/aaaa" (el contenido mas ancho posible, mas
+   ancho que cualquier fecha ya rellenada): ninguno se corta, y deja el
+   mismo hueco pequeño a cada lado del icono -el de texto a icono depende
+   del ancho total (crece con el campo); el de icono a x es fijo (24px
+   reservados a la x menos 32px de padding del icono); 134px es donde
+   ambos quedan igual de ajustados-. Misma fuente/padding en todos estos
+   formularios (heredada de la regla generica .records-filters-compact
+   .filter-field input), asi que el mismo 134px vale para todos sin volver
+   a probar uno a uno. */
+#records-filters-form .filter-control-row:has(> input[type="date"]),
+#control-filters-form .filter-control-row:has(> input[type="date"]),
+#historial-filters-form .filter-control-row:has(> input[type="date"]),
+#bajas-filters-form .filter-control-row:has(> input[type="date"]),
+#permisos-filters-form .filter-control-row:has(> input[type="date"]),
+#filters-form .filter-control-row:has(> input[type="date"]),
+#events-filters-form .filter-control-row:has(> input[type="date"]),
+#gestion-filters-form .filter-control-row:has(> input[type="date"]),
+#contabilidad-filters-form .filter-control-row:has(> input[type="date"]),
+#banco-filters-form .filter-control-row:has(> input[type="date"]),
+#resultados-filters-form .filter-control-row:has(> input[type="date"]),
+#conciliacion-filters-form .filter-control-row:has(> input[type="date"]) {
+  max-width: 134px;
+}
+
+/* El icono nativo del calendario se ancla al padding-right del propio
+   input, no a un margin-right suyo (probado: bajar el padding lo acerca al
+   borde; subir el margin-right NO lo acerca al icono, lo aleja mas todavia
+   porque se suma al padding generico de 44px). Con la x fija a 24px del
+   borde (right:6px + 18px de ancho), 32px de padding deja unos 8px de hueco
+   entre el icono y la x -mismo criterio que Busqueda, pegada al borde-. */
+#control-filters-form input[type="date"],
+#records-filters-form input[type="date"],
+#historial-filters-form input[type="date"],
+#bajas-filters-form input[type="date"],
+#permisos-filters-form input[type="date"],
+#filters-form input[type="date"],
+#events-filters-form input[type="date"],
+#gestion-filters-form input[type="date"],
+#contabilidad-filters-form input[type="date"],
+#banco-filters-form input[type="date"],
+#resultados-filters-form input[type="date"],
+#conciliacion-filters-form input[type="date"] {
+  padding-right: 32px;
 }
 
 /* Los campos de texto/búsqueda no tienen icono nativo: la ✕ va pegada al borde. */
@@ -5993,6 +6222,13 @@ th {
 
 .facturacion-preview-body .eyebrow {
   margin: 10px 0 4px;
+}
+
+.facturacion-preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
 }
 
 .facturacion-dialog-header {

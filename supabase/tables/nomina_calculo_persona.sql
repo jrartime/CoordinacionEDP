@@ -452,11 +452,29 @@ begin
     where not (cp.concepto = any(coalesce(p_manual_conceptos_dentro, '{}'::text[])));
   else
     return query
-    select x.orden, 'devengo'::text, x.concepto, null::text, null::numeric, null::numeric,
+    -- El detalle en prosa del puesto (p.ej. "0.62€ × 12 h nocturnas") se
+    -- conserva si el concepto sale de un solo historial; si lo suman varios,
+    -- se rehace con horas × precio (todos los conceptos del motor con
+    -- cantidad y precio son horas: nocturnidad, complementarias, montaje,
+    -- disponibilidad, absentismo). Mismo precio en todos -> una sola cifra;
+    -- precios distintos -> un sumando por puesto. El desglose completo sigue
+    -- en el ambito 'puesto'.
+    select x.orden, 'devengo'::text, x.concepto,
+           case when x.n = 1 then x.detalle_uno
+                when x.n_cant = x.n and x.n_prec = x.n and x.precio is not null
+                  then format('%s h × %s€/h (suma de %s puestos)',
+                              round(x.cantidad, 2), round(x.precio, 4), x.n)
+                when x.n_cant = x.n and x.n_prec = x.n
+                  then x.detalle_suma
+           end,
+           null::numeric, null::numeric,
            x.cantidad, x.precio, round(x.importe, 2), null::text, v_todas
     from (
       select min(d.orden) as orden, d.concepto, sum(d.importe) as importe,
-             sum(d.cantidad) as cantidad,
+             sum(d.cantidad) as cantidad, count(*) as n, min(d.detalle) as detalle_uno,
+             count(d.cantidad) as n_cant, count(d.precio) as n_prec,
+             string_agg(format('%s h × %s€/h', round(d.cantidad, 2), round(d.precio, 4)), ' + '
+                        order by d.precio) as detalle_suma,
              case when count(distinct d.precio) = 1 then min(d.precio) end as precio
       from public.historiales_laborales h
       cross join lateral public.calcular_nomina_devengos(

@@ -127,6 +127,8 @@
   const summaryPanel = document.querySelector("#summary-panel");
   const weeklySummary = document.querySelector("#weekly-summary");
   const weeklySummaryTableBody = document.querySelector("#weekly-summary-table-body");
+  const weeklySummaryPdfButton = document.querySelector("#weekly-summary-pdf-button");
+  const weeklySummaryExcelButton = document.querySelector("#weekly-summary-excel-button");
   const attendanceFiltersForm = document.querySelector("#attendance-filters-form");
   const attendanceSummary = document.querySelector("#attendance-summary");
   const attendanceCenterFilter = document.querySelector("#attendance-center-filter");
@@ -448,6 +450,7 @@
   let assignmentPersonalRows = [];
   let assignmentRows = [];
   let currentAssignmentSelectedIds = new Set();
+  let weeklySummaryReport = null;
   const SUMMARY_WEEKS = Array.from({ length: 11 }, (_item, index) =>
     String(index + 1).padStart(2, "0")
   );
@@ -893,6 +896,18 @@
     return { total: 0, nee: 0, infantil: 0, primaria: 0 };
   }
 
+  function sumWeeklySummaryValues(values) {
+    return values.reduce(
+      (totals, value) => ({
+        total: totals.total + value.total,
+        nee: totals.nee + value.nee,
+        infantil: totals.infantil + value.infantil,
+        primaria: totals.primaria + value.primaria,
+      }),
+      createEmptyWeeklySummary()
+    );
+  }
+
   function isInfantilStudent(fechaNacimiento) {
     const birthYear = Number(String(fechaNacimiento ?? "").slice(0, 4));
     return Number.isInteger(birthYear) && birthYear >= CURRENT_YEAR - 6;
@@ -1017,6 +1032,7 @@
 
   function renderWeeklySummaryRows(summaryRows) {
     if (!summaryRows.length) {
+      weeklySummaryReport = null;
       weeklySummary.textContent = "Sin datos cargados.";
       weeklySummaryTableBody.innerHTML =
         '<tr><td colspan="13" class="empty-state">No hay datos para resumir.</td></tr>';
@@ -1098,6 +1114,20 @@
       (total, week) => total + columnTotals[week].primaria,
       0
     );
+    weeklySummaryReport = {
+      rows: rows.map(([center, weeks]) => ({
+        center,
+        weeks,
+        totals: sumWeeklySummaryValues(SUMMARY_WEEKS.map((week) => weeks[week])),
+      })),
+      columnTotals,
+      totals: {
+        total: grandTotal,
+        nee: grandNeeTotal,
+        infantil: grandInfantilTotal,
+        primaria: grandPrimariaTotal,
+      },
+    };
     bodyRows.push(`
       <tr class="totals-row">
         <th scope="row">Total</th>
@@ -8236,6 +8266,136 @@
     return jsPdfModulePromise;
   }
 
+  function getWeeklySummaryExportRows() {
+    if (!weeklySummaryReport?.rows?.length) {
+      setStatus("No hay datos en el resumen para exportar.", "error");
+      return null;
+    }
+    return weeklySummaryReport;
+  }
+
+  async function downloadWeeklySummaryPdf() {
+    const report = getWeeklySummaryExportRows();
+    if (!report) return;
+
+    try {
+      const { jsPDF } = await getJsPdfClient();
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 7;
+      const centerWidth = 54;
+      const totalWidth = 20;
+      const weekWidth = (pageWidth - margin * 2 - centerWidth - totalWidth) / SUMMARY_WEEKS.length;
+      const rowHeight = 12;
+      let y = margin;
+
+      const drawHeader = () => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.5);
+        doc.setFillColor(235, 239, 245);
+        doc.rect(margin, y - 4.5, pageWidth - margin * 2, 7, "F");
+        doc.text("Centro", margin + 1, y);
+        SUMMARY_WEEKS.forEach((week, index) =>
+          doc.text(week, margin + centerWidth + weekWidth * index + 1, y)
+        );
+        doc.text("Total", pageWidth - margin - totalWidth + 1, y);
+        y += 8;
+      };
+      const drawCell = (value, x, width) => {
+        if (!value.total) return;
+        doc.setFont("helvetica", "bold");
+        doc.text(`${value.total} (${value.nee})`, x, y, { maxWidth: width });
+        doc.setFont("helvetica", "normal");
+        doc.text(`INF ${value.infantil} / PR ${value.primaria}`, x, y + 4, { maxWidth: width });
+      };
+      const ensureSpace = () => {
+        if (y + rowHeight <= pageHeight - margin) return;
+        doc.addPage();
+        y = margin;
+        drawHeader();
+      };
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text("Resumen de alumnado por centro y semana", margin, y);
+      y += 7;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text(`${report.rows.length} centros y ${report.totals.total} registros de alumnado.`, margin, y);
+      y += 8;
+      drawHeader();
+      doc.setFontSize(6.2);
+
+      report.rows.forEach((row) => {
+        ensureSpace();
+        doc.text(row.center, margin + 1, y, { maxWidth: centerWidth - 2 });
+        SUMMARY_WEEKS.forEach((week, index) =>
+          drawCell(row.weeks[week], margin + centerWidth + weekWidth * index + 1, weekWidth - 1)
+        );
+        drawCell(row.totals, pageWidth - margin - totalWidth + 1, totalWidth - 1);
+        y += rowHeight;
+      });
+
+      ensureSpace();
+      doc.setFont("helvetica", "bold");
+      doc.text("Total", margin + 1, y);
+      SUMMARY_WEEKS.forEach((week, index) =>
+        drawCell(report.columnTotals[week], margin + centerWidth + weekWidth * index + 1, weekWidth - 1)
+      );
+      drawCell(report.totals, pageWidth - margin - totalWidth + 1, totalWidth - 1);
+
+      const today = new Date().toISOString().slice(0, 10);
+      doc.save(`resumen-alumnado-${today}.pdf`);
+      setStatus("PDF del resumen generado correctamente.", "success");
+    } catch (error) {
+      setStatus(`No se pudo generar el PDF del resumen: ${error.message}`, "error");
+    }
+  }
+
+  function downloadWeeklySummaryExcel() {
+    const report = getWeeklySummaryExportRows();
+    if (!report) return;
+
+    const numberCell = (value) => `<td class="number">${Number(value) || 0}</td>`;
+    const summaryCells = (value) =>
+      [value.total, value.nee, value.infantil, value.primaria].map(numberCell).join("");
+    const firstHeader = `<tr><th rowspan="2">Centro</th>${SUMMARY_WEEKS.map(
+      (week) => `<th colspan="4">Semana ${week}</th>`
+    ).join("")}<th colspan="4">Total</th></tr>`;
+    const subHeader = `<tr>${[...SUMMARY_WEEKS, "total"]
+      .map(() => "<th>Total</th><th>NEE</th><th>INF</th><th>PR</th>")
+      .join("")}</tr>`;
+    const bodyRows = report.rows.map((row) =>
+      `<tr><td>${escapeHtml(row.center)}</td>${SUMMARY_WEEKS.map((week) =>
+        summaryCells(row.weeks[week])
+      ).join("")}${summaryCells(row.totals)}</tr>`
+    ).join("");
+    const totalsRow = `<tr><th>Total</th>${SUMMARY_WEEKS.map((week) =>
+      summaryCells(report.columnTotals[week])
+    ).join("")}${summaryCells(report.totals)}</tr>`;
+    const workbook = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="UTF-8" /><style>
+        table { border-collapse: collapse; } th, td { border: 1px solid #b8c2d1; padding: 4px; }
+        th { background: #ebeff5; font-weight: bold; } .number { mso-number-format:"0"; text-align: right; }
+      </style><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+      <x:Name>Resumen alumnado</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+      </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>
+      <body><table>${firstHeader}${subHeader}${bodyRows}${totalsRow}</table></body></html>`;
+    const blob = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const today = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `resumen-alumnado-${today}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setStatus("Excel del resumen generado correctamente.", "success");
+  }
+
   async function getCurrentSession() {
     // Delegamos a shared/supabase-client.js
     if (window.SupabaseApp) {
@@ -8565,6 +8725,8 @@
     openSummaryPanelButton.addEventListener("click", openSummaryPanel);
     closeSummaryPanelButton.addEventListener("click", closeSummaryPanel);
     summaryPanelBackdrop.addEventListener("click", closeSummaryPanel);
+    weeklySummaryPdfButton?.addEventListener("click", () => void downloadWeeklySummaryPdf());
+    weeklySummaryExcelButton?.addEventListener("click", downloadWeeklySummaryExcel);
     openAttendanceReportButton?.addEventListener("click", () => {
       void loadAttendanceReport();
     });

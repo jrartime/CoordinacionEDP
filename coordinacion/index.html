@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260923-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260925-1" />
   </head>
   <body>
     <script>
@@ -2564,11 +2564,29 @@
                 <form id="gestion-filters-form" class="filters-grid records-filters-grid records-filters-compact">
                   <label class="filter-field">
                     Desde
-                    <input id="gestion-filter-desde" name="fecha_desde" type="date" />
+                    <div class="filter-control-row">
+                      <input id="gestion-filter-desde" name="fecha_desde" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_desde"
+                        aria-label="Restablecer fecha desde"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Hasta
-                    <input id="gestion-filter-hasta" name="fecha_hasta" type="date" />
+                    <div class="filter-control-row">
+                      <input id="gestion-filter-hasta" name="fecha_hasta" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_hasta"
+                        aria-label="Restablecer fecha hasta"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Empresa
@@ -3019,11 +3037,29 @@
                 <form id="contabilidad-filters-form" class="filters-grid records-filters-grid records-filters-compact contabilidad-apuntes-filters">
                   <label class="filter-field">
                     Desde
-                    <input id="contabilidad-filter-desde" name="fecha_desde" type="date" />
+                    <div class="filter-control-row">
+                      <input id="contabilidad-filter-desde" name="fecha_desde" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_desde"
+                        aria-label="Restablecer fecha desde"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Hasta
-                    <input id="contabilidad-filter-hasta" name="fecha_hasta" type="date" />
+                    <div class="filter-control-row">
+                      <input id="contabilidad-filter-hasta" name="fecha_hasta" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_hasta"
+                        aria-label="Restablecer fecha hasta"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Centro
@@ -3139,11 +3175,29 @@
                 <form id="banco-filters-form" class="filters-grid records-filters-grid records-filters-compact">
                   <label class="filter-field">
                     Desde
-                    <input id="banco-filter-desde" name="fecha_desde" type="date" />
+                    <div class="filter-control-row">
+                      <input id="banco-filter-desde" name="fecha_desde" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_desde"
+                        aria-label="Restablecer fecha desde"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Hasta
-                    <input id="banco-filter-hasta" name="fecha_hasta" type="date" />
+                    <div class="filter-control-row">
+                      <input id="banco-filter-hasta" name="fecha_hasta" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_hasta"
+                        aria-label="Restablecer fecha hasta"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Resultado
@@ -3230,11 +3284,29 @@
                 <form id="resultados-filters-form" class="filters-grid records-filters-grid records-filters-compact">
                   <label class="filter-field">
                     Desde
-                    <input id="resultados-filter-desde" name="fecha_desde" type="date" />
+                    <div class="filter-control-row">
+                      <input id="resultados-filter-desde" name="fecha_desde" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_desde"
+                        aria-label="Restablecer fecha desde"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Hasta
-                    <input id="resultados-filter-hasta" name="fecha_hasta" type="date" />
+                    <div class="filter-control-row">
+                      <input id="resultados-filter-hasta" name="fecha_hasta" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_hasta"
+                        aria-label="Restablecer fecha hasta"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Resultado
@@ -3350,11 +3422,29 @@
                 <form id="conciliacion-filters-form" class="filters-grid records-filters-grid records-filters-compact">
                   <label class="filter-field">
                     Desde
-                    <input id="conciliacion-filter-desde" name="fecha_desde" type="date" />
+                    <div class="filter-control-row">
+                      <input id="conciliacion-filter-desde" name="fecha_desde" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_desde"
+                        aria-label="Restablecer fecha desde"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <label class="filter-field">
                     Hasta
-                    <input id="conciliacion-filter-hasta" name="fecha_hasta" type="date" />
+                    <div class="filter-control-row">
+                      <input id="conciliacion-filter-hasta" name="fecha_hasta" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-filter="fecha_hasta"
+                        aria-label="Restablecer fecha hasta"
+                        title="Restablecer"
+                      >&times;</button>
+                    </div>
                   </label>
                   <div class="filter-actions">
                     <button id="conciliacion-clear-filters-button" type="button" class="secondary-button">
@@ -6475,6 +6565,16 @@
                 <button type="submit">Guardar</button>
               </div>
             </form>
+
+            <fieldset id="settings-empresa-documentos-box" class="settings-detail-fields-box hidden">
+              <legend>Documentos que se adjuntan</legend>
+              <p class="muted-text">
+                Marca los documentos que se acompañan a la documentación entregada a la persona
+                trabajadora y sube el PDF correspondiente. Se guardan al momento, sin necesidad de
+                pulsar "Guardar".
+              </p>
+              <div id="settings-empresa-documentos-list" class="empresa-documentos-list"></div>
+            </fieldset>
           </aside>
         </section>
 
@@ -6998,6 +7098,14 @@
             <div class="results-toolbar section-summary-toolbar">
               <div class="results-summary">
                 <p id="weekly-summary" class="summary-chip">Cargando resumen...</p>
+              </div>
+              <div class="header-actions">
+                <button id="weekly-summary-pdf-button" class="warm-button" type="button">
+                  Descargar PDF
+                </button>
+                <button id="weekly-summary-excel-button" class="secondary-button" type="button">
+                  Descargar Excel
+                </button>
               </div>
             </div>
 
@@ -10044,8 +10152,8 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260923-1" defer></script>
-    <script src="./facturacion.js?v=20260923-1" defer></script>
-    <script src="./app.js?v=20260923-1" defer></script>
+    <script src="./concilia-integrated.js?v=20260924-1" defer></script>
+    <script src="./facturacion.js?v=20260924-9" defer></script>
+    <script src="./app.js?v=20260924-4" defer></script>
   </body>
 </html>
