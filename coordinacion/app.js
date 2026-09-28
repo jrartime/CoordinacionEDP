@@ -33231,7 +33231,13 @@ async function exportEventsSummaryReportToPdf() {
           const personnelNames =
             currentEventSchedulePersonnelRows
               .filter((item) => Number(item.cronograma_id) === Number(step.id))
-              .map((item) => formatEventStepPersonnelEntry(item, step))
+              .sort((a, b) =>
+                getEventPersonnelName(a.personal_id).localeCompare(getEventPersonnelName(b.personal_id), "es", {
+                  sensitivity: "base",
+                  numeric: true,
+                })
+              )
+              .map((item, index) => `${index + 1}. ${formatEventStepPersonnelEntry(item, step)}`)
               .join("\n") || "Sin personal asignado";
 
           const values = {
@@ -33395,15 +33401,20 @@ function renderEventsTable() {
       const stepsHtml = eventScheduleRows.length
         ? eventScheduleRows
             .map((row) => {
-              const personnelRows = currentEventSchedulePersonnelRows.filter(
-                (item) => Number(item.cronograma_id) === Number(row.id)
-              );
+              const personnelRows = currentEventSchedulePersonnelRows
+                .filter((item) => Number(item.cronograma_id) === Number(row.id))
+                .sort((a, b) =>
+                  getEventPersonnelName(a.personal_id).localeCompare(getEventPersonnelName(b.personal_id), "es", {
+                    sensitivity: "base",
+                    numeric: true,
+                  })
+                );
               const personnelHtml = personnelRows.length
                 ? personnelRows
                     .map(
-                      (item) => `
+                      (item, index) => `
                         <div class="event-personnel-row">
-                          <strong>${escapeHtml(getEventPersonnelName(item.personal_id))}</strong>
+                          <strong>${index + 1}. ${escapeHtml(getEventPersonnelName(item.personal_id))}</strong>
                           <input type="time" value="${escapeHtml(formatHourValue(item.hora_inicio).slice(0, 5))}" data-event-assignment-time="${item.id}" data-event-assignment-start="${item.id}" />
                           <input type="time" value="${escapeHtml(formatHourValue(item.hora_fin).slice(0, 5))}" data-event-assignment-time="${item.id}" data-event-assignment-end="${item.id}" />
                           <button type="button" class="danger-button tooltip-button" aria-label="Quitar personal" data-event-assignment-delete="${item.id}">${renderIcon("delete")}</button>
