@@ -8,7 +8,11 @@ async function getSupabaseClient() {
   }
 
   const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-  supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+  // Este módulo no lo carga ningún HTML ahora mismo, pero se deja coherente con el resto
+  // para que no reaparezca el fallo del esquema si algún día se usa.
+  supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+    db: { schema: supabaseConfig.schema ?? "public" },
+  });
 
   if (!supabaseAuthListenerBound) {
     supabaseClient.auth.onAuthStateChange((_event, session) => {

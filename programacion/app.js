@@ -290,7 +290,11 @@
     }
 
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-    supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+    // Esta app no usa shared/supabase-client.js: crea su propio cliente, así que el
+    // esquema de config.js hay que pasarlo aquí también (ver fase-1 de la migración).
+    supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+      db: { schema: supabaseConfig.schema ?? "public" },
+    });
     return supabaseClient;
   }
 

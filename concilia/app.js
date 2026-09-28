@@ -6243,7 +6243,9 @@
     }
 
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-    const client = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+    const client = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+      db: { schema: supabaseConfig.schema ?? "public" },
+    });
     client.auth.onAuthStateChange((_event, session) => {
       window.SupabaseApp?.setSession(session);
     });
