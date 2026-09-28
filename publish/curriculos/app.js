@@ -108,7 +108,9 @@
     }
 
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-    return createClient(supabaseConfig.url, supabaseConfig.anonKey);
+    return createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+      db: { schema: supabaseConfig.schema ?? "public" },
+    });
   }
 
   async function uploadFileToSupabase(candidateId, file) {

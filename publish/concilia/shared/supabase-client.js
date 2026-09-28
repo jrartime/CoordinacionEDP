@@ -44,7 +44,13 @@
 
     _clientPromise = import("https://esm.sh/@supabase/supabase-js@2").then(
       ({ createClient }) => {
-        _client = createClient(_config.url, _config.anonKey);
+        // El esquema sale de config.js. Por defecto "public", que es como ha funcionado
+        // siempre. Cuando Coordinación pase a la base de datos del portal laboral, sus
+        // tablas viven en el esquema "coordinacion" y basta con indicarlo en config.js:
+        // el resto del código (.from(...), .rpc(...)) no cambia.
+        _client = createClient(_config.url, _config.anonKey, {
+          db: { schema: _config.schema ?? "public" },
+        });
 
         // Escuchar cambios de sesión una sola vez
         if (!_authListenerBound) {

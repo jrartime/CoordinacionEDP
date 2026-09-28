@@ -2935,7 +2935,11 @@ async function getSupabaseClient() {
   }
 
   const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-  supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+  // Fallback sin shared/supabase-client.js: hay que repetir aquí el esquema de config.js,
+  // o este cliente consultaría el esquema equivocado sin dar error (ver fase-1).
+  supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+    db: { schema: supabaseConfig.schema ?? "public" },
+  });
 
   if (!supabaseAuthListenerBound) {
     supabaseClient.auth.onAuthStateChange((_event, session) => {
