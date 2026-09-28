@@ -154,6 +154,18 @@
   const lectivoCentroSelect = document.querySelector("#lectivo-centro-select");
   const lectivoSummary = document.querySelector("#lectivo-summary");
   const lectivoStudentList = document.querySelector("#lectivo-student-list");
+  const openLectivoReportButton = document.querySelector("#open-lectivo-report-button");
+  const closeLectivoReportButton = document.querySelector("#close-lectivo-report-button");
+  const lectivoReportBackdrop = document.querySelector("#lectivo-report-backdrop");
+  const lectivoReportPanel = document.querySelector("#lectivo-report-panel");
+  const lectivoReportCentroSelect = document.querySelector("#lectivo-report-centro-select");
+  const lectivoReportDesde = document.querySelector("#lectivo-report-desde");
+  const lectivoReportHasta = document.querySelector("#lectivo-report-hasta");
+  const lectivoReportGenerateButton = document.querySelector("#lectivo-report-generate-button");
+  const lectivoReportSummary = document.querySelector("#lectivo-report-summary");
+  const lectivoReportTableBody = document.querySelector("#lectivo-report-table-body");
+  const lectivoReportPdfButton = document.querySelector("#lectivo-report-pdf-button");
+  const lectivoReportExcelButton = document.querySelector("#lectivo-report-excel-button");
   const neeFiltersForm = document.querySelector("#nee-filters-form");
   const filterNeeAlumnado = document.querySelector("#filter-nee-alumnado");
   const clearNeeFilterButton = document.querySelector("#clear-nee-filter-button");
@@ -381,7 +393,7 @@
   const conciliaSubtabs = Array.from(document.querySelectorAll(".concilia-subtabs"));
 
   function renderIcon(name) {
-    return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260723-1#icon-${name}"></use></svg>`;
+    return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260928-3#icon-${name}"></use></svg>`;
   }
 
   // supabaseClient y currentSession gestionados por shared/supabase-client.js
@@ -8166,6 +8178,409 @@
     setStatus("Excel de asistencia generado correctamente.", "success");
   }
 
+  // -----------------------------------------------
+  // Informe de asistencia Lectivo por centro y semana
+  // (concilia_lectivo_asistencias, agrupado por centro + semana natural)
+  // -----------------------------------------------
+  const LECTIVO_REPORT_DAY_COLUMNS = [
+    { key: "lunes", label: "L" },
+    { key: "martes", label: "M" },
+    { key: "miercoles", label: "X" },
+    { key: "jueves", label: "J" },
+    { key: "viernes", label: "V" },
+    { key: "sabado", label: "S" },
+    { key: "domingo", label: "D" },
+  ];
+
+  let lectivoReportRows = [];
+  let lectivoReportCentrosLoaded = false;
+
+  async function loadLectivoReportCentros(supabase) {
+    if (lectivoReportCentrosLoaded) {
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("concilia_lectivo_usuarios")
+      .select("centro_id, instalaciones(instalacion)")
+      .eq("activo", true);
+
+    if (error) {
+      setStatus(`No se pudieron cargar los centros: ${error.message}`, "error");
+      return;
+    }
+
+    const centrosById = new Map();
+    (data ?? []).forEach((row) => {
+      if (!centrosById.has(row.centro_id)) {
+        centrosById.set(row.centro_id, row.instalaciones?.instalacion || `Centro ${row.centro_id}`);
+      }
+    });
+    const centros = [...centrosById.entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
+
+    lectivoReportCentroSelect.innerHTML = centros
+      .map(([id, nombre]) => `<option value="${escapeHtml(id)}">${escapeHtml(nombre)}</option>`)
+      .join("");
+    lectivoReportCentrosLoaded = true;
+  }
+
+  function getSelectedLectivoReportCentros() {
+    return [...(lectivoReportCentroSelect?.selectedOptions ?? [])].map((option) => ({
+      id: Number(option.value),
+      nombre: option.textContent,
+    }));
+  }
+
+  function describeLectivoReportFilters() {
+    const desde = lectivoReportDesde?.value || "?";
+    const hasta = lectivoReportHasta?.value || "?";
+    const centros = getSelectedLectivoReportCentros();
+    const parts = [];
+    parts.push(`Centro: ${centros.length ? centros.map((centro) => centro.nombre).join(", ") : "Todos"}`);
+    parts.push(`Del ${desde} al ${hasta}`);
+    return parts.join(" · ");
+  }
+
+  function lectivoReportWeekLabel(monday) {
+    const sunday = addDays(monday, 6);
+    const fmt = (date) => date.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" });
+    return `${fmt(monday)} - ${fmt(sunday)}`;
+  }
+
+  async function fetchLectivoReportData(supabase) {
+    const desde = String(lectivoReportDesde?.value || "").trim();
+    const hasta = String(lectivoReportHasta?.value || "").trim();
+    if (!desde || !hasta) {
+      throw new Error("Selecciona una fecha de inicio y de fin.");
+    }
+
+    const centroIds = getSelectedLectivoReportCentros().map((centro) => centro.id);
+    const pageSize = 1000;
+    const rows = [];
+
+    for (let pageFrom = 0; ; pageFrom += pageSize) {
+      let query = supabase
+        .from("concilia_lectivo_asistencias")
+        .select("centro_id, lectivo_usuario_id, fecha, dia_semana, instalaciones(instalacion)")
+        .eq("presente", true)
+        .gte("fecha", desde)
+        .lte("fecha", hasta)
+        .order("fecha", { ascending: true })
+        .range(pageFrom, pageFrom + pageSize - 1);
+      if (centroIds.length) {
+        query = query.in("centro_id", centroIds);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+
+      rows.push(...(data ?? []));
+
+      if (!data || data.length < pageSize) {
+        break;
+      }
+    }
+
+    return rows;
+  }
+
+  function buildLectivoReportRows(rows) {
+    const grouped = new Map();
+
+    rows.forEach((row) => {
+      const centro = row.instalaciones?.instalacion || `Centro ${row.centro_id}`;
+      const fecha = new Date(`${row.fecha}T00:00:00`);
+      const monday = getCurrentWeekMonday(fecha);
+      const mondayKey = formatDateValue(monday);
+      const groupKey = `${row.centro_id}__${mondayKey}`;
+
+      if (!grouped.has(groupKey)) {
+        grouped.set(groupKey, {
+          centro,
+          monday,
+          mondayKey,
+          alumnos: new Set(),
+          counts: Object.fromEntries(LECTIVO_REPORT_DAY_COLUMNS.map((day) => [day.key, 0])),
+        });
+      }
+
+      const group = grouped.get(groupKey);
+      group.alumnos.add(row.lectivo_usuario_id);
+      if (Object.prototype.hasOwnProperty.call(group.counts, row.dia_semana)) {
+        group.counts[row.dia_semana] += 1;
+      }
+    });
+
+    return Array.from(grouped.values())
+      .map((group) => ({
+        centro: group.centro,
+        semanaLabel: lectivoReportWeekLabel(group.monday),
+        mondayKey: group.mondayKey,
+        alumnos: group.alumnos.size,
+        counts: group.counts,
+      }))
+      .sort((left, right) => {
+        const centerCompare = left.centro.localeCompare(right.centro, "es", { sensitivity: "base" });
+        if (centerCompare !== 0) {
+          return centerCompare;
+        }
+        return left.mondayKey.localeCompare(right.mondayKey);
+      });
+  }
+
+  function computeLectivoReportTotals(reportRows) {
+    const totals = {
+      alumnos: 0,
+      counts: Object.fromEntries(LECTIVO_REPORT_DAY_COLUMNS.map((day) => [day.key, 0])),
+    };
+    reportRows.forEach((row) => {
+      totals.alumnos += row.alumnos;
+      LECTIVO_REPORT_DAY_COLUMNS.forEach((day) => {
+        totals.counts[day.key] += row.counts[day.key];
+      });
+    });
+    return totals;
+  }
+
+  function renderLectivoReportTable(reportRows) {
+    if (!lectivoReportTableBody) {
+      return;
+    }
+
+    if (!reportRows.length) {
+      lectivoReportTableBody.innerHTML =
+        '<tr><td colspan="10" class="empty-state">No hay asistencia para esos filtros.</td></tr>';
+      return;
+    }
+
+    const totals = computeLectivoReportTotals(reportRows);
+    const bodyRows = reportRows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.centro)}</td>
+            <td>${escapeHtml(row.semanaLabel)}</td>
+            ${LECTIVO_REPORT_DAY_COLUMNS.map((day) => `<td>${row.counts[day.key]}</td>`).join("")}
+            <td>${row.alumnos}</td>
+          </tr>`
+      )
+      .join("");
+    const totalsRow = `
+      <tr class="weekly-summary-total-row">
+        <td>Totales</td>
+        <td></td>
+        ${LECTIVO_REPORT_DAY_COLUMNS.map((day) => `<td>${totals.counts[day.key]}</td>`).join("")}
+        <td>${totals.alumnos}</td>
+      </tr>`;
+
+    lectivoReportTableBody.innerHTML = bodyRows + totalsRow;
+  }
+
+  function openLectivoReportPanel() {
+    lectivoReportBackdrop?.classList.remove("hidden");
+    lectivoReportPanel?.classList.remove("hidden");
+  }
+
+  function closeLectivoReportPanel() {
+    lectivoReportBackdrop?.classList.add("hidden");
+    lectivoReportPanel?.classList.add("hidden");
+  }
+
+  async function loadLectivoReport() {
+    if (lectivoReportSummary) {
+      lectivoReportSummary.textContent = "Cargando informe...";
+    }
+    if (lectivoReportTableBody) {
+      lectivoReportTableBody.innerHTML =
+        '<tr><td colspan="10" class="empty-state">Cargando informe...</td></tr>';
+    }
+
+    try {
+      const supabase = await getSupabaseClient();
+      const rawRows = await fetchLectivoReportData(supabase);
+      lectivoReportRows = buildLectivoReportRows(rawRows);
+      renderLectivoReportTable(lectivoReportRows);
+      if (lectivoReportSummary) {
+        const totals = computeLectivoReportTotals(lectivoReportRows);
+        lectivoReportSummary.textContent = lectivoReportRows.length
+          ? `${lectivoReportRows.length} centro/semana · ${totals.alumnos} alumnos · ${describeLectivoReportFilters()}`
+          : `Sin datos · ${describeLectivoReportFilters()}`;
+      }
+    } catch (error) {
+      lectivoReportRows = [];
+      if (lectivoReportSummary) {
+        lectivoReportSummary.textContent = "No se pudo generar el informe.";
+      }
+      if (lectivoReportTableBody) {
+        lectivoReportTableBody.innerHTML =
+          '<tr><td colspan="10" class="empty-state">Error generando el informe.</td></tr>';
+      }
+      setStatus(`No se pudo generar el informe de asistencia lectivo: ${error.message}`, "error");
+    }
+  }
+
+  async function openLectivoReport() {
+    openLectivoReportPanel();
+    try {
+      const supabase = await getSupabaseClient();
+      await loadLectivoReportCentros(supabase);
+    } catch (error) {
+      setStatus(`No se pudieron cargar los centros: ${error.message}`, "error");
+    }
+    if (lectivoReportDesde && !lectivoReportDesde.value) {
+      const monday = getCurrentWeekMonday();
+      lectivoReportDesde.value = formatDateValue(monday);
+      lectivoReportHasta.value = formatDateValue(addDays(monday, 6));
+    }
+    await loadLectivoReport();
+  }
+
+  async function downloadLectivoReportPdf() {
+    if (!lectivoReportRows.length) {
+      setStatus("No hay asistencia filtrada para generar el informe.", "error");
+      return;
+    }
+
+    try {
+      const { jsPDF } = await getJsPdfClient();
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 8;
+      const rowHeight = 7;
+      const centerWidth = 70;
+      const weekWidth = 24;
+      const numericWidth = (pageWidth - margin * 2 - centerWidth - weekWidth) / (LECTIVO_REPORT_DAY_COLUMNS.length + 1);
+      const totals = computeLectivoReportTotals(lectivoReportRows);
+      const dayLabels = [...LECTIVO_REPORT_DAY_COLUMNS.map((day) => day.label), "Alumnos"];
+      let y = margin;
+
+      const drawTitle = () => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("Informe de asistencia lectivo por centro y semana", margin, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text(describeLectivoReportFilters(), margin, y);
+        y += 8;
+      };
+
+      const drawHeader = () => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.6);
+        doc.setFillColor(235, 239, 245);
+        doc.rect(margin, y - 4.5, pageWidth - margin * 2, rowHeight, "F");
+        doc.text("Centro", margin + 1, y);
+        doc.text("Semana", margin + centerWidth + 1, y);
+        dayLabels.forEach((label, index) => {
+          doc.text(label, margin + centerWidth + weekWidth + numericWidth * index + 1, y, {
+            maxWidth: numericWidth - 1,
+          });
+        });
+        y += rowHeight;
+      };
+
+      const ensureSpace = () => {
+        if (y + rowHeight <= pageHeight - margin) {
+          return;
+        }
+        doc.addPage();
+        y = margin;
+        drawHeader();
+      };
+
+      const drawNumericCells = (values) => {
+        values.forEach((value, index) => {
+          doc.text(String(value), margin + centerWidth + weekWidth + numericWidth * index + 1, y, {
+            maxWidth: numericWidth - 1,
+          });
+        });
+      };
+
+      drawTitle();
+      drawHeader();
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      lectivoReportRows.forEach((row) => {
+        ensureSpace();
+        doc.text(row.centro, margin + 1, y, { maxWidth: centerWidth - 2 });
+        doc.text(row.semanaLabel, margin + centerWidth + 1, y, { maxWidth: weekWidth - 2 });
+        drawNumericCells([...LECTIVO_REPORT_DAY_COLUMNS.map((day) => row.counts[day.key]), row.alumnos]);
+        y += rowHeight;
+      });
+
+      ensureSpace();
+      doc.setFont("helvetica", "bold");
+      doc.text("Totales", margin + 1, y, { maxWidth: centerWidth - 2 });
+      drawNumericCells([...LECTIVO_REPORT_DAY_COLUMNS.map((day) => totals.counts[day.key]), totals.alumnos]);
+
+      const today = new Date().toISOString().slice(0, 10);
+      doc.save(`informe-asistencia-lectivo-${today}.pdf`);
+      setStatus("PDF de asistencia lectivo generado correctamente.", "success");
+    } catch (error) {
+      setStatus(`No se pudo generar el PDF de asistencia lectivo: ${error?.message ?? "error desconocido"}`, "error");
+    }
+  }
+
+  function downloadLectivoReportExcel() {
+    if (!lectivoReportRows.length) {
+      setStatus("No hay asistencia filtrada para generar el informe.", "error");
+      return;
+    }
+
+    const totals = computeLectivoReportTotals(lectivoReportRows);
+    const headerCells = ["Centro", "Semana", ...LECTIVO_REPORT_DAY_COLUMNS.map((day) => day.label), "Alumnos"];
+    const renderCell = (value) => `<td>${escapeHtml(String(value))}</td>`;
+    const bodyRows = lectivoReportRows
+      .map(
+        (row) =>
+          `<tr>${renderCell(row.centro)}${renderCell(row.semanaLabel)}${LECTIVO_REPORT_DAY_COLUMNS.map((day) =>
+            renderCell(row.counts[day.key])
+          ).join("")}${renderCell(row.alumnos)}</tr>`
+      )
+      .join("");
+    const totalsRow = `<tr>${renderCell("Totales")}${renderCell("")}${LECTIVO_REPORT_DAY_COLUMNS.map((day) =>
+      renderCell(totals.counts[day.key])
+    ).join("")}${renderCell(totals.alumnos)}</tr>`;
+    const headerRow = `<tr>${headerCells.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("")}</tr>`;
+    const captionRow = `<tr><td colspan="${headerCells.length}">${escapeHtml(
+      describeLectivoReportFilters()
+    )}</td></tr>`;
+
+    const workbook = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office"
+        xmlns:x="urn:schemas-microsoft-com:office:excel"
+        xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="UTF-8" />
+          <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+          <x:Name>Asistencia Lectivo</x:Name>
+          <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+          </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+        </head>
+        <body>
+          <table>${captionRow}${headerRow}${bodyRows}${totalsRow}</table>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const today = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `informe-asistencia-lectivo-${today}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setStatus("Excel de asistencia lectivo generado correctamente.", "success");
+  }
+
   async function loadNeeRows(supabase) {
     const { data, error } = await supabase.rpc("get_concilia_nee_rows", {
       p_alumnado: String(filterNeeAlumnado.value || "").trim() || null,
@@ -8738,6 +9153,18 @@
       void downloadAttendanceReportPdf();
     });
     attendanceReportExcelButton?.addEventListener("click", downloadAttendanceReportExcel);
+    openLectivoReportButton?.addEventListener("click", () => {
+      void openLectivoReport();
+    });
+    closeLectivoReportButton?.addEventListener("click", closeLectivoReportPanel);
+    lectivoReportBackdrop?.addEventListener("click", closeLectivoReportPanel);
+    lectivoReportGenerateButton?.addEventListener("click", () => {
+      void loadLectivoReport();
+    });
+    lectivoReportPdfButton?.addEventListener("click", () => {
+      void downloadLectivoReportPdf();
+    });
+    lectivoReportExcelButton?.addEventListener("click", downloadLectivoReportExcel);
     openStudentPanelButton.addEventListener("click", openStudentCreatePanel);
     closeStudentPanelButton.addEventListener("click", closeStudentPanel);
     studentPanelBackdrop.addEventListener("click", closeStudentPanel);

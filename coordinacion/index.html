@@ -7319,11 +7319,6 @@
             <div class="results-summary">
               <p id="attendance-summary" class="summary-chip">Cargando asistencia...</p>
             </div>
-            <div class="header-actions">
-              <button id="open-attendance-report-button" class="secondary-button" type="button">
-                Informes
-              </button>
-            </div>
           </div>
 
           <div class="control-view-toggle" role="group" aria-label="Vista de Asistencia">
@@ -7346,6 +7341,13 @@
           </div>
 
           <div id="attendance-no-lectivo-view" class="hidden">
+          <div class="results-toolbar section-summary-toolbar">
+            <div class="header-actions">
+              <button id="open-attendance-report-button" class="secondary-button" type="button">
+                Informes
+              </button>
+            </div>
+          </div>
           <form id="attendance-filters-form" class="filters-grid records-filters-compact attendance-filters-grid">
             <label class="filter-field">
               Centro
@@ -7469,7 +7471,16 @@
               </label>
             </form>
 
-            <p id="lectivo-summary" class="summary-chip">Selecciona un centro para pasar lista.</p>
+            <div class="results-toolbar section-summary-toolbar">
+              <div class="results-summary">
+                <p id="lectivo-summary" class="summary-chip">Selecciona un centro para pasar lista.</p>
+              </div>
+              <div class="header-actions">
+                <button id="open-lectivo-report-button" class="secondary-button" type="button">
+                  Informes
+                </button>
+              </div>
+            </div>
 
             <ul class="lectivo-student-list" id="lectivo-student-list">
               <li class="empty-state">Selecciona un centro para pasar lista.</li>
@@ -7534,6 +7545,94 @@
                 <tbody id="attendance-report-table-body">
                   <tr>
                     <td colspan="8" class="empty-state">Cargando informe...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </aside>
+
+          <div id="lectivo-report-backdrop" class="panel-backdrop hidden"></div>
+          <aside
+            id="lectivo-report-panel"
+            class="summary-panel hidden"
+            aria-labelledby="lectivo-report-title"
+          >
+            <div class="side-panel-header">
+              <div class="section-heading">
+                <p class="eyebrow">Informe</p>
+                <h2 id="lectivo-report-title">Asistencia lectivo por centro y semana</h2>
+              </div>
+              <div class="header-actions">
+                <button
+                  id="lectivo-report-pdf-button"
+                  class="warm-button compact-button"
+                  type="button"
+                >
+                  PDF
+                </button>
+                <button
+                  id="lectivo-report-excel-button"
+                  class="warm-button compact-button"
+                  type="button"
+                >
+                  Excel
+                </button>
+                <button
+                  id="close-lectivo-report-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <form id="lectivo-report-filters-form" class="filters-grid records-filters-compact">
+              <label class="filter-field">
+                Centros
+                <select id="lectivo-report-centro-select" multiple size="8"></select>
+              </label>
+              <label class="filter-field">
+                Desde
+                <input id="lectivo-report-desde" type="date" />
+              </label>
+              <label class="filter-field">
+                Hasta
+                <input id="lectivo-report-hasta" type="date" />
+              </label>
+              <div class="filter-actions">
+                <button id="lectivo-report-generate-button" class="secondary-button" type="button">
+                  Generar
+                </button>
+              </div>
+            </form>
+            <p class="muted-text">Sin centros seleccionados se incluyen todos. Ctrl/Cmd + clic para elegir varios.</p>
+
+            <div class="results-toolbar section-summary-toolbar">
+              <div class="results-summary">
+                <p id="lectivo-report-summary" class="summary-chip">Cargando informe...</p>
+              </div>
+            </div>
+
+            <div class="table-wrap weekly-table-wrap">
+              <table class="weekly-summary-table attendance-report-table">
+                <thead>
+                  <tr>
+                    <th>Centro</th>
+                    <th>Semana</th>
+                    <th>L</th>
+                    <th>M</th>
+                    <th>X</th>
+                    <th>J</th>
+                    <th>V</th>
+                    <th>S</th>
+                    <th>D</th>
+                    <th>Alumnos</th>
+                  </tr>
+                </thead>
+                <tbody id="lectivo-report-table-body">
+                  <tr>
+                    <td colspan="10" class="empty-state">Cargando informe...</td>
                   </tr>
                 </tbody>
               </table>
@@ -10152,8 +10251,8 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260924-1" defer></script>
+    <script src="./concilia-integrated.js?v=20260928-3" defer></script>
     <script src="./facturacion.js?v=20260924-9" defer></script>
-    <script src="./app.js?v=20260924-4" defer></script>
+    <script src="./app.js?v=20260928-3" defer></script>
   </body>
 </html>

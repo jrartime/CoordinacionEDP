@@ -1356,6 +1356,10 @@ td {
   min-width: 92px;
 }
 
+#lectivo-report-centro-select {
+  height: auto;
+}
+
 .lectivo-schedule-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
