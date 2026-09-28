@@ -4393,6 +4393,16 @@ button.tag-chip.warm-button:hover {
   color: #1d4f8d;
 }
 
+.status-llamado {
+  background: #e4dcff;
+  color: #4a2f9e;
+}
+
+.status-a-la-espera {
+  background: #ffe4c7;
+  color: #8a4a12;
+}
+
 .status-descartado {
   background: #f6d8db;
   color: #8f2f39;
@@ -4401,6 +4411,73 @@ button.tag-chip.warm-button:hover {
 .status-contratado {
   background: #daf1df;
   color: #23623a;
+}
+
+#candidates-table .status-badge {
+  min-width: 84px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+}
+
+.candidate-row-unread td {
+  background: #fffbeb;
+}
+
+.new-candidate-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #5b21b6;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.field-preview-button.tooltip-button::after {
+  max-width: 260px;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.35;
+}
+
+.candidate-details-row td {
+  background: #f8fafc;
+  padding: 14px 16px;
+}
+
+.candidate-details-status-row {
+  margin-bottom: 14px;
+}
+
+.candidate-details-status-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.candidate-details-status-field select {
+  width: auto;
+  padding: 3px 6px;
+  font-size: 0.74rem;
+  height: 28px;
+  line-height: 1.2;
+}
+
+.candidate-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.candidate-details-text {
+  margin: 4px 0 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 table {

@@ -7,7 +7,7 @@ create table if not exists public.candidates (
   email text not null,
   registration_date date not null default current_date,
   candidate_status text not null default 'Pendiente' check (
-    candidate_status in ('Pendiente', 'Preseleccionado', 'Descartado', 'Contratado')
+    candidate_status in ('Pendiente', 'Preseleccionado', 'Llamado', 'A la espera', 'Descartado', 'Contratado')
   ),
   job_roles text[] not null check (cardinality(job_roles) > 0),
   sport_specialties text[] not null default '{}',
@@ -35,21 +35,18 @@ alter table public.candidates
   add column if not exists attachment_mime_type text,
   add column if not exists privacy_accepted boolean not null default false,
   add column if not exists vacancy_consent boolean not null default false,
-  add column if not exists source text not null default 'private';
+  add column if not exists source text not null default 'private',
+  add column if not exists leido boolean not null default true;
 
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_constraint
-    where conname = 'candidates_candidate_status_check'
-      and conrelid = 'public.candidates'::regclass
-  ) then
-    alter table public.candidates
-      add constraint candidates_candidate_status_check
-      check (candidate_status in ('Pendiente', 'Preseleccionado', 'Descartado', 'Contratado'));
-  end if;
-end $$;
+alter table public.candidates
+alter column leido set default false;
+
+alter table public.candidates
+drop constraint if exists candidates_candidate_status_check;
+
+alter table public.candidates
+add constraint candidates_candidate_status_check
+check (candidate_status in ('Pendiente', 'Preseleccionado', 'Llamado', 'A la espera', 'Descartado', 'Contratado'));
 
 comment on table public.candidates is 'Candidaturas registradas desde los paneles de Curriculos EDP.';
 

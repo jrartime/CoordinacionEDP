@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260925-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260928-3" />
   </head>
   <body>
     <script>
@@ -3791,6 +3791,12 @@
                     <button id="open-candidate-create-button" type="button">
                       Nueva candidatura
                     </button>
+                    <button id="candidates-select-summary-button" type="button" class="secondary-button">
+                      Seleccionar candidaturas
+                    </button>
+                    <span id="candidates-summary-selection-count" class="control-selected-delete-count">
+                      Activa la selección para elegir candidaturas
+                    </span>
                     <button
                       id="export-selected-pdf-button"
                       type="button"
@@ -3869,6 +3875,8 @@
                         <option value="">Todos los estados</option>
                         <option value="Pendiente">Pendiente</option>
                         <option value="Preseleccionado">Preseleccionado</option>
+                        <option value="Llamado">Llamado</option>
+                        <option value="A la espera">A la espera</option>
                         <option value="Descartado">Descartado</option>
                         <option value="Contratado">Contratado</option>
                       </select>
@@ -3926,7 +3934,7 @@
                   <table id="candidates-table">
                     <thead>
                       <tr>
-                        <th class="select-column">
+                        <th id="candidates-select-header" class="select-column hidden">
                           <input id="select-all-candidates" type="checkbox" />
                         </th>
                         <th>Acciones</th>
@@ -3951,11 +3959,6 @@
                           </button>
                         </th>
                         <th>
-                          <button type="button" class="sort-button" data-sort-field="email">
-                            Correo
-                          </button>
-                        </th>
-                        <th>
                           <button type="button" class="sort-button" data-sort-field="job_roles">
                             Puestos
                           </button>
@@ -3968,7 +3971,7 @@
                     </thead>
                     <tbody id="candidates-table-body">
                       <tr>
-                        <td colspan="12" class="empty-state">
+                        <td colspan="10" class="empty-state">
                           No hay datos cargados todavia.
                         </td>
                       </tr>
@@ -4920,7 +4923,7 @@
                     <span>Adjuntos (fotos o documentos)</span>
                     <div id="avisos-new-dropzone" class="dropzone">
                       <svg class="dropzone-icon" aria-hidden="true">
-                        <use href="./icons.svg?v=20260723-1#icon-upload"></use>
+                        <use href="./icons.svg?v=20260928-3#icon-upload"></use>
                       </svg>
                       <p class="dropzone-text">
                         Arrastra y suelta los archivos, o haz clic para elegirlos
@@ -10056,6 +10059,8 @@
                     <select id="detail-status">
                       <option value="Pendiente">Pendiente</option>
                       <option value="Preseleccionado">Preseleccionado</option>
+                      <option value="Llamado">Llamado</option>
+                      <option value="A la espera">A la espera</option>
                       <option value="Descartado">Descartado</option>
                       <option value="Contratado">Contratado</option>
                     </select>

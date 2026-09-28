@@ -12,6 +12,8 @@ const JOB_OPTIONS = [
 const CANDIDATE_STATUS_OPTIONS = [
   "Pendiente",
   "Preseleccionado",
+  "Llamado",
+  "A la espera",
   "Descartado",
   "Contratado",
 ];
@@ -798,6 +800,7 @@ const CANDIDATE_SELECT_COLUMNS = [
   "vacancy_consent",
   "source",
   "created_at",
+  "leido",
 ].join(", ");
 
 const CONTROL_SAFE_RESULT_LIMIT = 1000;
@@ -825,7 +828,7 @@ const isCoordinationPanel =
   window.location.pathname.split("/").filter(Boolean)[0] === "coordinacion";
 
 function renderIcon(name) {
-  return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260723-1#icon-${name}"></use></svg>`;
+  return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260928-3#icon-${name}"></use></svg>`;
 }
 
 function escapeButtonLabel(value) {
@@ -1070,6 +1073,13 @@ const candidateCvPreviewDownloadButton = document.querySelector(
   "#candidate-cv-preview-download-button"
 );
 const selectAllCandidatesCheckbox = document.querySelector("#select-all-candidates");
+const candidatesSelectHeader = document.querySelector("#candidates-select-header");
+const candidatesSelectionToggleButton = document.querySelector(
+  "#candidates-select-summary-button"
+);
+const candidatesSelectionCountLabel = document.querySelector(
+  "#candidates-summary-selection-count"
+);
 const paginationSummary = document.querySelector("#pagination-summary");
 const paginationPageIndicator = document.querySelector("#pagination-page-indicator");
 const previousPageButton = document.querySelector("#previous-page-button");
@@ -1711,6 +1721,8 @@ let candidateTotalCount = 0;
 let candidateFilteredCount = 0;
 let candidateFilterOptions = { roles: [], tags: [] };
 let candidateFilterOptionsLoaded = false;
+let candidatesSelectionMode = false;
+let expandedCandidateIds = new Set();
 let candidateFilterOptionsPromise = null;
 let selectedCandidateIds = new Set();
 let currentSession = null;
@@ -3138,6 +3150,18 @@ function syncSelectionUi(visibleRows = []) {
     visibleRows.length > 0 && selectedVisibleCount === visibleRows.length;
   selectAllCandidatesCheckbox.indeterminate =
     selectedVisibleCount > 0 && selectedVisibleCount < visibleRows.length;
+
+  if (candidatesSelectionToggleButton) {
+    candidatesSelectionToggleButton.textContent = candidatesSelectionMode
+      ? "Cancelar selección"
+      : "Seleccionar candidaturas";
+  }
+  if (candidatesSelectionCountLabel) {
+    candidatesSelectionCountLabel.textContent = candidatesSelectionMode
+      ? `${selectedCandidateIds.size} seleccionadas`
+      : "Activa la selección para elegir candidaturas";
+  }
+  candidatesSelectHeader?.classList.toggle("hidden", !candidatesSelectionMode);
 }
 
 function renderCandidateClampedCell(value) {
@@ -3145,11 +3169,25 @@ function renderCandidateClampedCell(value) {
   return `<span class="candidate-cell-clamp" title="${escapeHtml(text)}">${escapeHtml(text)}</span>`;
 }
 
+function truncateForTooltip(value, maxLength = 220) {
+  const text = String(value ?? "").trim();
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength).trimEnd()}…`;
+}
+
+function getCandidatesColumnCount() {
+  return candidatesSelectionMode ? 11 : 10;
+}
+
 function renderCandidates(rows) {
+  const columnCount = getCandidatesColumnCount();
+
   if (!rows.length) {
     tableBody.innerHTML = `
       <tr>
-        <td colspan="12" class="empty-state">No hay datos cargados todavia.</td>
+        <td colspan="${columnCount}" class="empty-state">No hay datos cargados todavia.</td>
       </tr>
     `;
     syncSelectionUi([]);
@@ -3162,37 +3200,95 @@ function renderCandidates(rows) {
       const tags = Array.isArray(row.tags) ? row.tags.join(", ") : "";
       const status = normalizeCandidateStatus(row.candidate_status);
       const isSelected = selectedCandidateIds.has(row.id);
+      const isExpanded = expandedCandidateIds.has(row.id);
+      const isUnread = !row.leido;
       const attachmentCell = row.attachment_name
-        ? `<button type="button" class="tag-chip warm-button" data-preview-cv-id="${escapeHtml(row.id)}">${escapeHtml(
+        ? `<button type="button" class="tag-chip warm-button field-preview-button" data-icon="file" data-preview-cv-id="${escapeHtml(row.id)}">${escapeHtml(
             row.attachment_name
           )}</button>`
         : "";
+      const notesCell = row.notes
+        ? `<button type="button" class="tag-chip field-preview-button" data-icon="note">${escapeHtml(
+            truncateForTooltip(row.notes)
+          )}</button>`
+        : "";
+      const observationsCell = row.observations
+        ? `<button type="button" class="tag-chip active-tag field-preview-button" data-icon="observation">${escapeHtml(
+            truncateForTooltip(row.observations)
+          )}</button>`
+        : "";
+      const nameMarkup = isUnread
+        ? `<strong>${escapeHtml(row.full_name)}</strong><span class="new-candidate-pill">Nueva</span>`
+        : escapeHtml(row.full_name);
+      const statusOptionsHtml = CANDIDATE_STATUS_OPTIONS.map(
+        (option) =>
+          `<option value="${escapeHtml(option)}" ${option === status ? "selected" : ""}>${escapeHtml(option)}</option>`
+      ).join("");
+      const selectCell = candidatesSelectionMode
+        ? `<td class="select-column">
+             <input
+               type="checkbox"
+               class="row-selector"
+               data-select-candidate-id="${escapeHtml(row.id)}"
+               ${isSelected ? "checked" : ""}
+             />
+           </td>`
+        : "";
 
       return `
-        <tr>
-          <td class="select-column">
-            <input
-              type="checkbox"
-              class="row-selector"
-              data-select-candidate-id="${escapeHtml(row.id)}"
-              ${isSelected ? "checked" : ""}
-            />
-          </td>
+        <tr class="${isUnread ? "candidate-row-unread" : ""}">
+          ${selectCell}
           <td>
             <div class="action-buttons">
+              <button
+                type="button"
+                class="secondary-button event-toggle-button"
+                data-candidate-toggle-id="${escapeHtml(row.id)}"
+                aria-expanded="${String(isExpanded)}"
+                title="${isExpanded ? "Plegar notas y observaciones" : "Ampliar notas y observaciones"}"
+              >
+                ${isExpanded ? "&#9652;" : "&#9662;"}
+              </button>
               <button type="button" class="secondary-button table-action" data-view-id="${escapeHtml(row.id)}">Ver</button>
             </div>
           </td>
           <td>${renderCandidateClampedCell(row.registration_date || "")}</td>
           <td><span class="status-badge ${getCandidateStatusClass(status)}">${escapeHtml(status)}</span></td>
-          <td>${renderCandidateClampedCell(row.full_name)}</td>
+          <td><span class="candidate-cell-clamp" title="${escapeHtml(row.full_name)}">${nameMarkup}</span></td>
           <td>${renderCandidateClampedCell(row.phone)}</td>
-          <td>${renderCandidateClampedCell(row.email)}</td>
           <td>${renderCandidateClampedCell(roles)}</td>
           <td>${renderCandidateClampedCell(tags)}</td>
           <td>${attachmentCell}</td>
-          <td>${renderCandidateClampedCell(row.notes || "")}</td>
-          <td>${renderCandidateClampedCell(row.observations || "")}</td>
+          <td>${notesCell}</td>
+          <td>${observationsCell}</td>
+        </tr>
+        <tr class="candidate-details-row ${isExpanded ? "" : "hidden"}">
+          <td colspan="${columnCount}">
+            <div class="candidate-details-status-row">
+              <label class="candidate-details-status-field">
+                <span class="mini-label">Estado</span>
+                <select data-candidate-status-id="${escapeHtml(row.id)}">
+                  ${statusOptionsHtml}
+                </select>
+              </label>
+            </div>
+            <div class="candidate-details-grid">
+              <div>
+                <p class="mini-label">Notas</p>
+                <p class="candidate-details-text">${
+                  row.notes ? escapeHtml(row.notes) : '<span class="muted-text">Sin notas.</span>'
+                }</p>
+              </div>
+              <div>
+                <p class="mini-label">Observaciones</p>
+                <p class="candidate-details-text">${
+                  row.observations
+                    ? escapeHtml(row.observations)
+                    : '<span class="muted-text">Sin observaciones.</span>'
+                }</p>
+              </div>
+            </div>
+          </td>
         </tr>
       `;
     })
@@ -4622,6 +4718,55 @@ function toCsvValue(value) {
 
 function getCandidateById(candidateId) {
   return currentCandidates.find((candidate) => candidate.id === candidateId) ?? null;
+}
+
+async function markCandidateAsRead(candidateId) {
+  const candidate = getCandidateById(candidateId);
+  if (!candidate || candidate.leido) {
+    return;
+  }
+
+  candidate.leido = true;
+  renderCandidates(getVisibleCandidates());
+
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from("candidates").update({ leido: true }).eq("id", candidateId);
+  if (error) {
+    candidate.leido = false;
+    renderCandidates(getVisibleCandidates());
+    setStatus(`No se pudo marcar la candidatura como leída: ${error.message}`, "error");
+  }
+}
+
+async function updateCandidateStatusInline(candidateId, newStatus) {
+  const candidate = getCandidateById(candidateId);
+  if (!candidate) {
+    return;
+  }
+
+  const normalizedStatus = normalizeCandidateStatus(newStatus);
+  const previousStatus = candidate.candidate_status;
+  if (previousStatus === normalizedStatus) {
+    return;
+  }
+
+  candidate.candidate_status = normalizedStatus;
+  renderCandidates(getVisibleCandidates());
+
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase
+    .from("candidates")
+    .update({ candidate_status: normalizedStatus })
+    .eq("id", candidateId);
+
+  if (error) {
+    candidate.candidate_status = previousStatus;
+    renderCandidates(getVisibleCandidates());
+    setStatus(`No se pudo actualizar el estado: ${error.message}`, "error");
+    return;
+  }
+
+  setStatus("Estado de la candidatura actualizado.", "success");
 }
 
 function setDetailEditMode(enabled) {
@@ -32051,9 +32196,23 @@ async function handleTableClick(event) {
     return;
   }
 
+  const toggleId = event.target.closest("[data-candidate-toggle-id]")?.dataset
+    .candidateToggleId;
+  if (toggleId) {
+    if (expandedCandidateIds.has(toggleId)) {
+      expandedCandidateIds.delete(toggleId);
+    } else {
+      expandedCandidateIds.add(toggleId);
+    }
+    void markCandidateAsRead(toggleId);
+    renderCandidates(getVisibleCandidates());
+    return;
+  }
+
   const viewId = event.target.closest("[data-view-id]")?.dataset.viewId;
   if (viewId) {
     openCandidateDetail(viewId, false);
+    void markCandidateAsRead(viewId);
     return;
   }
 
@@ -36898,6 +37057,13 @@ async function init() {
   });
   exportCsvButton.addEventListener("click", exportFilteredCandidatesToCsv);
   exportSelectedPdfButton.addEventListener("click", exportSelectedCandidatesToPdf);
+  candidatesSelectionToggleButton?.addEventListener("click", () => {
+    candidatesSelectionMode = !candidatesSelectionMode;
+    if (!candidatesSelectionMode) {
+      selectedCandidateIds.clear();
+    }
+    renderCandidates(getVisibleCandidates());
+  });
   previousPageButton.addEventListener("click", goToPreviousPage);
   nextPageButton.addEventListener("click", goToNextPage);
   pageSizeSelect.addEventListener("change", handlePageSizeChange);
@@ -36965,6 +37131,13 @@ async function init() {
   );
   candidatesTable.addEventListener("click", (event) => {
     void handleTableClick(event);
+  });
+  candidatesTable.addEventListener("change", (event) => {
+    const statusSelect = event.target.closest("[data-candidate-status-id]");
+    if (!statusSelect) {
+      return;
+    }
+    void updateCandidateStatusInline(statusSelect.dataset.candidateStatusId, statusSelect.value);
   });
   candidateCvPreviewDialog.querySelectorAll("[data-close-cv-preview]").forEach((button) => {
     button.addEventListener("click", () => {

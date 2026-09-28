@@ -12,6 +12,8 @@ const JOB_OPTIONS = [
 const CANDIDATE_STATUS_OPTIONS = [
   "Pendiente",
   "Preseleccionado",
+  "Llamado",
+  "A la espera",
   "Descartado",
   "Contratado",
 ];
