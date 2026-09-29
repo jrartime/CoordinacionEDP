@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260928-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260929-1" />
   </head>
   <body>
     <script>
@@ -2496,12 +2496,15 @@
                     <span id="historial-report-company-summary">-</span>
                     <span id="historial-report-activities-summary">0 actividades</span>
                   </div>
-                  <div class="personal-import-actions">
+                  <div class="personal-import-actions historial-report-selection-actions">
                     <button id="historial-report-select-all-activities-button" type="button" class="secondary-button">
                       Incluir todas
                     </button>
                     <button id="historial-report-clear-activities-button" type="button" class="secondary-button">
                       Quitar todas
+                    </button>
+                    <button id="historial-report-preview-button" type="button" class="secondary-button">
+                      Vista previa
                     </button>
                     <span id="historial-report-template-warning" class="control-selected-delete-count"></span>
                   </div>
@@ -4923,7 +4926,7 @@
                     <span>Adjuntos (fotos o documentos)</span>
                     <div id="avisos-new-dropzone" class="dropzone">
                       <svg class="dropzone-icon" aria-hidden="true">
-                        <use href="./icons.svg?v=20260928-3#icon-upload"></use>
+                        <use href="./icons.svg?v=20260929-1#icon-upload"></use>
                       </svg>
                       <p class="dropzone-text">
                         Arrastra y suelta los archivos, o haz clic para elegirlos
@@ -10247,6 +10250,17 @@
           </div>
         </dialog>
 
+        <dialog id="historial-report-preview-dialog" class="cv-preview-dialog">
+          <div class="cv-preview-dialog-header">
+            <h3>Vista previa del informe</h3>
+            <button type="button" data-close-historial-report-preview aria-label="Cerrar">×</button>
+          </div>
+          <div id="historial-report-preview-body" class="cv-preview-body"></div>
+          <div class="cv-preview-dialog-footer">
+            <button type="button" class="secondary-button" data-close-historial-report-preview>Cerrar</button>
+          </div>
+        </dialog>
+
         <div id="public-toast" class="toast-message hidden" role="status" aria-live="polite">
           Candidatura enviada correctamente.
         </div>
@@ -10256,8 +10270,8 @@
     <script src="./config.js" defer></script>
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260928-3" defer></script>
+    <script src="./concilia-integrated.js?v=20260929-1" defer></script>
     <script src="./facturacion.js?v=20260924-9" defer></script>
-    <script src="./app.js?v=20260928-3" defer></script>
+    <script src="./app.js?v=20260929-1" defer></script>
   </body>
 </html>

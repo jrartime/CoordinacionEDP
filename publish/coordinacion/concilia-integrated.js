@@ -5599,6 +5599,39 @@
     scheduleWeeklyHours(activity) {
       return getActivityScheduleWeeklyHours(activity);
     },
+    groupWeeklyHours(activities) {
+      return getActivityGroupWeeklyHours(activities || []);
+    },
+    // Abre el panel de edicion de una actividad desde fuera de la pestana
+    // (p.ej. Historial laboral): si no esta en la lista cargada la trae de BD y
+    // saca el panel del contenedor de la pestana, que puede estar oculta.
+    async openEdit(activityId) {
+      let activity = activitiesRows.find((row) => String(row.id) === String(activityId));
+      if (!activity) {
+        try {
+          const supabase = await getSupabaseClient();
+          const { data, error } = await supabase
+            .from("actividades_detalle")
+            .select("*")
+            .eq("id", activityId)
+            .maybeSingle();
+          if (error) throw error;
+          if (!data) {
+            setStatus("No se encontro la actividad seleccionada.", "error");
+            return;
+          }
+          activity = data;
+          activitiesRows.push(activity);
+        } catch (error) {
+          setStatus(`No se pudo abrir la actividad: ${error.message}`, "error");
+          return;
+        }
+      }
+      [activityEditPanelBackdrop, activityEditPanel].forEach((node) => {
+        if (node && node.parentElement !== document.body) document.body.appendChild(node);
+      });
+      openActivityEdit(activityId);
+    },
     scheduleRangeGroups(activity) {
       const byRange = new Map();
       getActivityScheduleEntries(activity).forEach((entry) => {

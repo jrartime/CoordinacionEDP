@@ -2985,17 +2985,43 @@ button:focus-visible,
 table.historial-report-activities-table {
   min-width: 0;
   width: 100%;
+  table-layout: fixed;
+}
+
+table.historial-report-activities-table th:nth-child(1),
+table.historial-report-activities-table td:nth-child(1) {
+  width: 64px;
+}
+
+table.historial-report-activities-table th:nth-child(2),
+table.historial-report-activities-table td:nth-child(2) {
+  width: 150px;
+}
+
+/* Instalación al ~60 % de su ancho anterior (≈525 px). */
+table.historial-report-activities-table th:nth-child(3),
+table.historial-report-activities-table td:nth-child(3) {
+  width: 210px;
 }
 
 table.historial-report-activities-table th:nth-child(4),
 table.historial-report-activities-table td:nth-child(4) {
-  width: 170px;
+  width: 150px;
 }
 
 table.historial-report-activities-table th:nth-child(5),
 table.historial-report-activities-table td:nth-child(5) {
   width: 70px;
   text-align: right;
+}
+
+table.historial-report-activities-table td.historial-report-total-cell {
+  width: 70px;
+  text-align: right;
+}
+
+.historial-report-selection-actions {
+  justify-content: flex-start;
 }
 
 .access-users-table th,
@@ -4536,7 +4562,7 @@ th {
 }
 
 .activities-schedule-report-table {
-  min-width: 1180px;
+  min-width: 970px;
   table-layout: fixed;
 }
 
@@ -4558,7 +4584,7 @@ th {
 
 .activities-schedule-report-table th:nth-child(7),
 .activities-schedule-report-table td:nth-child(7) {
-  width: 280px;
+  width: 70px;
 }
 
 .activities-schedule-report-table .numeric-cell {
@@ -8593,4 +8619,17 @@ details[open] > .gestion-collapsible-header::before {
 
 .mobile-home-action-button-with-badge .nav-badge {
   margin-left: 12px;
+}
+
+.historial-activities-table tbody tr.historial-activity-item {
+  cursor: pointer;
+}
+
+.historial-activities-table tbody tr.historial-activity-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.historial-activities-table tfoot td {
+  border-top: 2px solid var(--line, #c9d1d9);
+  padding-top: 6px;
 }

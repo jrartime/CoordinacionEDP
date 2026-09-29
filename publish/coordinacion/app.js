@@ -911,6 +911,7 @@ function getActionButtonDecoration(button, label) {
   if (/^Ver PNG\b/i.test(label)) return { icon: "image", mode: "icon-text" };
   if (/^(Incluir todas|Marcar todo)\b/i.test(label)) return { icon: "select-all", mode: "icon-text" };
   if (/^Seleccionar\b/i.test(label)) return { icon: "select-all", mode: "icon-text" };
+  if (/^Vista previa\b/i.test(label)) return { icon: "file", mode: "icon-text" };
   if (/^(Últimos cambios|Historial)\b/i.test(label)) return { icon: "history", mode: "icon-text" };
   if (/^(Marcar sustitución|Quitar sustitución)\b/i.test(label)) {
     return { icon: "users", mode: "icon-text" };
@@ -26654,6 +26655,10 @@ const historialReportCompanySummary = document.querySelector("#historial-report-
 const historialReportActivitiesSummary = document.querySelector("#historial-report-activities-summary");
 const historialReportSelectAllActivitiesButton = document.querySelector("#historial-report-select-all-activities-button");
 const historialReportClearActivitiesButton = document.querySelector("#historial-report-clear-activities-button");
+const historialReportPreviewButton = document.querySelector("#historial-report-preview-button");
+const historialReportPreviewDialog = document.querySelector("#historial-report-preview-dialog");
+const historialReportPreviewBody = document.querySelector("#historial-report-preview-body");
+let historialReportPreviewObjectUrl = null;
 const historialReportTemplateWarning = document.querySelector("#historial-report-template-warning");
 const historialReportActivitiesTableBody = document.querySelector("#historial-report-activities-table-body");
 const historialReportDownloadButton = document.querySelector("#historial-report-download-button");
@@ -27449,6 +27454,13 @@ function getHistorialReportActivityWeeklyHours(row) {
   return minutes ? formatMinutesAsHours(minutes) : "";
 }
 
+// Total semanal de un conjunto de actividades fusionando solapes (mismo
+// criterio que los informes de Actividades). Devuelve texto o "".
+function getHistorialActivitiesWeeklyTotal(rows) {
+  const hours = window.CoordinacionActividades?.groupWeeklyHours(rows);
+  return hours ? formatMinutesAsHours(Math.round(hours * 60)) : "";
+}
+
 function getHistorialReportActivityKey(row) {
   return String(row?.id ?? "");
 }
@@ -27500,6 +27512,10 @@ function renderHistorialReportActivities(rows = []) {
       }
     )
     .join("");
+  const total = getHistorialActivitiesWeeklyTotal(rows.filter((row) => selectedIds.has(getHistorialReportActivityKey(row))));
+  if (total) {
+    historialReportActivitiesTableBody.innerHTML += `<tr><td colspan="4"><strong>Total semanal (sin duplicar solapes)</strong></td><td class="historial-report-total-cell"><strong>${escapeHtml(total)}</strong></td></tr>`;
+  }
 }
 
 function setHistorialReportActivitiesSelection(selectedIds) {
@@ -27900,7 +27916,7 @@ async function loadImageAsDataUrl(url) {
   });
 }
 
-async function exportHistorialLaboralReportPdf() {
+async function exportHistorialLaboralReportPdf({ preview = false } = {}) {
   if (!historialReportDraft?.historialRow) {
     setStatus("Prepara primero el informe desde un periodo de historial laboral.", "error");
     return;
@@ -27913,6 +27929,7 @@ async function exportHistorialLaboralReportPdf() {
   validateHistorialReportTemplateType({ notify: true });
   try {
     historialReportDownloadButton?.setAttribute("disabled", "true");
+    historialReportPreviewButton?.setAttribute("disabled", "true");
     const { jsPDF } = await getJsPdfClient();
     const documentDate = historialReportDocumentDate?.value || getTodayIsoDate();
     const startDate = historialReportStartDate?.value || historialReportDraft.historialRow.fecha_alta || documentDate;
@@ -28086,6 +28103,14 @@ async function exportHistorialLaboralReportPdf() {
       });
     }
 
+    if (preview) {
+      if (historialReportPreviewObjectUrl) URL.revokeObjectURL(historialReportPreviewObjectUrl);
+      historialReportPreviewObjectUrl = URL.createObjectURL(doc.output("blob"));
+      historialReportPreviewBody.innerHTML = `<iframe src="${historialReportPreviewObjectUrl}" title="Vista previa del informe"></iframe>`;
+      if (!historialReportPreviewDialog.open) historialReportPreviewDialog.showModal();
+      return;
+    }
+
     const movementName =
       historialReportDraft.historialRow?.movimiento ||
       getHistorialReportTypeLabel(template.tipo_documento) ||
@@ -28133,7 +28158,14 @@ async function exportHistorialLaboralReportPdf() {
     setStatus(`No se pudo generar el PDF: ${error?.message ?? "error desconocido"}`, "error");
   } finally {
     historialReportDownloadButton?.removeAttribute("disabled");
+    historialReportPreviewButton?.removeAttribute("disabled");
   }
+}
+
+function closeHistorialReportPreview() {
+  if (historialReportPreviewObjectUrl) URL.revokeObjectURL(historialReportPreviewObjectUrl);
+  historialReportPreviewObjectUrl = null;
+  if (historialReportPreviewBody) historialReportPreviewBody.innerHTML = "";
 }
 
 function drawHistorialReportActivitiesTable(doc, options) {
@@ -28202,6 +28234,23 @@ function drawHistorialReportActivitiesTable(doc, options) {
     });
     y += rowHeight;
   });
+  const total = getHistorialActivitiesWeeklyTotal(rows);
+  if (total) {
+    const labelWidth = columns[0].width + columns[1].width + columns[2].width;
+    if (y + 7 > pageHeight - bottomMargin) {
+      doc.addPage();
+      y = margin;
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setFillColor(232, 236, 241);
+    doc.setDrawColor(150, 150, 150);
+    doc.rect(left, y, labelWidth, 7, "FD");
+    doc.rect(left + labelWidth, y, columns[3].width, 7, "FD");
+    doc.text("Total semanal", left + 1.5, y + 4.5);
+    doc.text(total, left + labelWidth + 1.5, y + 4.5);
+    y += 7;
+  }
   setY(y + 5);
 }
 
@@ -28748,7 +28797,7 @@ function renderHistorialActivitiesPanel(historialId) {
         act.fecha_fin ? formatDisplayDate(act.fecha_fin) : "…"
       }`;
       const horario = getHistorialActivityScheduleSummary(act);
-      return `<tr>
+      return `<tr class="historial-activity-item" data-historial-activity-edit="${escapeHtml(act.id)}" title="Abrir para editar la actividad">
           <td>${escapeHtml(act.instalacion || "")}</td>
           <td>${escapeHtml(act.puesto || "")}</td>
           <td>${escapeHtml(fechas)}</td>
@@ -28762,6 +28811,11 @@ function renderHistorialActivitiesPanel(historialId) {
           <tr><th>Instalación</th><th>Puesto</th><th>Fechas</th><th>Horario</th></tr>
         </thead>
         <tbody>${body}</tbody>
+        <tfoot>
+          <tr><td colspan="3"><strong>Total semanal (sin duplicar solapes)</strong></td><td><strong>${escapeHtml(
+            getHistorialActivitiesWeeklyTotal(rows) || "0 h"
+          )}</strong></td></tr>
+        </tfoot>
       </table>
     </div>`;
 }
@@ -35482,6 +35536,13 @@ async function init() {
   historialReportDownloadButton?.addEventListener("click", () => {
     void exportHistorialLaboralReportPdf();
   });
+  historialReportPreviewButton?.addEventListener("click", () => {
+    void exportHistorialLaboralReportPdf({ preview: true });
+  });
+  historialReportPreviewDialog?.querySelectorAll("[data-close-historial-report-preview]").forEach((button) => {
+    button.addEventListener("click", () => historialReportPreviewDialog.close());
+  });
+  historialReportPreviewDialog?.addEventListener("close", closeHistorialReportPreview);
 
   setupPersonalPicker("gestion-filter", {
     inputId: "gestion-filter-personal-input",
@@ -36199,6 +36260,11 @@ async function init() {
     renderHistorialTable(historialRows);
   });
   historialTableBody?.addEventListener("click", (event) => {
+    const activityRow = event.target.closest("[data-historial-activity-edit]");
+    if (activityRow) {
+      void window.CoordinacionActividades?.openEdit(activityRow.dataset.historialActivityEdit);
+      return;
+    }
     const toggleButton = event.target.closest("[data-historial-toggle]");
     if (toggleButton) {
       const id = String(toggleButton.dataset.historialToggle || "");
