@@ -420,9 +420,14 @@ begin
     else
       v_pe_base := public.prorrata_pagas_extra(v_base_total, v_extras);
     end if;
-    select coalesce(sum(public.prorrata_pagas_extra(c.importe, v_extras)), 0) into v_pe_compl
+    -- Un complemento porcentual (p.ej. movilidad) prorratea su importe YA
+    -- calculado sobre el salario base, igual que uno fijo mensual.
+    select coalesce(sum(public.prorrata_pagas_extra(
+             round(case c.tipo when 'porcentaje' then v_base_total * c.porcentaje else c.importe end, 2),
+             v_extras)), 0) into v_pe_compl
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
-    where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
+    where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra
+      and (c.tipo = 'porcentaje' or (c.tipo = 'fijo' and c.unidad = 'mensual'));
   end if;
 
   -- La prorrata de pagas extra SIEMPRE cotiza (art. 147 LGSS), se devengue o no.
@@ -565,11 +570,17 @@ begin
       v_pe_base, 'prorrateo_extra'::text, v_todas;
     return query
     select (22 + row_number() over (order by c.orden_calculo, c.nombre))::integer,
-      'devengo'::text, c.nombre, format('%s × 8,333%% de %s€', v_extras, c.importe),
-      c.importe, round(v_extras * 0.08333, 6), null::numeric, null::numeric,
-      public.prorrata_pagas_extra(c.importe, v_extras), 'prorrateo_extra'::text, v_todas
+      'devengo'::text, c.nombre,
+      format('%s × 8,333%% de %s€', v_extras,
+             round(case c.tipo when 'porcentaje' then v_base_total * c.porcentaje else c.importe end, 2)),
+      round(case c.tipo when 'porcentaje' then v_base_total * c.porcentaje else c.importe end, 2),
+      round(v_extras * 0.08333, 6), null::numeric, null::numeric,
+      public.prorrata_pagas_extra(
+        round(case c.tipo when 'porcentaje' then v_base_total * c.porcentaje else c.importe end, 2),
+        v_extras), 'prorrateo_extra'::text, v_todas
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
-    where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
+    where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra
+      and (c.tipo = 'porcentaje' or (c.tipo = 'fijo' and c.unidad = 'mensual'));
   end if;
 
   v_bruto := v_dev_puestos + v_transporte + v_compl_total + v_extra_total + v_huerf_total

@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260929-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260929-6" />
   </head>
   <body>
     <script>
@@ -4752,6 +4752,14 @@
                     </fieldset>
                     <section class="full-width">
                       <p class="field-label">Personal implicado</p>
+                      <label class="contract-assignment-filter">
+                        Filtrar personal
+                        <input
+                          id="event-schedule-personnel-filter"
+                          type="search"
+                          placeholder="Nombre (busca también fuera del contrato)"
+                        />
+                      </label>
                       <div class="dual-list">
                         <section>
                           <h5>Disponible para montajes</h5>
@@ -4926,7 +4934,7 @@
                     <span>Adjuntos (fotos o documentos)</span>
                     <div id="avisos-new-dropzone" class="dropzone">
                       <svg class="dropzone-icon" aria-hidden="true">
-                        <use href="./icons.svg?v=20260929-2#icon-upload"></use>
+                        <use href="./icons.svg?v=20260929-6#icon-upload"></use>
                       </svg>
                       <p class="dropzone-text">
                         Arrastra y suelta los archivos, o haz clic para elegirlos
@@ -5711,7 +5719,21 @@
                   <p class="empty-state">Sin complementos asignados.</p>
                 </div>
 
-                <form id="personal-complemento-form" class="form-grid">
+                <div class="detail-actions">
+                  <button
+                    id="personal-complemento-clear-button"
+                    type="button"
+                    class="secondary-button"
+                    data-icon="new"
+                    data-icon-mode="icon-text"
+                    aria-controls="personal-complemento-form"
+                    aria-expanded="false"
+                  >
+                    Nuevo complemento
+                  </button>
+                </div>
+
+                <form id="personal-complemento-form" class="form-grid hidden">
                   <input type="hidden" id="personal-complemento-id" />
                   <label>
                     Complemento
@@ -5787,15 +5809,6 @@
                   <div class="detail-actions full-width">
                     <button id="personal-complemento-delete-button" type="button" class="danger-button hidden">
                       Eliminar complemento
-                    </button>
-                    <button
-                      id="personal-complemento-clear-button"
-                      type="button"
-                      class="secondary-button"
-                      data-icon="new"
-                      data-icon-mode="icon-text"
-                    >
-                      Nuevo complemento
                     </button>
                     <button type="submit">Guardar complemento</button>
                   </div>
@@ -10270,8 +10283,8 @@
     <script src="./config.js" defer></script>
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
-    <script src="./concilia-integrated.js?v=20260929-2" defer></script>
+    <script src="./concilia-integrated.js?v=20260929-6" defer></script>
     <script src="./facturacion.js?v=20260924-9" defer></script>
-    <script src="./app.js?v=20260929-2" defer></script>
+    <script src="./app.js?v=20260929-8" defer></script>
   </body>
 </html>

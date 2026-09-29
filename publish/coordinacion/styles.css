@@ -5290,7 +5290,25 @@ th {
 }
 
 .detail-form-section-grid.detail-form-section-grid-spans {
-  grid-template-columns: repeat(30, minmax(0, 1fr));
+  /* 300 columnas sin hueco: el ancho de cada campo (span) es un porcentaje fino
+     de la fila; la separación entre campos va como padding de cada label. */
+  grid-template-columns: repeat(300, minmax(0, 1fr));
+  column-gap: 0;
+}
+
+.detail-form-section-grid-spans > label {
+  padding-right: 10px;
+}
+
+/* Casillas compactas: el hueco entre campos va como margin (el padding es del
+   propio recuadro). */
+.detail-form-section-grid-spans > label.checkbox-item {
+  padding: 5px 6px;
+  margin-right: 10px;
+  gap: 6px;
+  font-size: 0.78rem;
+  min-width: 0;
+  align-self: end;
 }
 
 .detail-drawer label,

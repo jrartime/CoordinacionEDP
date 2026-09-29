@@ -1312,6 +1312,7 @@ const eventScheduleTransportDetailField = document.querySelector("#event-schedul
 const eventScheduleTransportDetailInput = document.querySelector("#event-schedule-transport-detail");
 const eventScheduleAvailablePersonnelSelect = document.querySelector("#event-schedule-available-personnel");
 const eventScheduleSelectedPersonnelSelect = document.querySelector("#event-schedule-selected-personnel");
+const eventSchedulePersonnelFilter = document.querySelector("#event-schedule-personnel-filter");
 const eventScheduleAddPersonnelButton = document.querySelector("#event-schedule-add-personnel-button");
 const eventScheduleRemovePersonnelButton = document.querySelector("#event-schedule-remove-personnel-button");
 const eventScheduleDeleteButton = document.querySelector("#event-schedule-delete-button");
@@ -12084,6 +12085,12 @@ function resetPersonalComplementoForm() {
     });
   personalComplementoDeleteButton?.classList.add("hidden");
   updatePersonalComplementoFormVisibility();
+  setPersonalComplementoFormOpen(false);
+}
+
+function setPersonalComplementoFormOpen(open) {
+  personalComplementoForm?.classList.toggle("hidden", !open);
+  personalComplementoClearButton?.setAttribute("aria-expanded", String(open));
 }
 
 function renderPersonalComplementosList() {
@@ -12181,6 +12188,7 @@ function openPersonalComplementoForEdit(complementoRowId) {
     return;
   }
   currentEditingPersonalComplementoId = String(row.id);
+  setPersonalComplementoFormOpen(true);
   if (personalComplementoIdInput) personalComplementoIdInput.value = row.id;
   if (personalComplementoSelect) personalComplementoSelect.value = String(row.complemento_id);
   if (personalComplementoFechaDesdeInput) personalComplementoFechaDesdeInput.value = formatNullableDate(row.fecha_desde) || "";
@@ -26714,27 +26722,27 @@ const HISTORIAL_FORM_FIELDS = [
   { key: "jornada_maxima", label: "Jornada máxima", type: "decimal", group: "periodo" },
   { key: "dias_periodo", label: "Días periodo", type: "number", readonly: true, group: "periodo" },
   { key: "coeficiente_temporalidad_miles", label: "Coef. temporalidad (‰)", type: "number", readonly: true, group: "periodo" },
-  { key: "contrato_laboral_id", label: "Contrato", type: "relation", group: "contrato", span: 5 },
-  { key: "modalidad_pago_id", label: "Modalidad de pago", type: "relation", group: "contrato", span: 7 },
-  { key: "tipo_contratacion_id", label: "Tipo contratación", type: "relation", group: "contrato", span: 7 },
-  { key: "motivo_baja_id", label: "Motivo baja", type: "relation", group: "contrato", span: 7 },
+  { key: "contrato_laboral_id", label: "Contrato", type: "relation", group: "contrato", span: 45 },
+  { key: "modalidad_pago_id", label: "Modalidad de pago", type: "relation", group: "contrato", span: 70 },
+  { key: "tipo_contratacion_id", label: "Tipo contratación", type: "relation", group: "contrato", span: 70 },
+  { key: "motivo_baja_id", label: "Motivo baja", type: "relation", group: "contrato", span: 70 },
   // Campo heredado de Access (1244 de 1245 periodos recientes lo tienen vacío): se oculta del formulario.
   { key: "movimiento", label: "Movimiento", type: "text", group: "contrato", hidden: true },
-  { key: "grupo_cotizacion", label: "Grupo cotización", type: "number", group: "cotizacion", span: 7 },
-  { key: "cotizacion_comunes_pct", label: "Cot. comunes (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 5 },
-  { key: "cotizacion_mei_pct", label: "Cot. MEI (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 5 },
-  { key: "cotizacion_formacion_pct", label: "Cot. formación (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 5 },
-  { key: "cotizacion_desempleo_pct", label: "Cot. desempleo (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 7 },
-  { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean", group: "salario" },
-  { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean", group: "salario" },
-  { key: "tiene_plus_transporte", label: "Plus transporte", type: "boolean", group: "salario" },
-  { key: "tiene_nocturnidad", label: "Nocturnidad", type: "boolean", group: "salario" },
-  { key: "horarios", label: "Horarios", type: "text", group: "estado" },
-  { key: "activo", label: "Activo", type: "boolean", group: "estado" },
-  { key: "enviado", label: "Enviado", type: "boolean", group: "estado" },
-  { key: "gestionado", label: "Gestionado", type: "boolean", group: "estado" },
-  { key: "tramitado", label: "Tramitado", type: "boolean", group: "estado" },
-  { key: "lenguaje_inclusivo", label: "Lenguaje inclusivo", type: "boolean", group: "estado" },
+  { key: "grupo_cotizacion", label: "Grupo cotización", type: "number", group: "cotizacion", span: 60 },
+  { key: "cotizacion_comunes_pct", label: "Cot. comunes (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 54 },
+  { key: "cotizacion_mei_pct", label: "Cot. MEI (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 48 },
+  { key: "cotizacion_formacion_pct", label: "Cot. formación (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 57 },
+  { key: "cotizacion_desempleo_pct", label: "Cot. desempleo (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 68 },
+  { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean", group: "salario", span: 82 },
+  { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean", group: "salario", span: 84 },
+  { key: "tiene_plus_transporte", label: "Plus transporte", type: "boolean", group: "salario", span: 60 },
+  { key: "tiene_nocturnidad", label: "Nocturnidad", type: "boolean", group: "salario", span: 46 },
+  { key: "horarios", label: "Horarios", type: "text", group: "estado", span: 200 },
+  { key: "activo", label: "Activo", type: "boolean", group: "estado", span: 40 },
+  { key: "enviado", label: "Enviado", type: "boolean", group: "estado", span: 45 },
+  { key: "gestionado", label: "Gestionado", type: "boolean", group: "estado", span: 55 },
+  { key: "tramitado", label: "Tramitado", type: "boolean", group: "estado", span: 50 },
+  { key: "lenguaje_inclusivo", label: "Lenguaje inclusivo", type: "boolean", group: "estado", span: 75 },
   { key: "observaciones", label: "Observaciones", type: "textarea", group: "notas" },
   { key: "notas", label: "Notas", type: "textarea", group: "notas" },
 ];
@@ -26743,8 +26751,8 @@ const HISTORIAL_DETAIL_FIELD_GROUPS = [
   { key: "periodo", label: "Periodo" },
   { key: "contrato", label: "Contrato y modalidad", spanGrid: true },
   { key: "cotizacion", label: "Cotización", spanGrid: true },
-  { key: "salario", label: "Salario y complementos" },
-  { key: "estado", label: "Estado y gestión" },
+  { key: "salario", label: "Salario y complementos", spanGrid: true },
+  { key: "estado", label: "Estado y gestión", spanGrid: true },
   { key: "notas", label: "Notas" },
 ];
 const HISTORIAL_FIELD_BY_KEY = new Map(HISTORIAL_FORM_FIELDS.map((field) => [field.key, field]));
@@ -29165,7 +29173,7 @@ function renderHistorialRelationSelect(field, value, readonly) {
 
 function renderHistorialDetailFieldControl(field, row) {
   const html = renderHistorialDetailFieldControlInner(field, row);
-  // span: anchura en 30avos de fila (10 = una celda estándar de 3 por fila).
+  // span: anchura en 300avos de fila (100 = una celda estándar de 3 por fila).
   return field.span ? html.replace(/^<label/, `<label style="grid-column: span ${field.span}"`) : html;
 }
 
@@ -32537,8 +32545,15 @@ function renderEventSchedulePersonnelLists() {
     return;
   }
 
+  // Sin filtro solo se ofrece el personal del contrato; al escribir se busca en
+  // todo el personal, para poder asignar a quien no esté adscrito al contrato.
   const contractPersonnelRows = getEventContractPersonnelRows(getCurrentEventContractId());
-  const availableRows = contractPersonnelRows.filter((row) => {
+  const contractPersonnelIds = new Set(contractPersonnelRows.map((row) => Number(row.id)));
+  const filterText = normalizeSearchText(eventSchedulePersonnelFilter?.value || "");
+  const candidateRows = filterText
+    ? eventPersonnelRows.filter((row) => normalizeSearchText(row.personal).includes(filterText))
+    : contractPersonnelRows;
+  const availableRows = candidateRows.filter((row) => {
     const id = Number(row.id);
     return !currentEventScheduleSelectedPersonnelIds.has(id);
   });
@@ -32547,7 +32562,10 @@ function renderEventSchedulePersonnelLists() {
   );
 
   eventScheduleAvailablePersonnelSelect.innerHTML = availableRows
-    .map((row) => `<option value="${row.id}">${escapeHtml(row.personal)}</option>`)
+    .map((row) => {
+      const outside = contractPersonnelIds.has(Number(row.id)) ? "" : " · fuera del contrato";
+      return `<option value="${row.id}">${escapeHtml(row.personal)}${outside}</option>`;
+    })
     .join("");
   eventScheduleSelectedPersonnelSelect.innerHTML = selectedRows
     .map((row) => `<option value="${row.id}">${escapeHtml(row.personal)}</option>`)
@@ -33636,6 +33654,9 @@ function getSelectedEvent() {
 
 function resetEventScheduleForm() {
   eventScheduleForm?.reset();
+  if (eventSchedulePersonnelFilter) {
+    eventSchedulePersonnelFilter.value = "";
+  }
   if (eventScheduleIdInput) {
     eventScheduleIdInput.value = "";
   }
@@ -34865,7 +34886,11 @@ async function init() {
       updatePersonalComplementoFormVisibility();
     }
   });
-  personalComplementoClearButton?.addEventListener("click", resetPersonalComplementoForm);
+  personalComplementoClearButton?.addEventListener("click", () => {
+    const wasOpen = personalComplementoForm && !personalComplementoForm.classList.contains("hidden");
+    resetPersonalComplementoForm();
+    setPersonalComplementoFormOpen(!wasOpen);
+  });
   personalComplementoDeleteButton?.addEventListener("click", () => {
     if (currentEditingPersonalComplementoId) {
       void deletePersonalComplemento(currentEditingPersonalComplementoId);
@@ -34926,6 +34951,7 @@ async function init() {
     }
   });
   contractPersonalFilter?.addEventListener("input", debounce(renderContractAssignmentOptions, 160));
+  eventSchedulePersonnelFilter?.addEventListener("input", debounce(renderEventSchedulePersonnelLists, 160));
   contractInstallationAddButton?.addEventListener("click", () => {
     void setContractInstallationBatch(getSelectedOptionValues(contractInstallationAvailableSelect), true);
   });
