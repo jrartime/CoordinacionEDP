@@ -5289,6 +5289,10 @@ th {
   gap: 8px 10px;
 }
 
+.detail-form-section-grid.detail-form-section-grid-spans {
+  grid-template-columns: repeat(30, minmax(0, 1fr));
+}
+
 .detail-drawer label,
 .detail-drawer fieldset {
   gap: 1px;
@@ -6641,8 +6645,13 @@ th {
   #personal-form-fields,
   .personal-form-section-grid,
   .detail-form-section-grid,
+  .detail-form-section-grid.detail-form-section-grid-spans,
   .toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .detail-form-section-grid-spans > label {
+    grid-column: auto !important;
   }
 
   .private-tab-panel .filters-grid.personal-list-filters {

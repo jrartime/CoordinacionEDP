@@ -1,0 +1,60 @@
+name: Desplegar en IONOS
+
+# Despliegue manual: Actions -> "Desplegar en IONOS" -> Run workflow.
+# Regenera publish/ (sin tocar config.js) y lo sube por FTP a cada subdominio.
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "App a desplegar"
+        type: choice
+        default: todas
+        options:
+          - todas
+          - coordinacion
+          - concilia
+          - curriculos
+          - programacion
+          - pequecampus
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [coordinacion, concilia, curriculos, programacion, pequecampus]
+    steps:
+      - name: Omitir si no es la app elegida
+        id: gate
+        run: |
+          if [ "${{ inputs.app }}" = "todas" ] || [ "${{ inputs.app }}" = "${{ matrix.app }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      # publish.ps1 copia las fuentes a publish/ y reescribe ../shared/ -> ./shared/.
+      # -SkipConfig: los config.js no están en git; el de IONOS no se toca.
+      - name: Generar publish/
+        if: steps.gate.outputs.run == 'true'
+        shell: pwsh
+        run: ./scripts/publish.ps1 -SkipConfig
+
+      - name: Subir por FTP
+        if: steps.gate.outputs.run == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets[format('FTP_USER_{0}', matrix.app)] }}
+          password: ${{ secrets[format('FTP_PASSWORD_{0}', matrix.app)] }}
+          local-dir: ./publish/${{ matrix.app }}/
+          server-dir: /
+          # Nunca sobrescribir la configuración real de IONOS.
+          exclude: |
+            **/config.js
+            **/.git*/**
+            **/*.zip

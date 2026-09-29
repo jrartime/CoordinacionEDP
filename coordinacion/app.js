@@ -26714,16 +26714,17 @@ const HISTORIAL_FORM_FIELDS = [
   { key: "jornada_maxima", label: "Jornada máxima", type: "decimal", group: "periodo" },
   { key: "dias_periodo", label: "Días periodo", type: "number", readonly: true, group: "periodo" },
   { key: "coeficiente_temporalidad_miles", label: "Coef. temporalidad (‰)", type: "number", readonly: true, group: "periodo" },
-  { key: "contrato_laboral_id", label: "Contrato", type: "relation", group: "contrato" },
-  { key: "modalidad_pago_id", label: "Modalidad de pago", type: "relation", group: "contrato" },
-  { key: "tipo_contratacion_id", label: "Tipo contratación", type: "relation", group: "contrato" },
-  { key: "motivo_baja_id", label: "Motivo baja", type: "relation", group: "contrato" },
-  { key: "movimiento", label: "Movimiento", type: "text", group: "contrato" },
-  { key: "grupo_cotizacion", label: "Grupo cotización", type: "number", group: "cotizacion" },
-  { key: "cotizacion_comunes_pct", label: "Cotización comunes (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
-  { key: "cotizacion_mei_pct", label: "Cotización MEI (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
-  { key: "cotizacion_formacion_pct", label: "Cotización formación (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
-  { key: "cotizacion_desempleo_pct", label: "Cotización desempleo (%)", type: "decimal", step: "0.000001", group: "cotizacion" },
+  { key: "contrato_laboral_id", label: "Contrato", type: "relation", group: "contrato", span: 5 },
+  { key: "modalidad_pago_id", label: "Modalidad de pago", type: "relation", group: "contrato", span: 7 },
+  { key: "tipo_contratacion_id", label: "Tipo contratación", type: "relation", group: "contrato", span: 7 },
+  { key: "motivo_baja_id", label: "Motivo baja", type: "relation", group: "contrato", span: 7 },
+  // Campo heredado de Access (1244 de 1245 periodos recientes lo tienen vacío): se oculta del formulario.
+  { key: "movimiento", label: "Movimiento", type: "text", group: "contrato", hidden: true },
+  { key: "grupo_cotizacion", label: "Grupo cotización", type: "number", group: "cotizacion", span: 7 },
+  { key: "cotizacion_comunes_pct", label: "Cot. comunes (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 5 },
+  { key: "cotizacion_mei_pct", label: "Cot. MEI (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 5 },
+  { key: "cotizacion_formacion_pct", label: "Cot. formación (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 5 },
+  { key: "cotizacion_desempleo_pct", label: "Cot. desempleo (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 7 },
   { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean", group: "salario" },
   { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean", group: "salario" },
   { key: "tiene_plus_transporte", label: "Plus transporte", type: "boolean", group: "salario" },
@@ -26740,8 +26741,8 @@ const HISTORIAL_FORM_FIELDS = [
 const HISTORIAL_DETAIL_FIELD_GROUPS = [
   { key: "identificacion", label: "Identificación" },
   { key: "periodo", label: "Periodo" },
-  { key: "contrato", label: "Contrato y modalidad" },
-  { key: "cotizacion", label: "Cotización" },
+  { key: "contrato", label: "Contrato y modalidad", spanGrid: true },
+  { key: "cotizacion", label: "Cotización", spanGrid: true },
   { key: "salario", label: "Salario y complementos" },
   { key: "estado", label: "Estado y gestión" },
   { key: "notas", label: "Notas" },
@@ -27826,6 +27827,14 @@ async function openHistorialReportPanel() {
   if (!historialDetailSnapshot?.id) {
     setStatus("Abre un periodo de historial laboral antes de generar el informe.", "error");
     return;
+  }
+  // Guardado automático: el informe se genera con lo que hay en el formulario.
+  if (historialDetailMode === "edit" && hasUnsavedFormChanges(historialDetailForm)) {
+    await saveHistorialDetail();
+    if (hasUnsavedFormChanges(historialDetailForm) || !historialDetailSnapshot?.id) {
+      // Validación fallida, solape rechazado o error: no se genera con datos sin guardar.
+      return;
+    }
   }
   try {
     const supabase = await getSupabaseClient();
@@ -29155,6 +29164,12 @@ function renderHistorialRelationSelect(field, value, readonly) {
 }
 
 function renderHistorialDetailFieldControl(field, row) {
+  const html = renderHistorialDetailFieldControlInner(field, row);
+  // span: anchura en 30avos de fila (10 = una celda estándar de 3 por fila).
+  return field.span ? html.replace(/^<label/, `<label style="grid-column: span ${field.span}"`) : html;
+}
+
+function renderHistorialDetailFieldControlInner(field, row) {
   const value = row[field.key];
   const name = escapeHtml(field.key);
   const label = escapeHtml(field.label);
@@ -29189,14 +29204,14 @@ function renderHistorialDetailForm(row) {
   }
 
   historialDetailFields.innerHTML = HISTORIAL_DETAIL_FIELD_GROUPS.map((groupDef) => {
-    const fields = HISTORIAL_FORM_FIELDS.filter((field) => field.group === groupDef.key);
+    const fields = HISTORIAL_FORM_FIELDS.filter((field) => field.group === groupDef.key && !field.hidden);
     if (!fields.length) {
       return "";
     }
     return `
       <fieldset class="detail-form-section">
         <legend>${escapeHtml(groupDef.label)}</legend>
-        <div class="detail-form-section-grid">
+        <div class="detail-form-section-grid${groupDef.spanGrid ? " detail-form-section-grid-spans" : ""}">
           ${fields.map((field) => renderHistorialDetailFieldControl(field, row)).join("")}
         </div>
       </fieldset>
@@ -29426,7 +29441,7 @@ function collectHistorialDetailPayload({ full = false } = {}) {
   const formData = new FormData(historialDetailForm);
   const payload = {};
   HISTORIAL_FORM_FIELDS.forEach((field) => {
-    if (field.readonly) {
+    if (field.readonly || field.hidden) {
       return;
     }
     const control = historialDetailForm.elements[field.key];
@@ -29686,7 +29701,7 @@ async function duplicateHistorialDetail() {
     // Tomamos los valores actuales del formulario como semilla del nuevo periodo.
     const seed = {};
     HISTORIAL_FORM_FIELDS.forEach((field) => {
-      if (field.readonly) return;
+      if (field.readonly || field.hidden) return;
       const control = historialDetailForm?.elements[field.key];
       const rawValue = field.type === "boolean" ? Boolean(control?.checked) : control?.value;
       seed[field.key] = parseHistorialFieldValue(rawValue, field);
