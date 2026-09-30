@@ -270,6 +270,7 @@ declare
   v_d_comunes numeric; v_d_mei numeric; v_d_desempleo numeric;
   v_d_formacion numeric; v_d_irpf numeric; v_ded_total numeric;
   v_manual boolean := p_manual_importe is not null;
+  v_susp boolean := false;
   v_manual_excl bigint[] := coalesce(p_manual_complementos, '{}'::bigint[]);
   v_manual_dias integer := 0; v_manual_horas numeric := 0;
   v_manual_total numeric := 0; v_manual_detalle text;
@@ -287,6 +288,26 @@ begin
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde)
   order by dias_solape desc, h.id limit 1;
   if hp.id is null then return; end if;
+
+  -- PERIODO ENTERO SUSPENDIDO (2026-09-30). Si todos los historiales del
+  -- periodo caen por completo dentro de un permiso con tratamiento_nomina =
+  -- 'suspendido' (maternidad/paternidad, excedencia), la persona no trabaja ni
+  -- devenga nada: tampoco antiguedad ni otros complementos asignados, ni su
+  -- prorrata de pagas extra, ni se sube la base al minimo de cotizacion. La
+  -- nomina queda a cero. Caso de referencia: Carmen Maseda Fernandez,
+  -- septiembre 2026 (alta solo el 01/09, permiso hasta el 01/09): salia
+  -- Antiguedad 58,04 EUR con el salario base a 0. Si la suspension es
+  -- parcial, cada complemento se paga entero como hasta ahora.
+  select count(*) > 0 and bool_and(public.dias_nomina_con_permisos(
+           h.personal_id, greatest(h.fecha_alta, p_desde),
+           least(coalesce(h.fecha_baja, p_hasta), p_hasta), h.empresa_id) = 0)
+    into v_susp
+  from public.historiales_laborales h
+  where h.personal_id = p_personal_id
+    and (p_empresa_id is null or h.empresa_id = p_empresa_id)
+    and (p_historial_ids is null or h.id = any(p_historial_ids))
+    and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde);
+  v_susp := coalesce(v_susp, false);
 
   select pu.convenio_id into v_convenio_id from public.puestos pu where pu.id = hp.puesto_id;
   if v_convenio_id is not null then
@@ -380,6 +401,9 @@ begin
            p_base_calculo, p_ajuste_jornada) cp
     where not (cp.concepto = any(coalesce(p_manual_conceptos_dentro, '{}'::text[])));
 
+    if v_susp then
+      v_base_total := 0; v_manual_fuera := 0; v_manual_total := 0;
+    end if;
     v_dev_puestos := v_base_total + v_manual_fuera;
   end if;
 
@@ -396,7 +420,7 @@ begin
     and (p_historial_ids is null or h.id = any(p_historial_ids))
     and h.fecha_alta <= p_hasta and (h.fecha_baja is null or h.fecha_baja >= p_desde);
 
-  if p_manual_transporte then
+  if p_manual_transporte or v_susp then
     v_tarifa_transp := 0;
   end if;
   if v_tarifa_transp > 0 then
@@ -423,7 +447,7 @@ begin
           when 'por_hora' then c.importe * (case c.medida_horas when 'horas_nocturnas' then v_horas_noct else 0 end)
           else c.importe end end, 2) as imp
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
-    where not (c.id = any(v_manual_excl))
+    where not v_susp and not (c.id = any(v_manual_excl))
   loop
     v_compl_total := v_compl_total + r.imp;
     if 'comunes'   = any(coalesce(r.cotiza_en, v_todas)) then v_b_comunes   := v_b_comunes   + r.imp; end if;
@@ -454,7 +478,7 @@ begin
     into v_huerf_total
   from public.get_horas_sin_historial(
          p_personal_id, p_desde, p_hasta, p_empresa_id, p_historial_ids) hs
-  where hs.tipo_hora_id in (2, 3) and not hs.sin_ningun_historial;
+  where not v_susp and hs.tipo_hora_id in (2, 3) and not hs.sin_ningun_historial;
 
   v_b_comunes   := v_b_comunes   + v_huerf_total;
   v_b_mei       := v_b_mei       + v_huerf_total;
@@ -462,7 +486,7 @@ begin
   v_b_formacion := v_b_formacion + v_huerf_total;
   v_b_irpf      := v_b_irpf      + v_huerf_total;
 
-  if v_extras > 0 then
+  if v_extras > 0 and not v_susp then
     if v_manual and p_manual_pagas_incluidas then
       v_pe_base := v_manual_total - v_base_total;
     else
@@ -470,7 +494,7 @@ begin
     end if;
     select coalesce(sum(public.prorrata_pagas_extra(c.importe, v_extras)), 0) into v_pe_compl
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
-    where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
+    where not v_susp and not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
 
   v_b_comunes   := v_b_comunes   + v_pe_base + v_pe_compl;
@@ -495,7 +519,8 @@ begin
     from public.get_conceptos_puesto_nomina(
            p_personal_id, p_desde, p_hasta, p_empresa_id, p_historial_ids,
            p_base_calculo, p_ajuste_jornada) cp
-    where not (cp.concepto = any(coalesce(p_manual_conceptos_dentro, '{}'::text[])));
+    where not v_susp
+      and not (cp.concepto = any(coalesce(p_manual_conceptos_dentro, '{}'::text[])));
   else
     return query
     select x.orden, 'devengo'::text, x.concepto, null::text, null::numeric, null::numeric,
@@ -547,7 +572,7 @@ begin
         else c.importe end end, 2),
     null::text, coalesce(c.cotiza_en, v_todas)
   from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
-  where not (c.id = any(v_manual_excl));
+  where not v_susp and not (c.id = any(v_manual_excl));
 
   if p_complementos_extra is not null and jsonb_typeof(p_complementos_extra) = 'array' then
     return query
@@ -576,7 +601,7 @@ begin
     null::text, v_todas
   from public.get_horas_sin_historial(
          p_personal_id, p_desde, p_hasta, p_empresa_id, p_historial_ids) hs
-  where hs.tipo_hora_id in (2, 3) and not hs.sin_ningun_historial;
+  where not v_susp and hs.tipo_hora_id in (2, 3) and not hs.sin_ningun_historial;
 
   if coalesce(v_prorrateo, false) and (v_pe_base + v_pe_compl) <> 0 then
     return query select 20, 'devengo'::text, 'Prorrateo pagas extra'::text,
@@ -595,13 +620,13 @@ begin
       c.importe, round(v_extras * 0.08333, 6), null::numeric, null::numeric,
       public.prorrata_pagas_extra(c.importe, v_extras), 'prorrateo_extra'::text, v_todas
     from public.get_personal_complementos_vigentes(p_personal_id, p_desde) c
-    where not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
+    where not v_susp and not (c.id = any(v_manual_excl)) and c.prorratea_en_extra and c.tipo = 'fijo' and c.unidad = 'mensual';
   end if;
 
   v_bruto := v_dev_puestos + v_transporte + v_compl_total + v_extra_total + v_huerf_total
     + (case when coalesce(v_prorrateo, false) then v_pe_base + v_pe_compl else 0 end);
 
-  if p_aplicar_topes_cotizacion and hp.grupo_cotizacion is not null then
+  if p_aplicar_topes_cotizacion and hp.grupo_cotizacion is not null and not v_susp then
     select t.* into v_tope
     from public.cotizacion_topes t
     where t.grupo_cotizacion = hp.grupo_cotizacion

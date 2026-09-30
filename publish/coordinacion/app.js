@@ -19125,7 +19125,14 @@ async function saveRecordPatch(recordId, patch) {
   }
 
   updateRecordRowsLocally(recordId, finalPatch);
-  if (patchTouchesRecordRelation(finalPatch)) {
+  // El trigger trg_registro_ftrab_factor (registros_ftrab_factor.sql) aplica el
+  // x1,75 al festivo trabajado en base: si la fila es o era FTRAB y cambia el
+  // horario, las horas locales quedarían sin recargo hasta recargar.
+  const tocaFtrab =
+    (row?.tipo_hora_id === 4 || finalPatch.tipo_hora_id === 4) &&
+    ["hora_inicio", "hora_fin", "horas", "situacion_id"].some((key) =>
+      Object.prototype.hasOwnProperty.call(finalPatch, key));
+  if (tocaFtrab || patchTouchesRecordRelation(finalPatch)) {
     await loadRecords();
   }
 }
@@ -21336,7 +21343,6 @@ function renderPersonalPickerSuggestions(state) {
   if (query) {
     options = options.filter((option) => normalizeSearchText(option.label).includes(query));
   }
-  options = options.slice(0, 60);
 
   if (!options.length || (!query && state.inputEl !== document.activeElement)) {
     state.suggestionsEl.classList.add("hidden");
@@ -21672,6 +21678,7 @@ let gestionExtraCatalogo = [];
 const GESTION_CONCEPTO_CODIGO_NOMINA = new Map([
   ["prorrateo pagas extra", 30],
   ["plus festivo trabajado", 12],
+  ["plus de disponibilidad", 93],
   ["descuento por absentismo", 790],
   ["horas complementarias de otro puesto", 67],
   ["montaje de otro puesto", 60],

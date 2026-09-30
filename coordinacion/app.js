@@ -2362,6 +2362,31 @@ function setStatus(message, tone = "default") {
   }
 }
 
+// El mensaje de estado es fijo en la esquina y se quedaba hasta que otro lo
+// sustituía. Ahora se retira con la siguiente acción del usuario (un clic en
+// cualquier sitio, incluido cambiar de pestaña). El margen de 400 ms evita que
+// el mismo clic que lo provoca lo borre. Se aplica también al mensaje propio de
+// las pestañas de Concilia (#concilia-status-message), que funciona igual.
+(function setupStatusMessageAutoDismiss() {
+  const elements = [statusMessage, document.querySelector("#concilia-status-message")].filter(Boolean);
+  for (const element of elements) {
+    let shownAt = 0;
+    new MutationObserver(() => {
+      shownAt = Date.now();
+    }).observe(element, { childList: true, characterData: true, subtree: true });
+    document.addEventListener(
+      "click",
+      (event) => {
+        if (!element.textContent || Date.now() - shownAt < 400) return;
+        if (element.contains(event.target)) return;
+        element.textContent = "";
+        element.className = "status-message";
+      },
+      true
+    );
+  }
+})();
+
 // Supabase devuelve los errores de auth en inglés; los habituales se traducen
 // para que el aviso del login sea legible.
 const AUTH_ERROR_MESSAGES = {
@@ -16926,7 +16951,7 @@ function invalidateRecordsReportPreview(message = "La previsualizacion se actual
     }
     if (recordsReportPreviewContent) {
       recordsReportPreviewContent.innerHTML =
-        '<p class="empty-state">Los filtros han cambiado. Pulsa Previsualizar informe para regenerar la vista.</p>';
+        '<p class="empty-state">Los filtros han cambiado. Pulsa Informe para regenerar la vista.</p>';
     }
   }
 }
@@ -17606,7 +17631,8 @@ function renderPersonReportPreview(data, range) {
 function setRecordsPersonReportDownloadsEnabled(enabled) {
   if (recordsPersonReportCsvButton) recordsPersonReportCsvButton.disabled = !enabled;
   if (recordsPersonReportPdfButton) recordsPersonReportPdfButton.disabled = !enabled;
-  if (recordsPersonReportImageButton) recordsPersonReportImageButton.disabled = !enabled;
+  if (copyRecordsPersonReportImageButton) copyRecordsPersonReportImageButton.disabled = !enabled;
+  if (downloadRecordsPersonReportImageButton) downloadRecordsPersonReportImageButton.disabled = !enabled;
 }
 
 function invalidateRecordsPersonReport(message = "Los filtros han cambiado. Vuelve a generar el informe.") {
@@ -18116,44 +18142,32 @@ function drawRecordsPersonReportImage(data, range) {
   return canvas;
 }
 
-function showRecordsPersonReportImage() {
+// La imagen se dibuja al pulsar Copiar/Descargar, a partir del informe abierto en el panel.
+function buildRecordsPersonReportImage() {
   if (!recordsPersonReportPayload) {
-    alert("Abre primero la previsualización del informe.");
-    return;
+    throw new Error("Abre primero el informe individual.");
   }
-  try {
-    const { data, range } = recordsPersonReportPayload;
-    currentRecordsPersonReportImageCanvas = drawRecordsPersonReportImage(data, range);
-    currentRecordsPersonReportImageFileName = getRecordsPersonReportImageFileName(
-      data.personName,
-      range.from,
-      range.to
-    );
-    if (recordsPersonReportImagePreview) {
-      recordsPersonReportImagePreview.src = currentRecordsPersonReportImageCanvas.toDataURL("image/png");
-    }
-    recordsPersonReportImagePanel?.classList.remove("hidden");
-    setStatus("Imagen del informe individual generada correctamente.", "success");
-  } catch (error) {
-    setStatus(error?.message || "No se pudo generar la imagen del informe individual.", "error");
-  }
-}
-
-function closeRecordsPersonReportImagePanel() {
-  recordsPersonReportImagePanel?.classList.add("hidden");
+  const { data, range } = recordsPersonReportPayload;
+  currentRecordsPersonReportImageCanvas = drawRecordsPersonReportImage(data, range);
+  currentRecordsPersonReportImageFileName = getRecordsPersonReportImageFileName(
+    data.personName,
+    range.from,
+    range.to
+  );
 }
 
 async function copyRecordsPersonReportImageToClipboard() {
   try {
-    if (!currentRecordsPersonReportImageCanvas) {
-      throw new Error("Genera primero la imagen del informe.");
-    }
+    buildRecordsPersonReportImage();
     if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
       throw new Error("El navegador no permite copiar imagenes al portapapeles.");
     }
     const blob = await canvasToBlob(currentRecordsPersonReportImageCanvas);
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
     setStatus("Imagen copiada al portapapeles.", "success");
+    // El mensaje de estado general cuelga del final de la página y no se ve con
+    // el panel abierto: el aviso flotante sí.
+    showPublicToastMessage("Imagen copiada");
   } catch (error) {
     setStatus(error?.message || "No se pudo copiar la imagen.", "error");
   }
@@ -18161,9 +18175,7 @@ async function copyRecordsPersonReportImageToClipboard() {
 
 async function downloadRecordsPersonReportImage() {
   try {
-    if (!currentRecordsPersonReportImageCanvas) {
-      throw new Error("Genera primero la imagen del informe.");
-    }
+    buildRecordsPersonReportImage();
     const blob = await canvasToBlob(currentRecordsPersonReportImageCanvas);
     triggerDownload(blob, currentRecordsPersonReportImageFileName || "informe-horas.png");
     setStatus("Imagen descargada correctamente.", "success");
@@ -18379,11 +18391,6 @@ const recordsPersonReportContent = document.querySelector("#records-person-repor
 const recordsPersonReportCloseButton = document.querySelector("#records-person-report-close-button");
 const recordsPersonReportCsvButton = document.querySelector("#records-person-report-csv-button");
 const recordsPersonReportPdfButton = document.querySelector("#records-person-report-pdf-button");
-const recordsPersonReportImageButton = document.querySelector("#records-person-report-image-button");
-const recordsPersonReportImageBackdrop = document.querySelector("#records-person-report-image-backdrop");
-const recordsPersonReportImagePanel = document.querySelector("#records-person-report-image-panel");
-const recordsPersonReportImagePreview = document.querySelector("#records-person-report-image-preview");
-const closeRecordsPersonReportImageButton = document.querySelector("#close-records-person-report-image-button");
 const copyRecordsPersonReportImageButton = document.querySelector("#copy-records-person-report-image-button");
 const downloadRecordsPersonReportImageButton = document.querySelector(
   "#download-records-person-report-image-button"
@@ -19125,7 +19132,14 @@ async function saveRecordPatch(recordId, patch) {
   }
 
   updateRecordRowsLocally(recordId, finalPatch);
-  if (patchTouchesRecordRelation(finalPatch)) {
+  // El trigger trg_registro_ftrab_factor (registros_ftrab_factor.sql) aplica el
+  // x1,75 al festivo trabajado en base: si la fila es o era FTRAB y cambia el
+  // horario, las horas locales quedarían sin recargo hasta recargar.
+  const tocaFtrab =
+    (row?.tipo_hora_id === 4 || finalPatch.tipo_hora_id === 4) &&
+    ["hora_inicio", "hora_fin", "horas", "situacion_id"].some((key) =>
+      Object.prototype.hasOwnProperty.call(finalPatch, key));
+  if (tocaFtrab || patchTouchesRecordRelation(finalPatch)) {
     await loadRecords();
   }
 }
@@ -21336,7 +21350,6 @@ function renderPersonalPickerSuggestions(state) {
   if (query) {
     options = options.filter((option) => normalizeSearchText(option.label).includes(query));
   }
-  options = options.slice(0, 60);
 
   if (!options.length || (!query && state.inputEl !== document.activeElement)) {
     state.suggestionsEl.classList.add("hidden");
@@ -21672,6 +21685,7 @@ let gestionExtraCatalogo = [];
 const GESTION_CONCEPTO_CODIGO_NOMINA = new Map([
   ["prorrateo pagas extra", 30],
   ["plus festivo trabajado", 12],
+  ["plus de disponibilidad", 93],
   ["descuento por absentismo", 790],
   ["horas complementarias de otro puesto", 67],
   ["montaje de otro puesto", 60],
@@ -36443,9 +36457,6 @@ async function init() {
   recordsPersonReportBackdrop?.addEventListener("click", closeRecordsPersonReport);
   recordsPersonReportCsvButton?.addEventListener("click", exportRecordsPersonReportCsv);
   recordsPersonReportPdfButton?.addEventListener("click", () => void exportRecordsPersonReportPdf());
-  recordsPersonReportImageButton?.addEventListener("click", showRecordsPersonReportImage);
-  closeRecordsPersonReportImageButton?.addEventListener("click", closeRecordsPersonReportImagePanel);
-  recordsPersonReportImageBackdrop?.addEventListener("click", closeRecordsPersonReportImagePanel);
   copyRecordsPersonReportImageButton?.addEventListener("click", () => {
     void copyRecordsPersonReportImageToClipboard();
   });

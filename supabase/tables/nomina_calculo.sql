@@ -847,17 +847,15 @@ begin
     -- la bolsa no genera pago (igual que cualquier hora REG en esa
     -- modalidad); si lo que se saca es HCOMP/MONT/FTRAB, sí se paga, vía las
     -- líneas 66/67/80 de mas abajo, igual que cualquier registro de ese tipo.
-    if coalesce(v_precio_jornada, 0) > 0 and v_deficit_banco_reg > 0 then
-      return query select 63, 'Horas metidas en la bolsa'::text,
-        format('%s h × %s€/h teórica%s',
-               round(v_deficit_banco_reg, 2), round(v_precio_jornada, 4),
-               case when v_horas_banked_reg > v_deficit_banco_reg
-                    then format(' (de %s h bancarizadas, %s ya eran de sobre jornada y no se descuentan)',
-                                round(v_horas_banked_reg, 2), round(v_horas_banked_reg - v_deficit_banco_reg, 2))
-                    else '' end),
-        null::numeric, round(v_deficit_banco_reg, 2), round(v_precio_jornada, 4),
-        round(-1 * v_deficit_banco_reg * v_precio_jornada, 2), null::text;
-    end if;
+    -- DECISION 2026-09-30 (opcion A): en Jornada la bolsa NO toca la nomina. Se
+    -- retiro la linea 63 "Horas metidas en la bolsa" (descontaba las horas
+    -- bancarizadas que hacian falta para cubrir la jornada teorica): con saldo 0
+    -- generaba un descuento (Alba Queipo, septiembre 2026: -52,64 EUR) porque las
+    -- horas que SALEN de la bolsa no se acreditaban en ninguna linea. La bolsa
+    -- lleva su propia cuenta (registro_apuntes) independiente de los pagos.
+    -- v_horas_jornada_bruta/v_exceso_antes_banco/v_deficit_banco_reg quedan
+    -- calculadas pero ya sin uso.
+    null;
   else
     v_valor_reg := round(v_precio_jornada * v_horas_jornada, 2);
     v_dif := v_valor_reg + v_valor_extra - v_valor_jornada;
@@ -918,20 +916,42 @@ begin
 
   if coalesce(v_precio_hora_jc, 0) > 0 then
     return query
+    -- Las horas de festivo metidas en la bolsa (BOLSA_ENTRA del registro) no se
+    -- abonan (2026-09-30). Se descuenta la fraccion bancarizada sobre la duracion
+    -- real del horario, asi vale tanto si registros.horas lleva ya el x1,75 como
+    -- si no; sin horario, se resta la cantidad tal cual.
     select 80, 'Plus festivo trabajado'::text,
-      format('%s h festivas (×1,75 incluido) × %s€/h a jornada completa',
-             round(sum(r.horas)::numeric, 2), round(v_precio_hora_jc, 4)),
-      null::numeric, round(sum(r.horas)::numeric, 2), round(v_precio_hora_jc, 4),
-      round(sum(r.horas)::numeric * v_precio_hora_jc, 2), null::text
-    from public.registros r
-    where r.personal_id = h.personal_id
-      and (r.puesto_id = h.puesto_id or (p_incluir_huerfanas
-           and public.es_puesto_sin_historial(r.personal_id, r.puesto_id, r.empresa_id, r.fecha)))
-      and (h.empresa_id is null or r.empresa_id = h.empresa_id)
-      and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
-      and r.fecha >= v_desde and r.fecha <= v_hasta
-      and r.tipo_hora_id = 4
-    having sum(r.horas) > 0;
+      format('%s h festivas (×1,75 incluido) × %s€/h a jornada completa%s',
+             round(sum(x.pagadas)::numeric, 2), round(v_precio_hora_jc, 4),
+             case when sum(x.horas) - sum(x.pagadas) > 0.005
+                  then format(' (%s h metidas en la bolsa no se abonan)', round((sum(x.horas) - sum(x.pagadas))::numeric, 2))
+                  else '' end),
+      null::numeric, round(sum(x.pagadas)::numeric, 2), round(v_precio_hora_jc, 4),
+      round(sum(x.pagadas)::numeric * v_precio_hora_jc, 2), null::text
+    from (
+      select r.horas::numeric as horas,
+             case when du.dur > 0 then r.horas::numeric * greatest(0, 1 - b.cant / du.dur)
+                  else greatest(r.horas::numeric - b.cant, 0) end as pagadas
+      from public.registros r
+      cross join lateral (
+        select coalesce(sum(a.cantidad), 0)::numeric as cant
+        from public.registro_apuntes a
+        where a.registro_id = r.id and a.movimiento = 'BOLSA_ENTRA'
+      ) b
+      cross join lateral (
+        select case when r.hora_inicio is not null and r.hora_fin is not null
+                    then (extract(epoch from (r.hora_fin - r.hora_inicio)) / 3600.0
+                          + case when r.hora_fin <= r.hora_inicio then 24 else 0 end)::numeric end as dur
+      ) du
+      where r.personal_id = h.personal_id
+        and (r.puesto_id = h.puesto_id or (p_incluir_huerfanas
+             and public.es_puesto_sin_historial(r.personal_id, r.puesto_id, r.empresa_id, r.fecha)))
+        and (h.empresa_id is null or r.empresa_id = h.empresa_id)
+        and coalesce(r.situacion_id, -1) <> all(v_sit_excluidas)
+        and r.fecha >= v_desde and r.fecha <= v_hasta
+        and r.tipo_hora_id = 4
+    ) x
+    having sum(x.pagadas) > 0;
   end if;
 
   -- Descuento por absentismo (790): horas PNR a hora_complementaria, negativo.
