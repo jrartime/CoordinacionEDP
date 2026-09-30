@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-4" />
-    <link rel="stylesheet" href="./styles.css?v=20260929-6" />
+    <link rel="stylesheet" href="./styles.css?v=20260930-3" />
   </head>
   <body>
     <script>
@@ -965,7 +965,7 @@
                   </div>
                 </details>
 
-                <div class="results-toolbar section-summary-toolbar">
+                <div class="results-toolbar section-summary-toolbar records-results-toolbar">
                   <div class="results-summary">
                     <p id="records-summary" class="summary-chip">Cargando registros...</p>
                     <p id="records-bolsa-saldo" class="summary-chip hidden"></p>
@@ -982,13 +982,13 @@
                       disabled
                       title="Selecciona una persona y un intervalo completo"
                     >
-                      Cotejar control personal
+                      Cotejar personal
                     </button>
                     <button id="records-overlap-button" type="button" class="secondary-button">
                       Ver solapes
                     </button>
                     <button id="records-report-preview-button" type="button" class="secondary-button">
-                      Previsualizar informe
+                      Informe
                     </button>
                     <button
                       id="records-person-report-button"
@@ -1100,12 +1100,20 @@
                         Exportar PDF
                       </button>
                       <button
-                        id="records-person-report-image-button"
+                        id="copy-records-person-report-image-button"
+                        type="button"
+                        class="compact-button"
+                        disabled
+                      >
+                        Copiar imagen
+                      </button>
+                      <button
+                        id="download-records-person-report-image-button"
                         type="button"
                         class="secondary-button compact-button"
                         disabled
                       >
-                        Ver PNG
+                        Descargar PNG
                       </button>
                       <button
                         id="records-person-report-close-button"
@@ -1120,43 +1128,6 @@
                     <p class="empty-state">Abre el informe para revisar los datos.</p>
                   </div>
                 </aside>
-
-                <section id="records-person-report-image-panel" class="detail-panel detail-panel-floating hidden">
-                  <div id="records-person-report-image-backdrop" class="detail-overlay"></div>
-                  <div class="image-preview-dialog">
-                    <div class="detail-header">
-                      <div>
-                        <p class="eyebrow">Registros</p>
-                        <h3>Vista previa PNG</h3>
-                      </div>
-                      <button
-                        id="close-records-person-report-image-button"
-                        type="button"
-                        class="secondary-button"
-                      >
-                        Cerrar
-                      </button>
-                    </div>
-                    <div class="event-report-image-actions">
-                      <button id="copy-records-person-report-image-button" type="button">
-                        Copiar imagen
-                      </button>
-                      <button
-                        id="download-records-person-report-image-button"
-                        class="secondary-button"
-                        type="button"
-                      >
-                        Descargar PNG
-                      </button>
-                    </div>
-                    <div class="event-report-image-preview">
-                      <img
-                        id="records-person-report-image-preview"
-                        alt="Vista previa del informe individual de registros"
-                      />
-                    </div>
-                  </div>
-                </section>
 
                 <section id="records-bolsa-summary-image-panel" class="detail-panel detail-panel-floating hidden">
                   <div id="records-bolsa-summary-image-backdrop" class="detail-overlay"></div>
@@ -10285,6 +10256,6 @@
     <script src="./shared/auth.js" defer></script>
     <script src="./concilia-integrated.js?v=20260929-6" defer></script>
     <script src="./facturacion.js?v=20260924-9" defer></script>
-    <script src="./app.js?v=20260930-1" defer></script>
+    <script src="./app.js?v=20260930-5" defer></script>
   </body>
 </html>

@@ -1423,6 +1423,35 @@ textarea {
   gap: 10px;
 }
 
+/* Registros: contadores apilados a la izquierda, resumen de horas pegado a ellos
+   y alineado por arriba, y los cuatro botones en una sola línea a la derecha. */
+.records-results-toolbar {
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.records-results-toolbar .results-summary {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.records-results-toolbar .summary-chip {
+  white-space: nowrap;
+}
+
+.records-results-toolbar .records-period-summary {
+  margin-inline: 0;
+  align-self: flex-start;
+}
+
+.records-results-toolbar .results-actions {
+  flex-wrap: nowrap;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .summary-chip {
   min-width: 160px;
   padding: 12px 14px;
@@ -5080,7 +5109,7 @@ th {
   position: fixed;
   right: 24px;
   bottom: 24px;
-  z-index: 40;
+  z-index: 200; /* por encima de los paneles de informe (z-index 90) */
   min-width: 280px;
   max-width: min(420px, calc(100vw - 32px));
   padding: 14px 16px;
