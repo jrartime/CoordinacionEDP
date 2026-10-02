@@ -2370,6 +2370,21 @@
                 </aside>
               </section>
 
+              <!-- Ficha de persona flotante: la abren Gestión y el panel de Historial laboral. Fuera de las pestañas para verse desde cualquiera, y despues del panel de historial para quedar encima. -->
+              <section id="gestion-personal-panel" class="detail-panel hidden">
+                <div id="gestion-personal-overlay" class="detail-overlay"></div>
+                <aside class="detail-drawer gestion-personal-drawer">
+                  <div class="detail-header">
+                    <div><p class="eyebrow">Personal</p><h3>Datos de la persona</h3></div>
+                    <button id="gestion-personal-dismiss-button" type="button" class="secondary-button">Cerrar</button>
+                  </div>
+                  <div id="gestion-personal-content"></div>
+                  <div class="detail-actions">
+                    <button id="gestion-personal-close-button" type="button">Guardar y cerrar</button>
+                  </div>
+                </aside>
+              </section>
+
               <section id="historial-import-panel" class="detail-panel hidden">
                 <div id="historial-import-overlay" class="detail-overlay"></div>
                 <aside class="detail-drawer personal-import-drawer">
@@ -2878,19 +2893,6 @@
                   <div id="gestion-nomina-listado-body"></div>
                 </details>
 
-                <section id="gestion-personal-panel" class="detail-panel hidden">
-                  <div id="gestion-personal-overlay" class="detail-overlay"></div>
-                  <aside class="detail-drawer gestion-personal-drawer">
-                    <div class="detail-header">
-                      <div><p class="eyebrow">Gestión</p><h3>Datos de la persona</h3></div>
-                      <button id="gestion-personal-dismiss-button" type="button" class="secondary-button">Cerrar</button>
-                    </div>
-                    <div id="gestion-personal-content"></div>
-                    <div class="detail-actions">
-                      <button id="gestion-personal-close-button" type="button">Guardar y cerrar</button>
-                    </div>
-                  </aside>
-                </section>
 
                 <div id="gestion-records-backdrop" class="panel-backdrop hidden"></div>
                 <aside id="gestion-records-panel" class="report-panel gestion-records-panel hidden">
@@ -8564,7 +8566,33 @@
 
               <label>
                 Personal
-                <select id="edit-activity-personal" name="personal_id" required>
+                <div class="filter-field-stack personal-picker-stack">
+                  <input
+                    id="edit-activity-personal-search"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="Buscar o desplegar"
+                  />
+                  <button
+                    type="button"
+                    class="personal-picker-clear hidden"
+                    data-edit-activity-personal-clear
+                    aria-label="Limpiar personal"
+                    title="Limpiar"
+                  >&times;</button>
+                  <button
+                    type="button"
+                    class="personal-picker-toggle"
+                    data-edit-activity-personal-toggle
+                    aria-label="Desplegar lista de personal"
+                    title="Desplegar"
+                  >&#9662;</button>
+                  <div
+                    id="edit-activity-personal-suggestions"
+                    class="filter-suggestions filter-suggestions-full hidden"
+                  ></div>
+                </div>
+                <select id="edit-activity-personal" name="personal_id" required hidden>
                   <option value="">Seleccionar personal</option>
                 </select>
               </label>
@@ -10255,8 +10283,8 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./list-scroll-keeper.js?v=20260930-1" defer></script>
-    <script src="./concilia-integrated.js?v=20260929-6" defer></script>
+    <script src="./concilia-integrated.js?v=20261002-1" defer></script>
     <script src="./facturacion.js?v=20260924-9" defer></script>
-    <script src="./app.js?v=20260930-5" defer></script>
+    <script src="./app.js?v=20261002-1" defer></script>
   </body>
 </html>

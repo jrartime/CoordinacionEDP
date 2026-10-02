@@ -341,6 +341,16 @@
   const activityEditForm = document.querySelector("#activity-edit-form");
   const editActivityId = document.querySelector("#edit-activity-id");
   const editActivityPersonal = document.querySelector("#edit-activity-personal");
+  const editActivityPersonalSearch = document.querySelector("#edit-activity-personal-search");
+  const editActivityPersonalSuggestions = document.querySelector(
+    "#edit-activity-personal-suggestions"
+  );
+  const editActivityPersonalClear = document.querySelector(
+    "[data-edit-activity-personal-clear]"
+  );
+  const editActivityPersonalToggle = document.querySelector(
+    "[data-edit-activity-personal-toggle]"
+  );
   const editActivityContrato = document.querySelector("#edit-activity-contrato");
   const editActivityEmpresa = document.querySelector("#edit-activity-empresa");
   const editActivityInstalacion = document.querySelector("#edit-activity-instalacion");
@@ -1675,6 +1685,110 @@
 
     select.innerHTML = parts.join("");
     select.value = Array.from(select.options).some((option) => option.value === desired) ? desired : "";
+    if (select === editActivityPersonal) {
+      syncEditActivityPersonalSearch();
+    }
+  }
+
+  // Buscador de personal del panel de edicion: mismo comportamiento que el
+  // filtro Personal del listado, pero el select oculto sigue siendo la fuente
+  // del valor (personal_id) que lee el guardado.
+  function syncEditActivityPersonalSearch() {
+    if (!editActivityPersonalSearch || !editActivityPersonal) {
+      return;
+    }
+    const selected = editActivityPersonal.selectedOptions?.[0];
+    editActivityPersonalSearch.value = editActivityPersonal.value ? selected?.textContent || "" : "";
+    editActivityPersonalClear?.classList.toggle("hidden", !editActivityPersonalSearch.value.trim());
+  }
+
+  function renderEditActivityPersonalSuggestions() {
+    if (!editActivityPersonalSuggestions) {
+      return;
+    }
+    const query = normalizeText(editActivityPersonalSearch.value);
+    const suggestions = Array.from(editActivityPersonal.options)
+      .filter((option) => option.value && (!query || normalizeText(option.textContent).includes(query)))
+      .sort((left, right) =>
+        left.textContent.localeCompare(right.textContent, "es", { sensitivity: "base", numeric: true })
+      );
+
+    if (!suggestions.length || (!query && editActivityPersonalSearch !== document.activeElement)) {
+      editActivityPersonalSuggestions.classList.add("hidden");
+      editActivityPersonalSuggestions.innerHTML = "";
+      return;
+    }
+
+    editActivityPersonalSuggestions.innerHTML = suggestions
+      .map(
+        (option) => `
+          <button
+            type="button"
+            class="filter-suggestion-option"
+            data-edit-activity-personal-option="${escapeHtml(option.value)}"
+          >
+            ${escapeHtml(option.textContent)}
+          </button>
+        `
+      )
+      .join("");
+    editActivityPersonalSuggestions.classList.remove("hidden");
+  }
+
+  function setEditActivityPersonal(value) {
+    editActivityPersonal.value = value;
+    editActivityPersonal.dispatchEvent(new Event("change", { bubbles: true }));
+    editActivityPersonalSuggestions?.classList.add("hidden");
+    syncEditActivityPersonalSearch();
+  }
+
+  function setupEditActivityPersonalSearch() {
+    if (!editActivityPersonalSearch || !editActivityPersonal) {
+      return;
+    }
+    editActivityPersonalSearch.addEventListener("input", () => {
+      if (!editActivityPersonalSearch.value.trim() && editActivityPersonal.value) {
+        editActivityPersonal.value = "";
+      }
+      editActivityPersonalClear?.classList.toggle(
+        "hidden",
+        !editActivityPersonalSearch.value.trim()
+      );
+      renderEditActivityPersonalSuggestions();
+    });
+    editActivityPersonalSearch.addEventListener("focus", renderEditActivityPersonalSuggestions);
+    editActivityPersonalSearch.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        editActivityPersonalSuggestions?.classList.add("hidden");
+        // Si queda texto sin elegir una sugerencia, se restaura la persona vigente.
+        syncEditActivityPersonalSearch();
+      }, 200);
+    });
+    editActivityPersonalSuggestions?.addEventListener("pointerdown", (event) => {
+      const value = event.target.closest("[data-edit-activity-personal-option]")?.dataset
+        .editActivityPersonalOption;
+      if (!value) {
+        return;
+      }
+      event.preventDefault();
+      setEditActivityPersonal(value);
+    });
+    editActivityPersonalToggle?.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      if (editActivityPersonalSuggestions?.classList.contains("hidden")) {
+        editActivityPersonalSearch.focus();
+        renderEditActivityPersonalSuggestions();
+      } else {
+        editActivityPersonalSuggestions?.classList.add("hidden");
+      }
+    });
+    editActivityPersonalClear?.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      editActivityPersonal.value = "";
+      editActivityPersonalSearch.value = "";
+      editActivityPersonalSuggestions?.classList.add("hidden");
+      editActivityPersonalClear.classList.add("hidden");
+    });
   }
 
   function renderActivityInstallationSelect(select, contratoId, selectedValue = "") {
@@ -1730,6 +1844,9 @@
     }
     select.disabled = false;
     select.value = desired;
+    if (select === editActivityPersonal) {
+      syncEditActivityPersonalSearch();
+    }
   }
 
   function isMissingTableError(error, tableName) {
@@ -9571,6 +9688,7 @@
     downloadActivitiesReportPdfButton.addEventListener("click", () => {
       void downloadActivitiesReportPdf();
     });
+    setupEditActivityPersonalSearch();
     downloadActivitiesReportExcelButton.addEventListener("click", downloadActivitiesReportExcel);
     activitiesReportBackdrop.addEventListener("click", closeActivitiesReport);
     activitiesFiltersForm.addEventListener("change", (event) => {

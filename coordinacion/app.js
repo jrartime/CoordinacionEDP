@@ -29241,12 +29241,12 @@ function renderHistorialDetailForm(row) {
   }).join("");
 }
 
-async function openGestionPersonalDetail() {
+async function openGestionPersonalDetail(personalIdOverride = "") {
   if (!currentAllowedPrivateTabs.has("personal")) {
     setStatus("No tienes acceso a la pestaña Personal.", "error");
     return;
   }
-  const personalId = gestionFilterPersonalHidden?.value || "";
+  const personalId = personalIdOverride || gestionFilterPersonalHidden?.value || "";
   if (!personalId || !personalDetailSection || !gestionPersonalContent) return;
   if (!personalDetailHome) {
     personalDetailHome = {
@@ -29268,7 +29268,14 @@ async function closeGestionPersonalDetail() {
     personalDetailHome.parent.insertBefore(personalDetailSection, personalDetailHome.nextSibling);
   }
   gestionPersonalPanel?.classList.add("hidden");
-  await loadGestion();
+  if (historialDetailPanel && !historialDetailPanel.classList.contains("hidden")) {
+    // Abierta desde el panel de historial: refresca el nombre por si se ha editado.
+    await loadHistorial();
+    const row = historialDetailSnapshot?.id != null ? findHistorialRow(historialDetailSnapshot.id) : null;
+    if (row) setHistorialDetailTitle(`Periodo ${row.id}`, row);
+  } else {
+    await loadGestion();
+  }
 }
 
 async function openGestionHistorialDetail(historialId) {
@@ -29400,6 +29407,16 @@ function syncHistorialDetailCalculatedFields() {
   }
 }
 
+// El nombre de la persona del título abre su ficha en un panel flotante.
+function setHistorialDetailTitle(prefix, row) {
+  if (!historialDetailTitle) return;
+  if (row?.personal && row.personal_id && currentAllowedPrivateTabs.has("personal")) {
+    historialDetailTitle.innerHTML = `${escapeHtml(prefix)} · <button type="button" class="row-name-button" data-historial-open-personal="${escapeHtml(row.personal_id)}" title="Ver y editar la ficha de esta persona">${escapeHtml(row.personal)}</button>`;
+  } else {
+    historialDetailTitle.textContent = `${prefix}${row?.personal ? ` · ${row.personal}` : ""}`;
+  }
+}
+
 async function openHistorialDetail(historialId) {
   const row = findHistorialRow(historialId);
   if (!row || !historialDetailPanel) {
@@ -29409,7 +29426,7 @@ async function openHistorialDetail(historialId) {
   historialDetailMode = "edit";
   historialDetailSnapshot = { ...row };
   if (historialDetailTitle) {
-    historialDetailTitle.textContent = `Periodo ${row.id}${row.personal ? ` · ${row.personal}` : ""}`;
+    setHistorialDetailTitle(`Periodo ${row.id}`, row);
   }
   ensureHistorialDetailReportButton();
   if (historialDetailDuplicateButton) historialDetailDuplicateButton.classList.remove("hidden");
@@ -35694,6 +35711,11 @@ async function init() {
   });
   gestionNominasRecientesPdfButton?.addEventListener("click", () => {
     void downloadGestionNominaRecientePdf(gestionNominasRecientesPdfButton);
+  });
+  historialDetailTitle?.addEventListener("click", (event) => {
+    const personalId = event.target.closest("[data-historial-open-personal]")?.dataset
+      .historialOpenPersonal;
+    if (personalId) void openGestionPersonalDetail(personalId);
   });
   gestionPersonalCloseButton?.addEventListener("click", () => {
     void closeGestionPersonalDetail();
