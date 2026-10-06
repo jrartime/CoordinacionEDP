@@ -1693,12 +1693,15 @@
   // Buscador de personal del panel de edicion: mismo comportamiento que el
   // filtro Personal del listado, pero el select oculto sigue siendo la fuente
   // del valor (personal_id) que lee el guardado.
+  let editActivityPersonalFilterTyped = false;
+
   function syncEditActivityPersonalSearch() {
     if (!editActivityPersonalSearch || !editActivityPersonal) {
       return;
     }
     const selected = editActivityPersonal.selectedOptions?.[0];
     editActivityPersonalSearch.value = editActivityPersonal.value ? selected?.textContent || "" : "";
+    editActivityPersonalFilterTyped = false;
     editActivityPersonalClear?.classList.toggle("hidden", !editActivityPersonalSearch.value.trim());
   }
 
@@ -1706,7 +1709,9 @@
     if (!editActivityPersonalSuggestions) {
       return;
     }
-    const query = normalizeText(editActivityPersonalSearch.value);
+    // Solo se filtra por lo que el usuario teclea: el nombre de la persona vigente
+    // que ya trae el cuadro no debe reducir la lista a esa unica persona.
+    const query = editActivityPersonalFilterTyped ? normalizeText(editActivityPersonalSearch.value) : "";
     const suggestions = Array.from(editActivityPersonal.options)
       .filter((option) => option.value && (!query || normalizeText(option.textContent).includes(query)))
       .sort((left, right) =>
@@ -1747,6 +1752,7 @@
       return;
     }
     editActivityPersonalSearch.addEventListener("input", () => {
+      editActivityPersonalFilterTyped = true;
       if (!editActivityPersonalSearch.value.trim() && editActivityPersonal.value) {
         editActivityPersonal.value = "";
       }
@@ -1756,7 +1762,11 @@
       );
       renderEditActivityPersonalSuggestions();
     });
-    editActivityPersonalSearch.addEventListener("focus", renderEditActivityPersonalSuggestions);
+    editActivityPersonalSearch.addEventListener("focus", () => {
+      editActivityPersonalFilterTyped = false;
+      renderEditActivityPersonalSuggestions();
+      editActivityPersonalSearch.select();
+    });
     editActivityPersonalSearch.addEventListener("blur", () => {
       window.setTimeout(() => {
         editActivityPersonalSuggestions?.classList.add("hidden");

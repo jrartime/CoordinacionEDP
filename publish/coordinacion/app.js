@@ -801,7 +801,142 @@ const CANDIDATE_SELECT_COLUMNS = [
   "source",
   "created_at",
   "leido",
+  "cv_entrada",
+  "cv_valoracion",
+  "cv_contacto",
+  "cv_disponibilidad",
+  "cv_estado_general",
+  "cv_notas",
 ].join(", ");
+
+const CANDIDATE_CV_TRACKING = [
+  {
+    field: "cv_entrada",
+    label: "Entrada / revisión",
+    options: [
+      ["Recibido", "Recibido. No se ha realizado ninguna acción. Identificar candidaturas aún no gestionadas."],
+      ["Pendiente de revisar", "Recibido. No valorado si encaja con la oferta. Crear una cola que necesitan una primera revisión."],
+      ["Revisado", "Analizado y existe una primera valoración. Saber que la candidatura ya ha pasado el primer filtro."],
+    ],
+  },
+  {
+    field: "cv_valoracion",
+    label: "Valoración",
+    options: [
+      ["Poco interesante", "Perfil revisado pero no encaja con lo que se busca. Evitar volver a revisar los ya descartados."],
+      ["Interesante", "Cumple requisitos y puede encajar con el puesto. Crear una selección que merece la pena avanzar."],
+      ["Muy interesante", "Especialmente adecuado para las características de la oferta. Identificar rápidamente los prioritarios."],
+      ["Perfil no adecuado", "No cumple requisitos para el puesto. Registrar que el descarte se debe al perfil o requisitos."],
+    ],
+  },
+  {
+    field: "cv_contacto",
+    label: "Contacto",
+    options: [
+      ["Pendiente de contactar", "Interesa hablar, pero no se ha contactado. Crear una lista de llamadas o contactos pendientes."],
+      ["Contactado / Hablado / Información enviada", "Ya se ha tenido algún contacto. Evitar contactar de nuevo. Enviada información sobre el puesto. Identificar que están a la espera de responder."],
+      ["Entrevista pendiente", "Superado el contacto inicial. Pendiente de entrevista. Organizar y controlar entrevistas pendientes."],
+      ["Entrevistado", "La entrevista ya se ha realizado. Separar a los que ya han pasado por la fase de entrevista."],
+    ],
+  },
+  {
+    field: "cv_disponibilidad",
+    label: "Disponibilidad",
+    options: [
+      ["Disponible", "Tiene disponibilidad inmediata o en el plazo requerido para incorporarse al puesto."],
+      ["Disponible próximamente", "No puede incorporarse de forma inmediata. Estará disponible en una fecha próxima o determinada."],
+      ["No disponible", "No tiene disponibilidad para incorporarse al puesto en este momento."],
+      ["Solo mañanas", "Únicamente puede trabajar durante el horario de mañana."],
+      ["Solo tardes", "Únicamente puede trabajar durante el horario de tarde."],
+    ],
+  },
+  {
+    field: "cv_estado_general",
+    label: "Estado general",
+    options: [
+      ["Nuevo", "CV recibido recientemente y todavía no se ha realizado ninguna revisión o valoración."],
+      ["Pendiente de revisar", "El CV está recibido, pero todavía no ha sido revisado para comprobar si el perfil encaja con la oferta."],
+      ["En revisión", "El CV está siendo analizado en este momento."],
+      ["Revisado", "El CV ya ha sido revisado y se ha realizado una primera valoración del candidato."],
+      ["Interesante", "El perfil presenta características que pueden encajar con la oferta y merece continuar en el proceso."],
+      ["Muy interesante", "Encaja especialmente bien con la oferta. Debe considerarse prioritario."],
+      ["No interesante", "El CV ha sido revisado: no resulta suficientemente adecuado o interesante para esta oferta."],
+      ["Perfil no adecuado", "El candidato no cumple alguno de los requisitos o características necesarios para el puesto."],
+      ["Pendiente de contactar", "Interesante y se ha decidido contactar con el candidato, pero todavía no se ha realizado el contacto."],
+      ["Contactado", "Ya se ha establecido contacto con el candidato para hablar sobre la oferta y conocer su interés."],
+      ["Hablado", "Mantenida conversación. Se dispone de información: interés, disponibilidad o condiciones."],
+      ["Información enviada / Pendiente de respuesta", "Se ha contactado o se le ha enviado información y estamos esperando su respuesta."],
+      ["Entrevista pendiente", "El candidato ha avanzado en el proceso y está pendiente de realizar una entrevista."],
+      ["Entrevistado", "La entrevista ya se ha realizado y el candidato queda pendiente de valoración o decisión."],
+      ["Pendiente de decisión", "El candidato ha avanzado en el proceso, pero todavía no se ha tomado una decisión definitiva."],
+      ["Seleccionado", "El candidato ha sido elegido para cubrir la oferta."],
+      ["No seleccionado", "El candidato ha participado en el proceso, pero finalmente no ha sido elegido."],
+      ["No disponible", "Tiene un perfil adecuado, pero actualmente no tiene disponibilidad para incorporarse al puesto."],
+      ["Retirado", "El candidato ha decidido no continuar en el proceso de selección."],
+      ["Para futuras oportunidades", "No encaja con la oferta actual o no está disponible. Perfil interesante para futuras oportunidades."],
+      ["Proceso pausado", "La candidatura queda temporalmente parada, pero no se considera cerrada ni descartada."],
+      ["Descartado", "La candidatura queda cerrada porque no continúa en el proceso, independientemente del motivo."],
+      ["Pendiente de confirmar disponibilidad", "Perfil adecuado. No se ha confirmado si el candidato está disponible para el puesto."],
+    ],
+  },
+];
+
+function renderCandidateCvTracking(row, leadingFieldHtml = "") {
+  const selects = CANDIDATE_CV_TRACKING.map((group) => {
+    const current = row[group.field] || "";
+    const description = group.options.find(([value]) => value === current)?.[1] || "";
+    const optionsHtml = group.options
+      .map(
+        ([value, text]) =>
+          `<option value="${escapeHtml(value)}" title="${escapeHtml(text)}" ${value === current ? "selected" : ""}>${escapeHtml(value)}</option>`
+      )
+      .join("");
+    return `
+      <label class="candidate-cv-field candidate-cv-field-${group.field.slice(3)}">
+        <span class="mini-label">${escapeHtml(group.label)}</span>
+        <select data-candidate-cv-id="${escapeHtml(row.id)}" data-candidate-cv-field="${group.field}">
+          <option value="">— Sin definir —</option>
+          ${optionsHtml}
+        </select>
+        <span class="candidate-cv-description muted-text">${escapeHtml(description)}</span>
+      </label>`;
+  }).join("");
+  return `
+    <div class="candidate-cv-tracking">${leadingFieldHtml}${selects}</div>
+    <label class="candidate-cv-notes">
+      <span class="mini-label">Notas de seguimiento</span>
+      <textarea rows="3" data-candidate-cv-notes-id="${escapeHtml(row.id)}" placeholder="Notas sobre este CV…">${escapeHtml(row.cv_notas || "")}</textarea>
+    </label>`;
+}
+
+async function updateCandidateCvField(candidateId, field, value) {
+  const candidate = getCandidateById(candidateId);
+  if (!candidate) {
+    return;
+  }
+  const emptyValue = field === "cv_notas" ? "" : null;
+  const normalized = value || emptyValue;
+  const previous = candidate[field] ?? emptyValue;
+  if (previous === normalized) {
+    return;
+  }
+
+  candidate[field] = normalized;
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase
+    .from("candidates")
+    .update({ [field]: normalized })
+    .eq("id", candidateId);
+
+  if (error) {
+    candidate[field] = previous;
+    renderCandidates(getVisibleCandidates());
+    setStatus(`No se pudo guardar el seguimiento del CV: ${error.message}`, "error");
+    return;
+  }
+
+  setStatus("Seguimiento del CV guardado.", "success");
+}
 
 const CONTROL_SAFE_RESULT_LIMIT = 1000;
 const CONTROL_HORARIO_HEADERS = [
@@ -3291,14 +3426,15 @@ function renderCandidates(rows) {
         </tr>
         <tr class="candidate-details-row ${isExpanded ? "" : "hidden"}">
           <td colspan="${columnCount}">
-            <div class="candidate-details-status-row">
-              <label class="candidate-details-status-field">
+            ${renderCandidateCvTracking(
+              row,
+              `<label class="candidate-cv-field">
                 <span class="mini-label">Estado</span>
                 <select data-candidate-status-id="${escapeHtml(row.id)}">
                   ${statusOptionsHtml}
                 </select>
-              </label>
-            </div>
+              </label>`
+            )}
             <div class="candidate-details-grid">
               <div>
                 <p class="mini-label">Notas</p>
@@ -18738,6 +18874,17 @@ function clearRecordsBulkFields() {
   updateRecordsBulkMatchCount();
 }
 
+// Un registro que ya entró en una preparación de factura (aunque esté anulada)
+// o en una factura real no se puede borrar: contratos_facturacion_lineas lo
+// referencia con ON DELETE RESTRICT para no perder la trazabilidad.
+function describeRecordDeleteError(error) {
+  const message = String(error?.message || error || "");
+  if (message.includes("contratos_facturacion_lineas_registro_id_fkey")) {
+    return "alguno de los registros ya está incluido en una preparación de factura o en una factura. Elimina antes esa preparación (pestaña Facturación → Preparación de facturas) y vuelve a intentarlo";
+  }
+  return message;
+}
+
 async function deleteSelectedBulkRecords() {
   const ids = getSelectedRecordRowsForBulkAction().map((row) => String(row.id));
   const count = ids.length;
@@ -18761,7 +18908,7 @@ async function deleteSelectedBulkRecords() {
     await loadRecords();
     setStatus(`${count} registro${count !== 1 ? "s" : ""} borrado${count !== 1 ? "s" : ""}.`, "success");
   } catch (error) {
-    setStatus(`No se pudieron borrar los registros seleccionados: ${error.message}`, "error");
+    setStatus(`No se pudieron borrar los registros seleccionados: ${describeRecordDeleteError(error)}`, "error");
   }
 }
 
@@ -19997,7 +20144,7 @@ async function deleteRecordById(recordId) {
     await loadRecords();
     setStatus("Registro eliminado.", "success");
   } catch (error) {
-    setStatus(`No se pudo eliminar el registro: ${error.message}`, "error");
+    setStatus(`No se pudo eliminar el registro: ${describeRecordDeleteError(error)}`, "error");
   }
 }
 
@@ -37284,6 +37431,19 @@ async function init() {
     void handleTableClick(event);
   });
   candidatesTable.addEventListener("change", (event) => {
+    const cvSelect = event.target.closest("[data-candidate-cv-field]");
+    if (cvSelect) {
+      const group = CANDIDATE_CV_TRACKING.find((item) => item.field === cvSelect.dataset.candidateCvField);
+      const description = group?.options.find(([value]) => value === cvSelect.value)?.[1] || "";
+      cvSelect.parentElement.querySelector(".candidate-cv-description").textContent = description;
+      void updateCandidateCvField(cvSelect.dataset.candidateCvId, cvSelect.dataset.candidateCvField, cvSelect.value);
+      return;
+    }
+    const cvNotes = event.target.closest("[data-candidate-cv-notes-id]");
+    if (cvNotes) {
+      void updateCandidateCvField(cvNotes.dataset.candidateCvNotesId, "cv_notas", cvNotes.value.trim());
+      return;
+    }
     const statusSelect = event.target.closest("[data-candidate-status-id]");
     if (!statusSelect) {
       return;

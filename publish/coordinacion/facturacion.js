@@ -28,6 +28,7 @@
     // Último "Desglose por centros" mostrado en la vista previa: fuente para
     // el botón "Descargar PDF" del propio diálogo, sin recalcular.
     centerBreakdown: null,
+    weeklyBreakdown: null,
     // Ticks por grupo calculado (contrato+función): se puede excluir del
     // guardado sin tener que recalcular. Guarda las group.key desmarcadas;
     // vacío = se guarda todo lo calculado (el estado por defecto). Se
@@ -1101,23 +1102,187 @@
   // botón aparte porque alargaba el PDF con un detalle que no siempre hace
   // falta imprimir.
   function previewGenerationWeekly() {
+    const generation = state.generation;
     const selectedGroups = getSelectedGenerationGroups();
-    if (!selectedGroups.length || !el.preparationPreviewDialog) return;
+    if (!generation || !selectedGroups.length || !el.preparationPreviewDialog) return;
+    // Totales por centro: suma de las filas semanales de cada instalación.
+    const groups = selectedGroups.map((group) => {
+      const centers = new Map();
+      group.weeks.forEach((item) => {
+        if (!centers.has(item.instalacion)) centers.set(item.instalacion, { instalacion: item.instalacion, total: 0, diurnal: 0, nocturnal: 0 });
+        const center = centers.get(item.instalacion);
+        center.total += item.total;
+        center.diurnal += item.diurnal;
+        center.nocturnal += item.nocturnal;
+      });
+      const centerList = Array.from(centers.values()).sort((a, b) => a.instalacion.localeCompare(b.instalacion, "es"));
+      return {
+        contrato: group.contrato,
+        funcion: group.funcion,
+        weeks: group.weeks,
+        centers: centerList,
+        total: centerList.reduce((sum, c) => sum + c.total, 0),
+        diurnal: centerList.reduce((sum, c) => sum + c.diurnal, 0),
+        nocturnal: centerList.reduce((sum, c) => sum + c.nocturnal, 0),
+      };
+    });
+    state.weeklyBreakdown = { from: generation.from, to: generation.to, groups };
+    const fmt = (value) => hoursFmt.format(value);
     el.preparationPreviewBody.innerHTML = `
-      <p class="muted-text">Desglose por instalación y semana de los grupos marcados. Esto no guarda nada.</p>
-      ${selectedGroups.map((group) => `
+      <p class="muted-text">Desglose por instalación y semana de los grupos marcados, con totales por centro. Esto no guarda nada.</p>
+      <div class="facturacion-preview-toolbar">
+        <button type="button" class="secondary-button" data-download-weekly-pdf>Descargar PDF</button>
+        <button type="button" class="secondary-button" data-download-weekly-excel>Descargar Excel</button>
+      </div>
+      ${groups.map((group) => `
         <h4>${escapeHtml(group.contrato)} · ${escapeHtml(group.funcion)}</h4>
         <div class="table-scroll">
           <table class="facturacion-table">
             <thead><tr><th>Instalación</th><th>Semana</th><th>Total</th><th>Diurnas</th><th>Nocturnas</th></tr></thead>
             <tbody>
-              ${group.weeks.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td>${item.week}</td><td class="numeric">${hoursFmt.format(item.total)}</td><td class="numeric">${hoursFmt.format(item.diurnal)}</td><td class="numeric">${hoursFmt.format(item.nocturnal)}</td></tr>`).join("")}
+              ${group.weeks.map((item) => `<tr><td>${escapeHtml(item.instalacion)}</td><td>${item.week}</td><td class="numeric">${fmt(item.total)}</td><td class="numeric">${fmt(item.diurnal)}</td><td class="numeric">${fmt(item.nocturnal)}</td></tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+        <p class="eyebrow">Totales por centro</p>
+        <div class="table-scroll">
+          <table class="facturacion-table">
+            <thead><tr><th>Instalación</th><th>Total</th><th>Diurnas</th><th>Nocturnas</th></tr></thead>
+            <tbody>
+              ${group.centers.map((c) => `<tr><td>${escapeHtml(c.instalacion)}</td><td class="numeric">${fmt(c.total)}</td><td class="numeric">${fmt(c.diurnal)}</td><td class="numeric">${fmt(c.nocturnal)}</td></tr>`).join("")}
+              <tr><td><strong>Total ${escapeHtml(group.funcion)}</strong></td><td class="numeric"><strong>${fmt(group.total)}</strong></td><td class="numeric"><strong>${fmt(group.diurnal)}</strong></td><td class="numeric"><strong>${fmt(group.nocturnal)}</strong></td></tr>
             </tbody>
           </table>
         </div>
       `).join("")}
     `;
     el.preparationPreviewDialog.showModal();
+  }
+
+  async function exportWeeklyBreakdownPdf() {
+    const data = state.weeklyBreakdown;
+    if (!data || !data.groups.length) return;
+    const button = el.preparationPreviewBody?.querySelector("[data-download-weekly-pdf]");
+    if (button) button.disabled = true;
+    setStatus("Generando PDF…");
+    try {
+      const { jsPDF } = await import("https://esm.sh/jspdf@2.5.1");
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const margin = 14;
+      const pageHeight = 297;
+      let y = margin;
+      const pageBreak = (needed = 12) => {
+        if (y + needed <= pageHeight - 16) return;
+        doc.addPage();
+        y = margin;
+      };
+      const row = (values, widths, bold = false) => {
+        pageBreak(7);
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        doc.setFontSize(8);
+        let x = margin;
+        values.forEach((value, index) => {
+          doc.rect(x, y, widths[index], 6);
+          doc.text(String(value ?? ""), x + 1.5, y + 4.1, { maxWidth: widths[index] - 3 });
+          x += widths[index];
+        });
+        y += 6;
+      };
+      const fmt = (value) => hoursFmt.format(value);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text("Desglose por semanas", margin, y);
+      y += 6;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(`Periodo ${formatDate(data.from)} – ${formatDate(data.to)}`, margin, y);
+      y += 8;
+      data.groups.forEach((group) => {
+        pageBreak(24);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text(`${group.contrato} · ${group.funcion}`, margin, y);
+        y += 6;
+        const weekWidths = [76, 20, 28, 29, 29];
+        row(["Instalación", "Semana", "Total", "Diurnas", "Nocturnas"], weekWidths, true);
+        group.weeks.forEach((item) => row([item.instalacion, item.week, fmt(item.total), fmt(item.diurnal), fmt(item.nocturnal)], weekWidths));
+        y += 4;
+        pageBreak(20);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text("Totales por centro", margin, y);
+        y += 5;
+        const centerWidths = [96, 28, 29, 29];
+        row(["Instalación", "Total", "Diurnas", "Nocturnas"], centerWidths, true);
+        group.centers.forEach((c) => row([c.instalacion, fmt(c.total), fmt(c.diurnal), fmt(c.nocturnal)], centerWidths));
+        row([`Total ${group.funcion}`, fmt(group.total), fmt(group.diurnal), fmt(group.nocturnal)], centerWidths, true);
+        y += 8;
+      });
+      doc.save(`desglose-semanas-${data.from}-${data.to}.pdf`);
+      setStatus("PDF de desglose por semanas generado.", "success");
+    } catch (error) {
+      setStatus(`No se pudo generar el PDF: ${error.message}`, "error");
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function exportWeeklyBreakdownExcel() {
+    const data = state.weeklyBreakdown;
+    if (!data || !data.groups.length) return;
+    const button = el.preparationPreviewBody?.querySelector("[data-download-weekly-excel]");
+    if (button) button.disabled = true;
+    setStatus("Preparando Excel…");
+    try {
+      const xlsxModule = await import("https://esm.sh/xlsx@0.18.5");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const weekRows = [];
+      const centerRows = [];
+      data.groups.forEach((group) => {
+        group.weeks.forEach((item) => weekRows.push({
+          Contrato: group.contrato,
+          Función: group.funcion,
+          Instalación: item.instalacion,
+          Semana: item.week,
+          Total: numeric(item.total),
+          Diurnas: numeric(item.diurnal),
+          Nocturnas: numeric(item.nocturnal),
+        }));
+        group.centers.forEach((c) => centerRows.push({
+          Contrato: group.contrato,
+          Función: group.funcion,
+          Instalación: c.instalacion,
+          Total: numeric(c.total),
+          Diurnas: numeric(c.diurnal),
+          Nocturnas: numeric(c.nocturnal),
+        }));
+        centerRows.push({
+          Contrato: group.contrato,
+          Función: group.funcion,
+          Instalación: `Total ${group.funcion}`,
+          Total: numeric(group.total),
+          Diurnas: numeric(group.diurnal),
+          Nocturnas: numeric(group.nocturnal),
+        });
+      });
+      const workbook = XLSX.utils.book_new();
+      const weekSheet = XLSX.utils.json_to_sheet(weekRows);
+      weekSheet["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 28 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+      const centerSheet = XLSX.utils.json_to_sheet(centerRows);
+      centerSheet["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 28 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(workbook, weekSheet, "Por semanas");
+      XLSX.utils.book_append_sheet(workbook, centerSheet, "Totales por centro");
+      const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      downloadBlob(
+        new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+        `desglose-semanas-${data.from}-${data.to}.xlsx`
+      );
+      setStatus("Excel de desglose por semanas exportado.", "success");
+    } catch (error) {
+      setStatus(`No se pudo exportar el Excel: ${error.message}`, "error");
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   // Agrupa group.records (mismo origen que "Desglose por semanas") por
@@ -2618,6 +2783,14 @@
     el.generationWeekly.addEventListener("click", previewGenerationWeekly);
     el.generationCenter.addEventListener("click", previewGenerationByCenter);
     el.preparationPreviewBody.addEventListener("click", (event) => {
+      if (event.target.closest("[data-download-weekly-pdf]")) {
+        void exportWeeklyBreakdownPdf();
+        return;
+      }
+      if (event.target.closest("[data-download-weekly-excel]")) {
+        void exportWeeklyBreakdownExcel();
+        return;
+      }
       if (event.target.closest("[data-download-center-pdf]")) {
         void exportCenterBreakdownPdf();
         return;
