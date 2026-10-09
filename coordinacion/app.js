@@ -30267,6 +30267,32 @@ async function confirmHistorialOverlap(row, excludeId) {
   );
 }
 
+// Aviso de validación dentro del propio panel (encima de los botones): el
+// #status-message general cuelga del final de la página y no se ve desde un drawer.
+function clearPanelFormValidationError(form) {
+  form?.querySelector(".historial-form-validation")?.remove();
+}
+
+function showPanelFormValidationError(form, message, control = null) {
+  clearPanelFormValidationError(form);
+  if (!form) {
+    setStatus(message, "error");
+    return;
+  }
+  const validation = document.createElement("p");
+  validation.className = "historial-form-validation full-width";
+  validation.setAttribute("role", "alert");
+  validation.textContent = `No se puede guardar: ${message}`;
+  const actions = form.querySelector(".detail-actions");
+  if (actions) {
+    form.insertBefore(validation, actions);
+  } else {
+    form.appendChild(validation);
+  }
+  control?.focus?.();
+  control?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+}
+
 function clearHistorialValidationError() {
   historialDetailForm?.querySelector(".historial-form-validation")?.remove();
 }
@@ -31635,6 +31661,7 @@ async function loadBajasConciliacionActive() {
 // --- Bajas: panel de alta/edición ---
 function resetBajasForm() {
   bajasForm?.reset();
+  clearPanelFormValidationError(bajasForm);
   if (bajasIdInput) bajasIdInput.value = "";
   clearPersonalPicker("bajas-detail");
   if (bajasDetailConParteBaja) bajasDetailConParteBaja.checked = true;
@@ -31700,12 +31727,25 @@ async function saveBajas(event) {
     observacion: bajasDetailObservacion?.value?.trim() || null,
   };
 
+  clearPanelFormValidationError(bajasForm);
   if (!payload.personal_id || !payload.tipo_id || !payload.fecha_inicio) {
-    setStatus("Completa personal, tipo y fecha de inicio de la baja.", "error");
+    showPanelFormValidationError(
+      bajasForm,
+      "completa personal, tipo y fecha de inicio de la baja.",
+      !payload.personal_id
+        ? document.querySelector("#bajas-detail-personal-input")
+        : !payload.tipo_id
+          ? bajasDetailTipoSelect
+          : bajasDetailFechaInicio
+    );
     return false;
   }
   if (payload.fecha_fin && payload.fecha_fin < payload.fecha_inicio) {
-    setStatus("La fecha de fin de la baja no puede ser anterior a la de inicio.", "error");
+    showPanelFormValidationError(
+      bajasForm,
+      "la fecha de fin de la baja no puede ser anterior a la fecha de inicio.",
+      bajasDetailFechaFin
+    );
     return false;
   }
 
@@ -31716,7 +31756,7 @@ async function saveBajas(event) {
     : await supabase.from(BAJAS_TABLE).insert(payload).select("id").single();
 
   if (result.error) {
-    setStatus(result.error.message || "No se pudo guardar la baja.", "error");
+    showPanelFormValidationError(bajasForm, result.error.message || "no se pudo guardar la baja.");
     return false;
   }
 
@@ -31746,6 +31786,7 @@ async function deleteBajas(id) {
 // --- Permisos: panel de alta/edición ---
 function resetPermisosForm() {
   permisosForm?.reset();
+  clearPanelFormValidationError(permisosForm);
   if (permisosIdInput) permisosIdInput.value = "";
   clearPersonalPicker("permisos-detail");
   permisosDeleteButton?.classList.add("hidden");
@@ -31809,12 +31850,25 @@ async function savePermisos(event) {
     observacion: permisosDetailObservacion?.value?.trim() || null,
   };
 
+  clearPanelFormValidationError(permisosForm);
   if (!payload.personal_id || !payload.tipo_id || !payload.fecha_inicio) {
-    setStatus("Completa personal, tipo y fecha de inicio de la medida.", "error");
+    showPanelFormValidationError(
+      permisosForm,
+      "completa personal, tipo y fecha de inicio de la medida.",
+      !payload.personal_id
+        ? document.querySelector("#permisos-detail-personal-input")
+        : !payload.tipo_id
+          ? permisosDetailTipoSelect
+          : permisosDetailFechaInicio
+    );
     return false;
   }
   if (payload.fecha_fin && payload.fecha_fin < payload.fecha_inicio) {
-    setStatus("La fecha de fin de la medida no puede ser anterior a la de inicio.", "error");
+    showPanelFormValidationError(
+      permisosForm,
+      "la fecha de fin de la medida no puede ser anterior a la fecha de inicio.",
+      permisosDetailFechaFin
+    );
     return false;
   }
 
@@ -31825,7 +31879,7 @@ async function savePermisos(event) {
     : await supabase.from(PERMISOS_TABLE).insert(payload).select("id").single();
 
   if (result.error) {
-    setStatus(result.error.message || "No se pudo guardar la medida.", "error");
+    showPanelFormValidationError(permisosForm, result.error.message || "no se pudo guardar la medida.");
     return false;
   }
 

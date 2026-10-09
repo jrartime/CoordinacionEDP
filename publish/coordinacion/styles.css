@@ -5,8 +5,8 @@
   --text: #101828;
   --muted: #4a5565;
   --muted-soft: #6a7282;
-  --accent: #155dfc;
-  --accent-dark: #1447e6;
+  --accent: #020617;
+  --accent-dark: #1e293b;
   --accent-warm: #f99c00;
   --accent-warm-dark: #dd7400;
   --line: #e5e7eb;
@@ -27,10 +27,7 @@ body {
   font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
     "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   color: var(--text);
-  background:
-    radial-gradient(circle at 94% 0%, rgba(103, 232, 249, 0.32), transparent 30%),
-    radial-gradient(circle at 5% 100%, rgba(96, 165, 250, 0.24), transparent 34%),
-    linear-gradient(180deg, #eef7ff 0%, #f8fbff 48%, #f9fafb 100%);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -113,8 +110,8 @@ legend {
 
 .card {
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
   box-shadow: var(--shadow);
   padding: 24px;
 }
@@ -1264,8 +1261,8 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 2px #e2e8f0;
 }
 
 textarea {
@@ -2586,7 +2583,7 @@ button,
 .button-link,
 .action-link {
   border: 0;
-  border-radius: 6px;
+  border-radius: 999px;
   padding: 8px 16px;
   cursor: pointer;
   background: var(--accent);
@@ -2614,13 +2611,13 @@ button:hover,
 
 .secondary-button {
   background: #ffffff;
-  color: #364153;
-  border: 1px solid var(--line-strong);
+  color: #334155;
+  border: 1px solid #cbd5e1;
   box-shadow: var(--shadow);
 }
 
 .secondary-button:hover {
-  background: #f3f4f6;
+  background: #f8fafc;
   color: #101828;
 }
 
@@ -8835,4 +8832,27 @@ details[open] > .gestion-collapsible-header::before {
 
 #historial-report-panel .personal-import-table-wrap {
   flex-shrink: 0;
+}
+
+/* --- Estilo unificado con edp-portal-laboral: controles de filtro en píldora --- */
+.private-tab-panel .filter-field input:not([type="checkbox"]):not([type="radio"]),
+.private-tab-panel .filter-field select:not([multiple]),
+.private-tab-panel .filters-grid > label > input:not([type="checkbox"]):not([type="radio"]),
+.private-tab-panel .filters-grid > label > select:not([multiple]),
+.private-tab-panel .pagination-size select {
+  border-radius: 999px;
+  border-color: #e2e8f0;
+  padding-left: 14px;
+}
+
+.filter-reset-button {
+  border-radius: 999px;
+}
+
+.private-tab-panel .summary-chip {
+  border-radius: 999px;
+}
+
+#private-view > .toolbar #logout-button {
+  border-radius: 999px;
 }

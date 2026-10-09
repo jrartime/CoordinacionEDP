@@ -4,8 +4,8 @@
   --text: #101828;
   --muted: #4a5565;
   --muted-soft: #6a7282;
-  --accent: #155dfc;
-  --accent-dark: #1447e6;
+  --accent: #020617;
+  --accent-dark: #1e293b;
   --accent-warm: #f99c00;
   --accent-warm-dark: #dd7400;
   --line: #e5e7eb;
@@ -44,7 +44,7 @@ button,
 .primary-link,
 .secondary-link {
   border: 0;
-  border-radius: 6px;
+  border-radius: 999px;
   padding: 8px 16px;
   background: var(--accent);
   color: #ffffff;
@@ -335,8 +335,8 @@ input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 2px #e2e8f0;
 }
 
 textarea {
