@@ -1,0 +1,33 @@
+<IfModule mod_headers.c>
+  Header always unset X-Frame-Options
+  Header always set Content-Security-Policy "frame-ancestors 'self' https://www.edpsl.es https://edpsl.es"
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json application/xml image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType text/css "access plus 1 month"
+  ExpiresByType application/javascript "access plus 0 seconds"
+  ExpiresByType image/svg+xml "access plus 1 month"
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Imagenes, fuentes y CSS: se pueden cachear mucho tiempo.
+  <FilesMatch "\.(css|svg|png|jpe?g|webp|woff2?|ico)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+
+  # HTML y TODO el JavaScript: revalidar siempre contra el servidor.
+  # Esta regla va DESPUES a proposito: con `Header set` gana la ultima que coincide.
+  # Antes la regla amplia de 30 dias iba al final y se cargaba el no-cache de arriba, asi que
+  # los navegadores se quedaban con `shared/supabase-client.js` viejo (el unico fichero sin
+  # `?v=` en el HTML) y consultaban el esquema `public` en vez de `coordinacion`.
+  # Revalidar es barato: con ETag el servidor responde 304 sin reenviar el fichero.
+  <FilesMatch "\.(html|js)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>

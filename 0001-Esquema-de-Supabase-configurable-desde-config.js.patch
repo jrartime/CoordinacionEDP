@@ -1,0 +1,177 @@
+From 1627980545020a7d47236d6e18403890f7be5334 Mon Sep 17 00:00:00 2001
+From: Juan Cecchini <juansechini@gmail.com>
+Date: Mon, 28 Sep 2026 10:13:46 +0200
+Subject: [PATCH CoordinacionEDP] Esquema de Supabase configurable desde
+ config.js
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Preparación para que Coordinación (y concilia, curriculos, programacion) puedan
+usar la base de datos del portal laboral, donde sus tablas viven en el esquema
+"coordinacion" en vez de "public". Ahí el cliente de Supabase tiene que crearse
+con { db: { schema: ... } }; si no, PostgREST busca las tablas en "public".
+
+Los createClient del proyecto son 6, no 1:
+
+- shared/supabase-client.js: cliente compartido.
+- programacion/app.js: esta web NO carga el cliente compartido, crea el suyo. Sin
+  este cambio se queda sin datos (probado: 0 registros, "No se pudo cargar
+  programación").
+- coordinacion/app.js, concilia/app.js, curriculos/app.js y
+  coordinacion/concilia-integrated.js: el camino de reserva para cuando el cliente
+  compartido no está disponible. Funcionarían, pero al caer en el fallback
+  consultarían el esquema equivocado sin dar ningún error.
+- coordinacion/modules/supabase.js: hoy no lo carga ningún HTML; se deja coherente.
+
+El valor por defecto es "public", así que **sin tocar config.js no cambia nada**:
+las cuatro webs siguen funcionando exactamente igual contra el proyecto actual.
+Cuando se migre, cada config.js añade `schema: "coordinacion"` junto a url/anonKey.
+
+config.example.js documenta la clave nueva.
+
+Probado contra una copia completa de la base de datos de Coordinación en un
+esquema "coordinacion": las 16 pestañas del panel cargan con datos, las tres webs
+públicas también, y el motor de nóminas devuelve resultados idénticos.
+---
+ concilia/app.js                     | 4 +++-
+ config.example.js                   | 3 +++
+ coordinacion/app.js                 | 6 +++++-
+ coordinacion/concilia-integrated.js | 4 +++-
+ coordinacion/modules/supabase.js    | 6 +++++-
+ curriculos/app.js                   | 4 +++-
+ programacion/app.js                 | 6 +++++-
+ shared/supabase-client.js           | 8 +++++++-
+ 8 files changed, 34 insertions(+), 7 deletions(-)
+
+diff --git a/concilia/app.js b/concilia/app.js
+index af93f47..7113f7b 100644
+--- a/concilia/app.js
++++ b/concilia/app.js
+@@ -6243,7 +6243,9 @@
+     }
+ 
+     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+-    const client = createClient(supabaseConfig.url, supabaseConfig.anonKey);
++    const client = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
++      db: { schema: supabaseConfig.schema ?? "public" },
++    });
+     client.auth.onAuthStateChange((_event, session) => {
+       window.SupabaseApp?.setSession(session);
+     });
+diff --git a/config.example.js b/config.example.js
+index 6fd39ab..5363518 100644
+--- a/config.example.js
++++ b/config.example.js
+@@ -3,5 +3,8 @@ window.APP_CONFIG = {
+     url: "https://TU-PROYECTO.supabase.co",
+     anonKey: "TU-ANON-KEY",
+     bucket: "candidate-cvs",
++    // Esquema de las tablas. Omitir (o "public") mientras Coordinación tenga su propio
++    // proyecto Supabase. Al migrar a la base de datos del portal laboral: "coordinacion".
++    schema: "public",
+   },
+ };
+diff --git a/coordinacion/app.js b/coordinacion/app.js
+index 4cf911e..be145b9 100644
+--- a/coordinacion/app.js
++++ b/coordinacion/app.js
+@@ -2923,7 +2923,11 @@ async function getSupabaseClient() {
+   }
+ 
+   const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+-  supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey);
++  // Fallback sin shared/supabase-client.js: hay que repetir aquí el esquema de config.js,
++  // o este cliente consultaría el esquema equivocado sin dar error (ver fase-1).
++  supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
++    db: { schema: supabaseConfig.schema ?? "public" },
++  });
+ 
+   if (!supabaseAuthListenerBound) {
+     supabaseClient.auth.onAuthStateChange((_event, session) => {
+diff --git a/coordinacion/concilia-integrated.js b/coordinacion/concilia-integrated.js
+index 555c3db..7721ddf 100644
+--- a/coordinacion/concilia-integrated.js
++++ b/coordinacion/concilia-integrated.js
+@@ -8250,7 +8250,9 @@
+     }
+ 
+     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+-    const client = createClient(supabaseConfig.url, supabaseConfig.anonKey);
++    const client = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
++      db: { schema: supabaseConfig.schema ?? "public" },
++    });
+     client.auth.onAuthStateChange((_event, session) => {
+       window.SupabaseApp?.setSession(session);
+     });
+diff --git a/coordinacion/modules/supabase.js b/coordinacion/modules/supabase.js
+index 53ef1ff..cacaba0 100644
+--- a/coordinacion/modules/supabase.js
++++ b/coordinacion/modules/supabase.js
+@@ -8,7 +8,11 @@ async function getSupabaseClient() {
+   }
+ 
+   const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+-  supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey);
++  // Este módulo no lo carga ningún HTML ahora mismo, pero se deja coherente con el resto
++  // para que no reaparezca el fallo del esquema si algún día se usa.
++  supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
++    db: { schema: supabaseConfig.schema ?? "public" },
++  });
+ 
+   if (!supabaseAuthListenerBound) {
+     supabaseClient.auth.onAuthStateChange((_event, session) => {
+diff --git a/curriculos/app.js b/curriculos/app.js
+index 3c07d6f..5691045 100644
+--- a/curriculos/app.js
++++ b/curriculos/app.js
+@@ -108,7 +108,9 @@
+     }
+ 
+     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+-    return createClient(supabaseConfig.url, supabaseConfig.anonKey);
++    return createClient(supabaseConfig.url, supabaseConfig.anonKey, {
++      db: { schema: supabaseConfig.schema ?? "public" },
++    });
+   }
+ 
+   async function uploadFileToSupabase(candidateId, file) {
+diff --git a/programacion/app.js b/programacion/app.js
+index 6fef74d..de85a13 100644
+--- a/programacion/app.js
++++ b/programacion/app.js
+@@ -290,7 +290,11 @@
+     }
+ 
+     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+-    supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey);
++    // Esta app no usa shared/supabase-client.js: crea su propio cliente, así que el
++    // esquema de config.js hay que pasarlo aquí también (ver fase-1 de la migración).
++    supabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
++      db: { schema: supabaseConfig.schema ?? "public" },
++    });
+     return supabaseClient;
+   }
+ 
+diff --git a/shared/supabase-client.js b/shared/supabase-client.js
+index 12a1d3c..bf3088f 100644
+--- a/shared/supabase-client.js
++++ b/shared/supabase-client.js
+@@ -44,7 +44,13 @@
+ 
+     _clientPromise = import("https://esm.sh/@supabase/supabase-js@2").then(
+       ({ createClient }) => {
+-        _client = createClient(_config.url, _config.anonKey);
++        // El esquema sale de config.js. Por defecto "public", que es como ha funcionado
++        // siempre. Cuando Coordinación pase a la base de datos del portal laboral, sus
++        // tablas viven en el esquema "coordinacion" y basta con indicarlo en config.js:
++        // el resto del código (.from(...), .rpc(...)) no cambia.
++        _client = createClient(_config.url, _config.anonKey, {
++          db: { schema: _config.schema ?? "public" },
++        });
+ 
+         // Escuchar cambios de sesión una sola vez
+         if (!_authListenerBound) {
+-- 
+2.53.0.windows.1
+

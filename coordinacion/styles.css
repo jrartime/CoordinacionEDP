@@ -7117,6 +7117,64 @@ details[open] > .gestion-collapsible-header::before {
   color: var(--muted);
 }
 
+.gestion-envio-nominas-panel {
+  inset: 28px;
+  overflow: auto;
+}
+
+.gestion-envio-nominas-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.gestion-envio-nominas-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+}
+
+.gestion-envio-nominas-destino-row {
+  display: flex;
+  gap: 8px;
+}
+
+.gestion-envio-nominas-destino-row input {
+  flex: 1;
+}
+
+.gestion-envio-nominas-table-wrapper {
+  max-height: 46vh;
+  overflow: auto;
+  margin: 8px 0;
+}
+
+.gestion-envio-nominas-estado-ok {
+  font-weight: 600;
+}
+
+.gestion-envio-nominas-estado-aviso {
+  color: #b3261e;
+  font-weight: 600;
+}
+
+.gestion-envio-nominas-log {
+  max-height: 40vh;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 10px;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
+}
+
+@media (max-width: 900px) {
+  .gestion-envio-nominas-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .gestion-grid,
   .conciliacion-grid {
@@ -8744,4 +8802,37 @@ details[open] > .gestion-collapsible-header::before {
 .historial-activities-table tfoot td {
   border-top: 2px solid var(--line, #c9d1d9);
   padding-top: 6px;
+}
+
+.historial-report-annexes {
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #d5dbe3);
+  border-radius: 8px;
+}
+
+.historial-report-annex-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.historial-report-annex-extra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.historial-report-annexes .checkbox-item,
+.historial-report-annex-extra span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#historial-report-panel .personal-import-table-wrap {
+  flex-shrink: 0;
 }

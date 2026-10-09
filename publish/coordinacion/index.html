@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20260916-4" />
-    <link rel="stylesheet" href="./styles.css?v=20261003-2" />
+    <link rel="stylesheet" href="./styles.css?v=20261009-4" />
   </head>
   <body>
     <script>
@@ -2514,6 +2514,21 @@
                     </table>
                   </div>
 
+                  <fieldset class="historial-report-annexes">
+                    <legend>Anexos al PDF</legend>
+                    <p class="muted-text">
+                      Orden final: informe, PDF anexados desde tu equipo y, por último, documentos de empresa.
+                    </p>
+                    <div id="historial-report-annex-company-list" class="historial-report-annex-list"></div>
+                    <div class="personal-import-actions">
+                      <input id="historial-report-annex-file-input" type="file" accept="application/pdf" multiple class="hidden" />
+                      <button id="historial-report-annex-add-button" type="button" class="secondary-button">
+                        Anexar PDF…
+                      </button>
+                    </div>
+                    <div id="historial-report-annex-extra-list" class="historial-report-annex-list"></div>
+                  </fieldset>
+
                   <div class="detail-form records-detail-form">
                     <label class="full-width">
                       Texto para el correo
@@ -2630,6 +2645,9 @@
                     </button>
                     <button id="gestion-nominas-recientes-button" type="button" class="secondary-button hidden">
                       Últimas nóminas
+                    </button>
+                    <button id="gestion-envio-nominas-button" type="button" class="secondary-button hidden">
+                      Enviar nóminas
                     </button>
                   </div>
                 </div>
@@ -2952,6 +2970,54 @@
                   <div class="event-report-image-preview">
                     <img id="gestion-nominas-recientes-preview" alt="Recibo de la nómina seleccionada" />
                   </div>
+                </aside>
+
+                <div id="gestion-envio-nominas-backdrop" class="panel-backdrop hidden"></div>
+                <aside id="gestion-envio-nominas-panel" class="report-panel gestion-envio-nominas-panel hidden">
+                  <div class="side-panel-header">
+                    <div class="section-heading">
+                      <p class="eyebrow">Gestión</p>
+                      <h2>Enviar nóminas</h2>
+                      <p id="gestion-envio-nominas-summary">Divide el PDF de nóminas por persona, lo cifra con su DNI y lo envía por Outlook.</p>
+                    </div>
+                    <button id="gestion-envio-nominas-close-button" type="button" class="secondary-button">Cerrar</button>
+                  </div>
+                  <p id="gestion-envio-nominas-helper" class="muted-text">Comprobando el ayudante local…</p>
+                  <form id="gestion-envio-nominas-form" class="gestion-envio-nominas-form">
+                    <div class="gestion-envio-nominas-row">
+                      <label class="filter-field">
+                        PDF con las nóminas
+                        <input id="gestion-envio-nominas-pdf" type="file" accept="application/pdf,.pdf" required />
+                      </label>
+                      <label class="filter-field">
+                        Tipo de documento
+                        <input id="gestion-envio-nominas-tipo" type="text" value="Nómina" />
+                      </label>
+                    </div>
+                    <label class="filter-field">
+                      Carpeta de destino (ruta completa en este ordenador)
+                      <span class="gestion-envio-nominas-destino-row">
+                        <input id="gestion-envio-nominas-destino" type="text" placeholder="D:\Nominas\2026" />
+                        <button id="gestion-envio-nominas-elegir" type="button" class="secondary-button">Elegir…</button>
+                      </span>
+                    </label>
+                    <label class="filter-field">
+                      Asunto
+                      <input id="gestion-envio-nominas-asunto" type="text" />
+                    </label>
+                    <label class="filter-field">
+                      Cuerpo del correo (HTML; marcadores {saludo} {tipo} {mes} {anio})
+                      <textarea id="gestion-envio-nominas-cuerpo" rows="8"></textarea>
+                    </label>
+                    <label class="checkbox-field">
+                      <input id="gestion-envio-nominas-enviar" type="checkbox" checked />
+                      Enviar por Outlook a las personas marcadas
+                    </label>
+                    <div class="results-actions">
+                      <button id="gestion-envio-nominas-analizar" type="submit">Analizar PDF</button>
+                    </div>
+                  </form>
+                  <div id="gestion-envio-nominas-resultado" class="gestion-envio-nominas-resultado"></div>
                 </aside>
               </section>
             </section>
@@ -6373,8 +6439,11 @@
             <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="complementos" aria-pressed="false">
               Conceptos Nómina
             </button>
-            <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="convenios" aria-pressed="false">
+            <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="convenios_fichas" aria-pressed="false">
               Convenios
+            </button>
+            <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="convenios" aria-pressed="false">
+              Categorías de convenio
             </button>
             <button class="settings-subtab-button" type="button" data-settings-view="catalog" data-settings-catalog="convenios_tarifas" aria-pressed="false">
               Tarifas de convenio
@@ -6460,6 +6529,7 @@
                       <option value="llamamiento">Llamamiento</option>
                       <option value="variacion">Variación</option>
                       <option value="subrogacion">Subrogación</option>
+                      <option value="nueva_contratacion">Nueva contratación</option>
                       <option value="otro">Otro</option>
                     </select>
                   </label>
@@ -6482,6 +6552,7 @@
                 <label>Título tabla actividades<input name="tabla_actividades_titulo" type="text" /></label>
                 <label class="full-width">Opciones respuesta<textarea name="opciones_respuesta_texto" rows="2"></textarea></label>
                 <label class="full-width">Pie observaciones<textarea name="pie_observaciones" rows="2"></textarea></label>
+                <label class="full-width">Texto del correo (usa {{saludo}} y {{nombre}}; vacío = texto por defecto del tipo)<textarea name="texto_correo" rows="5"></textarea></label>
               </div>
             </form>
           </div>
@@ -10285,6 +10356,6 @@
     <script src="./list-scroll-keeper.js?v=20260930-1" defer></script>
     <script src="./concilia-integrated.js?v=20261006-1" defer></script>
     <script src="./facturacion.js?v=20261006-1" defer></script>
-    <script src="./app.js?v=20261003-2" defer></script>
+    <script src="./app.js?v=20261009-5" defer></script>
   </body>
 </html>

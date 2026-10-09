@@ -479,15 +479,58 @@ const SETTINGS_CATALOGS = {
     titleField: "nombre",
     usageReferences: [],
   },
-  convenios: {
+  // Ficha legal del convenio (RD 723/2026): código BOE, vigencia, jornada
+  // máxima, período de prueba, vacaciones y preavisos. Las categorías/niveles
+  // salariales de cada convenio viven en el catálogo "convenios" (siguiente).
+  convenios_fichas: {
     label: "Convenios",
     singularLabel: "convenio",
+    table: "convenios",
+    order: "nombre",
+    columns:
+      "id,nombre,codigo,boe_numero,boe_fecha,fecha_publicacion,vigente_hasta,articulo_prorroga," +
+      "jornada_maxima_anual_horas,jornada_maxima_semanal_horas,periodo_prueba_texto,vacaciones_dias,vacaciones_notas," +
+      "preaviso_llamamiento_dias,preaviso_llamamiento_articulo,preaviso_cese_dias,preaviso_cese_notas,notas,activo",
+    fields: [
+      { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
+      { key: "nombre", label: "Nombre del convenio", type: "text", required: true },
+      { key: "activo", label: "Activo", type: "checkbox" },
+      { key: "codigo", label: "Código de convenio", type: "text" },
+      { key: "boe_numero", label: "BOE núm.", type: "text" },
+      { key: "boe_fecha", label: "Fecha BOE", type: "date" },
+      { key: "fecha_publicacion", label: "Fecha de publicación", type: "date" },
+      { key: "vigente_hasta", label: "Vigente hasta", type: "date" },
+      { key: "articulo_prorroga", label: "Prórroga (artículo / régimen)", type: "text" },
+      { key: "jornada_maxima_anual_horas", label: "Jornada máxima anual (h)", type: "number", step: "0.01" },
+      { key: "jornada_maxima_semanal_horas", label: "Jornada máxima semanal (h)", type: "number", step: "0.01" },
+      { key: "periodo_prueba_texto", label: "Período de prueba", type: "textarea" },
+      { key: "vacaciones_dias", label: "Vacaciones (días)", type: "number", step: "1" },
+      { key: "vacaciones_notas", label: "Vacaciones (detalle)", type: "textarea" },
+      { key: "preaviso_llamamiento_dias", label: "Preaviso de llamamiento (días)", type: "number", step: "1" },
+      { key: "preaviso_llamamiento_articulo", label: "Llamamiento: artículo", type: "text" },
+      { key: "preaviso_cese_dias", label: "Preaviso de cese voluntario (días)", type: "number", step: "1" },
+      { key: "preaviso_cese_notas", label: "Cese voluntario (detalle / por grupo)", type: "textarea" },
+      { key: "notas", label: "Notas", type: "textarea" },
+    ],
+    listFields: ["nombre", "codigo", "vigente_hasta", "activo"],
+    titleField: "nombre",
+    usageReferences: [{ table: "convenios_categorias", label: "Categorías de convenio", column: "convenio_id" }],
+  },
+  convenios: {
+    label: "Categorías de convenio",
+    singularLabel: "categoría",
     table: "convenios_categorias",
     order: "convenio",
-    columns: "id,convenio,nivel,grupo_nivel,enlace,activo",
+    columns: "id,convenio,convenio_id,nivel,grupo_nivel,enlace,activo",
     fields: [
       { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
       { key: "convenio", label: "Nombre del convenio", type: "text", required: true },
+      {
+        key: "convenio_id",
+        label: "Convenio (ficha legal)",
+        type: "select",
+        optionsFrom: { table: "convenios", columns: "id,nombre", valueKey: "id", order: "nombre", label: (row) => row.nombre },
+      },
       { key: "grupo_nivel", label: "Grupo y nivel", type: "text" },
       { key: "activo", label: "Activo", type: "checkbox" },
       { key: "nivel", label: "Categorías que incluye (texto del convenio)", type: "textarea" },
@@ -572,6 +615,8 @@ const PERSONAL_VINCULACION_OPTIONS = [
   { value: "3", label: "Pendiente de desvincular" },
   { value: "4", label: "No pertenece" },
 ];
+// Opción del filtro que engloba toda vinculación salvo "No pertenece" (id 4).
+const PERSONAL_VINCULACION_PERTENECE = "pertenece";
 const PERSONAL_DOCUMENTATION_FIELD_KEYS = new Set([
   "cv",
   "da",
@@ -3151,6 +3196,14 @@ async function getJsPdfClient() {
 
   jsPdfModulePromise = import("https://esm.sh/jspdf@2.5.1");
   return jsPdfModulePromise;
+}
+
+let pdfLibModulePromise = null;
+async function getPdfLibClient() {
+  if (!pdfLibModulePromise) {
+    pdfLibModulePromise = import("https://esm.sh/pdf-lib@1.17.1");
+  }
+  return pdfLibModulePromise;
 }
 
 async function getJsZipClient() {
@@ -12024,13 +12077,18 @@ function renderPersonalVinculacionOptions() {
 
   personalVinculacionFilter.innerHTML = [
     '<option value="">Todas las vinculaciones</option>',
+    `<option value="${PERSONAL_VINCULACION_PERTENECE}">Pertenece (activos y no activos)</option>`,
     ...PERSONAL_VINCULACION_OPTIONS.map(
       (option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
     ),
     ...extraValues.map((value) => `<option value="${escapeHtml(value)}">Vinculacion ${escapeHtml(value)}</option>`),
   ].join("");
   personalVinculacionFilter.value =
-    configuredValues.has(currentValue) || extraValues.includes(currentValue) ? currentValue : "";
+    configuredValues.has(currentValue) ||
+    extraValues.includes(currentValue) ||
+    currentValue === PERSONAL_VINCULACION_PERTENECE
+      ? currentValue
+      : "";
 }
 
 function applyPersonalFilters() {
@@ -12038,7 +12096,12 @@ function applyPersonalFilters() {
   const search = normalizeSearchText(personalTextFilter?.value || "");
 
   filteredPersonalRows = currentPersonalRows.filter((row) => {
-    if (vinculacion && String(row.vinculacion_id ?? "") !== vinculacion) {
+    const rowVinculacion = String(row.vinculacion_id ?? "");
+    if (vinculacion === PERSONAL_VINCULACION_PERTENECE) {
+      if (!rowVinculacion || rowVinculacion === "4") {
+        return false;
+      }
+    } else if (vinculacion && rowVinculacion !== vinculacion) {
       return false;
     }
     if (!search) {
@@ -22096,6 +22159,7 @@ function renderGestionPersonalOptions(rows) {
     "hidden",
     !gestionFilterPersonalHidden?.value || !currentUserIsAccessAdmin
   );
+  document.querySelector("#gestion-envio-nominas-button")?.classList.toggle("hidden", !currentUserIsAccessAdmin);
   return map.size;
 }
 
@@ -24201,6 +24265,340 @@ async function openGestionNominasRecientesPanel() {
 function closeGestionNominasRecientesPanel() {
   gestionNominasRecientesPanel?.classList.add("hidden");
   gestionNominasRecientesBackdrop?.classList.add("hidden");
+}
+
+// ============================================================================
+// Gestión · Enviar nóminas. Replica el "Procesador de nóminas" (D:\Python\Nominas)
+// pero con los datos de personal (DNI, nombre, email, género) leídos de la tabla
+// `personal` en lugar de un Excel. El navegador no puede dividir/cifrar PDFs con
+// contraseña ni abrir Outlook, así que el trabajo pesado lo hace el ayudante
+// local (api_coordinacion.py, dentro de la app Flask de Nóminas) en 127.0.0.1:
+// la web le manda el PDF + el personal, y luego las filas marcadas para enviar.
+// ============================================================================
+
+const GESTION_ENVIO_NOMINAS_API = "http://127.0.0.1:5000/api/coordinacion";
+const GESTION_ENVIO_NOMINAS_ASUNTO = "{tipo} {mes} {anio}";
+const GESTION_ENVIO_NOMINAS_CUERPO = [
+  "<p>{saludo}</p>",
+  "<p>Adjunto se remite el/la <strong>{tipo}</strong> correspondiente al mes de <strong>{mes}</strong> de <strong>{anio}</strong>.</p>",
+  "<p><strong>Este documento PDF está protegido con contraseña.</strong><br>",
+  "La contraseña para abrirlo es su <strong>DNI/NIE</strong> (sin espacios ni guiones).</p>",
+  "<br><p>Un saludo.</p><br>",
+  "<p style='font-size:90%; font-family:Arial, sans-serif;'>",
+  "<strong>Educación Deportiva del Principado S.L.</strong><br>",
+  "González del Valle 14 2º izq - 33004 Oviedo<br>",
+  "Correo: edp@edpsl.es &nbsp;&nbsp; Teléfono: 985966388",
+  "</p>",
+].join("\n");
+const GESTION_ENVIO_NOMINAS_DESTINO_KEY = "coordinacion-envio-nominas-destino";
+const GESTION_ENVIO_NOMINAS_MESES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+const GESTION_ENVIO_NOMINAS_ESTADOS = {
+  ok: { label: "Listo para enviar", ok: true },
+  sin_email: { label: "Sin email en la ficha", ok: false },
+  no_encontrado: { label: "DNI no está en Personal", ok: false },
+  sin_dni: { label: "No se detectó DNI en la página", ok: false },
+};
+
+let gestionEnvioNominasJobId = "";
+let gestionEnvioNominasItems = [];
+
+function gestionEnvioNominasEl(id) {
+  return document.getElementById(`gestion-envio-nominas-${id}`);
+}
+
+async function pingGestionEnvioNominas() {
+  try {
+    const response = await fetch(`${GESTION_ENVIO_NOMINAS_API}/ping`);
+    return Boolean((await response.json())?.ok);
+  } catch (error) {
+    return false;
+  }
+}
+
+// Si la app de Nóminas no está en marcha se la pide al ayudante de carpetas
+// (que sí arranca con el PC) y espera a que empiece a responder.
+async function checkGestionEnvioNominasHelper() {
+  const helperEl = gestionEnvioNominasEl("helper");
+  if (await pingGestionEnvioNominas()) {
+    helperEl.textContent = "Ayudante local conectado.";
+    return true;
+  }
+  helperEl.textContent = "Arrancando el ayudante de nóminas…";
+  let launchError = "";
+  try {
+    const response = await fetch(`${PERSONAL_CARPETA_HELPER_URL}/lanzar-nominas`);
+    const data = await response.json().catch(() => null);
+    if (!data?.ok) {
+      launchError = data?.error || "El ayudante de carpetas no pudo arrancarlo.";
+    }
+  } catch (error) {
+    launchError = "No se pudo contactar con el ayudante de carpetas (¿está en marcha y actualizado?).";
+  }
+  for (let attempt = 0; !launchError && attempt < 30; attempt++) {
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    if (await pingGestionEnvioNominas()) {
+      helperEl.textContent = "Ayudante local conectado.";
+      return true;
+    }
+  }
+  helperEl.textContent =
+    (launchError || "La app de nóminas no respondió a tiempo.") +
+    " Puedes arrancarla a mano con iniciar_nominas.bat (D:\\Python\\Nominas) y, si Chrome lo pide, permitir el acceso a la red local.";
+  return false;
+}
+
+async function openGestionEnvioNominasPanel() {
+  if (!currentUserIsAccessAdmin) {
+    return;
+  }
+  const asunto = gestionEnvioNominasEl("asunto");
+  const cuerpo = gestionEnvioNominasEl("cuerpo");
+  if (!asunto.value) {
+    asunto.value = GESTION_ENVIO_NOMINAS_ASUNTO;
+  }
+  if (!cuerpo.value) {
+    cuerpo.value = GESTION_ENVIO_NOMINAS_CUERPO;
+  }
+  try {
+    const destino = gestionEnvioNominasEl("destino");
+    destino.value ||= window.localStorage.getItem(GESTION_ENVIO_NOMINAS_DESTINO_KEY) || "";
+  } catch (error) {
+    // Sin localStorage el destino simplemente no se recuerda.
+  }
+  gestionEnvioNominasEl("panel").classList.remove("hidden");
+  gestionEnvioNominasEl("backdrop").classList.remove("hidden");
+  await checkGestionEnvioNominasHelper();
+}
+
+function closeGestionEnvioNominasPanel() {
+  gestionEnvioNominasEl("panel")?.classList.add("hidden");
+  gestionEnvioNominasEl("backdrop")?.classList.add("hidden");
+}
+
+// Mismos datos que el Excel de personal: dni, personal, email, genero.
+async function fetchGestionEnvioNominasPersonal() {
+  const supabase = await getSupabaseClient();
+  const pageSize = 1000;
+  const rows = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("personal")
+      .select("id,personal,genero,dni,email")
+      .not("dni", "is", null)
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) {
+      throw error;
+    }
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) {
+      break;
+    }
+  }
+  return rows;
+}
+
+function formatGestionEnvioNominasFecha(fecha) {
+  const [anio, mes] = String(fecha).split("-");
+  const nombre = GESTION_ENVIO_NOMINAS_MESES[Number(mes) - 1];
+  return nombre ? `${nombre} ${anio}` : fecha;
+}
+
+function getGestionEnvioNominasSelected() {
+  return Array.from(document.querySelectorAll("[data-envio-nominas-index]:checked")).map(
+    (input) => gestionEnvioNominasItems[Number(input.dataset.envioNominasIndex)]
+  );
+}
+
+function updateGestionEnvioNominasCount() {
+  const count = gestionEnvioNominasEl("count");
+  if (!count) {
+    return;
+  }
+  const noEnviables = gestionEnvioNominasItems.filter((item) => item.estado !== "ok").length;
+  count.textContent =
+    `${gestionEnvioNominasItems.length} nóminas detectadas · ${getGestionEnvioNominasSelected().length} marcadas para enviar` +
+    (noEnviables ? ` · ${noEnviables} sin poder enviarse (su PDF se genera igualmente)` : "");
+}
+
+function renderGestionEnvioNominasItems() {
+  const container = gestionEnvioNominasEl("resultado");
+  const enviar = gestionEnvioNominasEl("enviar").checked;
+  const rows = gestionEnvioNominasItems
+    .map((item, index) => {
+      const estado = GESTION_ENVIO_NOMINAS_ESTADOS[item.estado] || { label: item.estado, ok: false };
+      const marcable = item.estado === "ok" && enviar;
+      return `
+        <tr>
+          <td><input type="checkbox" data-envio-nominas-index="${index}" ${marcable ? "checked" : "disabled"} /></td>
+          <td>${escapeHtml(item.personal || "—")}</td>
+          <td>${escapeHtml(item.dni === "sin_id" ? "—" : item.dni)}</td>
+          <td>${escapeHtml(formatGestionEnvioNominasFecha(item.fecha))}</td>
+          <td>${item.paginas.length}</td>
+          <td>${escapeHtml(item.email || "—")}</td>
+          <td class="${estado.ok ? "gestion-envio-nominas-estado-ok" : "gestion-envio-nominas-estado-aviso"}">${escapeHtml(estado.label)}</td>
+        </tr>`;
+    })
+    .join("");
+  container.innerHTML = `
+    <p id="gestion-envio-nominas-count" class="summary-chip"></p>
+    <div class="gestion-envio-nominas-table-wrapper">
+      <table class="records-table gestion-compact-table">
+        <thead>
+          <tr>
+            <th><input id="gestion-envio-nominas-select-all" type="checkbox" ${enviar ? "checked" : "disabled"} title="Marcar o desmarcar todos los que se pueden enviar" /></th>
+            <th>Persona</th><th>DNI</th><th>Mes</th><th>Págs.</th><th>Email</th><th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="results-actions">
+      <button id="gestion-envio-nominas-procesar" type="button">${enviar ? "Generar PDFs y enviar" : "Generar PDFs"}</button>
+    </div>
+    <div id="gestion-envio-nominas-log"></div>`;
+  updateGestionEnvioNominasCount();
+}
+
+async function analyzeGestionEnvioNominas(event) {
+  event.preventDefault();
+  const file = gestionEnvioNominasEl("pdf").files?.[0];
+  if (!file) {
+    return;
+  }
+  const analyzeButton = gestionEnvioNominasEl("analizar");
+  const container = gestionEnvioNominasEl("resultado");
+  analyzeButton.disabled = true;
+  container.innerHTML = `<p class="muted-text">Leyendo el personal y analizando el PDF…</p>`;
+  try {
+    if (!(await checkGestionEnvioNominasHelper())) {
+      container.innerHTML = "";
+      return;
+    }
+    const personal = await fetchGestionEnvioNominasPersonal();
+    const form = new FormData();
+    form.append("pdf", file);
+    form.append(
+      "personal",
+      JSON.stringify(personal.map((row) => ({ dni: row.dni, personal: row.personal, email: row.email, genero: row.genero })))
+    );
+    const response = await fetch(`${GESTION_ENVIO_NOMINAS_API}/preparar`, { method: "POST", body: form });
+    const data = await response.json();
+    if (!data?.ok) {
+      throw new Error(data?.error || "No se pudo analizar el PDF.");
+    }
+    gestionEnvioNominasJobId = data.job_id;
+    gestionEnvioNominasItems = data.items || [];
+    renderGestionEnvioNominasItems();
+  } catch (error) {
+    container.innerHTML = `<p class="gestion-envio-nominas-estado-aviso">${escapeHtml(error.message || String(error))}</p>`;
+  } finally {
+    analyzeButton.disabled = false;
+  }
+}
+
+async function processGestionEnvioNominas() {
+  const destino = gestionEnvioNominasEl("destino").value.trim();
+  if (!destino) {
+    window.alert("Indica la carpeta de destino (ruta completa en este ordenador).");
+    return;
+  }
+  const enviar = gestionEnvioNominasEl("enviar").checked;
+  const seleccionados = getGestionEnvioNominasSelected();
+  if (
+    enviar &&
+    !window.confirm(
+      seleccionados.length
+        ? `Se enviarán ${seleccionados.length} correos desde Outlook. ¿Continuar?`
+        : "No hay nadie marcado: solo se generarán los PDFs, sin enviar correos. ¿Continuar?"
+    )
+  ) {
+    return;
+  }
+  try {
+    window.localStorage.setItem(GESTION_ENVIO_NOMINAS_DESTINO_KEY, destino);
+  } catch (error) {
+    // Recordar el destino es solo una comodidad.
+  }
+  const button = gestionEnvioNominasEl("procesar");
+  const logEl = gestionEnvioNominasEl("log");
+  button.disabled = true;
+  logEl.innerHTML = `<p class="muted-text">Generando PDFs${enviar ? " y enviando correos" : ""}… no cierres el panel.</p>`;
+  try {
+    const response = await fetch(`${GESTION_ENVIO_NOMINAS_API}/procesar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        job_id: gestionEnvioNominasJobId,
+        destino,
+        enviar,
+        tipo_documento: gestionEnvioNominasEl("tipo").value.trim() || "Nómina",
+        asunto: gestionEnvioNominasEl("asunto").value,
+        cuerpo: gestionEnvioNominasEl("cuerpo").value,
+        seleccionados: seleccionados.map((item) => item.clave),
+      }),
+    });
+    const data = await response.json();
+    if (!data?.ok) {
+      throw new Error(data?.error || "No se pudo procesar.");
+    }
+    const enviados = data.log.filter((line) => line.endsWith("-> Enviado")).length;
+    const errores = data.log.filter((line) => line.includes("-> Error:")).length;
+    logEl.innerHTML = `
+      <p class="summary-chip">${data.total} PDFs generados en ${escapeHtml(destino)} · ${enviados} enviados · ${errores} con error</p>
+      <pre class="gestion-envio-nominas-log">${escapeHtml(data.log.join("\n"))}</pre>`;
+  } catch (error) {
+    logEl.innerHTML = `<p class="gestion-envio-nominas-estado-aviso">${escapeHtml(error.message || String(error))}</p>`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function initGestionEnvioNominas() {
+  document.querySelector("#gestion-envio-nominas-button")?.addEventListener("click", () => {
+    void openGestionEnvioNominasPanel();
+  });
+  gestionEnvioNominasEl("close-button")?.addEventListener("click", closeGestionEnvioNominasPanel);
+  gestionEnvioNominasEl("backdrop")?.addEventListener("click", closeGestionEnvioNominasPanel);
+  gestionEnvioNominasEl("form")?.addEventListener("submit", (event) => {
+    void analyzeGestionEnvioNominas(event);
+  });
+  gestionEnvioNominasEl("elegir")?.addEventListener("click", async () => {
+    try {
+      const response = await fetch(`${GESTION_ENVIO_NOMINAS_API}/elegir-carpeta`, { method: "POST" });
+      const data = await response.json();
+      if (data?.path) {
+        gestionEnvioNominasEl("destino").value = data.path.replace(/\//g, "\\");
+      } else if (data && !data.ok) {
+        window.alert(data.error || "No se pudo elegir la carpeta.");
+      }
+    } catch (error) {
+      window.alert("No se pudo conectar con el ayudante local para elegir la carpeta.");
+    }
+  });
+  // Los controles de la tabla se recrean en cada análisis: delegación en el contenedor.
+  gestionEnvioNominasEl("resultado")?.addEventListener("click", (event) => {
+    if (event.target.id === "gestion-envio-nominas-procesar") {
+      void processGestionEnvioNominas();
+    }
+  });
+  gestionEnvioNominasEl("resultado")?.addEventListener("change", (event) => {
+    if (event.target.id === "gestion-envio-nominas-select-all") {
+      document
+        .querySelectorAll("[data-envio-nominas-index]:not(:disabled)")
+        .forEach((input) => (input.checked = event.target.checked));
+    }
+    updateGestionEnvioNominasCount();
+  });
+  // Al cambiar "Enviar por Outlook" las casillas dejan de tener sentido: se repinta la tabla.
+  gestionEnvioNominasEl("enviar")?.addEventListener("change", () => {
+    if (gestionEnvioNominasItems.length) {
+      renderGestionEnvioNominasItems();
+    }
+  });
 }
 
 async function loadGestionNominasRecientes() {
@@ -26781,8 +27179,7 @@ const historialListadoReportImageButton = document.querySelector("#historial-lis
 const historialDetailPanel = document.querySelector("#historial-detail-panel");
 const historialDetailOverlay = document.querySelector("#historial-detail-overlay");
 const historialDetailTitle = document.querySelector("#historial-detail-title");
-const historialDetailForm = document.querySelector("#historial-detail-form");
-const historialDetailFields = document.querySelector("#historial-detail-fields");
+const historialDetailForm = document.querySelector("#historial-detail-form");const historialDetailFields = document.querySelector("#historial-detail-fields");
 const historialDetailCloseButton = document.querySelector("#historial-detail-close-button");
 const historialDetailCancelButton = document.querySelector("#historial-detail-cancel-button");
 const historialDetailDeleteButton = document.querySelector("#historial-detail-delete-button");
@@ -26832,6 +27229,10 @@ const historialReportTemplateWarning = document.querySelector("#historial-report
 const historialReportActivitiesTableBody = document.querySelector("#historial-report-activities-table-body");
 const historialReportDownloadButton = document.querySelector("#historial-report-download-button");
 const historialReportEmailText = document.querySelector("#historial-report-email-text");
+const historialReportAnnexCompanyList = document.querySelector("#historial-report-annex-company-list");
+const historialReportAnnexExtraList = document.querySelector("#historial-report-annex-extra-list");
+const historialReportAnnexFileInput = document.querySelector("#historial-report-annex-file-input");
+const historialReportAnnexAddButton = document.querySelector("#historial-report-annex-add-button");
 
 const HISTORIAL_FETCH_LIMIT = 1000;
 const HISTORIAL_TABLE = "historiales_laborales";
@@ -26956,6 +27357,7 @@ const HISTORIAL_REPORT_TEMPLATE_FIELDS = [
   "incluir_opciones_respuesta",
   "opciones_respuesta_texto",
   "pie_observaciones",
+  "texto_correo",
 ];
 const HISTORIAL_REPORT_TEMPLATE_BOOLEAN_FIELDS = new Set([
   "activo",
@@ -26972,6 +27374,7 @@ const HISTORIAL_REPORT_TEMPLATE_TEXT_BLOCKS = [
   "texto_recibido",
   "opciones_respuesta_texto",
   "pie_observaciones",
+  "texto_correo",
 ];
 const HISTORIAL_REPORT_ACTIVITY_SELECT =
   "id, personal_id, personal, dni, empresa_id, empresa, instalacion, puesto, dias_semana, " +
@@ -27347,6 +27750,7 @@ function getDefaultHistorialReportTemplate() {
     incluir_opciones_respuesta: false,
     opciones_respuesta_texto: "",
     pie_observaciones: "",
+    texto_correo: "",
   };
 }
 
@@ -27709,6 +28113,7 @@ function getHistorialReportExpectedDocumentType(historialRow) {
   );
   if (!source) return "";
   if (source.includes("subrog")) return "subrogacion";
+  if (source.includes("nueva contrat")) return "nueva_contratacion";
   if (source.includes("variacion") || source.includes("varia") || source.includes("jornada") || source.includes("hora")) {
     return "variacion";
   }
@@ -27723,6 +28128,7 @@ function getHistorialReportTypeLabel(type) {
     llamamiento: "llamamiento",
     variacion: "variación",
     subrogacion: "subrogación",
+    nueva_contratacion: "nueva contratación",
     otro: "otro",
   }[type] || type || "";
 }
@@ -27886,6 +28292,12 @@ const HISTORIAL_REPORT_EMAIL_TEXTS = {
     "Educación Deportiva del Principado S.L. según los términos que se detallan en el " +
     "documento adjunto para su firma.\n\n" +
     "Un saludo",
+  nueva_contratacion:
+    "{{saludo}} {{nombre}}\n\n" +
+    "Adjunto se remite contrato de trabajo con la empresa Educación Deportiva del " +
+    "Principado S.L. según los términos que se detallan en el documento adjunto para " +
+    "su firma.\n\n" +
+    "Un saludo",
 };
 const HISTORIAL_REPORT_EMAIL_TEXT_DEFAULT =
   "{{saludo}} {{nombre}}\n\n" +
@@ -27911,7 +28323,10 @@ function buildHistorialReportEmailText() {
   const nombre =
     historialReportDraft?.personal?.personal || historialReportDraft?.historialRow?.personal || "";
   const saludo = getHistorialReportGreeting(historialReportDraft?.personal?.genero);
-  const base = HISTORIAL_REPORT_EMAIL_TEXTS[type] || HISTORIAL_REPORT_EMAIL_TEXT_DEFAULT;
+  const base =
+    String(template?.texto_correo || "").trim() ||
+    HISTORIAL_REPORT_EMAIL_TEXTS[type] ||
+    HISTORIAL_REPORT_EMAIL_TEXT_DEFAULT;
   return base
     .replace(/\{\{\s*saludo\s*\}\}/g, saludo)
     .replace(/\{\{\s*nombre\s*\}\}/g, nombre);
@@ -27982,8 +28397,90 @@ async function copyHistorialReportClipboardSequence(parts) {
   return copied;
 }
 
+// Anexos del informe: documentos de empresa (empresas_documentos con PDF
+// subido, marcados por defecto según su tick "se adjunta") y PDF sueltos
+// elegidos del equipo. Orden final: informe, PDF del equipo, docs de empresa.
+function renderHistorialReportAnnexes() {
+  if (historialReportAnnexCompanyList) {
+    const docs = historialReportDraft?.companyDocs || [];
+    historialReportAnnexCompanyList.innerHTML = docs.length
+      ? docs
+          .map((row) => {
+            const label = EMPRESA_DOCUMENTO_TIPOS.find((t) => t.value === row.tipo)?.label || row.tipo;
+            const checked = historialReportDraft.selectedCompanyDocIds.has(row.id) ? "checked" : "";
+            return `<label class="checkbox-item">
+              <input type="checkbox" data-historial-annex-company="${row.id}" ${checked} />
+              <span>${escapeHtml(label)} <small class="muted-text">(${escapeHtml(row.nombre_archivo || "")})</small></span>
+            </label>`;
+          })
+          .join("")
+      : `<p class="muted-text">La empresa no tiene documentos PDF subidos.</p>`;
+  }
+  if (historialReportAnnexExtraList) {
+    const extras = historialReportDraft?.extraPdfs || [];
+    historialReportAnnexExtraList.innerHTML = extras
+      .map(
+        (file, index) => `<div class="historial-report-annex-extra">
+          <span>${escapeHtml(file.name)} <small class="muted-text">(${formatEmpresaDocumentoSize(file.size)})</small></span>
+          <button type="button" class="secondary-button" data-historial-annex-remove="${index}">Quitar</button>
+        </div>`
+      )
+      .join("");
+  }
+}
+
+async function fetchHistorialReportCompanyDocs(supabase, empresaId) {
+  if (!empresaId) return [];
+  const { data, error } = await supabase
+    .from("empresas_documentos")
+    .select("id, tipo, se_adjunta, nombre_archivo, ruta_storage")
+    .eq("empresa_id", empresaId)
+    .not("ruta_storage", "is", null);
+  if (error) throw error;
+  const order = EMPRESA_DOCUMENTO_TIPOS.map((t) => t.value);
+  return (data || []).sort((a, b) => order.indexOf(a.tipo) - order.indexOf(b.tipo));
+}
+
+// Une informe + PDF del equipo + documentos de empresa en un único PDF.
+async function mergeHistorialReportAnnexes(reportBytes) {
+  const extras = historialReportDraft?.extraPdfs || [];
+  const companyDocs = (historialReportDraft?.companyDocs || []).filter((row) =>
+    historialReportDraft.selectedCompanyDocIds.has(row.id)
+  );
+  if (!extras.length && !companyDocs.length) return null;
+  const { PDFDocument } = await getPdfLibClient();
+  const merged = await PDFDocument.create();
+  const append = async (bytes, label) => {
+    let source;
+    try {
+      source = await PDFDocument.load(bytes);
+    } catch (_error) {
+      throw new Error(`No se pudo leer el PDF «${label}» (¿está protegido o dañado?).`);
+    }
+    const pages = await merged.copyPages(source, source.getPageIndices());
+    pages.forEach((page) => merged.addPage(page));
+  };
+  await append(reportBytes, "informe");
+  for (const file of extras) {
+    // eslint-disable-next-line no-await-in-loop
+    await append(await file.arrayBuffer(), file.name);
+  }
+  if (companyDocs.length) {
+    const supabase = await getSupabaseClient();
+    for (const row of companyDocs) {
+      // eslint-disable-next-line no-await-in-loop
+      const { data, error } = await supabase.storage.from(supabaseConfig.bucket).download(row.ruta_storage);
+      if (error) throw new Error(`No se pudo descargar «${row.nombre_archivo}»: ${error.message}`);
+      // eslint-disable-next-line no-await-in-loop
+      await append(await data.arrayBuffer(), row.nombre_archivo || row.tipo);
+    }
+  }
+  return new Blob([await merged.save()], { type: "application/pdf" });
+}
+
 function closeHistorialReportPanel() {
   historialReportDraft = null;
+  renderHistorialReportAnnexes();
   historialReportEmailTextDirty = false;
   if (historialReportTemplateWarning) {
     historialReportTemplateWarning.textContent = "";
@@ -28012,9 +28509,10 @@ async function openHistorialReportPanel() {
       throw new Error("No hay plantillas de informe activas.");
     }
     const startDate = historialDetailSnapshot.fecha_alta || getTodayIsoDate();
-    const [activities, personal] = await Promise.all([
+    const [activities, personal, companyDocs] = await Promise.all([
       fetchHistorialReportActivities(supabase, historialDetailSnapshot, startDate),
       fetchHistorialReportPersonal(supabase, historialDetailSnapshot.personal_id),
+      fetchHistorialReportCompanyDocs(supabase, historialDetailSnapshot.empresa_id).catch(() => []),
     ]);
     const company =
       historialReportCompanyRows.find((row) => String(row.empresa_id) === String(historialDetailSnapshot.empresa_id)) ||
@@ -28026,7 +28524,11 @@ async function openHistorialReportPanel() {
       personal,
       activities,
       selectedActivityIds: new Set(activities.map(getHistorialReportActivityKey).filter(Boolean)),
+      companyDocs,
+      selectedCompanyDocIds: new Set(companyDocs.filter((row) => row.se_adjunta).map((row) => row.id)),
+      extraPdfs: [],
     };
+    renderHistorialReportAnnexes();
     renderHistorialReportGenerateTemplateSelect(template?.id || "");
     if (historialReportTitle) {
       historialReportTitle.textContent = `${historialDetailSnapshot.personal || "Periodo"} · ${formatDisplayDate(startDate)}`;
@@ -28281,9 +28783,12 @@ async function exportHistorialLaboralReportPdf({ preview = false } = {}) {
       });
     }
 
+    // Con anexos, el PDF final es la unión; sin ellos se conserva el flujo original.
+    const mergedBlob = await mergeHistorialReportAnnexes(doc.output("arraybuffer"));
+
     if (preview) {
       if (historialReportPreviewObjectUrl) URL.revokeObjectURL(historialReportPreviewObjectUrl);
-      historialReportPreviewObjectUrl = URL.createObjectURL(doc.output("blob"));
+      historialReportPreviewObjectUrl = URL.createObjectURL(mergedBlob || doc.output("blob"));
       historialReportPreviewBody.innerHTML = `<iframe src="${historialReportPreviewObjectUrl}" title="Vista previa del informe"></iframe>`;
       if (!historialReportPreviewDialog.open) historialReportPreviewDialog.showModal();
       return;
@@ -28315,7 +28820,18 @@ async function exportHistorialLaboralReportPdf({ preview = false } = {}) {
     const expectedCount = clipboardParts.filter((part) => String(part ?? "").trim()).length;
     const copiedCount = await copyHistorialReportClipboardSequence(clipboardParts);
 
-    doc.save(`${filename || "informe laboral"}.pdf`);
+    if (mergedBlob) {
+      const url = URL.createObjectURL(mergedBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${filename || "informe laboral"}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } else {
+      doc.save(`${filename || "informe laboral"}.pdf`);
+    }
 
     const missingConfig = !placeholders.firmante_nombre || !(historialReportDraft.company?.logo_data_url || historialReportDraft.company?.logo_url);
     let clipboardNote = " (no se pudo copiar al portapapeles)";
@@ -35752,6 +36268,32 @@ async function init() {
   historialReportClearActivitiesButton?.addEventListener("click", () => {
     setHistorialReportActivitiesSelection([]);
   });
+  historialReportAnnexCompanyList?.addEventListener("change", (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.dataset.historialAnnexCompany || !historialReportDraft) return;
+    const id = Number(input.dataset.historialAnnexCompany);
+    if (input.checked) historialReportDraft.selectedCompanyDocIds.add(id);
+    else historialReportDraft.selectedCompanyDocIds.delete(id);
+  });
+  historialReportAnnexAddButton?.addEventListener("click", () => historialReportAnnexFileInput?.click());
+  historialReportAnnexFileInput?.addEventListener("change", () => {
+    if (!historialReportDraft) return;
+    Array.from(historialReportAnnexFileInput.files || []).forEach((file) => {
+      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+        historialReportDraft.extraPdfs.push(file);
+      } else {
+        setStatus(`«${file.name}» no es un PDF y no se ha anexado.`, "error");
+      }
+    });
+    historialReportAnnexFileInput.value = "";
+    renderHistorialReportAnnexes();
+  });
+  historialReportAnnexExtraList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-historial-annex-remove]");
+    if (!button || !historialReportDraft) return;
+    historialReportDraft.extraPdfs.splice(Number(button.dataset.historialAnnexRemove), 1);
+    renderHistorialReportAnnexes();
+  });
   historialReportDownloadButton?.addEventListener("click", () => {
     void exportHistorialLaboralReportPdf();
   });
@@ -35840,6 +36382,7 @@ async function init() {
   gestionEditPersonalButton?.addEventListener("click", () => {
     void openGestionPersonalDetail();
   });
+  initGestionEnvioNominas();
   gestionNominasRecientesButton?.addEventListener("click", () => {
     void openGestionNominasRecientesPanel();
   });

@@ -1,4 +1,4 @@
-# Ayudante local para el boton "Abrir" de la ficha de Personal en
+﻿# Ayudante local para el boton "Abrir" de la ficha de Personal en
 # coordinacion.edpsl.es. Un navegador no puede navegar a file:// desde una
 # pagina http(s) (Chrome responde "Not allowed to load local resource"), asi
 # que este script escucha en 127.0.0.1 y abre el Explorador real cuando la
@@ -16,6 +16,9 @@ $allowedOrigins = @(
   "https://coordinacion.edpsl.es"
 )
 $logPath = Join-Path $PSScriptRoot "carpeta_helper.log"
+# App Flask de Nominas que lanza /lanzar-nominas (boton "Enviar nominas").
+$nominasDir = "C:\portal-laboral\nominas"
+$nominasPort = 5000
 
 function Write-CrashLog($mensaje) {
   try {
@@ -233,6 +236,28 @@ while ($listener.IsListening) {
       } else {
         Send-JsonResponse $context 200 @{ ok = $false; error = "No existe: $ruta" } $allowOrigin
       }
+      continue
+    }
+
+    if ($path -eq "/lanzar-nominas" -and $request.HttpMethod -eq "GET") {
+      # Arranca la app Flask de Nominas (boton "Enviar nominas" de Gestion) si no
+      # esta ya escuchando, sin ventana. pythonw porque no necesita consola; el
+      # selector de carpetas (tkinter) funciona igual con el.
+      $enMarcha = $false
+      try {
+        $enMarcha = [bool](Get-NetTCPConnection -LocalPort $nominasPort -State Listen -ErrorAction SilentlyContinue)
+      } catch {
+        $enMarcha = $false
+      }
+      if (-not $enMarcha) {
+        $pythonw = Join-Path $nominasDir ".venv\Scripts\pythonw.exe"
+        if (-not (Test-Path -LiteralPath $pythonw)) {
+          Send-JsonResponse $context 200 @{ ok = $false; error = "No se encuentra $pythonw" } $allowOrigin
+          continue
+        }
+        Start-Process -FilePath $pythonw -ArgumentList "flask_app.py" -WorkingDirectory $nominasDir -WindowStyle Hidden
+      }
+      Send-JsonResponse $context 200 @{ ok = $true; yaEnMarcha = $enMarcha } $allowOrigin
       continue
     }
 

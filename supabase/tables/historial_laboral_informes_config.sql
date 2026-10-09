@@ -101,8 +101,22 @@ create table if not exists public.historial_laboral_informe_plantillas (
   updated_at timestamptz not null default now(),
   constraint historial_laboral_informe_plantillas_codigo_unique unique (codigo),
   constraint historial_laboral_informe_plantillas_tipo_check
-    check (tipo_documento in ('llamamiento', 'variacion', 'subrogacion', 'otro'))
+    check (tipo_documento in ('llamamiento', 'variacion', 'subrogacion', 'nueva_contratacion', 'otro'))
 );
+
+-- Texto por defecto del correo que acompana al PDF (editable por plantilla).
+-- Admite {{saludo}} y {{nombre}}. Nulo = se usa el texto por defecto del tipo.
+alter table public.historial_laboral_informe_plantillas
+  add column if not exists texto_correo text;
+comment on column public.historial_laboral_informe_plantillas.texto_correo is
+  'Texto del correo para esta plantilla. Admite {{saludo}} y {{nombre}}. Nulo = texto por defecto segun tipo_documento.';
+
+-- Bases ya creadas: ampliar la restriccion con 'nueva_contratacion'.
+alter table public.historial_laboral_informe_plantillas
+  drop constraint if exists historial_laboral_informe_plantillas_tipo_check;
+alter table public.historial_laboral_informe_plantillas
+  add constraint historial_laboral_informe_plantillas_tipo_check
+  check (tipo_documento in ('llamamiento', 'variacion', 'subrogacion', 'nueva_contratacion', 'otro'));
 
 comment on table public.historial_laboral_informe_plantillas is
   'Plantillas editables para generar documentos PDF desde registros de historial laboral.';
