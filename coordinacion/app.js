@@ -35545,6 +35545,15 @@ async function init() {
     if (event.target?.name === "cuenta_corriente") {
       reformatAccountNumberInput(event.target);
     }
+    if (event.target?.name === "dni") {
+      const input = event.target;
+      const upper = input.value.toUpperCase();
+      if (upper !== input.value) {
+        const pos = input.selectionStart;
+        input.value = upper;
+        input.setSelectionRange?.(pos, pos);
+      }
+    }
     if (event.target?.name === "nombre" || event.target?.name === "apellido") {
       syncPersonalNameField();
     }
