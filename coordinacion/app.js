@@ -27169,6 +27169,9 @@ const historialSummary = document.querySelector("#historial-summary");
 const historialTableBody = document.querySelector("#historial-table-body");
 const historialTable = document.querySelector("#historial-table");
 const historialFilterTipoContratacion = document.querySelector("#historial-filter-tipo-contratacion");
+const historialFilterMotivoBaja = document.querySelector("#historial-filter-motivo-baja");
+const historialFilterPuesto = document.querySelector("#historial-filter-puesto");
+const historialFilterVinculacion = document.querySelector("#historial-filter-vinculacion");
 const historialRefreshButton = document.querySelector("#historial-refresh-button");
 const historialClearFiltersButton = document.querySelector("#historial-clear-filters-button");
 const historialNewButton = document.querySelector("#historial-new-button");
@@ -27626,6 +27629,9 @@ function getHistorialFilterValues() {
     fechaBajaHasta: String(formData.get("fecha_baja_hasta") || "").trim(),
     fechaBajaDesde: String(formData.get("fecha_baja_desde") || "").trim(),
     tipoContratacionId: String(formData.get("tipo_contratacion_id") || "").trim(),
+    motivoBajaId: String(formData.get("motivo_baja_id") || "").trim(),
+    puestoId: String(formData.get("puesto_id") || "").trim(),
+    vinculacion: String(formData.get("vinculacion") || "").trim(),
     enviado: String(formData.get("enviado") || "").trim(),
     gestionado: String(formData.get("gestionado") || "").trim(),
     tramitado: String(formData.get("tramitado") || "").trim(),
@@ -29328,16 +29334,16 @@ function formatHistorialJornada(row) {
   return jornadaLabel;
 }
 
-function populateHistorialTipoContratacionFilter() {
-  if (!historialFilterTipoContratacion) {
+function populateHistorialCatalogFilter(select, relationKey) {
+  if (!select) {
     return;
   }
-  const options = historialRelationOptionsCache.tipo_contratacion_id || [];
+  const options = historialRelationOptionsCache[relationKey] || [];
   if (!options.length) {
     return;
   }
-  const previous = historialFilterTipoContratacion.value;
-  historialFilterTipoContratacion.innerHTML =
+  const previous = select.value;
+  select.innerHTML =
     '<option value="">Todos</option>' +
     options
       .map(
@@ -29345,7 +29351,44 @@ function populateHistorialTipoContratacionFilter() {
           `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
       )
       .join("");
-  historialFilterTipoContratacion.value = previous;
+  select.value = previous;
+}
+
+// Mismas opciones que el filtro Vinculación de la pestaña Personal.
+function populateHistorialVinculacionFilter() {
+  if (!historialFilterVinculacion || historialFilterVinculacion.options.length > 1) {
+    return;
+  }
+  historialFilterVinculacion.innerHTML = [
+    '<option value="">Todas las vinculaciones</option>',
+    `<option value="${PERSONAL_VINCULACION_PERTENECE}">Pertenece (activos y no activos)</option>`,
+    ...PERSONAL_VINCULACION_OPTIONS.map(
+      (option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
+    ),
+  ].join("");
+}
+
+// La vista del historial no trae la vinculación: se buscan los ids de las personas
+// con esa vinculación (como mucho unos cientos) y se filtra el historial por ellos.
+async function loadHistorialPersonalIdsByVinculacion(supabase, vinculacion) {
+  let personalQuery = supabase.from("personal").select("id").limit(5000);
+  if (vinculacion === PERSONAL_VINCULACION_PERTENECE) {
+    personalQuery = personalQuery.not("vinculacion_id", "is", null).neq("vinculacion_id", 4);
+  } else {
+    personalQuery = personalQuery.eq("vinculacion_id", vinculacion);
+  }
+  const { data, error } = await personalQuery;
+  if (error) {
+    throw error;
+  }
+  return (data ?? []).map((row) => row.id);
+}
+
+function populateHistorialTipoContratacionFilter() {
+  populateHistorialVinculacionFilter();
+  populateHistorialCatalogFilter(historialFilterTipoContratacion, "tipo_contratacion_id");
+  populateHistorialCatalogFilter(historialFilterMotivoBaja, "motivo_baja_id");
+  populateHistorialCatalogFilter(historialFilterPuesto, "puesto_id");
 }
 
 function getSortableHistorialValue(row, field) {
@@ -29617,6 +29660,17 @@ async function loadHistorial() {
     }
     if (filters.tipoContratacionId) {
       query = query.eq("tipo_contratacion_id", filters.tipoContratacionId);
+    }
+    if (filters.vinculacion) {
+      const personalIds = await loadHistorialPersonalIdsByVinculacion(supabase, filters.vinculacion);
+      // Con la lista vacía no debe salir nadie (in() no admite lista vacía).
+      query = query.in("personal_id", personalIds.length ? personalIds : [-1]);
+    }
+    if (filters.motivoBajaId) {
+      query = query.eq("motivo_baja_id", filters.motivoBajaId);
+    }
+    if (filters.puestoId) {
+      query = query.eq("puesto_id", filters.puestoId);
     }
     if (filters.enviado) {
       query = query.eq("enviado", filters.enviado === "true");

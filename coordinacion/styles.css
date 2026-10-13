@@ -3469,12 +3469,18 @@ button.tag-chip.warm-button:hover {
    contenedor, el @container generico gana con !important e ignora este
    ancho -mismo problema que tuvo Registros-. */
 .private-tab-panel #historial-filters-form.records-filters-compact {
-  grid-template-columns: 134px 134px 150px 90px 90px 90px minmax(190px, 1fr) auto;
+  grid-template-columns: 134px 134px 150px minmax(190px, 1fr) 150px 170px auto;
+}
+
+/* Fila superior: fechas, tipo de contratación y motivo de la baja. Fila
+   inferior: enviado/gestionado/tramitado, personal, puesto y vinculación. */
+.private-tab-panel #historial-filters-form .historial-row-start {
+  grid-column: 1;
 }
 
 @container (min-width: 1000px) {
   .private-tab-panel #historial-filters-form.records-filters-compact {
-    grid-template-columns: 134px 134px 150px 90px 90px 90px minmax(190px, 1fr) auto !important;
+    grid-template-columns: 134px 134px 150px minmax(190px, 1fr) 150px 170px auto !important;
   }
 }
 
