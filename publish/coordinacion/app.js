@@ -615,8 +615,10 @@ const PERSONAL_VINCULACION_OPTIONS = [
   { value: "3", label: "Pendiente de desvincular" },
   { value: "4", label: "No pertenece" },
 ];
-// Opción del filtro que engloba toda vinculación salvo "No pertenece" (id 4).
+// Opción del filtro que engloba solo Activo (1) y No activo (2): deja fuera
+// "Pendiente de desvincular" (3) y "No pertenece" (4).
 const PERSONAL_VINCULACION_PERTENECE = "pertenece";
+const PERSONAL_VINCULACION_PERTENECE_IDS = [1, 2];
 const PERSONAL_DOCUMENTATION_FIELD_KEYS = new Set([
   "cv",
   "da",
@@ -12098,7 +12100,7 @@ function applyPersonalFilters() {
   filteredPersonalRows = currentPersonalRows.filter((row) => {
     const rowVinculacion = String(row.vinculacion_id ?? "");
     if (vinculacion === PERSONAL_VINCULACION_PERTENECE) {
-      if (!rowVinculacion || rowVinculacion === "4") {
+      if (!PERSONAL_VINCULACION_PERTENECE_IDS.map(String).includes(rowVinculacion)) {
         return false;
       }
     } else if (vinculacion && rowVinculacion !== vinculacion) {
@@ -12123,6 +12125,14 @@ function applyPersonalFilters() {
     ).includes(search);
   });
 
+  // La lista llega ordenada por vinculación y nombre; "Pertenece" mezcla varias
+  // vinculaciones, así que ahí se ordena solo alfabéticamente.
+  if (vinculacion === PERSONAL_VINCULACION_PERTENECE) {
+    filteredPersonalRows.sort((left, right) =>
+      getPersonalDisplayName(left).localeCompare(getPersonalDisplayName(right), "es", { sensitivity: "base" })
+    );
+  }
+
   renderPersonalList();
 }
 
@@ -12145,13 +12155,16 @@ function renderPersonalList() {
       .map((row) => {
         const isSelected = String(row.id) === currentSelectedPersonalId;
         const isNoPert = Number(row.vinculacion_id) === 4;
+        const isPendiente = Number(row.vinculacion_id) === 3;
         const isInactive = !isNoPert && [2, 3].includes(Number(row.vinculacion_id));
         const tone = isNoPert ? "nopertenece" : isInactive ? "inactivo" : "ok";
         const badge = isNoPert
           ? '<span class="personal-list-badge personal-list-badge-no-pert">No pertenece</span>'
-          : isInactive
-            ? '<span class="personal-list-badge personal-list-badge-inactive">Inactivo</span>'
-            : "";
+          : isPendiente
+            ? '<span class="personal-list-badge personal-list-badge-inactive" title="Pendiente de desvincular">Pend. desvincular</span>'
+            : isInactive
+              ? '<span class="personal-list-badge personal-list-badge-inactive">Inactivo</span>'
+              : "";
         return `
           <button
             type="button"
@@ -29373,7 +29386,7 @@ function populateHistorialVinculacionFilter() {
 async function loadHistorialPersonalIdsByVinculacion(supabase, vinculacion) {
   let personalQuery = supabase.from("personal").select("id").limit(5000);
   if (vinculacion === PERSONAL_VINCULACION_PERTENECE) {
-    personalQuery = personalQuery.not("vinculacion_id", "is", null).neq("vinculacion_id", 4);
+    personalQuery = personalQuery.in("vinculacion_id", PERSONAL_VINCULACION_PERTENECE_IDS);
   } else {
     personalQuery = personalQuery.eq("vinculacion_id", vinculacion);
   }
