@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261009-5" />
-    <link rel="stylesheet" href="./styles.css?v=20261013-1" />
+    <link rel="stylesheet" href="./styles.css?v=20261016-1" />
   </head>
   <body>
     <script>
@@ -658,6 +658,14 @@
                 aria-pressed="false"
               >
                 Bajas y permisos
+              </button>
+              <button
+                id="private-tab-formacion"
+                type="button"
+                class="private-tab-button hidden"
+                aria-pressed="false"
+              >
+                Formación
               </button>
               <button
                 id="private-tab-contracts"
@@ -5672,6 +5680,312 @@
           </aside>
         </section>
 
+        <section id="private-tab-panel-formacion" class="private-tab-panel hidden">
+          <div class="section-heading-row">
+            <div>
+              <p class="eyebrow">Coordinaci&oacute;n</p>
+              <h3>Formaci&oacute;n</h3>
+            </div>
+            <div class="toolbar-actions">
+              <button id="formacion-new-button" type="button">Nueva formaci&oacute;n</button>
+              <button id="formacion-refresh-button" type="button" class="secondary-button">
+                Actualizar
+              </button>
+            </div>
+          </div>
+
+          <nav class="settings-subtabs" aria-label="Secciones de formaci&oacute;n">
+            <button type="button" class="settings-subtab-button active" data-formacion-view="ediciones" aria-pressed="true">
+              Formaciones
+            </button>
+            <button type="button" class="settings-subtab-button" data-formacion-view="externa" aria-pressed="false">
+              Formaci&oacute;n externa
+            </button>
+            <button type="button" class="settings-subtab-button" data-formacion-view="catalogos" aria-pressed="false">
+              Cat&aacute;logos
+            </button>
+          </nav>
+
+          <p id="formacion-status" class="panel-status-message"></p>
+
+          <div id="formacion-view-ediciones" class="personal-management-layout">
+            <aside class="personal-list-panel">
+              <div class="filters-grid records-filters-compact personal-list-filters">
+                <label class="filter-field">
+                  A&ntilde;o
+                  <select id="formacion-year-filter">
+                    <option value="">Todos los a&ntilde;os</option>
+                  </select>
+                </label>
+                <label class="filter-field">
+                  Curso
+                  <select id="formacion-course-filter">
+                    <option value="">Todos los cursos</option>
+                  </select>
+                </label>
+                <label class="filter-field">
+                  Buscar
+                  <input id="formacion-text-filter" type="search" placeholder="Identificaci&oacute;n, curso, lugar..." />
+                </label>
+              </div>
+              <p id="formacion-list-summary" class="muted-text">0 formaciones</p>
+              <div id="formacion-list" class="personal-list" role="listbox" aria-label="Listado de formaciones">
+                <p class="empty-state">No hay formaciones cargadas.</p>
+              </div>
+            </aside>
+
+            <section class="personal-detail-panel">
+              <div class="section-heading-row compact-heading-row personal-detail-heading">
+                <div>
+                  <p class="eyebrow">Edici&oacute;n</p>
+                  <h3 id="formacion-form-title">Selecciona una formaci&oacute;n</h3>
+                  <div id="formacion-detail-meta" class="personal-detail-meta"></div>
+                </div>
+                <div class="toolbar-actions">
+                  <button id="formacion-duplicate-button" type="button" class="secondary-button hidden" data-icon="duplicate" data-icon-mode="icon-only">
+                    Duplicar
+                  </button>
+                  <button id="formacion-table-button" type="button" class="secondary-button hidden" data-icon="table" data-icon-mode="icon-only" title="Tabla de asistentes para copiar">
+                    Tabla de asistentes
+                  </button>
+                  <button id="formacion-delete-button" type="button" class="danger-button hidden">
+                    Eliminar
+                  </button>
+                  <button id="formacion-cancel-button" type="button" class="secondary-button hidden">
+                    Descartar cambios
+                  </button>
+                  <button id="formacion-save-button" type="submit" form="formacion-form" class="hidden">
+                    Guardar formaci&oacute;n
+                  </button>
+                </div>
+              </div>
+
+              <form id="formacion-form" class="form-grid personal-form hidden" novalidate>
+                <div id="formacion-form-fields" class="form-grid full-width"></div>
+              </form>
+
+              <section id="formacion-attendees-section" class="formacion-attendees hidden">
+                <div class="section-heading-row compact-heading-row">
+                  <div>
+                    <p class="eyebrow">Personal</p>
+                    <h3>Asistentes <span id="formacion-attendees-count" class="muted-text"></span></h3>
+                  </div>
+                  <div class="toolbar-actions">
+                    <button id="formacion-attendees-done-button" type="button" class="secondary-button">
+                      Marcar todos como realizado
+                    </button>
+                  </div>
+                </div>
+                <div class="filter-field-stack personal-picker-stack formacion-picker">
+                  <input id="formacion-attendee-search" type="text" autocomplete="off"
+                    placeholder="A&ntilde;adir persona: escribe nombre o DNI..." />
+                  <div id="formacion-attendee-results" class="filter-suggestions filter-suggestions-full hidden"></div>
+                </div>
+                <div class="table-scroll">
+                  <table class="records-table formacion-table">
+                    <colgroup>
+                      <col style="width: 17.5%" />
+                      <col style="width: 14.4%" />
+                      <col style="width: 13.8%" />
+                      <col style="width: 15.2%" />
+                      <col style="width: 9.3%" />
+                      <col style="width: 9.5%" />
+                      <col style="width: 11.8%" />
+                      <col style="width: 8.5%" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>Persona</th>
+                        <th>Estado</th>
+                        <th>Fecha</th>
+                        <th>Titulaci&oacute;n</th>
+                        <th title="Dentro de jornada">En jornada</th>
+                        <th>T&iacute;tulo</th>
+                        <th>Renovaci&oacute;n</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="formacion-attendees-body">
+                      <tr><td colspan="8" class="empty-state">Sin asistentes.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </section>
+          </div>
+
+          <section id="formacion-table-panel" class="detail-panel hidden">
+            <div id="formacion-table-overlay" class="detail-overlay"></div>
+            <aside class="detail-drawer formacion-table-drawer">
+              <div class="detail-header">
+                <div>
+                  <p class="eyebrow">Formaci&oacute;n</p>
+                  <h3 id="formacion-table-title">Tabla de asistentes</h3>
+                </div>
+                <div class="detail-header-actions">
+                  <button id="formacion-table-close-button" type="button" class="secondary-button">
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+              <div class="formacion-table-actions">
+                <button id="formacion-table-copy-button" type="button">Copiar tabla</button>
+                <label class="checkbox-item">
+                  <input id="formacion-table-header-check" type="checkbox" checked />
+                  <span>Incluir cabecera</span>
+                </label>
+              </div>
+              <p id="formacion-table-note" class="muted-text"></p>
+              <div class="table-scroll">
+                <table id="formacion-table-copy" class="records-table formacion-table formacion-copy-table">
+                  <thead>
+                    <tr>
+                      <th>Nombre y apellidos</th>
+                      <th>DNI</th>
+                      <th>Email</th>
+                      <th>Tel&eacute;fono m&oacute;vil</th>
+                      <th>Seguridad Social</th>
+                      <th>Fecha de nacimiento</th>
+                      <th>TC</th>
+                    </tr>
+                  </thead>
+                  <tbody id="formacion-table-copy-body"></tbody>
+                </table>
+              </div>
+            </aside>
+          </section>
+
+          <div id="formacion-view-externa" class="formacion-view hidden">
+            <section class="card formacion-card">
+              <p class="muted-text">
+                Formaci&oacute;n realizada fuera de la empresa: basta indicar la persona, la titulaci&oacute;n y la fecha.
+              </p>
+              <form id="formacion-external-form" class="formacion-inline-form">
+                <label class="filter-field formacion-picker">
+                  Persona
+                  <div class="filter-field-stack personal-picker-stack">
+                    <input id="formacion-external-person-search" type="text" autocomplete="off" placeholder="Nombre o DNI..." />
+                    <div id="formacion-external-person-results" class="filter-suggestions filter-suggestions-full hidden"></div>
+                  </div>
+                  <span id="formacion-external-person-chosen" class="formacion-chosen muted-text">Ninguna persona elegida</span>
+                </label>
+                <label class="filter-field">
+                  Titulaci&oacute;n
+                  <select id="formacion-external-titulacion" required></select>
+                </label>
+                <label class="filter-field">
+                  Fecha
+                  <input id="formacion-external-fecha" type="date" required />
+                </label>
+                <label class="filter-field">
+                  Observaci&oacute;n
+                  <input id="formacion-external-observacion" type="text" />
+                </label>
+                <button type="submit">A&ntilde;adir</button>
+              </form>
+              <div class="filters-grid records-filters-compact">
+                <label class="filter-field">
+                  Titulaci&oacute;n
+                  <select id="formacion-external-filter-titulacion"></select>
+                </label>
+                <label class="filter-field">
+                  Buscar
+                  <input id="formacion-external-filter-text" type="search" placeholder="Nombre o DNI..." />
+                </label>
+              </div>
+              <p id="formacion-external-summary" class="muted-text">0 registros</p>
+              <div class="table-scroll">
+                <table class="records-table formacion-table">
+                  <thead>
+                    <tr>
+                      <th>Persona</th>
+                      <th>Titulaci&oacute;n</th>
+                      <th>Fecha</th>
+                      <th>Renovaci&oacute;n</th>
+                      <th>Observaci&oacute;n</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="formacion-external-body">
+                    <tr><td colspan="6" class="empty-state">Sin registros.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div id="formacion-view-catalogos" class="formacion-view hidden">
+            <section class="card formacion-card">
+              <div class="section-heading-row compact-heading-row">
+                <div>
+                  <p class="eyebrow">Cat&aacute;logo</p>
+                  <h3>Titulaciones y renovaci&oacute;n</h3>
+                </div>
+              </div>
+              <p class="muted-text">
+                A&ntilde;os hasta renovar la titulaci&oacute;n (vac&iacute;o = no caduca). La fecha de renovaci&oacute;n es la
+                fecha de la formaci&oacute;n m&aacute;s esos a&ntilde;os.
+              </p>
+              <div class="table-scroll">
+                <table class="records-table formacion-table">
+                  <thead>
+                    <tr><th>Titulaci&oacute;n</th><th>Renovaci&oacute;n (a&ntilde;os)</th></tr>
+                  </thead>
+                  <tbody id="formacion-titulaciones-body"></tbody>
+                </table>
+              </div>
+              <form id="formacion-titulacion-form" class="formacion-inline-form formacion-admin-only">
+                <label class="filter-field">
+                  Nueva titulaci&oacute;n
+                  <input id="formacion-titulacion-name" type="text" required />
+                </label>
+                <label class="filter-field">
+                  Renovaci&oacute;n (a&ntilde;os)
+                  <input id="formacion-titulacion-years" type="number" min="1" step="1" />
+                </label>
+                <button type="submit">A&ntilde;adir titulaci&oacute;n</button>
+              </form>
+            </section>
+
+            <section class="card formacion-card">
+              <div class="section-heading-row compact-heading-row">
+                <div>
+                  <p class="eyebrow">Cat&aacute;logo</p>
+                  <h3>Cursos (acciones formativas)</h3>
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table class="records-table formacion-table">
+                  <thead>
+                    <tr><th>Curso</th><th>Empresa</th><th>Titulaci&oacute;n</th><th>Tipolog&iacute;a</th><th>Activo</th></tr>
+                  </thead>
+                  <tbody id="formacion-cursos-body"></tbody>
+                </table>
+              </div>
+              <form id="formacion-curso-form" class="formacion-inline-form formacion-admin-only">
+                <label class="filter-field">
+                  Nuevo curso
+                  <input id="formacion-curso-name" type="text" required />
+                </label>
+                <label class="filter-field">
+                  Empresa
+                  <input id="formacion-curso-empresa" type="text" />
+                </label>
+                <label class="filter-field">
+                  Titulaci&oacute;n
+                  <select id="formacion-curso-titulacion"></select>
+                </label>
+                <label class="filter-field">
+                  Tipolog&iacute;a
+                  <select id="formacion-curso-tipologia"></select>
+                </label>
+                <button type="submit">A&ntilde;adir curso</button>
+              </form>
+            </section>
+            <p class="muted-text formacion-readonly-note hidden">Solo los administradores pueden modificar los cat&aacute;logos.</p>
+          </div>
+        </section>
+
         <section id="private-tab-panel-contracts" class="private-tab-panel hidden">
           <div class="section-heading-row">
             <div>
@@ -10115,8 +10429,9 @@
     <script src="./shared/supabase-client.js" defer></script>
     <script src="./shared/auth.js" defer></script>
     <script src="./list-scroll-keeper.js?v=20260930-1" defer></script>
-    <script src="./concilia-integrated.js?v=20261006-1" defer></script>
+    <script src="./concilia-integrated.js?v=20261016-1" defer></script>
     <script src="./facturacion.js?v=20261006-1" defer></script>
-    <script src="./app.js?v=20261013-2" defer></script>
+    <script src="./formacion.js?v=20261016-1" defer></script>
+    <script src="./app.js?v=20261016-1" defer></script>
   </body>
 </html>

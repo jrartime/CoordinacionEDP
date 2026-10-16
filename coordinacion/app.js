@@ -62,6 +62,7 @@ const PRIVATE_TAB_TARGETS = new Set([
   "registros",
   "historial",
   "bajas_conciliacion",
+  "formacion",
   "gestion",
   "contabilidad",
   "facturacion",
@@ -79,6 +80,7 @@ let ACCESS_ASSIGNABLE_TABS = [
   { key: "registros", label: "Registros" },
   { key: "historial", label: "Historial laboral" },
   { key: "bajas_conciliacion", label: "Bajas y permisos" },
+  { key: "formacion", label: "Formación" },
   { key: "gestion", label: "Gestión" },
   { key: "contabilidad", label: "Contabilidad" },
   { key: "facturacion", label: "Facturación" },
@@ -1008,7 +1010,7 @@ const isCoordinationPanel =
   window.location.pathname.split("/").filter(Boolean)[0] === "coordinacion";
 
 function renderIcon(name) {
-  return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260928-3#icon-${name}"></use></svg>`;
+  return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20261016-1#icon-${name}"></use></svg>`;
 }
 
 function escapeButtonLabel(value) {
@@ -1169,6 +1171,7 @@ const privateTabActividadesButton = document.querySelector("#private-tab-activid
 const privateTabRegistrosButton = document.querySelector("#private-tab-registros");
 const privateTabHistorialButton = document.querySelector("#private-tab-historial");
 const privateTabBajasConciliacionButton = document.querySelector("#private-tab-bajas-conciliacion");
+const privateTabFormacionButton = document.querySelector("#private-tab-formacion");
 const privateTabGestionButton = document.querySelector("#private-tab-gestion");
 const privateTabContabilidadButton = document.querySelector("#private-tab-contabilidad");
 const privateTabFacturacionButton = document.querySelector("#private-tab-facturacion");
@@ -1192,6 +1195,7 @@ const privateTabPanelProgramming = document.querySelector("#private-tab-panel-pr
 const privateTabPanelRegistros = document.querySelector("#private-tab-panel-registros");
 const privateTabPanelHistorial = document.querySelector("#private-tab-panel-historial");
 const privateTabPanelBajasConciliacion = document.querySelector("#private-tab-panel-bajas-conciliacion");
+const privateTabPanelFormacion = document.querySelector("#private-tab-panel-formacion");
 const privateTabPanelGestion = document.querySelector("#private-tab-panel-gestion");
 const privateTabPanelContabilidad = document.querySelector("#private-tab-panel-contabilidad");
 const privateTabPanelFacturacion = document.querySelector("#private-tab-panel-facturacion");
@@ -2876,6 +2880,7 @@ function syncAccessTabVisibility() {
     registros: privateTabRegistrosButton,
     historial: privateTabHistorialButton,
     bajas_conciliacion: privateTabBajasConciliacionButton,
+    formacion: privateTabFormacionButton,
     gestion: privateTabGestionButton,
     contabilidad: privateTabContabilidadButton,
     facturacion: privateTabFacturacionButton,
@@ -3028,6 +3033,7 @@ function switchPrivateTab(target) {
   const showRegistros = normalizedTarget === "registros";
   const showHistorial = normalizedTarget === "historial";
   const showBajasConciliacion = normalizedTarget === "bajas_conciliacion";
+  const showFormacion = normalizedTarget === "formacion";
   const showGestion = normalizedTarget === "gestion";
   const showContabilidad = normalizedTarget === "contabilidad";
   const showFacturacion = normalizedTarget === "facturacion";
@@ -3044,6 +3050,7 @@ function switchPrivateTab(target) {
   privateTabPanelRegistros?.classList.toggle("hidden", !hasAnyAccess || !showRegistros);
   privateTabPanelHistorial?.classList.toggle("hidden", !hasAnyAccess || !showHistorial);
   privateTabPanelBajasConciliacion?.classList.toggle("hidden", !hasAnyAccess || !showBajasConciliacion);
+  privateTabPanelFormacion?.classList.toggle("hidden", !hasAnyAccess || !showFormacion);
   privateTabPanelGestion?.classList.toggle("hidden", !hasAnyAccess || !showGestion);
   privateTabPanelContabilidad?.classList.toggle("hidden", !hasAnyAccess || !showContabilidad);
   privateTabPanelFacturacion?.classList.toggle("hidden", !hasAnyAccess || !showFacturacion);
@@ -3063,6 +3070,7 @@ function switchPrivateTab(target) {
   privateTabRegistrosButton?.classList.toggle("active", showRegistros);
   privateTabHistorialButton?.classList.toggle("active", showHistorial);
   privateTabBajasConciliacionButton?.classList.toggle("active", showBajasConciliacion);
+  privateTabFormacionButton?.classList.toggle("active", showFormacion);
   privateTabGestionButton?.classList.toggle("active", showGestion);
   privateTabContabilidadButton?.classList.toggle("active", showContabilidad);
   privateTabFacturacionButton?.classList.toggle("active", showFacturacion);
@@ -3078,6 +3086,7 @@ function switchPrivateTab(target) {
   privateTabRegistrosButton?.setAttribute("aria-pressed", String(showRegistros));
   privateTabHistorialButton?.setAttribute("aria-pressed", String(showHistorial));
   privateTabBajasConciliacionButton?.setAttribute("aria-pressed", String(showBajasConciliacion));
+  privateTabFormacionButton?.setAttribute("aria-pressed", String(showFormacion));
   privateTabGestionButton?.setAttribute("aria-pressed", String(showGestion));
   privateTabContabilidadButton?.setAttribute("aria-pressed", String(showContabilidad));
   privateTabFacturacionButton?.setAttribute("aria-pressed", String(showFacturacion));
@@ -32022,6 +32031,12 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
     return;
   }
 
+  if (normalizedTarget === "formacion") {
+    window.CoordinacionFormacion?.init();
+    await window.CoordinacionFormacion?.load();
+    return;
+  }
+
   if (normalizedTarget === "gestion") {
     await loadGestion();
     return;
@@ -34389,6 +34404,12 @@ async function init() {
     switchPrivateTab("bajas_conciliacion");
     void refreshPrivateTabData("bajas_conciliacion").catch((error) => {
       setStatus(error?.message || "No se pudieron cargar las bajas y permisos.", "error");
+    });
+  });
+  privateTabFormacionButton?.addEventListener("click", () => {
+    switchPrivateTab("formacion");
+    void refreshPrivateTabData("formacion").catch((error) => {
+      setStatus(error?.message || "No se pudo cargar la formación.", "error");
     });
   });
   privateTabGestionButton?.addEventListener("click", () => {

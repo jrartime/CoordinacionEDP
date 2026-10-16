@@ -8482,3 +8482,170 @@ details[open] > .gestion-collapsible-header::before {
 #private-view > .toolbar #logout-button {
   border-radius: 999px;
 }
+
+/* ------------------------------------------------------------------
+   Formación (formacion.js): reutiliza el layout de Personal.
+   ------------------------------------------------------------------ */
+.formacion-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.formacion-attendees {
+  margin-top: 20px;
+}
+
+.formacion-table {
+  min-width: 0;
+  width: 100%;
+}
+
+.formacion-table select,
+.formacion-table input[type="text"],
+.formacion-table input[type="date"],
+.formacion-table input[type="number"] {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Tabla de asistentes: columnas de ancho fijo (en %), sin scroll horizontal. */
+.formacion-attendees .formacion-table {
+  table-layout: fixed;
+}
+
+.formacion-center {
+  text-align: center;
+}
+
+.formacion-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.formacion-inline-form .filter-field {
+  min-width: 160px;
+}
+
+.formacion-picker {
+  min-width: 260px;
+}
+
+.formacion-chosen {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.82rem;
+}
+
+.formacion-renewal-expired {
+  color: var(--error);
+  font-weight: 700;
+}
+
+.formacion-renewal-soon {
+  color: #92400e;
+  font-weight: 700;
+}
+
+.formacion-view.hidden,
+.formacion-admin-only.hidden,
+.formacion-readonly-note.hidden {
+  display: none;
+}
+
+/* Formación: todo control de una línea (ficha, tabla de asistentes, formación
+   externa, catálogos y buscadores) mide lo mismo que los filtros del resto de
+   pestañas (.filter-field: padding 7px 9px, 0.84rem). Los textarea quedan fuera. */
+#private-tab-panel-formacion input:not([type="checkbox"]):not([type="radio"]),
+#private-tab-panel-formacion select {
+  box-sizing: border-box;
+  padding: 5px 7px;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  height: 28px;
+  min-height: 0;
+}
+
+/* Letra como en los filtros y la ficha de Personal: controles 12,8 px y
+   etiquetas 11,5 px (en vez de los 14,7 px por defecto de las etiquetas). */
+#private-tab-panel-formacion textarea {
+  padding: 5px 7px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+#private-tab-panel-formacion .form-grid label:not(.checkbox-item),
+#private-tab-panel-formacion .filter-field,
+#private-tab-panel-formacion .formacion-picker {
+  font-size: 0.72rem;
+  gap: 4px;
+}
+
+#private-tab-panel-formacion .checkbox-item span {
+  font-size: 0.82rem;
+}
+
+.formacion-table td {
+  vertical-align: middle;
+}
+
+.formacion-table .row-action {
+  white-space: nowrap;
+  padding: 4px 10px;
+}
+
+/* Ficha de la formación: dos columnas arriba y los textos debajo, a todo el ancho. */
+.formacion-form-top {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  align-items: start;
+}
+
+.formacion-form-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.formacion-form-text {
+  margin-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .formacion-form-top {
+    grid-template-columns: 1fr;
+  }
+}
+
+#formacion-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Tabla de asistentes para copiar y pegar (cajón ancho). */
+.formacion-table-drawer {
+  width: min(1120px, 96vw);
+}
+
+.formacion-table-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.formacion-copy-table {
+  table-layout: auto;
+  user-select: text;
+}
+
+.formacion-copy-table td,
+.formacion-copy-table th {
+  max-width: none;
+  white-space: nowrap;
+}

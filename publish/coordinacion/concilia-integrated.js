@@ -403,7 +403,7 @@
   const conciliaSubtabs = Array.from(document.querySelectorAll(".concilia-subtabs"));
 
   function renderIcon(name) {
-    return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20260928-3#icon-${name}"></use></svg>`;
+    return `<svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20261016-1#icon-${name}"></use></svg>`;
   }
 
   // supabaseClient y currentSession gestionados por shared/supabase-client.js
