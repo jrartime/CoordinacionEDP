@@ -18,6 +18,8 @@
     registros: [],
     editingId: null,
     autoriza: null,
+    confirmDeleteId: null,
+    listado: { loaded: false, loading: false, year: new Date().getFullYear(), filter: "todos", text: "", rows: [] },
   };
 
   const el = {};
@@ -131,8 +133,12 @@
     return '<span class="status-pill">Sin respuesta</span>';
   }
 
+  function latestOfYear(registros, year) {
+    return registros.filter((r) => r.anio === year).sort((a, b) => b.id - a.id)[0] || null;
+  }
+
   function thisYearText() {
-    const row = state.registros.find((r) => r.anio === currentYear());
+    const row = latestOfYear(state.registros, currentYear());
     if (row) {
       if (row.autoriza === true) return row.fecha ? `Autoriza · ${formatDate(row.fecha)}` : "Autoriza";
       if (row.autoriza === false) return "No autoriza";
@@ -166,10 +172,13 @@
             <td>${escapeHtml(formatDate(r.fecha))}</td>
             <td>${escapeHtml(r.resultado || "—")}</td>
             <td>${escapeHtml(r.observacion || "")}</td>
-            <td>
-              <button type="button" class="secondary-button" data-rec-edit="${r.id}">Editar</button>
-              <button type="button" class="secondary-button" data-rec-delete="${r.id}">Eliminar</button>
-            </td>
+            <td>${
+              state.confirmDeleteId === r.id
+                ? `<button type="button" class="danger-button" data-rec-delete-confirm="${r.id}">Confirmar</button>
+                   <button type="button" class="secondary-button" data-rec-delete-cancel>Cancelar</button>`
+                : `<button type="button" class="secondary-button" data-rec-edit="${r.id}">Editar</button>
+                   <button type="button" class="secondary-button" data-rec-delete="${r.id}">Eliminar</button>`
+            }</td>
           </tr>`,
         )
         .join("");
@@ -284,17 +293,218 @@
   }
 
   async function remove(id) {
-    if (!window.confirm("¿Eliminar este reconocimiento del historial?")) return;
     const supabase = await getClient();
-    const { error } = await supabase.from("personal_reconocimiento_medico").delete().eq("id", id);
+    const { data, error } = await supabase.from("personal_reconocimiento_medico").delete().eq("id", id).select("id");
+    state.confirmDeleteId = null;
     if (error) {
       setStatus(`No se pudo eliminar: ${error.message}`, "error");
+      render();
+      return;
+    }
+    if (!data || !data.length) {
+      setStatus("No se eliminó nada: no tienes permiso sobre esta persona o el registro ya no existe.", "error");
+      render();
       return;
     }
     if (state.editingId === id) resetForm();
     await loadPerson(state.personalId);
     setStatus("Reconocimiento eliminado.", "success");
     render();
+  }
+
+
+  // ------------------------------------------------------------------ listado de autorizaciones
+
+  async function fetchAll(supabase, table, select, orderColumn) {
+    const pageSize = 1000;
+    const rows = [];
+    for (let from = 0; ; from += pageSize) {
+      const result = await supabase
+        .from(table)
+        .select(select)
+        .order(orderColumn, { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (result.error) return result;
+      rows.push(...(result.data || []));
+      if ((result.data || []).length < pageSize) return { data: rows, error: null };
+    }
+  }
+
+  function todayIso() {
+    const now = new Date();
+    return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
+  }
+
+  // Quién debe recibir el documento de autorización del año `year`:
+  //  · solo personal activo de la empresa (vinculación «Activo») con un puesto que ofrece
+  //    reconocimiento (puestos.rec_medico = cada cuántos años);
+  //  · anual → siempre; si rechazó el año anterior → siempre; ingreso este año → siempre;
+  //  · nunca lo ha realizado → se ofrece;
+  //  · si no, le toca cuando han pasado rec_medico años desde el último que realizó
+  //    (autorizado y con fecha). Con varios registros en un año manda el último.
+  function computeListado(year, data) {
+    const today = todayIso();
+    const puestoById = new Map(data.puestos.map((p) => [p.id, p]));
+    const periodsByPerson = new Map();
+    data.historiales.forEach((h) => {
+      if (!h.puesto_id) return;
+      if (!periodsByPerson.has(h.personal_id)) periodsByPerson.set(h.personal_id, []);
+      periodsByPerson.get(h.personal_id).push(h);
+    });
+    const recsByPerson = new Map();
+    data.registros.forEach((r) => {
+      if (!recsByPerson.has(r.personal_id)) recsByPerson.set(r.personal_id, []);
+      recsByPerson.get(r.personal_id).push(r);
+    });
+
+    const rows = [];
+    data.personal.forEach((person) => {
+      if (Number(person.vinculacion_id) !== 1 || person.persona === false) return;
+      const periods = periodsByPerson.get(person.id) || [];
+      let chosen = periods.filter((h) => h.fecha_alta <= today && (!h.fecha_baja || h.fecha_baja >= today));
+      if (!chosen.length && periods.length) {
+        chosen = [[...periods].sort((a, b) => (a.fecha_alta < b.fecha_alta ? 1 : -1))[0]];
+      }
+      const puestos = chosen.map((h) => puestoById.get(h.puesto_id)).filter(Boolean);
+      const withRec = puestos.filter((p) => p.rec_medico > 0).sort((a, b) => a.rec_medico - b.rec_medico);
+      if (!withRec.length) return;
+      const every = withRec[0].rec_medico;
+
+      const recs = recsByPerson.get(person.id) || [];
+      const thisYear = latestOfYear(recs, year);
+      const prevYear = latestOfYear(recs, year - 1);
+      const doneBefore = recs
+        .filter((r) => r.autoriza === true && r.fecha && r.anio < year)
+        .reduce((max, r) => Math.max(max, r.anio), 0);
+      const joinedThisYear = chosen.some((h) => String(h.fecha_alta).slice(0, 4) === String(year));
+
+      let motivo = "";
+      if (prevYear && prevYear.autoriza === false) motivo = "Rechazó el año anterior";
+      else if (every === 1) motivo = "Anual";
+      else if (joinedThisYear) motivo = "Ingreso este año";
+      else if (!doneBefore) motivo = "Nunca lo ha realizado";
+      else if (year - doneBefore >= every) motivo = `Le toca (cada ${every} años, último ${doneBefore})`;
+      else if (thisYear) motivo = "Ya tiene registro este año";
+      if (!motivo) return;
+
+      rows.push({
+        id: person.id,
+        nombre: person.personal || `Persona ${person.id}`,
+        dni: person.dni || "",
+        email: person.email || "",
+        puesto: withRec[0].puesto,
+        cada: every,
+        motivo,
+        estado: thisYear ? (thisYear.autoriza === true ? "autoriza" : thisYear.autoriza === false ? "no" : "sin") : "sin",
+        registros: recs.filter((r) => r.anio === year).length,
+      });
+    });
+    return rows.sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
+  }
+
+  async function loadListado(force = false) {
+    if (state.listado.loading || (state.listado.loaded && !force)) {
+      renderListado();
+      return;
+    }
+    state.listado.loading = true;
+    el.listadoStatus.textContent = "Cargando…";
+    try {
+      const supabase = await getClient();
+      const [personal, historiales, puestos, registros] = await Promise.all([
+        fetchAll(supabase, "personal", "id, personal, dni, email, vinculacion_id, persona", "id"),
+        fetchAll(supabase, "historiales_laborales", "id, personal_id, puesto_id, fecha_alta, fecha_baja", "id"),
+        fetchAll(supabase, "puestos", "id, puesto, rec_medico", "id"),
+        fetchAll(supabase, "personal_reconocimiento_medico", "id, personal_id, anio, autoriza, fecha", "id"),
+      ]);
+      const failed = [personal, historiales, puestos, registros].find((r) => r.error);
+      if (failed) throw failed.error;
+      state.listado.data = {
+        personal: personal.data,
+        historiales: historiales.data,
+        puestos: puestos.data,
+        registros: registros.data,
+      };
+      state.listado.loaded = true;
+      el.listadoStatus.textContent = "";
+    } catch (error) {
+      el.listadoStatus.textContent = `No se pudo cargar el listado: ${error.message}`;
+    } finally {
+      state.listado.loading = false;
+    }
+    renderListado();
+  }
+
+  const ESTADO_TEXTO = { sin: "Sin respuesta", autoriza: "Autoriza", no: "No autoriza" };
+
+  function listadoVisible() {
+    const text = state.listado.text.trim().toLowerCase();
+    return state.listado.rows.filter((row) => {
+      if (state.listado.filter !== "todos" && row.estado !== state.listado.filter) return false;
+      if (!text) return true;
+      return [row.nombre, row.dni, row.puesto, row.motivo].join(" ").toLowerCase().includes(text);
+    });
+  }
+
+  function renderListado() {
+    if (!state.listado.data) return;
+    state.listado.rows = computeListado(state.listado.year, state.listado.data);
+    const all = state.listado.rows;
+    const count = (key) => all.filter((r) => r.estado === key).length;
+    el.listadoFilters.innerHTML = [
+      ["todos", "Todos", all.length],
+      ["sin", "Sin respuesta", count("sin")],
+      ["autoriza", "Autorizan", count("autoriza")],
+      ["no", "No autorizan", count("no")],
+    ]
+      .map(
+        ([key, label, n]) =>
+          `<button type="button" class="settings-subtab-button${state.listado.filter === key ? " active" : ""}" data-rec-filter="${key}" aria-pressed="${state.listado.filter === key}">${escapeHtml(label)} · ${n}</button>`,
+      )
+      .join("");
+    const rows = listadoVisible();
+    el.listadoSummary.textContent = `${rows.length} de ${all.length} personas · campaña ${state.listado.year}`;
+    if (!rows.length) {
+      el.listadoBody.innerHTML = '<tr><td colspan="6" class="empty-state">Nadie en este grupo.</td></tr>';
+      return;
+    }
+    el.listadoBody.innerHTML = rows
+      .map(
+        (r) => `<tr>
+          <td>${escapeHtml(r.nombre)}</td>
+          <td>${escapeHtml(r.dni)}</td>
+          <td>${escapeHtml(r.puesto)}</td>
+          <td>${escapeHtml(r.motivo)}</td>
+          <td><span class="status-pill">${ESTADO_TEXTO[r.estado]}</span>${r.registros > 1 ? ` <span class="muted-text">(${r.registros} registros)</span>` : ""}</td>
+          <td><button type="button" class="secondary-button" data-rec-open-person="${r.id}">Abrir</button></td>
+        </tr>`,
+      )
+      .join("");
+  }
+
+  function downloadListadoCsv() {
+    const rows = listadoVisible();
+    const cell = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
+    const lines = [["Persona", "DNI", "Correo", "Puesto", "Motivo", "Estado"].map(cell).join(";")].concat(
+      rows.map((r) => [r.nombre, r.dni, r.email, r.puesto, r.motivo, ESTADO_TEXTO[r.estado]].map(cell).join(";")),
+    );
+    const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `autorizaciones-reconocimiento-medico-${state.listado.year}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+  }
+
+  function openListado() {
+    el.listadoPanel.classList.remove("hidden");
+    void loadListado(true);
+  }
+
+  function closeListado() {
+    el.listadoPanel.classList.add("hidden");
   }
 
   function bind() {
@@ -314,10 +524,50 @@
         return;
       }
       const deleteButton = event.target.closest("[data-rec-delete]");
-      if (deleteButton) void remove(Number(deleteButton.dataset.recDelete));
+      if (deleteButton) {
+        state.confirmDeleteId = Number(deleteButton.dataset.recDelete);
+        setStatus("");
+        render();
+        return;
+      }
+      const confirmButton = event.target.closest("[data-rec-delete-confirm]");
+      if (confirmButton) {
+        void remove(Number(confirmButton.dataset.recDeleteConfirm));
+        return;
+      }
+      if (event.target.closest("[data-rec-delete-cancel]")) {
+        state.confirmDeleteId = null;
+        render();
+      }
+    });
+    el.listadoButton.addEventListener("click", openListado);
+    el.listadoCloseButton.addEventListener("click", closeListado);
+    el.listadoOverlay.addEventListener("click", closeListado);
+    el.listadoYear.addEventListener("change", () => {
+      state.listado.year = Number(el.listadoYear.value);
+      renderListado();
+    });
+    el.listadoText.addEventListener("input", () => {
+      state.listado.text = el.listadoText.value;
+      renderListado();
+    });
+    el.listadoFilters.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-rec-filter]");
+      if (!button) return;
+      state.listado.filter = button.dataset.recFilter;
+      renderListado();
+    });
+    el.listadoCsv.addEventListener("click", downloadListadoCsv);
+    el.listadoBody.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-rec-open-person]");
+      if (!button) return;
+      closeListado();
+      void open(Number(button.dataset.recOpenPerson));
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !el.panel.classList.contains("hidden")) close();
+      if (event.key !== "Escape") return;
+      if (!el.listadoPanel.classList.contains("hidden")) closeListado();
+      else if (!el.panel.classList.contains("hidden")) close();
     });
     el.openButton?.addEventListener("click", () => void open(window.CoordinacionPersonalSeleccion?.getId?.()));
   }
@@ -347,7 +597,22 @@
       cancelEdit: q("#personal-reconocimientos-cancel-button"),
       count: q("#personal-reconocimientos-count"),
       body: q("#personal-reconocimientos-body"),
+      listadoButton: q("#personal-reconocimientos-listado-button"),
+      listadoPanel: q("#personal-reconocimientos-listado-panel"),
+      listadoOverlay: q("#personal-reconocimientos-listado-overlay"),
+      listadoCloseButton: q("#personal-reconocimientos-listado-close-button"),
+      listadoYear: q("#personal-reconocimientos-listado-year"),
+      listadoText: q("#personal-reconocimientos-listado-text"),
+      listadoCsv: q("#personal-reconocimientos-listado-csv"),
+      listadoStatus: q("#personal-reconocimientos-listado-status"),
+      listadoFilters: q("#personal-reconocimientos-listado-filters"),
+      listadoSummary: q("#personal-reconocimientos-listado-summary"),
+      listadoBody: q("#personal-reconocimientos-listado-body"),
     });
+    const thisYear = currentYear();
+    el.listadoYear.innerHTML = [thisYear - 1, thisYear, thisYear + 1]
+      .map((y) => `<option value="${y}"${y === thisYear ? " selected" : ""}>${y}</option>`)
+      .join("");
     el.resultado.innerHTML =
       '<option value="">Pendiente</option>' +
       RESULTADOS.map((r) => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");

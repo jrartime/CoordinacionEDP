@@ -5531,6 +5531,14 @@
                   <h3 id="personal-reconocimientos-title">Reconocimientos m&eacute;dicos</h3>
                 </div>
                 <div class="detail-header-actions">
+                  <button
+                    id="personal-reconocimientos-listado-button"
+                    type="button"
+                    class="secondary-button"
+                    title="Personal al que hay que ofrecer el reconocimiento este a&ntilde;o"
+                  >
+                    Listado de autorizaciones
+                  </button>
                   <button id="personal-reconocimientos-close-button" type="button" class="secondary-button">
                     Cerrar
                   </button>
@@ -5595,6 +5603,56 @@
                     <tbody id="personal-reconocimientos-body"></tbody>
                   </table>
                 </div>
+              </div>
+            </aside>
+          </section>
+
+          <section id="personal-reconocimientos-listado-panel" class="detail-panel hidden">
+            <div id="personal-reconocimientos-listado-overlay" class="detail-overlay"></div>
+            <aside class="detail-drawer formacion-table-drawer">
+              <div class="detail-header">
+                <div>
+                  <p class="eyebrow">Reconocimientos m&eacute;dicos</p>
+                  <h3>Listado de autorizaciones</h3>
+                </div>
+                <div class="detail-header-actions">
+                  <button id="personal-reconocimientos-listado-csv" type="button" class="secondary-button">
+                    Descargar CSV
+                  </button>
+                  <button id="personal-reconocimientos-listado-close-button" type="button" class="secondary-button">
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+              <p class="muted-text">
+                Personal activo de la empresa al que hay que enviar el documento de autorizaci&oacute;n: puestos con
+                reconocimiento anual, los que les toca seg&uacute;n los a&ntilde;os del puesto, quien lo rechaz&oacute;
+                el a&ntilde;o anterior, quien nunca lo ha realizado y los ingresos de este a&ntilde;o.
+              </p>
+              <div class="toolbar-actions">
+                <label>
+                  Campa&ntilde;a
+                  <select id="personal-reconocimientos-listado-year"></select>
+                </label>
+                <input id="personal-reconocimientos-listado-text" type="search" placeholder="Buscar por nombre, DNI o puesto" />
+              </div>
+              <div id="personal-reconocimientos-listado-filters" class="formacion-dea-filters"></div>
+              <p id="personal-reconocimientos-listado-summary" class="muted-text"></p>
+              <p id="personal-reconocimientos-listado-status" class="panel-status-message"></p>
+              <div class="table-scroll">
+                <table class="records-table">
+                  <thead>
+                    <tr>
+                      <th>Persona</th>
+                      <th>DNI</th>
+                      <th>Puesto</th>
+                      <th>Motivo</th>
+                      <th>Estado</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="personal-reconocimientos-listado-body"></tbody>
+                </table>
               </div>
             </aside>
           </section>
@@ -10608,7 +10666,7 @@
     <script src="./concilia-integrated.js?v=20261016-1" defer></script>
     <script src="./facturacion.js?v=20261006-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
-    <script src="./reconocimientos.js?v=20261020-2" defer></script>
+    <script src="./reconocimientos.js?v=20261020-3" defer></script>
     <script src="./app.js?v=20261021-2" defer></script>
   </body>
 </html>
