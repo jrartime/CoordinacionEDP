@@ -521,6 +521,14 @@
       .join("");
   }
 
+  // Tras cambiar una fecha solo se actualiza la celda de renovación de esa fila: repintar la
+  // tabla entera destruiría el campo y sacaría a la persona de él a mitad de escribir.
+  function refreshRenewalCell(tr, id) {
+    const row = state.asistentes.find((item) => String(item.id) === String(id));
+    const cell = tr?.querySelector("[data-renewal]");
+    if (row && cell) cell.innerHTML = renewalCell(row);
+  }
+
   async function updateAttendee(id, patch) {
     const supabase = await getClient();
     const { data, error } = await supabase.from("formacion_personal").update(patch).eq("id", id).select().maybeSingle();
@@ -563,7 +571,11 @@
       patch.titulacion = cursoTitulacionOf(row.formacion_id);
     }
     const saved = await updateAttendee(id, patch);
-    if (saved) {
+    if (saved && control.type === "date") {
+      setStatus("");
+      refreshRenewalCell(tr, id);
+      renderList();
+    } else if (saved) {
       setStatus("");
       renderAttendees();
       renderList();
@@ -932,7 +944,7 @@
           <td>${escapeHtml(personaLabel(row.personal_id))}</td>
           <td><select data-field="titulacion">${titulacionOptions(row.titulacion)}</select></td>
           <td><input type="date" data-field="fecha" value="${escapeHtml(row.fecha || "")}" /></td>
-          <td>${renewalCell(row)}</td>
+          <td data-renewal>${renewalCell(row)}</td>
           <td><input type="text" data-field="observacion" value="${escapeHtml(row.observacion || "")}" /></td>
           <td><button type="button" class="secondary-button row-action" data-remove-external="${row.id}">Quitar</button></td>
         </tr>`
@@ -951,6 +963,10 @@
     if (control.type === "date" && value != null && !isPlausibleDate(value)) return;
     const saved = await updateAttendee(tr.dataset.attendeeId, { [field]: value });
     if (saved) setStatus("");
+    if (saved && control.type === "date") {
+      refreshRenewalCell(tr, tr.dataset.attendeeId);
+      return;
+    }
     renderExternal();
   }
 
