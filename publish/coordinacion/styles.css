@@ -8685,3 +8685,24 @@ details[open] > .gestion-collapsible-header::before {
 .personal-detail-panel.personal-detail-empty #personal-complementos-section {
   display: none;
 }
+
+/* Historial de reconocimientos médicos: columnas estrechas, la observación se queda el resto. */
+.personal-reconocimientos-table {
+  table-layout: fixed;
+  min-width: 640px;
+}
+.personal-reconocimientos-table th:nth-child(1) {
+  width: 87px;
+}
+.personal-reconocimientos-table th:nth-child(2) {
+  width: 177px;
+}
+.personal-reconocimientos-table th:nth-child(3) {
+  width: 100px;
+}
+.personal-reconocimientos-table th:nth-child(4) {
+  width: 155px;
+}
+.personal-reconocimientos-table th:nth-child(6) {
+  width: 170px;
+}
