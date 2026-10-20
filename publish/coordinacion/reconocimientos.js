@@ -25,7 +25,7 @@
     editingId: null,
     autoriza: null,
     confirmDeleteId: null,
-    listado: { loaded: false, loading: false, year: new Date().getFullYear(), filter: "todos", text: "", month: 0, rows: [] },
+    listado: { loaded: false, loading: false, year: new Date().getFullYear(), filter: "todos", text: "", month: 0, sort: { key: "nombre", dir: 1 }, rows: [] },
   };
 
   const el = {};
@@ -494,9 +494,32 @@
     return row.mesPrevisto ? `Pendiente (${MESES[row.mesPrevisto - 1]} ${row.anioCampana})` : "Pendiente";
   }
 
+  // Valor por el que se ordena cada columna de la cabecera.
+  function sortValue(row, key) {
+    switch (key) {
+      case "estado":
+        return estadoTexto(row);
+      case "reconocimiento":
+        // Con fecha primero (por fecha), luego los pendientes (por mes previsto) y al final los demás.
+        if (row.estado !== "autoriza") return "c";
+        if (row.fecha) return `a${row.fecha}`;
+        return `b${row.anioCampana}-${String(row.mesPrevisto || 0).padStart(2, "0")}`;
+      default:
+        return String(row[key] ?? "");
+    }
+  }
+
+  function sortListado(rows) {
+    const { key, dir } = state.listado.sort;
+    return [...rows].sort((a, b) => {
+      const result = sortValue(a, key).localeCompare(sortValue(b, key), "es", { sensitivity: "base", numeric: true });
+      return (result || a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })) * dir;
+    });
+  }
+
   function listadoVisible() {
     const text = state.listado.text.trim().toLowerCase();
-    return state.listado.rows.filter((row) => {
+    return sortListado(state.listado.rows).filter((row) => {
       if (state.listado.month && row.mes !== state.listado.month) return false;
       if (state.listado.filter === "nocorresponde") {
         if (row.corresponde) return false;
@@ -528,6 +551,12 @@
           `<button type="button" class="settings-subtab-button${state.listado.filter === key ? " active" : ""}" data-rec-filter="${key}" aria-pressed="${state.listado.filter === key}">${escapeHtml(label)} · ${n}</button>`,
       )
       .join("");
+    el.listadoHead.querySelectorAll("[data-rec-sort]").forEach((button) => {
+      const active = button.dataset.recSort === state.listado.sort.key;
+      button.classList.toggle("active", active);
+      button.classList.toggle("sort-asc", active && state.listado.sort.dir === 1);
+      button.classList.toggle("sort-desc", active && state.listado.sort.dir === -1);
+    });
     const rows = listadoVisible();
     const monthText = state.listado.month ? ` · ${MESES[state.listado.month - 1]}` : "";
     el.listadoSummary.textContent =
@@ -618,6 +647,13 @@
       state.listado.year = Number(el.listadoYear.value);
       renderListado();
     });
+    el.listadoHead.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-rec-sort]");
+      if (!button) return;
+      const key = button.dataset.recSort;
+      state.listado.sort = { key, dir: state.listado.sort.key === key ? -state.listado.sort.dir : 1 };
+      renderListado();
+    });
     el.listadoMonth.addEventListener("change", () => {
       state.listado.month = Number(el.listadoMonth.value);
       renderListado();
@@ -678,6 +714,7 @@
       listadoCloseButton: q("#personal-reconocimientos-listado-close-button"),
       listadoYear: q("#personal-reconocimientos-listado-year"),
       listadoMonth: q("#personal-reconocimientos-listado-month"),
+      listadoHead: q("#personal-reconocimientos-listado-head"),
       listadoText: q("#personal-reconocimientos-listado-text"),
       listadoCsv: q("#personal-reconocimientos-listado-csv"),
       listadoStatus: q("#personal-reconocimientos-listado-status"),
