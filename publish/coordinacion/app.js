@@ -1709,6 +1709,16 @@ const personalFormTitle = document.querySelector("#personal-form-title");
 const personalDetailAvatar = document.querySelector("#personal-detail-avatar");
 const personalDetailMeta = document.querySelector("#personal-detail-meta");
 const personalForm = document.querySelector("#personal-form");
+const personalDetailPanelEl = document.querySelector(".personal-detail-panel");
+const personalHistorialButton = document.querySelector("#personal-historial-button");
+const personalHistorialPanel = document.querySelector("#personal-historial-panel");
+const personalHistorialOverlay = document.querySelector("#personal-historial-overlay");
+const personalHistorialTitle = document.querySelector("#personal-historial-title");
+const personalHistorialSummary = document.querySelector("#personal-historial-summary");
+const personalHistorialBody = document.querySelector("#personal-historial-body");
+const personalHistorialNewButton = document.querySelector("#personal-historial-new-button");
+const personalHistorialRefreshButton = document.querySelector("#personal-historial-refresh-button");
+const personalHistorialCloseButton = document.querySelector("#personal-historial-close-button");
 const personalFormFields = document.querySelector("#personal-form-fields");
 const personalSaveButton = document.querySelector("#personal-save-button");
 const personalCancelButton = document.querySelector("#personal-cancel-button");
@@ -12178,13 +12188,22 @@ function renderPersonalList() {
   }
 }
 
+// Sin nadie elegido no se enseña el formulario (como en Formación); el botón de
+// historial laboral solo existe con una persona ya guardada y con acceso a esa pestaña.
+function setPersonalDetailState({ empty, historial }) {
+  personalDetailPanelEl?.classList.toggle("personal-detail-empty", empty);
+  const canSeeHistorial = Boolean(historial) && window.CoordinacionHistorial?.canAccess?.() === true;
+  personalHistorialButton?.classList.toggle("hidden", !canSeeHistorial);
+}
+
 function selectPersonal(personalId) {
   const row = currentPersonalRows.find((item) => String(item.id) === String(personalId));
   currentSelectedPersonalId = row ? String(row.id) : "";
   currentPersonalMode = row ? "edit" : "view";
   if (personalFormTitle) {
-    personalFormTitle.textContent = row ? getPersonalDisplayName(row) : "Ficha de personal";
+    personalFormTitle.textContent = row ? getPersonalDisplayName(row) : "Selecciona una persona";
   }
+  setPersonalDetailState({ empty: !row, historial: Boolean(row) });
   fillPersonalForm(row);
   renderPersonalDetailHeader(row);
   setPersonalFormEditing(Boolean(row));
@@ -12198,8 +12217,9 @@ function showPersonalFormEmpty() {
   currentSelectedPersonalId = "";
   currentPersonalMode = "view";
   if (personalFormTitle) {
-    personalFormTitle.textContent = "Ficha de personal";
+    personalFormTitle.textContent = "Selecciona una persona";
   }
+  setPersonalDetailState({ empty: true, historial: false });
   renderPersonalDetailHeader(null);
   clearPersonalForm();
   setPersonalFormEditing(false);
@@ -12214,6 +12234,7 @@ function startNewPersonal() {
   if (personalFormTitle) {
     personalFormTitle.textContent = "Nueva persona";
   }
+  setPersonalDetailState({ empty: false, historial: false });
   renderPersonalDetailHeader(null);
   clearPersonalForm();
   setPersonalFormEditing(true);
@@ -30550,6 +30571,104 @@ window.CoordinacionHistorial = {
     return () => historialChangeListeners.delete(listener);
   },
 };
+
+// --- Pestaña Personal: panel flotante con el historial laboral de la persona ---
+// Reutiliza el panel de edición de periodos del historial (openDetail/openNew) y se
+// recarga solo cuando se guarda, duplica o elimina un periodo.
+let personalHistorialPersonalId = null;
+let personalHistorialRows = [];
+let personalHistorialToken = 0;
+
+function renderPersonalHistorialRows() {
+  if (!personalHistorialBody) return;
+  if (!personalHistorialRows.length) {
+    personalHistorialBody.innerHTML =
+      '<tr><td colspan="9" class="empty-state">Esta persona no tiene periodos de historial laboral.</td></tr>';
+    return;
+  }
+  personalHistorialBody.innerHTML = personalHistorialRows
+    .map((row) => {
+      const jornada = [row.jornada, row.jornada_maxima]
+        .filter((value) => value !== null && value !== undefined && value !== "")
+        .join(" / ");
+      const cells = [
+        row.tipo_contratacion || "",
+        formatPersonalDateShort(row.fecha_alta),
+        row.fecha_baja ? formatPersonalDateShort(row.fecha_baja) : "",
+        row.dias_periodo ?? "",
+        jornada,
+        row.puesto || row.puesto_texto || "",
+        row.contrato_laboral_clave || "",
+        row.activo ? "Sí" : "",
+      ]
+        .map((value) => `<td>${escapeHtml(String(value ?? ""))}</td>`)
+        .join("");
+      return `<tr data-personal-historial-id="${escapeHtml(row.id)}">${cells}<td class="records-row-actions"><button type="button" class="compact-button" data-personal-historial-edit="${escapeHtml(row.id)}" title="Editar periodo" aria-label="Editar periodo">&#9998;</button></td></tr>`;
+    })
+    .join("");
+}
+
+async function loadPersonalHistorial() {
+  const personalId = personalHistorialPersonalId;
+  if (!personalId) return;
+  const token = (personalHistorialToken += 1);
+  if (personalHistorialSummary) personalHistorialSummary.textContent = "Cargando…";
+  try {
+    const rows = await window.CoordinacionHistorial.listForPersonal(personalId);
+    if (token !== personalHistorialToken) return;
+    personalHistorialRows = rows;
+    if (personalHistorialSummary) {
+      personalHistorialSummary.textContent = `${rows.length} ${rows.length === 1 ? "periodo" : "periodos"}`;
+    }
+    renderPersonalHistorialRows();
+  } catch (error) {
+    if (token !== personalHistorialToken) return;
+    personalHistorialRows = [];
+    if (personalHistorialSummary) {
+      personalHistorialSummary.textContent = `No se pudo cargar el historial laboral: ${error.message || error}`;
+    }
+    renderPersonalHistorialRows();
+  }
+}
+
+function openPersonalHistorialPanel() {
+  const row = currentPersonalRows.find((item) => String(item.id) === String(currentSelectedPersonalId));
+  if (!row || !personalHistorialPanel || !window.CoordinacionHistorial?.canAccess?.()) return;
+  personalHistorialPersonalId = Number(row.id);
+  personalHistorialRows = [];
+  if (personalHistorialTitle) personalHistorialTitle.textContent = getPersonalDisplayName(row);
+  renderPersonalHistorialRows();
+  personalHistorialPanel.classList.remove("hidden");
+  void loadPersonalHistorial();
+}
+
+function closePersonalHistorialPanel() {
+  personalHistorialPanel?.classList.add("hidden");
+  personalHistorialToken += 1;
+  personalHistorialPersonalId = null;
+}
+
+personalHistorialButton?.addEventListener("click", openPersonalHistorialPanel);
+personalHistorialCloseButton?.addEventListener("click", closePersonalHistorialPanel);
+personalHistorialOverlay?.addEventListener("click", closePersonalHistorialPanel);
+personalHistorialRefreshButton?.addEventListener("click", () => void loadPersonalHistorial());
+personalHistorialNewButton?.addEventListener("click", () => {
+  if (!personalHistorialPersonalId) return;
+  window.CoordinacionHistorial.registerRows(personalHistorialRows);
+  void window.CoordinacionHistorial.openNew({ personal_id: personalHistorialPersonalId });
+});
+personalHistorialBody?.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-personal-historial-id]");
+  if (!target) return;
+  window.CoordinacionHistorial.registerRows(personalHistorialRows);
+  void window.CoordinacionHistorial.openDetail(target.dataset.personalHistorialId);
+});
+window.CoordinacionHistorial.onChange(async () => {
+  if (personalHistorialPersonalId && !personalHistorialPanel?.classList.contains("hidden")) {
+    await loadPersonalHistorial();
+    window.CoordinacionHistorial.registerRows(personalHistorialRows);
+  }
+});
 
 // --- Asignación masiva ---
 function getHistorialBulkFieldConfig() {

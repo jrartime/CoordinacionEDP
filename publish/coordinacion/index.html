@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261009-5" />
-    <link rel="stylesheet" href="./styles.css?v=20261020-1" />
+    <link rel="stylesheet" href="./styles.css?v=20261021-1" />
   </head>
   <body>
     <script>
@@ -2334,6 +2334,53 @@
               </section>
               </div>
             </section>
+
+            <!--
+              Historial laboral de la persona elegida en la pestaña Personal. Cuelga aqui,
+              antes que #historial-detail-panel, para que el panel de edicion de un periodo
+              (mismo z-index) se pinte por encima.
+            -->
+              <section id="personal-historial-panel" class="detail-panel hidden">
+                <div id="personal-historial-overlay" class="detail-overlay"></div>
+                <aside class="detail-drawer formacion-table-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Historial laboral</p>
+                      <h3 id="personal-historial-title">Periodos</h3>
+                    </div>
+                    <div class="detail-header-actions">
+                      <button id="personal-historial-new-button" type="button">Añadir periodo</button>
+                      <button id="personal-historial-refresh-button" type="button" class="secondary-button">
+                        Actualizar
+                      </button>
+                      <button id="personal-historial-close-button" type="button" class="secondary-button">
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                  <p id="personal-historial-summary" class="muted-text"></p>
+                  <div class="table-scroll">
+                    <table class="records-table">
+                      <thead>
+                        <tr>
+                          <th>Tipo contratación</th>
+                          <th>Fecha alta</th>
+                          <th>Fecha baja</th>
+                          <th>Días</th>
+                          <th>Jornada</th>
+                          <th>Puesto</th>
+                          <th>Contrato</th>
+                          <th>Activo</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="personal-historial-body">
+                        <tr><td colspan="9" class="empty-state">Sin periodos.</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </aside>
+              </section>
 
             <!--
               Paneles laterales del historial laboral. Cuelgan fuera de
@@ -5490,13 +5537,18 @@
               </div>
             </aside>
 
-            <section class="personal-detail-panel">
+            <section class="personal-detail-panel personal-detail-empty">
               <div class="section-heading-row compact-heading-row personal-detail-heading">
                 <div class="personal-detail-identity">
                   <span id="personal-detail-avatar" class="personal-detail-avatar" aria-hidden="true"></span>
                   <div>
                     <p class="eyebrow">Ficha</p>
-                    <h3 id="personal-form-title">Ficha de personal</h3>
+                    <div class="personal-detail-title-row">
+                      <h3 id="personal-form-title">Selecciona una persona</h3>
+                      <button id="personal-historial-button" type="button" class="secondary-button hidden" title="Historial laboral de esta persona">
+                        Historial laboral
+                      </button>
+                    </div>
                     <div id="personal-detail-meta" class="personal-detail-meta"></div>
                   </div>
                 </div>
@@ -10470,6 +10522,6 @@
     <script src="./concilia-integrated.js?v=20261016-1" defer></script>
     <script src="./facturacion.js?v=20261006-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
-    <script src="./app.js?v=20261016-1" defer></script>
+    <script src="./app.js?v=20261021-1" defer></script>
   </body>
 </html>

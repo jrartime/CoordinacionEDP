@@ -8670,3 +8670,18 @@ details[open] > .gestion-collapsible-header::before {
   background: rgba(0, 0, 0, 0.05);
   font-size: 0.85em;
 }
+
+/* Personal · sin nadie elegido no se enseña el formulario (igual que Formación) */
+.personal-detail-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.personal-detail-title-row h3 {
+  margin: 0;
+}
+.personal-detail-panel.personal-detail-empty #personal-form,
+.personal-detail-panel.personal-detail-empty #personal-complementos-section {
+  display: none;
+}
