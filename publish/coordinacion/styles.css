@@ -8706,3 +8706,36 @@ details[open] > .gestion-collapsible-header::before {
 .personal-reconocimientos-table th:nth-child(6) {
   width: 170px;
 }
+
+/* Listado de autorizaciones de reconocimiento médico: Persona 60 %, DNI 70 %, Puesto 60 %,
+   Motivo 60 % y Estado 60 % del ancho que tenían. */
+.personal-reconocimientos-listado-table {
+  table-layout: fixed;
+  min-width: 1160px;
+}
+.personal-reconocimientos-listado-table th:nth-child(1) {
+  width: 242px;
+}
+.personal-reconocimientos-listado-table th:nth-child(2) {
+  width: 118px;
+}
+.personal-reconocimientos-listado-table th:nth-child(3) {
+  width: 223px;
+}
+.personal-reconocimientos-listado-table th:nth-child(4) {
+  width: 198px;
+}
+.personal-reconocimientos-listado-table th:nth-child(5) {
+  width: 221px;
+}
+.personal-reconocimientos-listado-table th:nth-child(6) {
+  width: 157px;
+}
+
+/* .records-table limita las celdas a 200 px; en estas dos tablas mandan los anchos de arriba. */
+.personal-reconocimientos-table th,
+.personal-reconocimientos-table td,
+.personal-reconocimientos-listado-table th,
+.personal-reconocimientos-listado-table td {
+  max-width: none;
+}
