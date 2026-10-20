@@ -8,6 +8,8 @@
   // puesto de la persona, de su historial laboral.
 
   const RESULTADOS = ["Apta", "Con limitaciones", "No apta"];
+  const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const MES_POR_DEFECTO = 3; // marzo: quien rechazó el año anterior o nunca se lo ha hecho
   // Personal que pertenece a la empresa: Activo (1) y No activo (2), como el filtro «Pertenece»
   // de la pestaña Personal. Los Pendiente de desvincular (3) y No pertenece (4) no cuentan,
   // aunque les falte documentación; tampoco lo que no es una persona (los puestos «zz …»).
@@ -23,7 +25,7 @@
     editingId: null,
     autoriza: null,
     confirmDeleteId: null,
-    listado: { loaded: false, loading: false, year: new Date().getFullYear(), filter: "todos", text: "", rows: [] },
+    listado: { loaded: false, loading: false, year: new Date().getFullYear(), filter: "todos", text: "", month: 0, rows: [] },
   };
 
   const el = {};
@@ -390,6 +392,9 @@
           cada: null,
           motivo: puestos.length ? "Su puesto no ofrece reconocimiento" : "Sin puesto en el historial laboral",
           estado,
+          anioCampana: year,
+          mesPrevisto: null,
+          mes: null,
         });
         return;
       }
@@ -399,6 +404,24 @@
         .filter((r) => r.autoriza === true && r.fecha && r.anio < year)
         .reduce((max, r) => Math.max(max, r.anio), 0);
       const joinedThisYear = chosen.some((h) => String(h.fecha_alta).slice(0, 4) === String(year));
+
+      // Mes en que se le manda hacer el reconocimiento (a quien autoriza): el mismo mes que el
+      // último que hizo; marzo si el año anterior lo rechazó o nunca se lo ha hecho; el mes del
+      // alta si es un ingreso de este año. Si ya tiene fecha este año, manda la fecha.
+      const lastDone = recs
+        .filter((r) => r.autoriza === true && r.fecha && r.anio < year)
+        .sort((a, b) => (a.fecha < b.fecha ? 1 : -1))[0];
+      let mesPrevisto = MES_POR_DEFECTO;
+      if (prevYear && prevYear.autoriza === false) mesPrevisto = MES_POR_DEFECTO;
+      else if (lastDone) mesPrevisto = Number(String(lastDone.fecha).slice(5, 7));
+      else if (joinedThisYear) {
+        const alta = chosen
+          .filter((h) => String(h.fecha_alta).slice(0, 4) === String(year))
+          .map((h) => String(h.fecha_alta))
+          .sort()
+          .pop();
+        mesPrevisto = Number(alta.slice(5, 7));
+      }
 
       let motivo = "";
       if (prevYear && prevYear.autoriza === false) motivo = "Rechazó el año anterior";
@@ -417,6 +440,9 @@
         cada: every,
         motivo,
         estado: estado || (corresponde ? "sin" : null),
+        anioCampana: year,
+        mesPrevisto,
+        mes: estado === "autoriza" ? (thisYear.fecha ? Number(String(thisYear.fecha).slice(5, 7)) : mesPrevisto) : null,
       });
     });
     return rows.sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
@@ -464,12 +490,14 @@
   // Fecha del reconocimiento: solo para quien autoriza; sin fecha todavía = pendiente.
   function fechaTexto(row) {
     if (row.estado !== "autoriza") return "—";
-    return row.fecha ? formatDate(row.fecha) : "Pendiente";
+    if (row.fecha) return formatDate(row.fecha);
+    return row.mesPrevisto ? `Pendiente (${MESES[row.mesPrevisto - 1]} ${row.anioCampana})` : "Pendiente";
   }
 
   function listadoVisible() {
     const text = state.listado.text.trim().toLowerCase();
     return state.listado.rows.filter((row) => {
+      if (state.listado.month && row.mes !== state.listado.month) return false;
       if (state.listado.filter === "nocorresponde") {
         if (row.corresponde) return false;
       } else {
@@ -484,8 +512,9 @@
   function renderListado() {
     if (!state.listado.data) return;
     state.listado.rows = computeListado(state.listado.year, state.listado.data);
-    const all = state.listado.rows.filter((r) => r.corresponde);
-    const excluidos = state.listado.rows.length - all.length;
+    const inMonth = (r) => !state.listado.month || r.mes === state.listado.month;
+    const all = state.listado.rows.filter((r) => r.corresponde && inMonth(r));
+    const excluidos = state.listado.rows.filter((r) => !r.corresponde && inMonth(r)).length;
     const count = (key) => all.filter((r) => r.estado === key).length;
     el.listadoFilters.innerHTML = [
       ["todos", "Todos", all.length],
@@ -500,10 +529,11 @@
       )
       .join("");
     const rows = listadoVisible();
+    const monthText = state.listado.month ? ` · ${MESES[state.listado.month - 1]}` : "";
     el.listadoSummary.textContent =
       state.listado.filter === "nocorresponde"
-        ? `${rows.length} de ${excluidos} personas a las que no les corresponde · campaña ${state.listado.year}`
-        : `${rows.length} de ${all.length} personas · campaña ${state.listado.year}`;
+        ? `${rows.length} de ${excluidos} personas a las que no les corresponde · campaña ${state.listado.year}${monthText}`
+        : `${rows.length} de ${all.length} personas · campaña ${state.listado.year}${monthText}`;
     if (!rows.length) {
       el.listadoBody.innerHTML = '<tr><td colspan="7" class="empty-state">Nadie en este grupo.</td></tr>';
       return;
@@ -516,7 +546,7 @@
           <td>${escapeHtml(r.puesto)}</td>
           <td>${escapeHtml(r.motivo)}</td>
           <td>${r.estado ? `<span class="status-pill">${ESTADO_TEXTO[r.estado]}</span>` : "—"}${r.registros > 1 ? ` <span class="muted-text">(${r.registros} registros)</span>` : ""}</td>
-          <td>${fechaTexto(r) === "Pendiente" ? '<span class="muted-text">Pendiente</span>' : escapeHtml(fechaTexto(r))}</td>
+          <td>${fechaTexto(r).startsWith("Pendiente") ? `<span class="muted-text">${escapeHtml(fechaTexto(r))}</span>` : escapeHtml(fechaTexto(r))}</td>
           <td><button type="button" class="secondary-button" data-rec-open-person="${r.id}">Abrir</button></td>
         </tr>`,
       )
@@ -588,6 +618,10 @@
       state.listado.year = Number(el.listadoYear.value);
       renderListado();
     });
+    el.listadoMonth.addEventListener("change", () => {
+      state.listado.month = Number(el.listadoMonth.value);
+      renderListado();
+    });
     el.listadoText.addEventListener("input", () => {
       state.listado.text = el.listadoText.value;
       renderListado();
@@ -643,6 +677,7 @@
       listadoOverlay: q("#personal-reconocimientos-listado-overlay"),
       listadoCloseButton: q("#personal-reconocimientos-listado-close-button"),
       listadoYear: q("#personal-reconocimientos-listado-year"),
+      listadoMonth: q("#personal-reconocimientos-listado-month"),
       listadoText: q("#personal-reconocimientos-listado-text"),
       listadoCsv: q("#personal-reconocimientos-listado-csv"),
       listadoStatus: q("#personal-reconocimientos-listado-status"),
@@ -650,6 +685,9 @@
       listadoSummary: q("#personal-reconocimientos-listado-summary"),
       listadoBody: q("#personal-reconocimientos-listado-body"),
     });
+    el.listadoMonth.innerHTML =
+      '<option value="0">Todos los meses</option>' +
+      MESES.map((m, i) => `<option value="${i + 1}">${m.charAt(0).toUpperCase() + m.slice(1)}</option>`).join("");
     const thisYear = currentYear();
     el.listadoYear.innerHTML = [thisYear - 1, thisYear, thisYear + 1]
       .map((y) => `<option value="${y}"${y === thisYear ? " selected" : ""}>${y}</option>`)
