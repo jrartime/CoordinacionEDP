@@ -8649,3 +8649,24 @@ details[open] > .gestion-collapsible-header::before {
   max-width: none;
   white-space: nowrap;
 }
+
+/* Formación · botón DEA y su panel */
+.formacion-dea-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.formacion-dea-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.formacion-dea-puesto {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 0.85em;
+}

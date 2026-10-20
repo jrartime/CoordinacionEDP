@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261009-5" />
-    <link rel="stylesheet" href="./styles.css?v=20261016-1" />
+    <link rel="stylesheet" href="./styles.css?v=20261020-1" />
   </head>
   <body>
     <script>
@@ -5687,6 +5687,10 @@
               <h3>Formaci&oacute;n</h3>
             </div>
             <div class="toolbar-actions">
+              <button id="formacion-dea-button" type="button" class="secondary-button formacion-dea-button" title="Personal con el DEA caducado, a punto de caducar o sin DEA">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2Z"/><path d="m12.8 9.5-2.2 3.2h2.8l-2.2 3.2"/></svg>
+                DEA
+              </button>
               <button id="formacion-new-button" type="button">Nueva formaci&oacute;n</button>
               <button id="formacion-refresh-button" type="button" class="secondary-button">
                 Actualizar
@@ -5984,6 +5988,40 @@
             </section>
             <p class="muted-text formacion-readonly-note hidden">Solo los administradores pueden modificar los cat&aacute;logos.</p>
           </div>
+          <section id="formacion-dea-panel" class="detail-panel hidden">
+            <div id="formacion-dea-overlay" class="detail-overlay"></div>
+            <aside class="detail-drawer formacion-table-drawer formacion-dea-drawer">
+              <div class="detail-header">
+                <div>
+                  <p class="eyebrow">Formaci&oacute;n</p>
+                  <h3>DEA &middot; caducados y por caducar</h3>
+                </div>
+                <div class="detail-header-actions">
+                  <button id="formacion-dea-close-button" type="button" class="secondary-button">
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+              <p id="formacion-dea-note" class="muted-text"></p>
+              <div id="formacion-dea-filters" class="formacion-dea-filters"></div>
+              <p id="formacion-dea-status" class="panel-status-message"></p>
+              <div class="table-scroll">
+                <table class="records-table formacion-table">
+                  <thead>
+                    <tr>
+                      <th>Persona</th>
+                      <th>Estado</th>
+                      <th>Caducidad</th>
+                      <th>&Uacute;ltimo DEA</th>
+                      <th>Puesto(s) con DEA</th>
+                      <th>&Uacute;ltimo a&ntilde;o</th>
+                    </tr>
+                  </thead>
+                  <tbody id="formacion-dea-body"></tbody>
+                </table>
+              </div>
+            </aside>
+          </section>
         </section>
 
         <section id="private-tab-panel-contracts" class="private-tab-panel hidden">
@@ -10431,7 +10469,7 @@
     <script src="./list-scroll-keeper.js?v=20260930-1" defer></script>
     <script src="./concilia-integrated.js?v=20261016-1" defer></script>
     <script src="./facturacion.js?v=20261006-1" defer></script>
-    <script src="./formacion.js?v=20261016-1" defer></script>
+    <script src="./formacion.js?v=20261020-1" defer></script>
     <script src="./app.js?v=20261016-1" defer></script>
   </body>
 </html>

@@ -25,6 +25,7 @@
     selectedId: "", // "" = nada, "new" = alta, o el id de la formación
     filters: { year: "", course: "", text: "" },
     externalPerson: null,
+    dea: { rows: [], filter: "todos" },
     draft: null, // valores iniciales del formulario en una formación nueva o duplicada
   };
 
@@ -1139,6 +1140,106 @@
 
   // ------------------------------------------------------------------- vistas
 
+  // -------------------------------------------------------------------- DEA
+  // Botón DEA: personal que pertenece a la empresa con el DEA caducado, por caducar (seis
+  // meses) o sin DEA. Lo calcula coordinacion.get_formacion_dea (supabase/tables/formacion_dea.sql).
+
+  const DEA_ESTADOS = {
+    caducado: { texto: "Caducado", clase: "formacion-renewal-expired" },
+    por_caducar: { texto: "Caduca pronto", clase: "formacion-renewal-soon" },
+    sin_dea: { texto: "Sin DEA", clase: "" },
+  };
+
+  function deaFilteredRows() {
+    const { rows, filter } = state.dea;
+    if (filter === "todos") return rows;
+    if (filter === "puntual") return rows.filter((row) => row.motivo === "puntual");
+    return rows.filter((row) => row.estado_dea === filter);
+  }
+
+  function renderDeaFilters() {
+    const rows = state.dea.rows;
+    const count = (fn) => rows.filter(fn).length;
+    const chips = [
+      ["todos", "Todos", rows.length],
+      ["caducado", "Caducados", count((r) => r.estado_dea === "caducado")],
+      ["por_caducar", "Caducan en 6 meses", count((r) => r.estado_dea === "por_caducar")],
+      ["sin_dea", "Sin DEA", count((r) => r.estado_dea === "sin_dea")],
+      ["puntual", "Puesto puntual", count((r) => r.motivo === "puntual")],
+    ];
+    el.deaFilters.innerHTML = chips
+      .map(
+        ([key, label, n]) =>
+          `<button type="button" class="settings-subtab-button${state.dea.filter === key ? " active" : ""}" data-dea-filter="${key}" aria-pressed="${state.dea.filter === key}">${escapeHtml(label)} · ${n}</button>`
+      )
+      .join("");
+  }
+
+  function deaDueCell(row) {
+    if (!row.caducidad) return '<span class="muted-text">No consta ningún DEA</span>';
+    const info = DEA_ESTADOS[row.estado_dea];
+    const days = row.dias;
+    const note = days < 0 ? `hace ${-days} d` : days === 0 ? "hoy" : `en ${days} d`;
+    return `<span class="formacion-renewal ${info?.clase || ""}">${escapeHtml(formatDate(row.caducidad))}</span> <span class="muted-text">${escapeHtml(note)}</span>`;
+  }
+
+  function renderDea() {
+    renderDeaFilters();
+    const rows = deaFilteredRows();
+    if (!rows.length) {
+      el.deaBody.innerHTML = '<tr><td colspan="6" class="empty-state">Nadie en este grupo.</td></tr>';
+      return;
+    }
+    el.deaBody.innerHTML = rows
+      .map((row) => {
+        const info = DEA_ESTADOS[row.estado_dea] || { texto: row.estado_dea, clase: "" };
+        const puestos = (row.puestos || []).length
+          ? row.puestos
+              .map(
+                (p) =>
+                  `<span class="formacion-dea-puesto${p.vigente ? "" : " muted-text"}" title="${p.vigente ? "Vigente" : `Hasta ${escapeHtml(formatDate(p.hasta))}`}">${escapeHtml(p.puesto)}</span>`
+              )
+              .join(" ")
+          : '<span class="muted-text">Ninguno en el historial (puesto puntual)</span>';
+        const registros = (row.registros || []).length
+          ? row.registros.map((r) => `${escapeHtml(r.puesto)}: ${r.registros}`).join(" · ")
+          : '<span class="muted-text">—</span>';
+        return `<tr>
+          <td>${escapeHtml(row.personal)}${row.vinculacion_id === 2 ? ' <span class="muted-text">(no activo)</span>' : ""}</td>
+          <td><span class="formacion-renewal ${info.clase}">${escapeHtml(info.texto)}</span></td>
+          <td>${deaDueCell(row)}</td>
+          <td>${row.ultima_fecha ? escapeHtml(formatDate(row.ultima_fecha)) : '<span class="muted-text">—</span>'}</td>
+          <td>${puestos}</td>
+          <td>${registros}</td>
+        </tr>`;
+      })
+      .join("");
+  }
+
+  async function openDea() {
+    el.deaPanel.classList.remove("hidden");
+    el.deaStatus.textContent = "Calculando…";
+    el.deaStatus.className = "panel-status-message";
+    el.deaNote.textContent =
+      "Personal que pertenece a la empresa (activo y no activo) con el DEA caducado o que caduca en los próximos seis meses, " +
+      "con un puesto con requisito DEA en su historial laboral (aunque no conste ningún DEA) o que ha cubierto un puesto con DEA en el último año.";
+    try {
+      const supabase = await getClient();
+      const { data, error } = await supabase.rpc("get_formacion_dea");
+      if (error) throw error;
+      state.dea.rows = data || [];
+      el.deaStatus.textContent = "";
+      renderDea();
+    } catch (error) {
+      el.deaStatus.textContent = `No se pudo calcular el listado DEA: ${error.message || error}`;
+      el.deaStatus.className = "panel-status-message error";
+    }
+  }
+
+  function closeDea() {
+    el.deaPanel.classList.add("hidden");
+  }
+
   function switchView(view) {
     state.view = view;
     qa("#private-tab-panel-formacion [data-formacion-view]").forEach((button) => {
@@ -1169,6 +1270,15 @@
     qa("#private-tab-panel-formacion [data-formacion-view]").forEach((button) =>
       button.addEventListener("click", () => switchView(button.dataset.formacionView))
     );
+    el.deaButton.addEventListener("click", () => void openDea());
+    el.deaCloseButton.addEventListener("click", closeDea);
+    el.deaOverlay.addEventListener("click", closeDea);
+    el.deaFilters.addEventListener("click", (event) => {
+      const chip = event.target.closest("[data-dea-filter]");
+      if (!chip) return;
+      state.dea.filter = chip.dataset.deaFilter;
+      renderDea();
+    });
     el.refresh.addEventListener("click", () => void load({ force: true }).catch(() => {}));
     el.newButton.addEventListener("click", () => {
       if (state.view !== "ediciones") switchView("ediciones");
@@ -1251,6 +1361,14 @@
       status: q("#formacion-status"),
       refresh: q("#formacion-refresh-button"),
       newButton: q("#formacion-new-button"),
+      deaButton: q("#formacion-dea-button"),
+      deaPanel: q("#formacion-dea-panel"),
+      deaOverlay: q("#formacion-dea-overlay"),
+      deaCloseButton: q("#formacion-dea-close-button"),
+      deaNote: q("#formacion-dea-note"),
+      deaFilters: q("#formacion-dea-filters"),
+      deaStatus: q("#formacion-dea-status"),
+      deaBody: q("#formacion-dea-body"),
       viewEdiciones: q("#formacion-view-ediciones"),
       viewExterna: q("#formacion-view-externa"),
       viewCatalogos: q("#formacion-view-catalogos"),
