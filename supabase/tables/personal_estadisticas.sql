@@ -10,9 +10,12 @@
 --
 -- "Plantilla" = personal.persona = true (excluye los recursos genericos de
 -- programacion como "zz Conserjeria 01", que no son personas reales; estaban
--- inflando la plantilla activa) y vinculacion_id distinto de 4 ("No
--- pertenece"). "Plantilla activa" es el subconjunto con vinculacion_id = 1
--- (se calcula en el frontend a partir de vinculacion_id).
+-- inflando la plantilla activa) y vinculacion_id 1 ("Activo") o 2 ("No
+-- activo"). Los "Pendiente de desvincular" (3) y los "No pertenece" (4) no son
+-- plantilla, aunque les falte documentacion. Es el mismo criterio del listado
+-- de autorizaciones de reconocimiento medico. "Plantilla activa" es el
+-- subconjunto con vinculacion_id = 1 (se calcula en el frontend a partir de
+-- vinculacion_id).
 --
 -- "Fijo" / "temporal" se toma del historial laboral MAS RECIENTE de la
 -- persona (por fecha_alta), no del "vigente hoy": el fijo discontinuo
@@ -65,7 +68,7 @@ as $$
   from public.personal_completo p
   left join historial_reciente hr on hr.personal_id = p.id
   where coalesce(p.persona, false)
-    and p.vinculacion_id is distinct from 4
+    and p.vinculacion_id in (1, 2)
   order by p.personal;
 $$;
 
