@@ -4311,6 +4311,36 @@ function applyDefaultControlDateRangeIfEmpty() {
   }
 }
 
+// Registros arranca con el mes en curso (del 1 al último día) si no hay fechas puestas.
+// No se aplica cuando se llega desde una actividad: ahí se quieren todos sus registros.
+function applyDefaultRecordsDateRangeIfEmpty() {
+  const from = document.querySelector("#records-filter-date-from");
+  const to = document.querySelector("#records-filter-date-to");
+  if (!from || !to) {
+    return;
+  }
+  if (recordsExternalActivityFilter || document.querySelector("#records-filter-actividad")?.value) {
+    return;
+  }
+
+  const now = new Date();
+  let changed = false;
+
+  if (!from.value) {
+    from.value = formatDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
+    changed = true;
+  }
+
+  if (!to.value) {
+    to.value = formatDateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    changed = true;
+  }
+
+  if (changed) {
+    syncFilterResetButtons(recordsFiltersForm);
+  }
+}
+
 function applyControlFiltersToQuery(query, filters, options = {}) {
   const { requireDateRange = false } = options;
 
@@ -32136,6 +32166,7 @@ async function refreshPrivateTabData(target = currentPrivateTabTarget) {
   }
 
   if (normalizedTarget === "registros") {
+    applyDefaultRecordsDateRangeIfEmpty();
     await loadRecords();
     return;
   }
