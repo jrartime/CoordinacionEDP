@@ -8711,7 +8711,7 @@ details[open] > .gestion-collapsible-header::before {
    Motivo 60 % y Estado 60 % del ancho que tenían. */
 .personal-reconocimientos-listado-table {
   table-layout: fixed;
-  min-width: 1160px;
+  min-width: 1280px;
 }
 .personal-reconocimientos-listado-table th:nth-child(1) {
   width: 242px;
@@ -8729,6 +8729,9 @@ details[open] > .gestion-collapsible-header::before {
   width: 221px;
 }
 .personal-reconocimientos-listado-table th:nth-child(6) {
+  width: 120px;
+}
+.personal-reconocimientos-listado-table th:nth-child(7) {
   width: 157px;
 }
 

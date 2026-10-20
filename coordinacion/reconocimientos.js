@@ -380,6 +380,7 @@
         dni: person.dni || "",
         email: person.email || "",
         registros: recs.filter((r) => r.anio === year).length,
+        fecha: thisYear?.fecha || null,
       };
       if (!withRec.length) {
         rows.push({
@@ -460,6 +461,12 @@
     return row.estado ? ESTADO_TEXTO[row.estado] : "—";
   }
 
+  // Fecha del reconocimiento: solo para quien autoriza; sin fecha todavía = pendiente.
+  function fechaTexto(row) {
+    if (row.estado !== "autoriza") return "—";
+    return row.fecha ? formatDate(row.fecha) : "Pendiente";
+  }
+
   function listadoVisible() {
     const text = state.listado.text.trim().toLowerCase();
     return state.listado.rows.filter((row) => {
@@ -498,7 +505,7 @@
         ? `${rows.length} de ${excluidos} personas a las que no les corresponde · campaña ${state.listado.year}`
         : `${rows.length} de ${all.length} personas · campaña ${state.listado.year}`;
     if (!rows.length) {
-      el.listadoBody.innerHTML = '<tr><td colspan="6" class="empty-state">Nadie en este grupo.</td></tr>';
+      el.listadoBody.innerHTML = '<tr><td colspan="7" class="empty-state">Nadie en este grupo.</td></tr>';
       return;
     }
     el.listadoBody.innerHTML = rows
@@ -509,6 +516,7 @@
           <td>${escapeHtml(r.puesto)}</td>
           <td>${escapeHtml(r.motivo)}</td>
           <td>${r.estado ? `<span class="status-pill">${ESTADO_TEXTO[r.estado]}</span>` : "—"}${r.registros > 1 ? ` <span class="muted-text">(${r.registros} registros)</span>` : ""}</td>
+          <td>${fechaTexto(r) === "Pendiente" ? '<span class="muted-text">Pendiente</span>' : escapeHtml(fechaTexto(r))}</td>
           <td><button type="button" class="secondary-button" data-rec-open-person="${r.id}">Abrir</button></td>
         </tr>`,
       )
@@ -518,8 +526,8 @@
   function downloadListadoCsv() {
     const rows = listadoVisible();
     const cell = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
-    const lines = [["Persona", "DNI", "Correo", "Puesto", "Motivo", "Estado"].map(cell).join(";")].concat(
-      rows.map((r) => [r.nombre, r.dni, r.email, r.puesto, r.motivo, estadoTexto(r)].map(cell).join(";")),
+    const lines = [["Persona", "DNI", "Correo", "Puesto", "Motivo", "Estado", "Fecha reconocimiento"].map(cell).join(";")].concat(
+      rows.map((r) => [r.nombre, r.dni, r.email, r.puesto, r.motivo, estadoTexto(r), fechaTexto(r)].map(cell).join(";")),
     );
     const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const link = document.createElement("a");
