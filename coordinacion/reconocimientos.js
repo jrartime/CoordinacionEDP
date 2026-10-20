@@ -370,11 +370,28 @@
       }
       const puestos = chosen.map((h) => puestoById.get(h.puesto_id)).filter(Boolean);
       const withRec = puestos.filter((p) => p.rec_medico > 0).sort((a, b) => a.rec_medico - b.rec_medico);
-      if (!withRec.length) return;
-      const every = withRec[0].rec_medico;
-
       const recs = recsByPerson.get(person.id) || [];
       const thisYear = latestOfYear(recs, year);
+      const estado = thisYear ? (thisYear.autoriza === true ? "autoriza" : thisYear.autoriza === false ? "no" : "sin") : null;
+      const base = {
+        id: person.id,
+        nombre: person.personal || `Persona ${person.id}`,
+        dni: person.dni || "",
+        email: person.email || "",
+        registros: recs.filter((r) => r.anio === year).length,
+      };
+      if (!withRec.length) {
+        rows.push({
+          ...base,
+          corresponde: false,
+          puesto: puestos[0]?.puesto || "",
+          cada: null,
+          motivo: puestos.length ? "Su puesto no ofrece reconocimiento" : "Sin puesto en el historial laboral",
+          estado,
+        });
+        return;
+      }
+      const every = withRec[0].rec_medico;
       const prevYear = latestOfYear(recs, year - 1);
       const doneBefore = recs
         .filter((r) => r.autoriza === true && r.fecha && r.anio < year)
@@ -388,18 +405,16 @@
       else if (!doneBefore) motivo = "Nunca lo ha realizado";
       else if (year - doneBefore >= every) motivo = `Le toca (cada ${every} años, último ${doneBefore})`;
       else if (thisYear) motivo = "Ya tiene registro este año";
-      if (!motivo) return;
+      const corresponde = Boolean(motivo);
+      if (!corresponde) motivo = `No le toca (cada ${every} años, último ${doneBefore})`;
 
       rows.push({
-        id: person.id,
-        nombre: person.personal || `Persona ${person.id}`,
-        dni: person.dni || "",
-        email: person.email || "",
+        ...base,
+        corresponde,
         puesto: withRec[0].puesto,
         cada: every,
         motivo,
-        estado: thisYear ? (thisYear.autoriza === true ? "autoriza" : thisYear.autoriza === false ? "no" : "sin") : "sin",
-        registros: recs.filter((r) => r.anio === year).length,
+        estado: estado || (corresponde ? "sin" : null),
       });
     });
     return rows.sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
@@ -440,10 +455,19 @@
 
   const ESTADO_TEXTO = { sin: "Sin respuesta", autoriza: "Autoriza", no: "No autoriza" };
 
+  function estadoTexto(row) {
+    return row.estado ? ESTADO_TEXTO[row.estado] : "—";
+  }
+
   function listadoVisible() {
     const text = state.listado.text.trim().toLowerCase();
     return state.listado.rows.filter((row) => {
-      if (state.listado.filter !== "todos" && row.estado !== state.listado.filter) return false;
+      if (state.listado.filter === "nocorresponde") {
+        if (row.corresponde) return false;
+      } else {
+        if (!row.corresponde) return false;
+        if (state.listado.filter !== "todos" && row.estado !== state.listado.filter) return false;
+      }
       if (!text) return true;
       return [row.nombre, row.dni, row.puesto, row.motivo].join(" ").toLowerCase().includes(text);
     });
@@ -452,13 +476,15 @@
   function renderListado() {
     if (!state.listado.data) return;
     state.listado.rows = computeListado(state.listado.year, state.listado.data);
-    const all = state.listado.rows;
+    const all = state.listado.rows.filter((r) => r.corresponde);
+    const excluidos = state.listado.rows.length - all.length;
     const count = (key) => all.filter((r) => r.estado === key).length;
     el.listadoFilters.innerHTML = [
       ["todos", "Todos", all.length],
       ["sin", "Sin respuesta", count("sin")],
       ["autoriza", "Autorizan", count("autoriza")],
       ["no", "No autorizan", count("no")],
+      ["nocorresponde", "No les corresponde", excluidos],
     ]
       .map(
         ([key, label, n]) =>
@@ -466,7 +492,10 @@
       )
       .join("");
     const rows = listadoVisible();
-    el.listadoSummary.textContent = `${rows.length} de ${all.length} personas · campaña ${state.listado.year}`;
+    el.listadoSummary.textContent =
+      state.listado.filter === "nocorresponde"
+        ? `${rows.length} de ${excluidos} personas a las que no les corresponde · campaña ${state.listado.year}`
+        : `${rows.length} de ${all.length} personas · campaña ${state.listado.year}`;
     if (!rows.length) {
       el.listadoBody.innerHTML = '<tr><td colspan="6" class="empty-state">Nadie en este grupo.</td></tr>';
       return;
@@ -478,7 +507,7 @@
           <td>${escapeHtml(r.dni)}</td>
           <td>${escapeHtml(r.puesto)}</td>
           <td>${escapeHtml(r.motivo)}</td>
-          <td><span class="status-pill">${ESTADO_TEXTO[r.estado]}</span>${r.registros > 1 ? ` <span class="muted-text">(${r.registros} registros)</span>` : ""}</td>
+          <td>${r.estado ? `<span class="status-pill">${ESTADO_TEXTO[r.estado]}</span>` : "—"}${r.registros > 1 ? ` <span class="muted-text">(${r.registros} registros)</span>` : ""}</td>
           <td><button type="button" class="secondary-button" data-rec-open-person="${r.id}">Abrir</button></td>
         </tr>`,
       )
@@ -489,7 +518,7 @@
     const rows = listadoVisible();
     const cell = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
     const lines = [["Persona", "DNI", "Correo", "Puesto", "Motivo", "Estado"].map(cell).join(";")].concat(
-      rows.map((r) => [r.nombre, r.dni, r.email, r.puesto, r.motivo, ESTADO_TEXTO[r.estado]].map(cell).join(";")),
+      rows.map((r) => [r.nombre, r.dni, r.email, r.puesto, r.motivo, estadoTexto(r)].map(cell).join(";")),
     );
     const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const link = document.createElement("a");
