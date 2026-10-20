@@ -100,6 +100,14 @@
     return y && m && d ? `${d}/${m}/${y}` : "";
   }
 
+  // Un <input type="date"> da por buena la fecha en cuanto el año tiene un dígito
+  // (teclear 2026 pasa por 0002, 0020 y 0202 y dispara `change` en cada paso), así
+  // que no se guarda nada hasta que el año sea plausible.
+  function isPlausibleDate(iso) {
+    const year = Number(String(iso).slice(0, 4));
+    return year >= 1900 && year <= 2100;
+  }
+
   // Suma años a una fecha ISO sin pasar por Date (evita desfases de zona
   // horaria). Un 29/02 que cae en año no bisiesto pasa al 28/02.
   function addYears(iso, years) {
@@ -537,6 +545,7 @@
     if (control.type === "checkbox") value = control.checked;
     else if (field === "titulacion") value = control.value === "" ? null : Number(control.value);
     else value = control.value === "" ? null : control.value;
+    if (control.type === "date" && value != null && !isPlausibleDate(value)) return;
 
     const patch = { [field]: value };
     // Si deja de estar Realizado, la asistencia pierde la fecha de realización
@@ -939,6 +948,7 @@
     let value = control.value === "" ? null : control.value;
     if (field === "titulacion" && value != null) value = Number(value);
     if (field === "observacion" && value != null) value = value.trim() || null;
+    if (control.type === "date" && value != null && !isPlausibleDate(value)) return;
     const saved = await updateAttendee(tr.dataset.attendeeId, { [field]: value });
     if (saved) setStatus("");
     renderExternal();
@@ -1326,6 +1336,10 @@
       const button = event.target.closest("[data-remove-attendee]");
       if (button) void removeAttendee(button.dataset.removeAttendee);
     });
+    el.attendeesBody.addEventListener("focusout", (event) => {
+      const control = event.target.closest('input[type="date"]');
+      if (control && control.value && !isPlausibleDate(control.value)) renderAttendees();
+    });
     el.attendeesDone.addEventListener("click", () => void markAllDone());
     bindPicker(el.attendeeSearch, el.attendeeResults, {
       exclude: () => new Set(attendeesOf(state.selectedId).map((row) => String(row.personal_id))),
@@ -1340,6 +1354,10 @@
       },
     });
     el.externalForm.addEventListener("submit", (event) => void addExternal(event));
+    el.externalBody.addEventListener("focusout", (event) => {
+      const control = event.target.closest('input[type="date"]');
+      if (control && control.value && !isPlausibleDate(control.value)) renderExternal();
+    });
     el.externalFilterTitulacion.addEventListener("change", renderExternal);
     el.externalFilterText.addEventListener("input", renderExternal);
     el.externalBody.addEventListener("change", (event) => void onExternalChange(event));
