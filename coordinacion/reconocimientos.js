@@ -8,6 +8,9 @@
   // puesto de la persona, de su historial laboral.
 
   const RESULTADOS = ["Apta", "Con limitaciones", "No apta"];
+  // Personal que pertenece a la empresa: vinculación Activo (1) o No activo (2), como el filtro
+  // «Pertenece» de la pestaña Personal (deja fuera Pendiente de desvincular y No pertenece).
+  const PERTENECE_IDS = [1, 2];
 
   const state = {
     initialized: false,
@@ -336,8 +339,8 @@
   }
 
   // Quién debe recibir el documento de autorización del año `year`:
-  //  · solo personal activo de la empresa (vinculación «Activo») con un puesto que ofrece
-  //    reconocimiento (puestos.rec_medico = cada cuántos años);
+  //  · solo personal que pertenece a la empresa (vinculación Activo o No activo) con un puesto
+  //    que ofrece reconocimiento (puestos.rec_medico = cada cuántos años);
   //  · anual → siempre; si rechazó el año anterior → siempre; ingreso este año → siempre;
   //  · nunca lo ha realizado → se ofrece;
   //  · si no, le toca cuando han pasado rec_medico años desde el último que realizó
@@ -359,7 +362,7 @@
 
     const rows = [];
     data.personal.forEach((person) => {
-      if (Number(person.vinculacion_id) !== 1 || person.persona === false) return;
+      if (!PERTENECE_IDS.includes(Number(person.vinculacion_id)) || person.persona === false) return;
       const periods = periodsByPerson.get(person.id) || [];
       let chosen = periods.filter((h) => h.fecha_alta <= today && (!h.fecha_baja || h.fecha_baja >= today));
       if (!chosen.length && periods.length) {
