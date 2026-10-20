@@ -8,9 +8,10 @@
   // puesto de la persona, de su historial laboral.
 
   const RESULTADOS = ["Apta", "Con limitaciones", "No apta"];
-  // Personal que pertenece a la empresa: vinculación Activo (1) o No activo (2), como el filtro
-  // «Pertenece» de la pestaña Personal (deja fuera Pendiente de desvincular y No pertenece).
-  const PERTENECE_IDS = [1, 2];
+  // Personal que pertenece a la empresa: la misma Plantilla que cuenta la pestaña Personal,
+  // es decir Activo (1), No activo (2) y Pendiente de desvincular (3); solo se deja fuera
+  // «No pertenece» (4) y lo que no es una persona (los puestos «zz …»).
+  const PERTENECE_IDS = [1, 2, 3];
 
   const state = {
     initialized: false,
@@ -339,7 +340,7 @@
   }
 
   // Quién debe recibir el documento de autorización del año `year`:
-  //  · solo personal que pertenece a la empresa (vinculación Activo o No activo) con un puesto
+  //  · solo personal que pertenece a la empresa (Plantilla: todo menos «No pertenece») con un puesto
   //    que ofrece reconocimiento (puestos.rec_medico = cada cuántos años);
   //  · anual → siempre; si rechazó el año anterior → siempre; ingreso este año → siempre;
   //  · nunca lo ha realizado → se ofrece;
