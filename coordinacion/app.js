@@ -30678,6 +30678,11 @@ function closePersonalHistorialPanel() {
   personalHistorialPersonalId = null;
 }
 
+// La persona marcada en el listado, para el panel de reconocimientos médicos
+// (reconocimientos.js).
+window.CoordinacionPersonalSeleccion = {
+  getId: () => currentSelectedPersonalId,
+};
 personalHistorialButton?.addEventListener("click", openPersonalHistorialPanel);
 personalHistorialCloseButton?.addEventListener("click", closePersonalHistorialPanel);
 personalHistorialOverlay?.addEventListener("click", closePersonalHistorialPanel);

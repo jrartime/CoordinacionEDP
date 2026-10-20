@@ -5409,6 +5409,15 @@
               <button id="personal-import-excel-button" type="button" class="warm-button">
                 Cargar Excel
               </button>
+              <button
+                id="personal-reconocimientos-button"
+                type="button"
+                class="secondary-button"
+                title="Reconocimientos m&eacute;dicos de la persona seleccionada"
+                aria-label="Reconocimientos m&eacute;dicos"
+              >
+                &#129658; Reconocimientos
+              </button>
               <button id="personal-new-button" type="button">Nueva persona</button>
               <button id="personal-refresh-button" type="button" class="secondary-button">
                 Actualizar
@@ -5510,6 +5519,83 @@
               </div>
               <p id="personal-stats-list-summary" class="muted-text"></p>
               <div id="personal-stats-list-body" class="personal-stats-list-body"></div>
+            </aside>
+          </section>
+
+          <section id="personal-reconocimientos-panel" class="detail-panel hidden">
+            <div id="personal-reconocimientos-overlay" class="detail-overlay"></div>
+            <aside class="detail-drawer formacion-table-drawer">
+              <div class="detail-header">
+                <div>
+                  <p class="eyebrow">Reconocimientos m&eacute;dicos</p>
+                  <h3 id="personal-reconocimientos-title">Reconocimientos m&eacute;dicos</h3>
+                </div>
+                <div class="detail-header-actions">
+                  <button id="personal-reconocimientos-close-button" type="button" class="secondary-button">
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+              <p id="personal-reconocimientos-status" class="panel-status-message"></p>
+              <p id="personal-reconocimientos-empty" class="muted-text">
+                Selecciona una persona en el listado y vuelve a pulsar el bot&oacute;n para ver su historial y
+                registrar el reconocimiento de este a&ntilde;o.
+              </p>
+              <div id="personal-reconocimientos-content" class="hidden">
+                <div id="personal-reconocimientos-summary" class="results-summary"></div>
+
+                <form id="personal-reconocimientos-form" class="form-grid">
+                  <h4 id="personal-reconocimientos-form-title" class="full-width">Registrar reconocimiento</h4>
+                  <label>
+                    A&ntilde;o
+                    <input id="personal-reconocimientos-anio" type="number" min="2000" max="2100" required />
+                  </label>
+                  <div>
+                    <span class="checkbox-group-label">&iquest;Autoriza el reconocimiento?</span>
+                    <div class="toolbar-actions">
+                      <button type="button" class="secondary-button" data-rec-autoriza="true" aria-pressed="false">S&iacute;</button>
+                      <button type="button" class="secondary-button" data-rec-autoriza="false" aria-pressed="false">No</button>
+                    </div>
+                  </div>
+                  <div id="personal-reconocimientos-detail-fields" class="form-grid full-width hidden">
+                    <label>
+                      Fecha del reconocimiento
+                      <input id="personal-reconocimientos-fecha" type="date" />
+                    </label>
+                    <label>
+                      Resultado
+                      <select id="personal-reconocimientos-resultado"></select>
+                    </label>
+                  </div>
+                  <label class="full-width">
+                    Observaci&oacute;n
+                    <textarea id="personal-reconocimientos-observacion" rows="2"></textarea>
+                  </label>
+                  <div class="toolbar-actions full-width">
+                    <button id="personal-reconocimientos-save-button" type="submit">Guardar</button>
+                    <button id="personal-reconocimientos-cancel-button" type="button" class="secondary-button hidden">
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+
+                <h4>Historial (<span id="personal-reconocimientos-count">0</span>)</h4>
+                <div class="table-scroll">
+                  <table class="records-table">
+                    <thead>
+                      <tr>
+                        <th>A&ntilde;o</th>
+                        <th>Autoriza</th>
+                        <th>Fecha</th>
+                        <th>Resultado</th>
+                        <th>Observaci&oacute;n</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="personal-reconocimientos-body"></tbody>
+                  </table>
+                </div>
+              </div>
             </aside>
           </section>
 
@@ -10522,6 +10608,7 @@
     <script src="./concilia-integrated.js?v=20261016-1" defer></script>
     <script src="./facturacion.js?v=20261006-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
+    <script src="./reconocimientos.js?v=20261020-1" defer></script>
     <script src="./app.js?v=20261021-2" defer></script>
   </body>
 </html>
