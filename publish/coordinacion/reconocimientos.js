@@ -344,7 +344,8 @@
   // Quién debe recibir el documento de autorización del año `year`:
   //  · solo personal que pertenece a la empresa (vinculación Activo o No activo) con un puesto
   //    que ofrece reconocimiento (puestos.rec_medico = cada cuántos años);
-  //  · anual → siempre; si rechazó el año anterior → siempre; ingreso este año → siempre;
+  //  · anual → siempre; si rechazó el año anterior → siempre; nueva contratación este año →
+  //    siempre (los llamamientos, variaciones, subrogaciones y reincorporaciones no cuentan);
   //  · nunca lo ha realizado → se ofrece;
   //  · si no, le toca cuando han pasado rec_medico años desde el último que realizó
   //    (autorizado y con fecha). Con varios registros en un año manda el último.
@@ -356,6 +357,14 @@
       if (!h.puesto_id) return;
       if (!periodsByPerson.has(h.personal_id)) periodsByPerson.set(h.personal_id, []);
       periodsByPerson.get(h.personal_id).push(h);
+    });
+    // Ingreso = periodo del historial con tipo de contratación «Nueva contratación»; los
+    // llamamientos y las variaciones no son nuevas contrataciones.
+    const nuevasByPerson = new Map();
+    data.historiales.forEach((h) => {
+      if (!data.tiposNuevaContratacion.includes(h.tipo_contratacion_id)) return;
+      if (!nuevasByPerson.has(h.personal_id)) nuevasByPerson.set(h.personal_id, []);
+      nuevasByPerson.get(h.personal_id).push(String(h.fecha_alta));
     });
     const recsByPerson = new Map();
     data.registros.forEach((r) => {
@@ -403,30 +412,24 @@
       const doneBefore = recs
         .filter((r) => r.autoriza === true && r.fecha && r.anio < year)
         .reduce((max, r) => Math.max(max, r.anio), 0);
-      const joinedThisYear = chosen.some((h) => String(h.fecha_alta).slice(0, 4) === String(year));
+      const altasNuevas = (nuevasByPerson.get(person.id) || []).filter((a) => a.slice(0, 4) === String(year));
+      const joinedThisYear = altasNuevas.length > 0;
 
       // Mes en que se le manda hacer el reconocimiento (a quien autoriza): el mismo mes que el
-      // último que hizo; marzo si el año anterior lo rechazó o nunca se lo ha hecho; el mes del
-      // alta si es un ingreso de este año. Si ya tiene fecha este año, manda la fecha.
+      // último que hizo; marzo si el año anterior lo rechazó o nunca se lo ha hecho; el mes de
+      // la nueva contratación si ha ingresado este año. Si ya tiene fecha este año, manda la fecha.
       const lastDone = recs
         .filter((r) => r.autoriza === true && r.fecha && r.anio < year)
         .sort((a, b) => (a.fecha < b.fecha ? 1 : -1))[0];
       let mesPrevisto = MES_POR_DEFECTO;
       if (prevYear && prevYear.autoriza === false) mesPrevisto = MES_POR_DEFECTO;
+      else if (joinedThisYear) mesPrevisto = Number([...altasNuevas].sort().pop().slice(5, 7));
       else if (lastDone) mesPrevisto = Number(String(lastDone.fecha).slice(5, 7));
-      else if (joinedThisYear) {
-        const alta = chosen
-          .filter((h) => String(h.fecha_alta).slice(0, 4) === String(year))
-          .map((h) => String(h.fecha_alta))
-          .sort()
-          .pop();
-        mesPrevisto = Number(alta.slice(5, 7));
-      }
 
       let motivo = "";
       if (prevYear && prevYear.autoriza === false) motivo = "Rechazó el año anterior";
       else if (every === 1) motivo = "Anual";
-      else if (joinedThisYear) motivo = "Ingreso este año";
+      else if (joinedThisYear) motivo = "Nueva contratación este año";
       else if (!doneBefore) motivo = "Nunca lo ha realizado";
       else if (year - doneBefore >= every) motivo = `Le toca (cada ${every} años, último ${doneBefore})`;
       else if (thisYear) motivo = "Ya tiene registro este año";
@@ -457,19 +460,23 @@
     el.listadoStatus.textContent = "Cargando…";
     try {
       const supabase = await getClient();
-      const [personal, historiales, puestos, registros] = await Promise.all([
+      const [personal, historiales, puestos, registros, tipos] = await Promise.all([
         fetchAll(supabase, "personal", "id, personal, dni, email, vinculacion_id, persona", "id"),
-        fetchAll(supabase, "historiales_laborales", "id, personal_id, puesto_id, fecha_alta, fecha_baja", "id"),
+        fetchAll(supabase, "historiales_laborales", "id, personal_id, puesto_id, fecha_alta, fecha_baja, tipo_contratacion_id", "id"),
         fetchAll(supabase, "puestos", "id, puesto, rec_medico", "id"),
         fetchAll(supabase, "personal_reconocimiento_medico", "id, personal_id, anio, autoriza, fecha", "id"),
+        fetchAll(supabase, "historiales_laborales_tipos_contratacion", "id, tipo_contratacion", "id"),
       ]);
-      const failed = [personal, historiales, puestos, registros].find((r) => r.error);
+      const failed = [personal, historiales, puestos, registros, tipos].find((r) => r.error);
       if (failed) throw failed.error;
       state.listado.data = {
         personal: personal.data,
         historiales: historiales.data,
         puestos: puestos.data,
         registros: registros.data,
+        tiposNuevaContratacion: tipos.data
+          .filter((t) => String(t.tipo_contratacion || "").toLowerCase().startsWith("nueva contrata"))
+          .map((t) => t.id),
       };
       state.listado.loaded = true;
       el.listadoStatus.textContent = "";
