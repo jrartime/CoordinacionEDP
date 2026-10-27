@@ -3,15 +3,15 @@
 
   const TEMPLATE_CONFIGS = {
     default: {
-      url: "./plantilla.jpeg",
-      width: 1024,
-      height: 768,
-      centerX: 512,
+      url: "./plantilla-todos-los-santos.png",
+      width: 1004,
+      height: 650,
+      centerX: 502,
       nameLines: [
-        { y: 320, maxWidth: 800, maxSize: 64, minSize: 30 },
-        { y: 446, maxWidth: 800, maxSize: 64, minSize: 30 },
+        { y: 330, maxWidth: 800, maxSize: 60, minSize: 30 },
+        { y: 420, maxWidth: 800, maxSize: 60, minSize: 30 },
       ],
-      centerLine: { x: 512, y: 654, maxWidth: 570, maxSize: 44, minSize: 24 },
+      centerLine: { x: 495, y: 580, maxWidth: 700, maxSize: 40, minSize: 22 },
     },
     pequecampus: {
       url: "./plantilla-pequecampus.png",

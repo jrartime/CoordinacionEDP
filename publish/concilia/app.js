@@ -2216,6 +2216,55 @@
     }
   }
 
+  let mobileAttendanceExpandedId = null;
+  const mobileAttendanceDetailCache = new Map();
+
+  function renderMobileAttendanceDetail(id) {
+    const detail = mobileAttendanceDetailCache.get(String(id));
+    let body;
+    if (!detail) {
+      body = '<p class="empty-state">Cargando datos...</p>';
+    } else if (detail.error) {
+      body = `<p class="empty-state">No se pudieron cargar los datos: ${escapeHtml(detail.error)}</p>`;
+    } else {
+      const field = (label, value) => `
+        <div class="mobile-attendance-detail-field">
+          <span class="mobile-attendance-detail-label">${escapeHtml(label)}:</span>
+          <span>${escapeHtml(value || "—")}</span>
+        </div>`;
+      body = [
+        field("Móvil", detail.movil),
+        field("Correo electrónico", detail.mail),
+        field("Comedor", detail.comedor ? "Sí" : "No"),
+        field("NEE", String(detail.nee ?? "").trim() ? detail.nee : "No"),
+      ].join("");
+    }
+    return `<div class="mobile-attendance-detail">${body}</div>`;
+  }
+
+  async function toggleMobileAttendanceDetail(id) {
+    const key = String(id);
+    mobileAttendanceExpandedId = String(mobileAttendanceExpandedId) === key ? null : key;
+    renderMobileAttendanceRows();
+    if (mobileAttendanceExpandedId && !mobileAttendanceDetailCache.has(key)) {
+      try {
+        const supabase = await getSupabaseClient();
+        const { data, error } = await supabase
+          .from("concilia_usuarios")
+          .select("movil,mail,comedor,nee")
+          .eq("id", id)
+          .single();
+        if (error) {
+          throw error;
+        }
+        mobileAttendanceDetailCache.set(key, data);
+      } catch (error) {
+        mobileAttendanceDetailCache.set(key, { error: error.message });
+      }
+      renderMobileAttendanceRows();
+    }
+  }
+
   function renderMobileAttendanceRows() {
     if (!attendanceMobileRows) {
       return;
@@ -2259,16 +2308,27 @@
     attendanceMobileRows.innerHTML = rows
       .map((row) => {
         const isPresent = Boolean(row[day.field]);
+        const expanded = String(row.id) === String(mobileAttendanceExpandedId);
         return `
-          <button
-            class="mobile-attendance-row ${isPresent ? "present" : ""}"
-            type="button"
-            data-attendance-mobile-id="${escapeHtml(row.id)}"
-            aria-pressed="${String(isPresent)}"
-          >
-            <span class="mobile-attendance-name">${escapeHtml(row.alumnado)}</span>
-            <span class="mobile-attendance-age">Edad: ${escapeHtml(row.edad)}</span>
-          </button>
+          <div class="mobile-attendance-item">
+            <button
+              class="mobile-attendance-row ${isPresent ? "present" : ""}"
+              type="button"
+              data-attendance-mobile-id="${escapeHtml(row.id)}"
+              aria-pressed="${String(isPresent)}"
+            >
+              <span class="mobile-attendance-name">${escapeHtml(row.alumnado)}</span>
+              <span class="mobile-attendance-age">Edad: ${escapeHtml(row.edad)}</span>
+            </button>
+            <button
+              class="mobile-attendance-info-button"
+              type="button"
+              data-attendance-mobile-info="${escapeHtml(row.id)}"
+              aria-expanded="${String(expanded)}"
+              aria-label="Datos de contacto de ${escapeHtml(row.alumnado)}"
+            >${expanded ? "▴" : "▾"}</button>
+            ${expanded ? renderMobileAttendanceDetail(row.id) : ""}
+          </div>
         `;
       })
       .join("");
@@ -6928,6 +6988,12 @@
       });
     });
     attendanceMobileRows?.addEventListener("click", (event) => {
+      const infoButton = event.target.closest("[data-attendance-mobile-info]");
+      if (infoButton) {
+        void toggleMobileAttendanceDetail(infoButton.dataset.attendanceMobileInfo);
+        return;
+      }
+
       const rowButton = event.target.closest("[data-attendance-mobile-id]");
       if (!rowButton) {
         return;

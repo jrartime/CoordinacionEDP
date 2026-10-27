@@ -417,6 +417,9 @@
   let studentBulkOptions = { centros: [], semanas: [], grupos: [] };
   let studentBulkMatchRequestId = 0;
   let attendanceTotalCount = 0;
+  let attendanceExpandedId = null;
+  let attendanceCurrentRows = [];
+  const attendanceDetailCache = new Map();
   let attendanceCurrentPage = 1;
   let attendanceRowsPerPage = Number(attendancePageSize?.value || 50);
   let attendanceSort = { field: "alumnado", direction: "asc" };
@@ -476,6 +479,12 @@
   const SUMMARY_WEEKS = Array.from({ length: 11 }, (_item, index) =>
     String(index + 1).padStart(2, "0")
   );
+  // Resumen semanal de Alumnado: 01-11 del verano + 12 (puente de Todos los Santos)
+  const STUDENT_SUMMARY_WEEKS = [...SUMMARY_WEEKS, "12"];
+  const getStudentSummaryWeek = (semana) => {
+    const match = String(semana ?? "").trim().match(/^\d{1,2}/);
+    return match ? match[0].padStart(2, "0") : "";
+  };
   const CURRENT_YEAR = new Date().getFullYear();
   const STUDENT_SELECT_COLUMNS =
     "id,codigo_clase,clase,fecha_inicial,estado,codigo_persona,apellidos,nombre,nee,documento,fecha_nacimiento,edad,movil,mail,centro,semana,alumnado,comedor,grupo";
@@ -950,29 +959,29 @@
     if (!studentRows.length) {
       weeklySummary.textContent = "Sin datos cargados.";
       weeklySummaryTableBody.innerHTML =
-        '<tr><td colspan="13" class="empty-state">No hay datos para resumir.</td></tr>';
+        '<tr><td colspan="14" class="empty-state">No hay datos para resumir.</td></tr>';
       return;
     }
 
     const byCenter = new Map();
     const columnTotals = Object.fromEntries(
-      SUMMARY_WEEKS.map((week) => [week, createEmptyWeeklySummary()])
+      STUDENT_SUMMARY_WEEKS.map((week) => [week, createEmptyWeeklySummary()])
     );
 
     studentRows.forEach((row) => {
       const center = String(row.centro ?? "").trim() || "Sin centro";
-      const week = String(row.semana ?? "").trim().padStart(2, "0");
+      const week = getStudentSummaryWeek(row.semana);
       const hasNee = Boolean(String(row.nee ?? "").trim());
       const isInfantil = isInfantilStudent(row.fecha_nacimiento);
 
-      if (!SUMMARY_WEEKS.includes(week)) {
+      if (!STUDENT_SUMMARY_WEEKS.includes(week)) {
         return;
       }
 
       if (!byCenter.has(center)) {
         byCenter.set(
           center,
-          Object.fromEntries(SUMMARY_WEEKS.map((item) => [item, createEmptyWeeklySummary()]))
+          Object.fromEntries(STUDENT_SUMMARY_WEEKS.map((item) => [item, createEmptyWeeklySummary()]))
         );
       }
 
@@ -998,20 +1007,20 @@
     );
 
     const bodyRows = rows.map(([center, weeks]) => {
-      const rowTotal = SUMMARY_WEEKS.reduce((total, week) => total + weeks[week].total, 0);
-      const rowNeeTotal = SUMMARY_WEEKS.reduce((total, week) => total + weeks[week].nee, 0);
-      const rowInfantilTotal = SUMMARY_WEEKS.reduce(
+      const rowTotal = STUDENT_SUMMARY_WEEKS.reduce((total, week) => total + weeks[week].total, 0);
+      const rowNeeTotal = STUDENT_SUMMARY_WEEKS.reduce((total, week) => total + weeks[week].nee, 0);
+      const rowInfantilTotal = STUDENT_SUMMARY_WEEKS.reduce(
         (total, week) => total + weeks[week].infantil,
         0
       );
-      const rowPrimariaTotal = SUMMARY_WEEKS.reduce(
+      const rowPrimariaTotal = STUDENT_SUMMARY_WEEKS.reduce(
         (total, week) => total + weeks[week].primaria,
         0
       );
       return `
         <tr>
           <th scope="row">${escapeHtml(center)}</th>
-          ${SUMMARY_WEEKS.map((week) => {
+          ${STUDENT_SUMMARY_WEEKS.map((week) => {
             const value = weeks[week];
             return `<td>${formatWeeklySummaryValue(value)}</td>`;
           }).join("")}
@@ -1025,20 +1034,20 @@
       `;
     });
 
-    const grandTotal = SUMMARY_WEEKS.reduce((total, week) => total + columnTotals[week].total, 0);
-    const grandNeeTotal = SUMMARY_WEEKS.reduce((total, week) => total + columnTotals[week].nee, 0);
-    const grandInfantilTotal = SUMMARY_WEEKS.reduce(
+    const grandTotal = STUDENT_SUMMARY_WEEKS.reduce((total, week) => total + columnTotals[week].total, 0);
+    const grandNeeTotal = STUDENT_SUMMARY_WEEKS.reduce((total, week) => total + columnTotals[week].nee, 0);
+    const grandInfantilTotal = STUDENT_SUMMARY_WEEKS.reduce(
       (total, week) => total + columnTotals[week].infantil,
       0
     );
-    const grandPrimariaTotal = SUMMARY_WEEKS.reduce(
+    const grandPrimariaTotal = STUDENT_SUMMARY_WEEKS.reduce(
       (total, week) => total + columnTotals[week].primaria,
       0
     );
     bodyRows.push(`
       <tr class="totals-row">
         <th scope="row">Total</th>
-        ${SUMMARY_WEEKS.map((week) => `<td>${formatWeeklySummaryValue(columnTotals[week])}</td>`).join("")}
+        ${STUDENT_SUMMARY_WEEKS.map((week) => `<td>${formatWeeklySummaryValue(columnTotals[week])}</td>`).join("")}
         <td class="total-cell">${formatWeeklySummaryValue({
           total: grandTotal,
           nee: grandNeeTotal,
@@ -1057,31 +1066,31 @@
       weeklySummaryReport = null;
       weeklySummary.textContent = "Sin datos cargados.";
       weeklySummaryTableBody.innerHTML =
-        '<tr><td colspan="13" class="empty-state">No hay datos para resumir.</td></tr>';
+        '<tr><td colspan="14" class="empty-state">No hay datos para resumir.</td></tr>';
       return;
     }
 
     const byCenter = new Map();
     const columnTotals = Object.fromEntries(
-      SUMMARY_WEEKS.map((week) => [week, createEmptyWeeklySummary()])
+      STUDENT_SUMMARY_WEEKS.map((week) => [week, createEmptyWeeklySummary()])
     );
 
     summaryRows.forEach((row) => {
       const center = String(row.centro ?? "").trim() || "Sin centro";
-      const week = String(row.semana ?? "").trim().padStart(2, "0");
+      const week = getStudentSummaryWeek(row.semana);
       const total = Number(row.total) || 0;
       const nee = Number(row.nee_total) || 0;
       const infantil = Number(row.infantil_total) || 0;
       const primaria = Number(row.primaria_total) || Math.max(total - infantil, 0);
 
-      if (!SUMMARY_WEEKS.includes(week)) {
+      if (!STUDENT_SUMMARY_WEEKS.includes(week)) {
         return;
       }
 
       if (!byCenter.has(center)) {
         byCenter.set(
           center,
-          Object.fromEntries(SUMMARY_WEEKS.map((item) => [item, createEmptyWeeklySummary()]))
+          Object.fromEntries(STUDENT_SUMMARY_WEEKS.map((item) => [item, createEmptyWeeklySummary()]))
         );
       }
 
@@ -1099,20 +1108,20 @@
       a[0].localeCompare(b[0], "es", { sensitivity: "base" })
     );
     const bodyRows = rows.map(([center, weeks]) => {
-      const rowTotal = SUMMARY_WEEKS.reduce((total, week) => total + weeks[week].total, 0);
-      const rowNeeTotal = SUMMARY_WEEKS.reduce((total, week) => total + weeks[week].nee, 0);
-      const rowInfantilTotal = SUMMARY_WEEKS.reduce(
+      const rowTotal = STUDENT_SUMMARY_WEEKS.reduce((total, week) => total + weeks[week].total, 0);
+      const rowNeeTotal = STUDENT_SUMMARY_WEEKS.reduce((total, week) => total + weeks[week].nee, 0);
+      const rowInfantilTotal = STUDENT_SUMMARY_WEEKS.reduce(
         (total, week) => total + weeks[week].infantil,
         0
       );
-      const rowPrimariaTotal = SUMMARY_WEEKS.reduce(
+      const rowPrimariaTotal = STUDENT_SUMMARY_WEEKS.reduce(
         (total, week) => total + weeks[week].primaria,
         0
       );
       return `
         <tr>
           <th scope="row">${escapeHtml(center)}</th>
-          ${SUMMARY_WEEKS.map((week) => {
+          ${STUDENT_SUMMARY_WEEKS.map((week) => {
             const value = weeks[week];
             return `<td>${formatWeeklySummaryValue(value)}</td>`;
           }).join("")}
@@ -1126,13 +1135,13 @@
       `;
     });
 
-    const grandTotal = SUMMARY_WEEKS.reduce((total, week) => total + columnTotals[week].total, 0);
-    const grandNeeTotal = SUMMARY_WEEKS.reduce((total, week) => total + columnTotals[week].nee, 0);
-    const grandInfantilTotal = SUMMARY_WEEKS.reduce(
+    const grandTotal = STUDENT_SUMMARY_WEEKS.reduce((total, week) => total + columnTotals[week].total, 0);
+    const grandNeeTotal = STUDENT_SUMMARY_WEEKS.reduce((total, week) => total + columnTotals[week].nee, 0);
+    const grandInfantilTotal = STUDENT_SUMMARY_WEEKS.reduce(
       (total, week) => total + columnTotals[week].infantil,
       0
     );
-    const grandPrimariaTotal = SUMMARY_WEEKS.reduce(
+    const grandPrimariaTotal = STUDENT_SUMMARY_WEEKS.reduce(
       (total, week) => total + columnTotals[week].primaria,
       0
     );
@@ -1140,7 +1149,7 @@
       rows: rows.map(([center, weeks]) => ({
         center,
         weeks,
-        totals: sumWeeklySummaryValues(SUMMARY_WEEKS.map((week) => weeks[week])),
+        totals: sumWeeklySummaryValues(STUDENT_SUMMARY_WEEKS.map((week) => weeks[week])),
       })),
       columnTotals,
       totals: {
@@ -1153,7 +1162,7 @@
     bodyRows.push(`
       <tr class="totals-row">
         <th scope="row">Total</th>
-        ${SUMMARY_WEEKS.map((week) => `<td>${formatWeeklySummaryValue(columnTotals[week])}</td>`).join("")}
+        ${STUDENT_SUMMARY_WEEKS.map((week) => `<td>${formatWeeklySummaryValue(columnTotals[week])}</td>`).join("")}
         <td class="total-cell">${formatWeeklySummaryValue({
           total: grandTotal,
           nee: grandNeeTotal,
@@ -2164,7 +2173,55 @@
     return person?.personal || `ID ${personalId}`;
   }
 
+  function renderAttendanceDetailRow(id) {
+    const detail = attendanceDetailCache.get(String(id));
+    let body;
+    if (!detail) {
+      body = '<p class="empty-state">Cargando datos...</p>';
+    } else if (detail.error) {
+      body = `<p class="empty-state">No se pudieron cargar los datos: ${escapeHtml(detail.error)}</p>`;
+    } else {
+      const field = (label, value) => `
+        <div class="lectivo-ficha-field">
+          <span class="lectivo-ficha-label">${escapeHtml(label)}:</span>
+          <span class="lectivo-ficha-value">${escapeHtml(value || "—")}</span>
+        </div>`;
+      body = `
+        <div class="lectivo-ficha-grid">
+          ${field("Móvil", detail.movil)}
+          ${field("Correo electrónico", detail.mail)}
+          ${field("Comedor", detail.comedor ? "Sí" : "No")}
+          ${field("NEE", String(detail.nee ?? "").trim() ? detail.nee : "No")}
+        </div>`;
+    }
+    return `<tr class="attendance-detail-row"><td colspan="7"><div class="lectivo-ficha">${body}</div></td></tr>`;
+  }
+
+  async function toggleAttendanceDetail(id) {
+    const key = String(id);
+    attendanceExpandedId = String(attendanceExpandedId) === key ? null : key;
+    if (attendanceExpandedId && !attendanceDetailCache.has(key)) {
+      renderAttendanceRows(attendanceCurrentRows);
+      try {
+        const supabase = await getSupabaseClient();
+        const { data, error } = await supabase
+          .from("concilia_usuarios")
+          .select("movil,mail,comedor,nee")
+          .eq("id", id)
+          .single();
+        if (error) {
+          throw error;
+        }
+        attendanceDetailCache.set(key, data);
+      } catch (error) {
+        attendanceDetailCache.set(key, { error: error.message });
+      }
+    }
+    renderAttendanceRows(attendanceCurrentRows);
+  }
+
   function renderAttendanceRows(rows) {
+    attendanceCurrentRows = rows;
     if (!rows.length) {
       attendanceTotalCount = 0;
       attendanceSummary.textContent = "No hay alumnado para esos filtros.";
@@ -2200,11 +2257,20 @@
               `
             ).join("")}
             <th scope="row">
-              <span class="attendance-student-name">${escapeHtml(row.alumnado)}</span>
+              <button
+                type="button"
+                class="attendance-student-toggle"
+                data-attendance-toggle="${escapeHtml(row.id)}"
+                aria-expanded="${String(row.id) === String(attendanceExpandedId)}"
+              >
+                <span class="attendance-student-name">${escapeHtml(row.alumnado)}</span>
+                <span class="lectivo-student-chevron">${String(row.id) === String(attendanceExpandedId) ? "▴" : "▾"}</span>
+              </button>
               <span class="attendance-student-age">Edad: ${escapeHtml(row.edad)}</span>
             </th>
             <td class="attendance-age-cell">${escapeHtml(row.edad)}</td>
           </tr>
+          ${String(row.id) === String(attendanceExpandedId) ? renderAttendanceDetailRow(row.id) : ""}
         `
       )
       .join("");
@@ -8863,7 +8929,7 @@
       const margin = 7;
       const centerWidth = 54;
       const totalWidth = 20;
-      const weekWidth = (pageWidth - margin * 2 - centerWidth - totalWidth) / SUMMARY_WEEKS.length;
+      const weekWidth = (pageWidth - margin * 2 - centerWidth - totalWidth) / STUDENT_SUMMARY_WEEKS.length;
       const rowHeight = 12;
       let y = margin;
 
@@ -8873,7 +8939,7 @@
         doc.setFillColor(235, 239, 245);
         doc.rect(margin, y - 4.5, pageWidth - margin * 2, 7, "F");
         doc.text("Centro", margin + 1, y);
-        SUMMARY_WEEKS.forEach((week, index) =>
+        STUDENT_SUMMARY_WEEKS.forEach((week, index) =>
           doc.text(week, margin + centerWidth + weekWidth * index + 1, y)
         );
         doc.text("Total", pageWidth - margin - totalWidth + 1, y);
@@ -8907,7 +8973,7 @@
       report.rows.forEach((row) => {
         ensureSpace();
         doc.text(row.center, margin + 1, y, { maxWidth: centerWidth - 2 });
-        SUMMARY_WEEKS.forEach((week, index) =>
+        STUDENT_SUMMARY_WEEKS.forEach((week, index) =>
           drawCell(row.weeks[week], margin + centerWidth + weekWidth * index + 1, weekWidth - 1)
         );
         drawCell(row.totals, pageWidth - margin - totalWidth + 1, totalWidth - 1);
@@ -8917,7 +8983,7 @@
       ensureSpace();
       doc.setFont("helvetica", "bold");
       doc.text("Total", margin + 1, y);
-      SUMMARY_WEEKS.forEach((week, index) =>
+      STUDENT_SUMMARY_WEEKS.forEach((week, index) =>
         drawCell(report.columnTotals[week], margin + centerWidth + weekWidth * index + 1, weekWidth - 1)
       );
       drawCell(report.totals, pageWidth - margin - totalWidth + 1, totalWidth - 1);
@@ -8937,18 +9003,18 @@
     const numberCell = (value) => `<td class="number">${Number(value) || 0}</td>`;
     const summaryCells = (value) =>
       [value.total, value.nee, value.infantil, value.primaria].map(numberCell).join("");
-    const firstHeader = `<tr><th rowspan="2">Centro</th>${SUMMARY_WEEKS.map(
+    const firstHeader = `<tr><th rowspan="2">Centro</th>${STUDENT_SUMMARY_WEEKS.map(
       (week) => `<th colspan="4">Semana ${week}</th>`
     ).join("")}<th colspan="4">Total</th></tr>`;
-    const subHeader = `<tr>${[...SUMMARY_WEEKS, "total"]
+    const subHeader = `<tr>${[...STUDENT_SUMMARY_WEEKS, "total"]
       .map(() => "<th>Total</th><th>NEE</th><th>INF</th><th>PR</th>")
       .join("")}</tr>`;
     const bodyRows = report.rows.map((row) =>
-      `<tr><td>${escapeHtml(row.center)}</td>${SUMMARY_WEEKS.map((week) =>
+      `<tr><td>${escapeHtml(row.center)}</td>${STUDENT_SUMMARY_WEEKS.map((week) =>
         summaryCells(row.weeks[week])
       ).join("")}${summaryCells(row.totals)}</tr>`
     ).join("");
-    const totalsRow = `<tr><th>Total</th>${SUMMARY_WEEKS.map((week) =>
+    const totalsRow = `<tr><th>Total</th>${STUDENT_SUMMARY_WEEKS.map((week) =>
       summaryCells(report.columnTotals[week])
     ).join("")}${summaryCells(report.totals)}</tr>`;
     const workbook = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -9451,6 +9517,12 @@
         control.value = "";
         control.dispatchEvent(new Event("change", { bubbles: true }));
       });
+    });
+    attendanceTableBody.addEventListener("click", (event) => {
+      const toggle = event.target.closest("[data-attendance-toggle]");
+      if (toggle) {
+        void toggleAttendanceDetail(toggle.dataset.attendanceToggle);
+      }
     });
     attendanceTableBody.addEventListener("change", (event) => {
       const checkbox = event.target.closest(".attendance-checkbox");

@@ -2621,6 +2621,47 @@ code {
     box-shadow: none;
   }
 
+  .mobile-attendance-item {
+    position: relative;
+  }
+
+  .mobile-attendance-item .mobile-attendance-row {
+    padding-left: 56px;
+  }
+
+  .mobile-attendance-info-button {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #f7f9fc;
+    color: var(--accent);
+    font-size: 1.1rem;
+    box-shadow: none;
+  }
+
+  .mobile-attendance-detail {
+    display: grid;
+    gap: 4px;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #f7f9fc;
+    font-size: 0.88rem;
+  }
+
+  .mobile-attendance-detail-label {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
   .mobile-attendance-row.present {
     border-color: #34a853;
     background: #dff5e6;

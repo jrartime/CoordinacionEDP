@@ -2310,3 +2310,25 @@ code {
     grid-template-columns: 1fr;
   }
 }
+
+
+.attendance-student-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-weight: 800;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.attendance-detail-row > td {
+  padding: 0;
+  background: #f7f9fc;
+}
