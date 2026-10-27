@@ -6534,7 +6534,51 @@ async function importPreparedControlRecords() {
     return;
   }
 
+  // Un CSV sin id crea filas nuevas con id propio, así que cargar dos veces el
+  // mismo parte duplicaba todas sus filas (pasó con octubre de 2026: 428 grupos
+  // idénticos). Se descartan las que ya están en la tabla y las repetidas dentro
+  // del propio fichero. Un CSV con id sigue siendo un upsert: actualiza, no duplica.
+  let recordsToImport = records;
+  let skippedExisting = 0;
+  let skippedInFile = 0;
   if (pendingControlImport.needsIdAssignment) {
+    const dates = records.map((record) => record.fecha).filter(Boolean).sort();
+    let existingKeys;
+    try {
+      existingKeys = await fetchExistingControlRecordKeys(supabase, dates[0], dates[dates.length - 1]);
+    } catch (error) {
+      setStatus(
+        `No se pudo comprobar qué registros ya existen, así que no se importa nada: ${error.message}`,
+        "error"
+      );
+      return;
+    }
+    const seenInFile = new Set();
+    recordsToImport = records.filter((record) => {
+      const key = getControlRecordDuplicateKey(record);
+      if (existingKeys.has(key)) {
+        skippedExisting += 1;
+        return false;
+      }
+      if (seenInFile.has(key)) {
+        skippedInFile += 1;
+        return false;
+      }
+      seenInFile.add(key);
+      return true;
+    });
+
+    if (!recordsToImport.length) {
+      clearControlImportPreview();
+      setStatus(
+        `No hay registros nuevos: los ${records.length} del CSV ya estaban cargados${
+          skippedInFile ? ` (o repetidos en el fichero: ${skippedInFile})` : ""
+        }. No se ha importado nada.`,
+        "success"
+      );
+      return;
+    }
+
     const { data, error } = await supabase
       .from("registros_horarios")
       .select("id")
@@ -6547,7 +6591,7 @@ async function importPreparedControlRecords() {
     }
 
     let nextId = Number(data?.[0]?.id ?? 0) + 1;
-    records.forEach((record) => {
+    recordsToImport.forEach((record) => {
       if (!record.id) {
         record.id = nextId;
         nextId += 1;
@@ -6555,8 +6599,8 @@ async function importPreparedControlRecords() {
     });
   }
 
-  for (let index = 0; index < records.length; index += batchSize) {
-    const chunk = records.slice(index, index + batchSize);
+  for (let index = 0; index < recordsToImport.length; index += batchSize) {
+    const chunk = recordsToImport.slice(index, index + batchSize);
     const { error } = await supabase.from("registros_horarios").upsert(chunk, {
       onConflict: "id",
     });
@@ -6570,7 +6614,61 @@ async function importPreparedControlRecords() {
   await fetchControlFilterOptions();
   await fetchControlRecords();
   clearControlImportPreview();
-  setStatus(`CSV importado correctamente. Registros procesados: ${records.length}.`, "success");
+  const skippedNote =
+    skippedExisting || skippedInFile
+      ? ` Omitidos: ${skippedExisting} que ya existían y ${skippedInFile} repetidos en el CSV.`
+      : "";
+  setStatus(
+    `CSV importado correctamente. Registros nuevos: ${recordsToImport.length}.${skippedNote}`,
+    "success"
+  );
+}
+
+// Clave con la que se decide que dos filas de Control personal son la misma:
+// persona, día, horas, centro, puesto, tipo de jornada y observación, sin
+// distinguir mayúsculas ni espacios sobrantes.
+function getControlRecordDuplicateKey(row) {
+  const time = (value) => {
+    const text = value ? String(value).trim() : "";
+    return /^\d{1,2}:\d{2}$/.test(text) ? `${text.padStart(5, "0")}:00` : text.slice(0, 8);
+  };
+  return [
+    String(row.dni ?? "").toUpperCase(),
+    row.fecha,
+    time(row.hora_inicio),
+    time(row.hora_fin),
+    row.centro,
+    row.puesto,
+    row.tipo_jornada,
+    row.observacion,
+  ]
+    .map((part) => String(part ?? "").trim().toLowerCase())
+    .join("|");
+}
+
+// Las filas ya guardadas entre dos fechas, como conjunto de claves. Si falla
+// la lectura se propaga el error: importar a ciegas es lo que duplicaba.
+async function fetchExistingControlRecordKeys(supabase, minDate, maxDate) {
+  const keys = new Set();
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("registros_horarios")
+      .select("dni,fecha,hora_inicio,hora_fin,centro,puesto,tipo_jornada,observacion")
+      .eq("eliminado", false)
+      .gte("fecha", minDate)
+      .lte("fecha", maxDate)
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) {
+      throw error;
+    }
+    (data ?? []).forEach((row) => keys.add(getControlRecordDuplicateKey(row)));
+    if (!data || data.length < pageSize) {
+      break;
+    }
+  }
+  return keys;
 }
 
 function resetProgrammingPreview() {
@@ -33897,6 +33995,12 @@ function syncEventsRecordsUi() {
   // La generación de registros es admin-only: crea datos de nómina. La
   // selección en sí (y el informe resumen que la reutiliza) es de todos.
   eventsRecordsZone?.classList.toggle("hidden", !currentUserIsAccessAdmin);
+  // El puesto se rellena al mostrar la zona, no solo al activar la selección:
+  // si no, el desplegable salía vacío para quien abre «Generación de registros»
+  // antes de pulsar «Seleccionar eventos».
+  if (currentUserIsAccessAdmin) {
+    void renderEventRecordPuestoOptions();
+  }
 
   const visibles = getSortedEvents(getFilteredEvents()).length;
   const marcados = getSelectedEventRecordIds().length;
@@ -33918,15 +34022,45 @@ function syncEventsRecordsUi() {
 
 // Reutiliza el catálogo de relacionales que ya mantiene la pestaña Registros,
 // para no cargar los puestos por segunda vez ni divergir de sus etiquetas.
+let eventRecordPuestoLoading = false;
 async function renderEventRecordPuestoOptions() {
+  // Se llama en cada repintado de la tabla: una sola carga a la vez.
+  if (eventRecordPuestoLoading) {
+    return;
+  }
+  eventRecordPuestoLoading = true;
+  try {
+    await fillEventRecordPuestoOptions();
+  } finally {
+    eventRecordPuestoLoading = false;
+  }
+}
+
+async function fillEventRecordPuestoOptions() {
   if (!eventsRecordsPuesto || eventsRecordsPuesto.options.length > 1) {
     return;
   }
   if (!recordRelationOptionsCache.puesto_id?.length) {
     await loadRecordRelationOptions();
   }
-  const opciones = recordRelationOptionsCache.puesto_id || [];
+  let opciones = recordRelationOptionsCache.puesto_id || [];
   if (!opciones.length) {
+    // La caché de relacionales puede haberse quedado sin puestos (carga parcial
+    // que falló en silencio): se piden directamente en vez de dejar el
+    // desplegable vacío.
+    try {
+      const supabase = await getSupabaseClient();
+      const { data } = await supabase
+        .from("puestos")
+        .select("id,puesto")
+        .order("puesto", { ascending: true })
+        .limit(500);
+      opciones = (data || []).map((row) => ({ value: row.id, label: row.puesto ?? "" }));
+    } catch (_) {}
+  }
+  if (!opciones.length) {
+    // Un solo <option>: la próxima llamada vuelve a intentarlo.
+    eventsRecordsPuesto.innerHTML = '<option value="">No se pudieron cargar los puestos</option>';
     return;
   }
   eventsRecordsPuesto.innerHTML =
