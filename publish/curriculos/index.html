@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -195,8 +195,9 @@
             <input
               name="cv_file"
               type="file"
-              accept=".pdf,.doc,.docx,.odt,.rtf,.txt,image/*"
+              accept=".pdf,.docx,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
             />
+            <small>PDF, Word (.docx) o imagen (JPG, PNG o WebP), hasta 10 MB. Los documentos Word se convierten a PDF automáticamente.</small>
           </label>
 
           <section class="full-width consent-box">
@@ -248,8 +249,8 @@
     </main>
 
     <script src="./config.js"></script>
-    <script src="./shared/supabase-client.js"></script>
-    <script src="./shared/auth.js"></script>
-    <script src="./app.js?v=20260527-1"></script>
+    <script src="../shared/supabase-client.js"></script>
+    <script src="../shared/auth.js"></script>
+    <script src="./app.js?v=20261027-1"></script>
   </body>
 </html>
