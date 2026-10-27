@@ -13,7 +13,9 @@ $ErrorActionPreference = "Stop"
 
 $port = 51837
 $allowedOrigins = @(
-  "https://coordinacion.edpsl.es"
+  "https://coordinacion.edpsl.es",
+  "https://portal-laboral.com",
+  "https://www.portal-laboral.com"
 )
 $logPath = Join-Path $PSScriptRoot "carpeta_helper.log"
 # App Flask de Nominas que lanza /lanzar-nominas (boton "Enviar nominas").
