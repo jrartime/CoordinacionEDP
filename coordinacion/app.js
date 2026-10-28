@@ -6599,6 +6599,25 @@ async function importPreparedControlRecords() {
     });
   }
 
+  // El centro del CSV se traduce al nombre oficial de instalaciones y se guarda
+  // su id. Los que no se reconocen se importan tal cual, sin id, y se avisa.
+  const unknownCentros = new Set();
+  try {
+    const catalog = await loadControlCentroCatalog();
+    recordsToImport.forEach((record) => {
+      const target = resolveControlCentro(catalog, record.centro);
+      if (target) {
+        record.centro = target.name;
+        record.instalacion_id = target.id;
+      } else {
+        record.instalacion_id = null;
+        unknownCentros.add(record.centro);
+      }
+    });
+  } catch (_error) {
+    unknownCentros.add("(no se pudo cargar el catálogo de instalaciones)");
+  }
+
   for (let index = 0; index < recordsToImport.length; index += batchSize) {
     const chunk = recordsToImport.slice(index, index + batchSize);
     const { error } = await supabase.from("registros_horarios").upsert(chunk, {
@@ -6618,9 +6637,12 @@ async function importPreparedControlRecords() {
     skippedExisting || skippedInFile
       ? ` Omitidos: ${skippedExisting} que ya existían y ${skippedInFile} repetidos en el CSV.`
       : "";
+  const unknownNote = unknownCentros.size
+    ? ` Centros sin instalación reconocida (quedan sin id): ${[...unknownCentros].join("; ")}.`
+    : "";
   setStatus(
-    `CSV importado correctamente. Registros nuevos: ${recordsToImport.length}.${skippedNote}`,
-    "success"
+    `CSV importado correctamente. Registros nuevos: ${recordsToImport.length}.${skippedNote}${unknownNote}`,
+    unknownCentros.size ? "error" : "success"
   );
 }
 
@@ -10565,7 +10587,9 @@ function syncControlBulkAssignmentUi() {
       ).filter(Boolean).sort((left, right) =>
         left.localeCompare(right, "es", { sensitivity: "base" })
       ).map((value) => ({ value, label: value }));
-      newOptions = getUniqueControlValues(field).map((value) => ({ value, label: value }));
+      newOptions = field === "centro" && controlCentroCatalog
+        ? controlCentroCatalog.instalaciones.map((item) => ({ value: String(item.id), label: item.name }))
+        : getControlBulkNewValues(field).map((value) => ({ value, label: value }));
     }
     [
       [controlBulkCurrentSelect, currentOptions],
@@ -10593,6 +10617,100 @@ function syncControlBulkAssignmentUi() {
       field === "observacion" || field === "hora_fin" ? "Vacío para borrar el valor" : "";
   }
   updateControlBulkMatchCount();
+}
+
+// Los valores posibles del «Nuevo valor» no pueden salir de los filtros: al elegir
+// el «Valor actual» se filtra la pestaña y la lista se quedaba reducida a ese
+// mismo valor (y la de tipo de jornada vacía, porque la faceta no la trae).
+// Se usa el catálogo sin filtrar, cargado una vez, más lo que haya en pantalla.
+const CONTROL_BULK_TIPOS_JORNADA = ["Normal", "Vacaciones", "Festivo", "Otro"];
+let controlBulkCatalog = null;
+let controlBulkCatalogPromise = null;
+
+async function loadControlBulkCatalog() {
+  if (controlBulkCatalog) return controlBulkCatalog;
+  if (!controlBulkCatalogPromise) {
+    controlBulkCatalogPromise = (async () => {
+      const supabase = await getSupabaseClient();
+      const { data, error } = await supabase.rpc("get_control_filter_options", {
+        p_date_from: null,
+        p_date_to: null,
+        p_personal: null,
+        p_centro: null,
+        p_puesto: null,
+      });
+      if (error) throw error;
+      const byType = (type) =>
+        (data ?? [])
+          .filter((row) => row.option_type === type)
+          .map((row) => String(row.option_value ?? "").trim())
+          .filter(Boolean);
+      controlBulkCatalog = { centro: byType("centro"), puesto: byType("puesto") };
+      return controlBulkCatalog;
+    })().finally(() => {
+      controlBulkCatalogPromise = null;
+    });
+  }
+  return controlBulkCatalogPromise;
+}
+
+function getControlBulkNewValues(field) {
+  const values = [
+    ...(field === "tipo_jornada" ? CONTROL_BULK_TIPOS_JORNADA : controlBulkCatalog?.[field] ?? []),
+    ...getUniqueControlValues(field),
+    ...controlBulkSourceRows.map((row) => String(row[field] ?? "").trim()),
+  ].filter(Boolean);
+  return sortTextValues(Array.from(new Set(values)));
+}
+
+// Catálogo de centros de Control personal: cada nombre conocido (el oficial de
+// instalaciones y los alias antiguos de control_centro_alias) apunta a su
+// instalación. Lo sirve un RPC SECURITY DEFINER porque el RLS de instalaciones
+// limita a un coordinador a las suyas. Así el importador, la edición y la
+// asignación masiva dejan siempre `centro` con el nombre oficial y `instalacion_id`.
+let controlCentroCatalog = null;
+let controlCentroCatalogPromise = null;
+
+function normalizeControlCentroName(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[“”«»]/g, '"')
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+async function loadControlCentroCatalog() {
+  if (controlCentroCatalog) return controlCentroCatalog;
+  if (!controlCentroCatalogPromise) {
+    controlCentroCatalogPromise = (async () => {
+      const supabase = await getSupabaseClient();
+      const { data, error } = await supabase.rpc("get_control_centro_catalogo");
+      if (error) throw error;
+      const byAlias = new Map();
+      const instalaciones = new Map();
+      (data ?? []).forEach((row) => {
+        const target = { id: row.instalacion_id, name: row.instalacion };
+        byAlias.set(normalizeControlCentroName(row.alias), target);
+        if (row.activo) instalaciones.set(row.instalacion_id, target);
+      });
+      controlCentroCatalog = {
+        byAlias,
+        instalaciones: [...instalaciones.values()].sort((left, right) =>
+          left.name.localeCompare(right.name, "es", { sensitivity: "base" })
+        ),
+      };
+      return controlCentroCatalog;
+    })().finally(() => {
+      controlCentroCatalogPromise = null;
+    });
+  }
+  return controlCentroCatalogPromise;
+}
+
+function resolveControlCentro(catalog, name) {
+  return catalog?.byAlias.get(normalizeControlCentroName(name)) || null;
 }
 
 function getControlBulkControlValue(kind) {
@@ -10625,7 +10743,22 @@ function updateControlBulkMatchCount() {
   if (controlBulkMatchCount) {
     controlBulkMatchCount.textContent = `${count} coincidencia${count === 1 ? "" : "s"}`;
   }
-  if (controlBulkApplyButton) controlBulkApplyButton.disabled = count === 0;
+  if (controlBulkApplyButton) {
+    controlBulkApplyButton.disabled = controlSelectiveDeleteMode
+      ? selectedControlDeleteIds.size === 0
+      : count === 0;
+  }
+}
+
+function clearControlBulkFields() {
+  if (controlBulkField) controlBulkField.value = "personal";
+  [controlBulkCurrentValue, controlBulkNewValue].forEach((input) => {
+    if (input) input.value = "";
+  });
+  [controlBulkCurrentSelect, controlBulkNewSelect].forEach((select) => {
+    if (select) select.value = "";
+  });
+  syncControlBulkAssignmentUi();
 }
 
 function applyControlBulkCurrentValueToFilters() {
@@ -10650,6 +10783,20 @@ function applyControlBulkCurrentValueToFilters() {
 }
 
 async function refreshControlBulkSource() {
+  if (!controlCentroCatalog) {
+    try {
+      await loadControlCentroCatalog();
+    } catch (_error) {
+      // Sin catálogo no se puede asignar un centro; el resto de campos sigue igual.
+    }
+  }
+  if (!controlBulkCatalog) {
+    try {
+      await loadControlBulkCatalog();
+    } catch (_error) {
+      // Sin catálogo completo se ofrecen los valores de los filtros actuales.
+    }
+  }
   const key = JSON.stringify(buildControlFilters());
   if (key === controlBulkSourceKey && controlBulkSourceRows.length) {
     syncControlBulkAssignmentUi();
@@ -10686,12 +10833,25 @@ async function applyControlBulkAssignment() {
     setStatus("Necesitas iniciar sesión para modificar registros.", "error");
     return;
   }
-  await refreshControlBulkSource();
-  const ids = getControlBulkMatchingRows()
-    .map((row) => Number(row.id))
-    .filter((id) => Number.isFinite(id));
+  // Con la selección manual activa, Aplicar actúa solo sobre los marcados (igual
+  // que Registros, Actividades e Historial laboral); si no, sobre todas las
+  // coincidencias de los filtros.
+  let ids;
+  if (controlSelectiveDeleteMode) {
+    ids = [...selectedControlDeleteIds].map(Number).filter((id) => Number.isFinite(id));
+  } else {
+    await refreshControlBulkSource();
+    ids = getControlBulkMatchingRows()
+      .map((row) => Number(row.id))
+      .filter((id) => Number.isFinite(id));
+  }
   if (!ids.length) {
-    setStatus("No hay registros con el valor actual indicado.", "error");
+    setStatus(
+      controlSelectiveDeleteMode
+        ? "No hay registros seleccionados."
+        : "No hay registros con el valor actual indicado.",
+      "error"
+    );
     return;
   }
 
@@ -10719,6 +10879,13 @@ async function applyControlBulkAssignment() {
       return;
     }
     payload = { [field]: hora || null };
+  } else if (field === "centro") {
+    const target = controlCentroCatalog?.instalaciones.find((item) => String(item.id) === rawValue);
+    if (!target) {
+      setStatus("Selecciona la instalación.", "error");
+      return;
+    }
+    payload = { centro: target.name, instalacion_id: target.id };
   } else if (field === "tipo_jornada" || field === "observacion") {
     payload = { [field]: rawValue || null };
   } else {
@@ -10977,7 +11144,17 @@ async function saveControlDetail(event) {
 
   const personal = controlDetailPersonalInput.value.trim();
   const dni = controlDetailDniInput.value.trim();
-  const centro = controlDetailCentroInput.value.trim();
+  let centro = controlDetailCentroInput.value.trim();
+  let instalacionId = null;
+  try {
+    const target = resolveControlCentro(await loadControlCentroCatalog(), centro);
+    if (target) {
+      centro = target.name;
+      instalacionId = target.id;
+    }
+  } catch (_error) {
+    // Sin catálogo se guarda el texto tal cual, sin instalación.
+  }
   const puesto = controlDetailPuestoInput.value.trim();
   const fecha = normalizeImportedDate(controlDetailFechaInput.value);
   const horaInicio = normalizeImportedTime(controlDetailHoraInicioInput.value);
@@ -10997,6 +11174,7 @@ async function saveControlDetail(event) {
       personal,
       dni,
       centro,
+      instalacion_id: instalacionId,
       puesto,
       fecha,
       hora_inicio: horaInicio,
@@ -36969,6 +37147,7 @@ async function init() {
     updateControlBulkMatchCount();
     applyControlBulkCurrentValueToFilters();
   });
+  document.querySelector("#control-bulk-clear-fields-button")?.addEventListener("click", clearControlBulkFields);
   controlBulkApplyButton?.addEventListener("click", () => {
     void applyControlBulkAssignment();
   });

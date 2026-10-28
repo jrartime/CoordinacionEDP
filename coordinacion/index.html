@@ -4291,7 +4291,8 @@
                   <div class="activities-bulk-assignment-panel">
                     <p class="bulk-action-help">
                       Aplicar modifica todos los registros filtrados que tengan el valor actual.
-                      Para borrar, pulsa Seleccionar y marca expresamente los registros.
+                      Si pulsas Seleccionar y marcas registros con el tick, Aplicar y Borrar
+                      actúan solo sobre los marcados.
                     </p>
                     <button
                       id="control-enable-selective-delete-button"
@@ -4324,6 +4325,9 @@
                       <select id="control-bulk-new-select" class="hidden"></select>
                     </label>
                     <button id="control-bulk-apply-button" type="button">Aplicar</button>
+                    <button id="control-bulk-clear-fields-button" type="button" class="secondary-button">
+                      Limpiar campos
+                    </button>
                     <button
                       id="control-delete-selected-button"
                       type="button"
@@ -10682,6 +10686,6 @@
     <script src="./facturacion.js?v=20261006-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./app.js?v=20261028-2" defer></script>
+    <script src="./app.js?v=20261028-5" defer></script>
   </body>
 </html>
