@@ -8355,6 +8355,46 @@ details[open] > .gestion-collapsible-header::before {
   font-size: 0.82rem;
 }
 
+.records-compare-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.records-compare-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.records-compare-row input[type="checkbox"] {
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+}
+
+.records-compare-transfer {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #d58b16;
+  border-radius: 6px;
+  background: #fffaf0;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+
+.records-compare-transfer p { margin: 0; color: var(--muted-color, #667085); }
+
+.records-compare-transfer-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 10px;
+}
+
+.records-compare-transfer-fields label { display: grid; gap: 2px; min-width: 0; }
+.records-compare-transfer-fields select { min-width: 0; padding: 3px 6px; font-size: 0.8rem; }
+.records-compare-transfer-actions { display: flex; gap: 8px; }
+
 .records-compare-day h3 { font-size: 0.88rem; }
 .records-compare-day h4 { font-size: 0.78rem; }
 

@@ -1436,6 +1436,15 @@ textarea {
 
 .records-results-toolbar .summary-chip {
   white-space: nowrap;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 9px;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.records-results-toolbar .results-summary {
+  gap: 3px;
 }
 
 .records-results-toolbar .records-period-summary {
@@ -8318,20 +8327,76 @@ details[open] > .gestion-collapsible-header::before {
   width: min(1080px, calc(100vw - 32px));
 }
 
+.records-compare-sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.records-compare-sort select {
+  padding: 3px 6px;
+  font-size: 0.8rem;
+}
+
 .records-compare-control-content {
   display: grid;
-  gap: 12px;
+  gap: 6px;
   overflow: auto;
-  padding: 16px;
+  padding: 8px 12px;
 }
 
 .records-compare-day {
   border: 1px solid var(--border-color, #d9dee7);
-  border-left: 5px solid #8792a2;
-  border-radius: 10px;
+  border-left: 4px solid #8792a2;
+  border-radius: 6px;
   background: #fff;
-  padding: 12px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
 }
+
+.records-compare-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.records-compare-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.records-compare-row input[type="checkbox"] {
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+}
+
+.records-compare-transfer {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #d58b16;
+  border-radius: 6px;
+  background: #fffaf0;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+
+.records-compare-transfer p { margin: 0; color: var(--muted-color, #667085); }
+
+.records-compare-transfer-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 10px;
+}
+
+.records-compare-transfer-fields label { display: grid; gap: 2px; min-width: 0; }
+.records-compare-transfer-fields select { min-width: 0; padding: 3px 6px; font-size: 0.8rem; }
+.records-compare-transfer-actions { display: flex; gap: 8px; }
+
+.records-compare-day h3 { font-size: 0.88rem; }
+.records-compare-day h4 { font-size: 0.78rem; }
 
 .records-compare-day > header,
 .records-compare-day h4 {
@@ -8353,8 +8418,8 @@ details[open] > .gestion-collapsible-header::before {
 .records-compare-status {
   border-radius: 999px;
   background: #eef1f5;
-  padding: 4px 9px;
-  font-size: 0.8rem;
+  padding: 2px 8px;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
@@ -8365,34 +8430,38 @@ details[open] > .gestion-collapsible-header::before {
 .records-compare-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .records-compare-columns > div {
   min-width: 0;
-  border-radius: 8px;
+  border-radius: 5px;
   background: #f7f8fa;
-  padding: 10px;
+  padding: 4px 8px;
 }
 
 .records-compare-list {
   display: grid;
-  gap: 7px;
-  margin-top: 8px;
+  gap: 2px;
+  margin-top: 3px;
 }
 
 .records-compare-row {
   display: grid;
-  grid-template-columns: auto auto;
-  justify-content: space-between;
-  gap: 2px 10px;
+  grid-template-columns: auto auto 1fr;
+  justify-content: start;
+  align-items: baseline;
+  gap: 0 10px;
   border-bottom: 1px solid #e4e7ec;
-  padding-bottom: 6px;
+  padding-bottom: 2px;
 }
 
 .records-compare-row small {
-  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--muted-color, #667085);
 }
 

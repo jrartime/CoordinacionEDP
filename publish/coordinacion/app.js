@@ -1358,8 +1358,6 @@ const controlDateFromInput = document.querySelector("#control-date-from");
 const controlDateToInput = document.querySelector("#control-date-to");
 const controlPersonalInput = document.querySelector("#control-personal");
 const controlPersonalSuggestions = document.querySelector("#control-personal-suggestions");
-const controlPersonalClearButton = document.querySelector("[data-control-personal-clear]");
-const controlPersonalToggleButton = document.querySelector("[data-control-personal-toggle]");
 const controlCentroInput = document.querySelector("#control-centro");
 const controlPuestoInput = document.querySelector("#control-puesto");
 const controlRecordsTable = document.querySelector("#control-records-table");
@@ -2304,52 +2302,17 @@ function enrichControlRecord(row) {
   };
 }
 
-// La ✕ del buscador de personal de Control aparece solo cuando hay texto.
+// El buscador de personal de Control es el mismo componente que el de Registros
+// (setupPersonalPicker): solo filtra al elegir de la lista, no mientras se escribe.
 function updateControlPersonalClear() {
-  if (!controlPersonalClearButton || !controlPersonalInput) {
-    return;
-  }
-  controlPersonalClearButton.classList.toggle("hidden", !controlPersonalInput.value.trim());
+  personalPickers.get("control-filter")?.updateClearVisibility?.();
 }
 
 function renderControlPersonalSuggestions() {
-  if (!controlPersonalSuggestions) {
-    return;
-  }
-
-  const query = normalizeSearchText(controlPersonalInput.value);
-  const suggestions = currentControlPersonalOptions
-    .filter((value) => {
-      if (!query) {
-        return true;
-      }
-
-      return normalizeSearchText(value).includes(query);
-    })
-    .sort((left, right) =>
-      String(left).localeCompare(String(right), "es", { sensitivity: "base", numeric: true })
-    );
-
-  if (!suggestions.length || (!query && controlPersonalInput !== document.activeElement)) {
-    controlPersonalSuggestions.classList.add("hidden");
-    controlPersonalSuggestions.innerHTML = "";
-    return;
-  }
-
-  controlPersonalSuggestions.innerHTML = suggestions
-    .map(
-      (value) => `
-        <button
-          type="button"
-          class="filter-suggestion-option"
-          data-control-personal-option="${escapeHtml(value)}"
-        >
-          ${escapeHtml(value)}
-        </button>
-      `
-    )
-    .join("");
-  controlPersonalSuggestions.classList.remove("hidden");
+  const state = personalPickers.get("control-filter");
+  if (!state) return;
+  state.options = sortTextValues(currentControlPersonalOptions).map((name) => ({ value: name, label: name }));
+  renderPersonalPickerSuggestions(state);
 }
 
 function sortTextValues(values) {
@@ -6599,6 +6562,25 @@ async function importPreparedControlRecords() {
     });
   }
 
+  // El centro del CSV se traduce al nombre oficial de instalaciones y se guarda
+  // su id. Los que no se reconocen se importan tal cual, sin id, y se avisa.
+  const unknownCentros = new Set();
+  try {
+    const catalog = await loadControlCentroCatalog();
+    recordsToImport.forEach((record) => {
+      const target = resolveControlCentro(catalog, record.centro);
+      if (target) {
+        record.centro = target.name;
+        record.instalacion_id = target.id;
+      } else {
+        record.instalacion_id = null;
+        unknownCentros.add(record.centro);
+      }
+    });
+  } catch (_error) {
+    unknownCentros.add("(no se pudo cargar el catálogo de instalaciones)");
+  }
+
   for (let index = 0; index < recordsToImport.length; index += batchSize) {
     const chunk = recordsToImport.slice(index, index + batchSize);
     const { error } = await supabase.from("registros_horarios").upsert(chunk, {
@@ -6618,9 +6600,12 @@ async function importPreparedControlRecords() {
     skippedExisting || skippedInFile
       ? ` Omitidos: ${skippedExisting} que ya existían y ${skippedInFile} repetidos en el CSV.`
       : "";
+  const unknownNote = unknownCentros.size
+    ? ` Centros sin instalación reconocida (quedan sin id): ${[...unknownCentros].join("; ")}.`
+    : "";
   setStatus(
-    `CSV importado correctamente. Registros nuevos: ${recordsToImport.length}.${skippedNote}`,
-    "success"
+    `CSV importado correctamente. Registros nuevos: ${recordsToImport.length}.${skippedNote}${unknownNote}`,
+    unknownCentros.size ? "error" : "success"
   );
 }
 
@@ -6637,12 +6622,17 @@ function getControlRecordDuplicateKey(row) {
     row.fecha,
     time(row.hora_inicio),
     time(row.hora_fin),
-    row.centro,
     row.puesto,
     row.tipo_jornada,
     row.observacion,
   ]
-    .map((part) => String(part ?? "").trim().toLowerCase())
+    .map((part) =>
+      String(part ?? "")
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .trim()
+        .toLowerCase()
+    )
     .join("|");
 }
 
@@ -10560,7 +10550,9 @@ function syncControlBulkAssignmentUi() {
       ).filter(Boolean).sort((left, right) =>
         left.localeCompare(right, "es", { sensitivity: "base" })
       ).map((value) => ({ value, label: value }));
-      newOptions = getUniqueControlValues(field).map((value) => ({ value, label: value }));
+      newOptions = field === "centro" && controlCentroCatalog
+        ? controlCentroCatalog.instalaciones.map((item) => ({ value: String(item.id), label: item.name }))
+        : getControlBulkNewValues(field).map((value) => ({ value, label: value }));
     }
     [
       [controlBulkCurrentSelect, currentOptions],
@@ -10588,6 +10580,100 @@ function syncControlBulkAssignmentUi() {
       field === "observacion" || field === "hora_fin" ? "Vacío para borrar el valor" : "";
   }
   updateControlBulkMatchCount();
+}
+
+// Los valores posibles del «Nuevo valor» no pueden salir de los filtros: al elegir
+// el «Valor actual» se filtra la pestaña y la lista se quedaba reducida a ese
+// mismo valor (y la de tipo de jornada vacía, porque la faceta no la trae).
+// Se usa el catálogo sin filtrar, cargado una vez, más lo que haya en pantalla.
+const CONTROL_BULK_TIPOS_JORNADA = ["Normal", "Vacaciones", "Festivo", "Otro"];
+let controlBulkCatalog = null;
+let controlBulkCatalogPromise = null;
+
+async function loadControlBulkCatalog() {
+  if (controlBulkCatalog) return controlBulkCatalog;
+  if (!controlBulkCatalogPromise) {
+    controlBulkCatalogPromise = (async () => {
+      const supabase = await getSupabaseClient();
+      const { data, error } = await supabase.rpc("get_control_filter_options", {
+        p_date_from: null,
+        p_date_to: null,
+        p_personal: null,
+        p_centro: null,
+        p_puesto: null,
+      });
+      if (error) throw error;
+      const byType = (type) =>
+        (data ?? [])
+          .filter((row) => row.option_type === type)
+          .map((row) => String(row.option_value ?? "").trim())
+          .filter(Boolean);
+      controlBulkCatalog = { centro: byType("centro"), puesto: byType("puesto") };
+      return controlBulkCatalog;
+    })().finally(() => {
+      controlBulkCatalogPromise = null;
+    });
+  }
+  return controlBulkCatalogPromise;
+}
+
+function getControlBulkNewValues(field) {
+  const values = [
+    ...(field === "tipo_jornada" ? CONTROL_BULK_TIPOS_JORNADA : controlBulkCatalog?.[field] ?? []),
+    ...getUniqueControlValues(field),
+    ...controlBulkSourceRows.map((row) => String(row[field] ?? "").trim()),
+  ].filter(Boolean);
+  return sortTextValues(Array.from(new Set(values)));
+}
+
+// Catálogo de centros de Control personal: cada nombre conocido (el oficial de
+// instalaciones y los alias antiguos de control_centro_alias) apunta a su
+// instalación. Lo sirve un RPC SECURITY DEFINER porque el RLS de instalaciones
+// limita a un coordinador a las suyas. Así el importador, la edición y la
+// asignación masiva dejan siempre `centro` con el nombre oficial y `instalacion_id`.
+let controlCentroCatalog = null;
+let controlCentroCatalogPromise = null;
+
+function normalizeControlCentroName(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[“”«»]/g, '"')
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+async function loadControlCentroCatalog() {
+  if (controlCentroCatalog) return controlCentroCatalog;
+  if (!controlCentroCatalogPromise) {
+    controlCentroCatalogPromise = (async () => {
+      const supabase = await getSupabaseClient();
+      const { data, error } = await supabase.rpc("get_control_centro_catalogo");
+      if (error) throw error;
+      const byAlias = new Map();
+      const instalaciones = new Map();
+      (data ?? []).forEach((row) => {
+        const target = { id: row.instalacion_id, name: row.instalacion };
+        byAlias.set(normalizeControlCentroName(row.alias), target);
+        if (row.activo) instalaciones.set(row.instalacion_id, target);
+      });
+      controlCentroCatalog = {
+        byAlias,
+        instalaciones: [...instalaciones.values()].sort((left, right) =>
+          left.name.localeCompare(right.name, "es", { sensitivity: "base" })
+        ),
+      };
+      return controlCentroCatalog;
+    })().finally(() => {
+      controlCentroCatalogPromise = null;
+    });
+  }
+  return controlCentroCatalogPromise;
+}
+
+function resolveControlCentro(catalog, name) {
+  return catalog?.byAlias.get(normalizeControlCentroName(name)) || null;
 }
 
 function getControlBulkControlValue(kind) {
@@ -10620,7 +10706,22 @@ function updateControlBulkMatchCount() {
   if (controlBulkMatchCount) {
     controlBulkMatchCount.textContent = `${count} coincidencia${count === 1 ? "" : "s"}`;
   }
-  if (controlBulkApplyButton) controlBulkApplyButton.disabled = count === 0;
+  if (controlBulkApplyButton) {
+    controlBulkApplyButton.disabled = controlSelectiveDeleteMode
+      ? selectedControlDeleteIds.size === 0
+      : count === 0;
+  }
+}
+
+function clearControlBulkFields() {
+  if (controlBulkField) controlBulkField.value = "personal";
+  [controlBulkCurrentValue, controlBulkNewValue].forEach((input) => {
+    if (input) input.value = "";
+  });
+  [controlBulkCurrentSelect, controlBulkNewSelect].forEach((select) => {
+    if (select) select.value = "";
+  });
+  syncControlBulkAssignmentUi();
 }
 
 function applyControlBulkCurrentValueToFilters() {
@@ -10645,6 +10746,20 @@ function applyControlBulkCurrentValueToFilters() {
 }
 
 async function refreshControlBulkSource() {
+  if (!controlCentroCatalog) {
+    try {
+      await loadControlCentroCatalog();
+    } catch (_error) {
+      // Sin catálogo no se puede asignar un centro; el resto de campos sigue igual.
+    }
+  }
+  if (!controlBulkCatalog) {
+    try {
+      await loadControlBulkCatalog();
+    } catch (_error) {
+      // Sin catálogo completo se ofrecen los valores de los filtros actuales.
+    }
+  }
   const key = JSON.stringify(buildControlFilters());
   if (key === controlBulkSourceKey && controlBulkSourceRows.length) {
     syncControlBulkAssignmentUi();
@@ -10681,12 +10796,25 @@ async function applyControlBulkAssignment() {
     setStatus("Necesitas iniciar sesión para modificar registros.", "error");
     return;
   }
-  await refreshControlBulkSource();
-  const ids = getControlBulkMatchingRows()
-    .map((row) => Number(row.id))
-    .filter((id) => Number.isFinite(id));
+  // Con la selección manual activa, Aplicar actúa solo sobre los marcados (igual
+  // que Registros, Actividades e Historial laboral); si no, sobre todas las
+  // coincidencias de los filtros.
+  let ids;
+  if (controlSelectiveDeleteMode) {
+    ids = [...selectedControlDeleteIds].map(Number).filter((id) => Number.isFinite(id));
+  } else {
+    await refreshControlBulkSource();
+    ids = getControlBulkMatchingRows()
+      .map((row) => Number(row.id))
+      .filter((id) => Number.isFinite(id));
+  }
   if (!ids.length) {
-    setStatus("No hay registros con el valor actual indicado.", "error");
+    setStatus(
+      controlSelectiveDeleteMode
+        ? "No hay registros seleccionados."
+        : "No hay registros con el valor actual indicado.",
+      "error"
+    );
     return;
   }
 
@@ -10714,6 +10842,13 @@ async function applyControlBulkAssignment() {
       return;
     }
     payload = { [field]: hora || null };
+  } else if (field === "centro") {
+    const target = controlCentroCatalog?.instalaciones.find((item) => String(item.id) === rawValue);
+    if (!target) {
+      setStatus("Selecciona la instalación.", "error");
+      return;
+    }
+    payload = { centro: target.name, instalacion_id: target.id };
   } else if (field === "tipo_jornada" || field === "observacion") {
     payload = { [field]: rawValue || null };
   } else {
@@ -10912,6 +11047,30 @@ function populateSelectOptions(selectElement, values, selectedValue) {
     .join("");
 }
 
+// Catálogos completos para el panel de edición de Control personal: personal y
+// puestos no se limitan a los valores que ya hay en esa tabla.
+let controlDetailCatalogs = null;
+let controlDetailPersonalByName = new Map();
+let controlDetailPersonalNames = new Set();
+
+async function loadControlDetailCatalogs() {
+  if (controlDetailCatalogs) return controlDetailCatalogs;
+  const supabase = await getSupabaseClient();
+  const [personalResult, puestosResult] = await Promise.all([
+    supabase.from("personal").select("personal,dni").not("personal", "is", null).order("personal").limit(5000),
+    supabase.from("puestos").select("puesto").not("puesto", "is", null).order("puesto").limit(5000),
+  ]);
+  if (personalResult.error) throw personalResult.error;
+  if (puestosResult.error) throw puestosResult.error;
+  controlDetailCatalogs = {
+    personal: (personalResult.data || [])
+      .map((item) => ({ personal: String(item.personal).trim(), dni: String(item.dni || "").trim() }))
+      .filter((item) => item.personal),
+    puestos: (puestosResult.data || []).map((item) => String(item.puesto).trim()).filter(Boolean),
+  };
+  return controlDetailCatalogs;
+}
+
 async function openControlDetail(recordId) {
   if (!controlFilterSourceRecords.length) {
     await fetchControlFilterOptions();
@@ -10928,10 +11087,51 @@ async function openControlDetail(recordId) {
   const puesto = row.puesto || "";
 
   controlDetailIdInput.value = row.id;
-  populateSelectOptions(controlDetailPersonalInput, getUniqueControlValues("personal", personal), personal);
+  let catalogPersonal = [];
+  let catalogPuestos = [];
+  try {
+    ({ personal: catalogPersonal, puestos: catalogPuestos } = await loadControlDetailCatalogs());
+  } catch (_error) {
+    // Sin catálogos solo quedan los valores ya presentes en los registros.
+  }
+  controlDetailPersonalByName = new Map(
+    catalogPersonal.filter((item) => item.dni).map((item) => [item.personal, item.dni])
+  );
+  const personalNames = sortTextValues(Array.from(new Set([
+    ...getUniqueControlValues("personal", personal),
+    ...catalogPersonal.map((item) => item.personal),
+  ])));
+  controlDetailPersonalNames = new Set(personalNames);
+  if (!personalPickers.has("control-detail")) {
+    setupPersonalPicker("control-detail", {
+      inputId: "control-detail-personal",
+      suggestionsId: "control-detail-personal-suggestions",
+      onChange: (name) => {
+        const dni = controlDetailPersonalByName.get(name);
+        if (dni) controlDetailDniInput.value = dni;
+      },
+    });
+  }
+  setPersonalPickerOptions("control-detail", personalNames.map((name) => ({ value: name, label: name })));
+  setPersonalPickerSelection("control-detail", personal, personal);
   controlDetailDniInput.value = row.dni || "";
-  populateSelectOptions(controlDetailCentroInput, getUniqueControlValues("centro", centro), centro);
-  populateSelectOptions(controlDetailPuestoInput, getUniqueControlValues("puesto", puesto), puesto);
+  // Los centros no se limitan a los que ya hay en Control personal: se ofrecen
+  // todas las instalaciones activas del catálogo (al guardar se resuelven a su id).
+  let catalogNames = [];
+  try {
+    catalogNames = (await loadControlCentroCatalog()).instalaciones.map((item) => item.name);
+  } catch (_error) {
+    // Sin catálogo solo quedan los centros ya presentes en los registros.
+  }
+  const centroValues = sortTextValues(
+    Array.from(new Set([...getUniqueControlValues("centro", centro), ...catalogNames]))
+  );
+  populateSelectOptions(controlDetailCentroInput, centroValues, centro);
+  populateSelectOptions(
+    controlDetailPuestoInput,
+    sortTextValues(Array.from(new Set([...getUniqueControlValues("puesto", puesto), ...catalogPuestos]))),
+    puesto
+  );
   controlDetailFechaInput.value = normalizeImportedDate(row.fecha) || "";
   controlDetailHoraInicioInput.value = formatHourValue(row.hora_inicio).slice(0, 5);
   controlDetailHoraFinInput.value = formatHourValue(row.hora_fin).slice(0, 5);
@@ -10972,7 +11172,17 @@ async function saveControlDetail(event) {
 
   const personal = controlDetailPersonalInput.value.trim();
   const dni = controlDetailDniInput.value.trim();
-  const centro = controlDetailCentroInput.value.trim();
+  let centro = controlDetailCentroInput.value.trim();
+  let instalacionId = null;
+  try {
+    const target = resolveControlCentro(await loadControlCentroCatalog(), centro);
+    if (target) {
+      centro = target.name;
+      instalacionId = target.id;
+    }
+  } catch (_error) {
+    // Sin catálogo se guarda el texto tal cual, sin instalación.
+  }
   const puesto = controlDetailPuestoInput.value.trim();
   const fecha = normalizeImportedDate(controlDetailFechaInput.value);
   const horaInicio = normalizeImportedTime(controlDetailHoraInicioInput.value);
@@ -10985,6 +11195,11 @@ async function saveControlDetail(event) {
     return;
   }
 
+  if (controlDetailPersonalNames.size && !controlDetailPersonalNames.has(personal)) {
+    setStatus(`Elige una persona de la lista: «${personal}» no existe.`, "error");
+    return;
+  }
+
   const supabase = await getSupabaseClient();
   const { error } = await supabase
     .from("registros_horarios")
@@ -10992,6 +11207,7 @@ async function saveControlDetail(event) {
       personal,
       dni,
       centro,
+      instalacion_id: instalacionId,
       puesto,
       fecha,
       hora_inicio: horaInicio,
@@ -16582,8 +16798,9 @@ function comparisonIntervalKey(row) {
   return `${String(row.hora_inicio || "").slice(0, 5)}-${String(row.hora_fin || "").slice(0, 5)}`;
 }
 
-function renderComparisonRows(rows, source) {
+function renderComparisonRows(rows, source, pending = []) {
   if (!rows.length) return '<p class="records-compare-empty">Sin datos</p>';
+  const pendingIds = new Set(pending.map((row) => String(row.id)));
   return `
     <div class="records-compare-list">
       ${rows.map((row) => {
@@ -16591,9 +16808,14 @@ function renderComparisonRows(rows, source) {
         const detail = source === "records"
           ? [row.instalacion, row.puesto, row.tipo_hora, row.situacion].filter(Boolean).join(" · ")
           : [row.centro, row.puesto, row.tipo_jornada].filter(Boolean).join(" · ");
+        const pick = source === "control" && pendingIds.has(String(row.id))
+          ? `<input type="checkbox" data-compare-pick="${escapeHtml(row.id)}" title="Marcar para pasar a Registros" ${
+              recordsCompareSelected.has(String(row.id)) ? "checked" : ""
+            } />`
+          : "";
         return `
           <div class="records-compare-row">
-            <strong>${escapeHtml(String(row.hora_inicio || "").slice(0, 5) || "—")}–${escapeHtml(
+            <strong>${pick}${escapeHtml(String(row.hora_inicio || "").slice(0, 5) || "—")}–${escapeHtml(
               String(row.hora_fin || "").slice(0, 5) || "—"
             )}</strong>
             <span>${escapeHtml(formatComparisonDuration(minutes))}</span>
@@ -16643,15 +16865,301 @@ function buildRecordsControlComparison(records, controls, dateFrom, dateTo) {
     const exact = recordIntervals === controlIntervals && dayRecords.length === dayControls.length;
     const sameTotal = recordMinutes === controlMinutes;
     const empty = !dayRecords.length && !dayControls.length;
+    // Turnos de Control personal sin su equivalente exacto en Registros: son los
+    // que se pueden pasar a Registros (hace falta horario completo para las horas).
+    const recordKeys = new Set(dayRecords.map(comparisonIntervalKey));
+    const pendingControl = dayControls.filter(
+      (row) => row.hora_inicio && row.hora_fin && !recordKeys.has(comparisonIntervalKey(row))
+    );
     return {
       date,
       dayRecords,
       dayControls,
+      pendingControl,
       recordMinutes,
       controlMinutes,
       status: empty ? "empty" : exact ? "match" : sameTotal ? "warning" : "mismatch",
     };
   });
+}
+
+let recordsCompareDays = [];
+let recordsComparePerson = null;
+let recordsCompareDefaults = {};
+// null = sin formulario; "all" = todos los pendientes; "YYYY-MM-DD" = un día.
+let recordsCompareTransferScope = null;
+
+const RECORDS_COMPARE_TRANSFER_FIELDS = [
+  ["contrato_id", "Contrato"],
+  ["instalacion_id", "Instalación"],
+  ["puesto_id", "Puesto"],
+  ["funcion_id", "Función"],
+  ["tipo_hora_id", "Tipo de hora"],
+  ["situacion_id", "Situación"],
+];
+
+// Valores por defecto del traspaso: la combinación más repetida entre los
+// registros de esa persona en el periodo (lo normal es que sea el mismo puesto).
+function getRecordsCompareDefaults(rows) {
+  const counts = new Map();
+  for (const row of rows) {
+    const combo = {
+      empresa_id: row.empresa_id,
+      contrato_id: row.contrato_id,
+      instalacion_id: row.instalacion_id,
+      puesto_id: row.puesto_id,
+      funcion_id: row.funcion_id,
+      tipo_hora_id: row.tipo_hora_id,
+      situacion_id: row.situacion_id,
+    };
+    const key = JSON.stringify(combo);
+    const entry = counts.get(key) || { combo, n: 0 };
+    entry.n += 1;
+    counts.set(key, entry);
+  }
+  const top = [...counts.values()].sort((a, b) => b.n - a.n)[0]?.combo || {};
+  return top;
+}
+
+// Ids (de Control personal) de los turnos marcados con tick para pasar.
+const recordsCompareSelected = new Set();
+
+// Turnos que entran en un traspaso: "all", "selected" (los marcados) o un día.
+function getRecordsCompareTransferItems(scope) {
+  const items = [];
+  for (const day of recordsCompareDays) {
+    if (scope !== "all" && scope !== "selected" && day.date !== scope) continue;
+    for (const row of day.pendingControl) {
+      if (scope === "selected" && !recordsCompareSelected.has(String(row.id))) continue;
+      items.push({ date: day.date, row });
+    }
+  }
+  return items;
+}
+
+function updateRecordsCompareSelectionUi() {
+  const count = getRecordsCompareTransferItems("selected").length;
+  const button = recordsCompareControlContent?.querySelector('[data-compare-transfer="selected"]');
+  if (button) {
+    button.disabled = count === 0;
+    button.textContent = `Pasar seleccionados (${count})`;
+  }
+  if (recordsCompareTransferScope === "selected") {
+    const title = recordsCompareControlContent?.querySelector("[data-compare-form-count]");
+    if (title) title.textContent = `${count} turno${count === 1 ? "" : "s"}`;
+  }
+}
+
+function renderRecordsCompareTransferForm() {
+  if (!recordsCompareTransferScope) return "";
+  const shifts = getRecordsCompareTransferItems(recordsCompareTransferScope).length;
+  const defaults = {
+    tipo_hora_id: findRecordRelationIdByLabel("tipo_hora_id", "REG"),
+    situacion_id: EVENT_RECORD_SITUACION_NORM,
+    ...Object.fromEntries(
+      Object.entries(recordsCompareDefaults).filter(([, value]) => value != null)
+    ),
+  };
+  const selects = RECORDS_COMPARE_TRANSFER_FIELDS.map(([field, label]) => {
+    let options = recordRelationOptionsCache[field] || [];
+    if (field === "contrato_id" && Array.isArray(recordsFilterContratos)) options = recordsFilterContratos;
+    if (field === "instalacion_id") {
+      options = options.filter(
+        (o) => o.activo === true || String(o.value) === String(defaults[field] ?? "")
+      );
+    }
+    const required = RECORD_REQUIRED_FIELDS.has(field);
+    return `
+      <label>
+        <span>${label}${required ? " *" : ""}</span>
+        <select name="${field}" ${required ? "required" : ""}>
+          <option value="">—</option>
+          ${options.map((o) => `<option value="${escapeHtml(o.value)}" ${
+            String(o.value) === String(defaults[field] ?? "") ? "selected" : ""
+          }>${escapeHtml(o.label)}</option>`).join("")}
+        </select>
+      </label>`;
+  }).join("");
+  return `
+    <form class="records-compare-transfer" data-compare-transfer-form>
+      <strong>Pasar <span data-compare-form-count>${shifts} turno${shifts === 1 ? "" : "s"}</span> de Control personal a Registros
+        (${recordsComparePerson?.name ? escapeHtml(recordsComparePerson.name) : "persona"})</strong>
+      <p>Horario y fecha vienen de Control personal; completa lo que falta. Se propone la combinación
+        más usada por esta persona en el periodo.</p>
+      <div class="records-compare-transfer-fields">${selects}</div>
+      <div class="records-compare-transfer-actions">
+        <button type="submit" class="primary-button compact-button">Crear registros</button>
+        <button type="button" class="secondary-button compact-button" data-compare-transfer-cancel>Cancelar</button>
+      </div>
+    </form>`;
+}
+
+async function submitRecordsCompareTransfer(form) {
+  const scope = recordsCompareTransferScope;
+  const person = recordsComparePerson;
+  if (!scope || !person) return;
+  const values = {};
+  for (const [field] of RECORDS_COMPARE_TRANSFER_FIELDS) {
+    const raw = form.elements[field]?.value;
+    values[field] = raw ? Number(raw) : null;
+  }
+  if (!values.puesto_id || !values.funcion_id) {
+    setStatus("Puesto y función son obligatorios para crear los registros.", "error");
+    return;
+  }
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton) submitButton.disabled = true;
+  try {
+    const supabase = await getSupabaseClient();
+    const items = getRecordsCompareTransferItems(scope);
+    if (!items.length) {
+      setStatus("No hay ningún turno marcado para pasar.", "error");
+      return;
+    }
+    const fechas = items.map((item) => item.date).sort();
+
+    // Se vuelve a mirar Registros por si alguien creó ya alguno de esos turnos.
+    const { data: existentes, error: existentesError } = await supabase
+      .from("registros_detalle")
+      .select("fecha,hora_inicio,hora_fin")
+      .eq("personal_id", person.id)
+      .gte("fecha", fechas[0])
+      .lte("fecha", fechas[fechas.length - 1]);
+    if (existentesError) throw existentesError;
+    const yaExiste = new Set(
+      (existentes || []).map((row) => `${row.fecha}|${comparisonIntervalKey(row)}`)
+    );
+
+    // La empresa sale del historial laboral de ese día (sin ella no entra en nómina);
+    // si no hay historial se usa la de los registros de la persona.
+    const { data: historiales, error: historialesError } = await supabase
+      .from("historiales_laborales")
+      .select("empresa_id,fecha_alta,fecha_baja")
+      .eq("personal_id", person.id)
+      .lte("fecha_alta", fechas[fechas.length - 1])
+      .or(`fecha_baja.is.null,fecha_baja.gte.${fechas[0]}`);
+    if (historialesError) throw historialesError;
+    const empresaDe = (fecha) =>
+      (historiales || []).find(
+        (h) => h.fecha_alta <= fecha && (!h.fecha_baja || h.fecha_baja >= fecha)
+      )?.empresa_id ?? recordsCompareDefaults.empresa_id ?? null;
+
+    const filas = [];
+    let sinEmpresa = 0;
+    for (const { date, row } of items) {
+      if (yaExiste.has(`${date}|${comparisonIntervalKey(row)}`)) continue;
+      const empresaId = empresaDe(date);
+      if (empresaId == null) {
+        sinEmpresa += 1;
+        continue;
+      }
+      filas.push({
+        fecha: date,
+        personal_id: person.id,
+        empresa_id: empresaId,
+        ...values,
+        hora_inicio: row.hora_inicio,
+        hora_fin: row.hora_fin,
+        horas: calculateRecordHoursForSituacion(values.situacion_id, row.hora_inicio, row.hora_fin),
+        activo: true,
+        facturar: true,
+        abonar: true,
+        descanso: false,
+        sustitucion: false,
+        anio: Number(date.slice(0, 4)),
+        observacion: row.observacion || "Pasado desde Control personal",
+      });
+    }
+    if (!filas.length) {
+      setStatus(
+        sinEmpresa
+          ? "No se creó ningún registro: la persona no tiene historial laboral en esas fechas."
+          : "Esos turnos ya existen en Registros.",
+        "error"
+      );
+      return;
+    }
+    const aviso = sinEmpresa ? ` (${sinEmpresa} sin historial laboral, omitidos)` : "";
+    if (!window.confirm(`Se van a crear ${filas.length} registro${filas.length === 1 ? "" : "s"}${aviso}. ¿Continuar?`)) {
+      return;
+    }
+    for (let i = 0; i < filas.length; i += 500) {
+      const { error } = await supabase.from("registros").insert(filas.slice(i, i + 500));
+      if (error) throw error;
+    }
+    setStatus(`Registros creados desde Control personal: ${filas.length}${aviso}.`, "success");
+    window.CoordinacionRegistros?.refresh?.();
+    await openRecordsCompareControl();
+  } catch (error) {
+    setStatus(`No se pudieron crear los registros: ${error?.message || "error desconocido"}`, "error");
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
+}
+
+function renderRecordsCompareDays() {
+  if (!recordsCompareControlContent) return;
+  if (!recordsCompareDays.length) {
+    recordsCompareControlContent.innerHTML =
+      '<p class="empty-state">No hay datos en ninguna de las dos fuentes para este intervalo.</p>';
+    return;
+  }
+  const sortKey = document.querySelector("#records-compare-sort")?.value || "fecha";
+  const days = recordsCompareDays.slice().sort((a, b) => {
+    if (sortKey !== "fecha") {
+      const rankA = a.status === sortKey ? 0 : 1;
+      const rankB = b.status === sortKey ? 0 : 1;
+      if (rankA !== rankB) return rankA - rankB;
+    }
+    return a.date.localeCompare(b.date);
+  });
+  const totalPending = recordsCompareDays.reduce((sum, day) => sum + day.pendingControl.length, 0);
+  const toolbar = totalPending
+    ? `<div class="records-compare-toolbar">
+        <button type="button" class="secondary-button compact-button" data-compare-select-all>
+          Marcar todos
+        </button>
+        <button type="button" class="secondary-button compact-button" data-compare-select-none>
+          Desmarcar
+        </button>
+        <button type="button" class="primary-button compact-button" data-compare-transfer="selected"
+          ${getRecordsCompareTransferItems("selected").length ? "" : "disabled"}>
+          Pasar seleccionados (${getRecordsCompareTransferItems("selected").length})
+        </button>
+        <button type="button" class="secondary-button compact-button" data-compare-transfer="all">
+          Pasar a Registros todos los turnos pendientes (${totalPending})
+        </button>
+      </div>`
+    : "";
+  recordsCompareControlContent.innerHTML = renderRecordsCompareTransferForm() + toolbar + days.map((day) => {
+    const statusLabel = day.status === "match"
+      ? "Encaja"
+      : day.status === "warning"
+        ? "Mismas horas, horario distinto"
+        : "No encaja";
+    const transferButton = day.pendingControl.length
+      ? `<button type="button" class="secondary-button compact-button records-compare-transfer-button"
+          data-compare-transfer="${day.date}">Pasar a Registros (${day.pendingControl.length})</button>`
+      : "";
+    return `
+      <section class="records-compare-day records-compare-${day.status}">
+        <header>
+          <h3>${escapeHtml(formatComparisonDate(day.date))}</h3>
+          <span class="records-compare-actions">${transferButton}<span class="records-compare-status">${statusLabel}</span></span>
+        </header>
+        <div class="records-compare-columns">
+          <div>
+            <h4>Registros <span>${formatComparisonDuration(day.recordMinutes)}</span></h4>
+            ${renderComparisonRows(day.dayRecords, "records")}
+          </div>
+          <div>
+            <h4>Control personal <span>${formatComparisonDuration(day.controlMinutes)}</span></h4>
+            ${renderComparisonRows(day.dayControls, "control", day.pendingControl)}
+          </div>
+        </div>
+      </section>
+    `;
+  }).join("");
 }
 
 async function openRecordsCompareControl() {
@@ -16681,7 +17189,9 @@ async function openRecordsCompareControl() {
     const [recordsResult, controlResult] = await Promise.all([
       supabase
         .from("registros_detalle")
-        .select("id,fecha,hora_inicio,hora_fin,instalacion,puesto,tipo_hora,situacion")
+        .select(
+          "id,fecha,hora_inicio,hora_fin,instalacion,puesto,tipo_hora,situacion,empresa_id,contrato_id,instalacion_id,puesto_id,funcion_id,tipo_hora_id,situacion_id"
+        )
         .eq("personal_id", Number(filters.personalId))
         .gte("fecha", filters.fechaDesde)
         .lte("fecha", filters.fechaHasta)
@@ -16720,35 +17230,13 @@ async function openRecordsCompareControl() {
           formatDisplayDate(filters.fechaHasta)
         } · ${matches} encajan · ${warnings + mismatches} para revisar`;
     }
-    if (recordsCompareControlContent) {
-      recordsCompareControlContent.innerHTML = relevantDays.length
-        ? relevantDays.map((day) => {
-            const statusLabel = day.status === "match"
-              ? "Encaja"
-              : day.status === "warning"
-                ? "Mismas horas, horario distinto"
-                : "No encaja";
-            return `
-              <section class="records-compare-day records-compare-${day.status}">
-                <header>
-                  <h3>${escapeHtml(formatComparisonDate(day.date))}</h3>
-                  <span class="records-compare-status">${statusLabel}</span>
-                </header>
-                <div class="records-compare-columns">
-                  <div>
-                    <h4>Registros <span>${formatComparisonDuration(day.recordMinutes)}</span></h4>
-                    ${renderComparisonRows(day.dayRecords, "records")}
-                  </div>
-                  <div>
-                    <h4>Control personal <span>${formatComparisonDuration(day.controlMinutes)}</span></h4>
-                    ${renderComparisonRows(day.dayControls, "control")}
-                  </div>
-                </div>
-              </section>
-            `;
-          }).join("")
-        : '<p class="empty-state">No hay datos en ninguna de las dos fuentes para este intervalo.</p>';
-    }
+    recordsCompareDays = relevantDays;
+    recordsComparePerson = { id: Number(filters.personalId), name: person.personal || "" };
+    recordsCompareDefaults = getRecordsCompareDefaults(workedRecords);
+    recordsCompareTransferScope = null;
+    recordsCompareSelected.clear();
+    await loadRecordRelationOptions();
+    renderRecordsCompareDays();
   } catch (error) {
     if (recordsCompareControlSummary) recordsCompareControlSummary.textContent = "No se pudo completar el cotejo.";
     if (recordsCompareControlContent) {
@@ -36657,6 +37145,47 @@ async function init() {
   recordsOverlapButton?.addEventListener("click", toggleRecordsOverlapOnly);
   recordsCompareControlButton?.addEventListener("click", () => void openRecordsCompareControl());
   recordsCompareControlCloseButton?.addEventListener("click", closeRecordsCompareControl);
+  document.querySelector("#records-compare-sort")?.addEventListener("change", renderRecordsCompareDays);
+  recordsCompareControlContent?.addEventListener("click", (event) => {
+    const open = event.target.closest("[data-compare-transfer]");
+    if (open) {
+      recordsCompareTransferScope = open.dataset.compareTransfer;
+      renderRecordsCompareDays();
+      recordsCompareControlContent.scrollTop = 0;
+      return;
+    }
+    if (event.target.closest("[data-compare-transfer-cancel]")) {
+      recordsCompareTransferScope = null;
+      renderRecordsCompareDays();
+      return;
+    }
+    const markAll = event.target.closest("[data-compare-select-all]");
+    const markNone = event.target.closest("[data-compare-select-none]");
+    if (markAll || markNone) {
+      recordsCompareSelected.clear();
+      if (markAll) {
+        getRecordsCompareTransferItems("all").forEach(({ row }) => recordsCompareSelected.add(String(row.id)));
+      }
+      recordsCompareControlContent
+        .querySelectorAll("[data-compare-pick]")
+        .forEach((box) => { box.checked = Boolean(markAll); });
+      updateRecordsCompareSelectionUi();
+    }
+  });
+  recordsCompareControlContent?.addEventListener("change", (event) => {
+    const box = event.target.closest("[data-compare-pick]");
+    if (!box) return;
+    const id = String(box.dataset.comparePick);
+    if (box.checked) recordsCompareSelected.add(id);
+    else recordsCompareSelected.delete(id);
+    updateRecordsCompareSelectionUi();
+  });
+  recordsCompareControlContent?.addEventListener("submit", (event) => {
+    const form = event.target.closest("[data-compare-transfer-form]");
+    if (!form) return;
+    event.preventDefault();
+    void submitRecordsCompareTransfer(form);
+  });
   recordsCompareControlBackdrop?.addEventListener("click", closeRecordsCompareControl);
   recordsReportPreviewButton?.addEventListener("click", () => void openRecordsReportPreview());
   recordsReportPreviewCloseButton?.addEventListener("click", closeRecordsReportPreview);
@@ -36945,6 +37474,7 @@ async function init() {
     updateControlBulkMatchCount();
     applyControlBulkCurrentValueToFilters();
   });
+  document.querySelector("#control-bulk-clear-fields-button")?.addEventListener("click", clearControlBulkFields);
   controlBulkApplyButton?.addEventListener("click", () => {
     void applyControlBulkAssignment();
   });
@@ -36969,9 +37499,6 @@ async function init() {
   controlFiltersForm.addEventListener("input", (event) => {
     syncFilterResetButtons(controlFiltersForm);
     if (event.target === controlPersonalInput) {
-      updateControlPersonalClear();
-      renderControlPersonalSuggestions();
-      debouncedControlTextFilters();
       return;
     }
 
@@ -36981,9 +37508,6 @@ async function init() {
     controlCurrentPage = 1;
     syncFilterResetButtons(controlFiltersForm);
     if (event.target === controlPersonalInput) {
-      updateControlPersonalClear();
-      renderControlPersonalSuggestions();
-      void fetchControlRecords();
       return;
     }
 
@@ -37009,44 +37533,23 @@ async function init() {
     resetSingleControlFilter(resetButton.dataset.resetFilter);
     syncFilterResetButtons(controlFiltersForm);
   });
-  controlPersonalInput?.addEventListener("focus", () => {
-    renderControlPersonalSuggestions();
+  setupPersonalPicker("control-filter", {
+    inputId: "control-personal",
+    suggestionsId: "control-personal-suggestions",
+    onChange: (_value, label) => {
+      if (label) controlPersonalInput.dataset.applied = "1";
+      else delete controlPersonalInput.dataset.applied;
+      controlCurrentPage = 1;
+      void fetchControlRecords();
+    },
   });
-  controlPersonalSuggestions?.addEventListener("pointerdown", (event) => {
-    const personalOption = event.target.closest("[data-control-personal-option]")?.dataset
-      .controlPersonalOption;
-    if (!personalOption) {
-      return;
+  controlPersonalInput?.addEventListener("input", () => {
+    // Vaciar el texto a mano equivale a limpiar el filtro.
+    if (!controlPersonalInput.value.trim() && controlPersonalInput.dataset.applied) {
+      delete controlPersonalInput.dataset.applied;
+      controlCurrentPage = 1;
+      void fetchControlRecords();
     }
-
-    event.preventDefault();
-    controlPersonalInput.value = personalOption;
-    controlPersonalSuggestions.classList.add("hidden");
-    updateControlPersonalClear();
-    controlCurrentPage = 1;
-    void fetchControlRecords();
-  });
-  controlPersonalInput?.addEventListener("blur", () => {
-    window.setTimeout(() => {
-      controlPersonalSuggestions?.classList.add("hidden");
-    }, 200);
-  });
-  controlPersonalToggleButton?.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    if (controlPersonalSuggestions?.classList.contains("hidden")) {
-      controlPersonalInput?.focus();
-      renderControlPersonalSuggestions();
-    } else {
-      controlPersonalSuggestions?.classList.add("hidden");
-    }
-  });
-  controlPersonalClearButton?.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    controlPersonalInput.value = "";
-    controlPersonalSuggestions?.classList.add("hidden");
-    updateControlPersonalClear();
-    controlCurrentPage = 1;
-    void fetchControlRecords();
   });
   updateControlPersonalClear();
   syncFilterResetButtons(controlFiltersForm);

@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261021-5" />
+    <link rel="stylesheet" href="./styles.css?v=20261028-4" />
   </head>
   <body>
     <script>
@@ -1006,6 +1006,15 @@
                       <p id="records-compare-control-summary">Selecciona una persona y un intervalo.</p>
                     </div>
                     <div class="header-actions">
+                      <label class="records-compare-sort">
+                        <span>Ordenar</span>
+                        <select id="records-compare-sort">
+                          <option value="fecha">Por fecha</option>
+                          <option value="match">Encajan primero</option>
+                          <option value="warning">Mismas horas, horario distinto primero</option>
+                          <option value="mismatch">No encajan primero</option>
+                        </select>
+                      </label>
                       <button
                         id="records-compare-control-close-button"
                         type="button"
@@ -4221,14 +4230,14 @@
                       <button
                         type="button"
                         class="personal-picker-clear hidden"
-                        data-control-personal-clear
+                        data-personal-clear
                         aria-label="Limpiar personal"
                         title="Limpiar"
                       >&times;</button>
                       <button
                         type="button"
                         class="personal-picker-toggle"
-                        data-control-personal-toggle
+                        data-personal-toggle
                         aria-label="Desplegar lista de personal"
                         title="Desplegar"
                       >&#9662;</button>
@@ -4282,7 +4291,8 @@
                   <div class="activities-bulk-assignment-panel">
                     <p class="bulk-action-help">
                       Aplicar modifica todos los registros filtrados que tengan el valor actual.
-                      Para borrar, pulsa Seleccionar y marca expresamente los registros.
+                      Si pulsas Seleccionar y marcas registros con el tick, Aplicar y Borrar
+                      actúan solo sobre los marcados.
                     </p>
                     <button
                       id="control-enable-selective-delete-button"
@@ -4315,6 +4325,9 @@
                       <select id="control-bulk-new-select" class="hidden"></select>
                     </label>
                     <button id="control-bulk-apply-button" type="button">Aplicar</button>
+                    <button id="control-bulk-clear-fields-button" type="button" class="secondary-button">
+                      Limpiar campos
+                    </button>
                     <button
                       id="control-delete-selected-button"
                       type="button"
@@ -10051,7 +10064,12 @@
                   <div class="detail-form-section-grid">
                     <label>
                       Personal
-                      <select id="control-detail-personal" required></select>
+                      <div class="filter-field-stack personal-picker-stack">
+                        <input id="control-detail-personal" type="text" autocomplete="off" placeholder="Buscar o desplegar" required />
+                        <button type="button" class="personal-picker-clear hidden" data-personal-clear aria-label="Limpiar personal" title="Limpiar">&times;</button>
+                        <button type="button" class="personal-picker-toggle" data-personal-toggle aria-label="Desplegar lista de personal" title="Desplegar">&#9662;</button>
+                        <div id="control-detail-personal-suggestions" class="filter-suggestions filter-suggestions-full hidden"></div>
+                      </div>
                     </label>
                     <label>
                       DNI
@@ -10673,6 +10691,6 @@
     <script src="./facturacion.js?v=20261006-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./app.js?v=20261027-2" defer></script>
+    <script src="./app.js?v=20261028-12" defer></script>
   </body>
 </html>
