@@ -6637,12 +6637,17 @@ function getControlRecordDuplicateKey(row) {
     row.fecha,
     time(row.hora_inicio),
     time(row.hora_fin),
-    row.centro,
     row.puesto,
     row.tipo_jornada,
     row.observacion,
   ]
-    .map((part) => String(part ?? "").trim().toLowerCase())
+    .map((part) =>
+      String(part ?? "")
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .trim()
+        .toLowerCase()
+    )
     .join("|");
 }
 
