@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261021-5" />
+    <link rel="stylesheet" href="./styles.css?v=20261028-2" />
   </head>
   <body>
     <script>
@@ -1006,6 +1006,15 @@
                       <p id="records-compare-control-summary">Selecciona una persona y un intervalo.</p>
                     </div>
                     <div class="header-actions">
+                      <label class="records-compare-sort">
+                        <span>Ordenar</span>
+                        <select id="records-compare-sort">
+                          <option value="fecha">Por fecha</option>
+                          <option value="match">Encajan primero</option>
+                          <option value="warning">Mismas horas, horario distinto primero</option>
+                          <option value="mismatch">No encajan primero</option>
+                        </select>
+                      </label>
                       <button
                         id="records-compare-control-close-button"
                         type="button"
@@ -10673,6 +10682,6 @@
     <script src="./facturacion.js?v=20261006-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./app.js?v=20261027-2" defer></script>
+    <script src="./app.js?v=20261028-1" defer></script>
   </body>
 </html>

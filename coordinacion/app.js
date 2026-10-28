@@ -16654,6 +16654,51 @@ function buildRecordsControlComparison(records, controls, dateFrom, dateTo) {
   });
 }
 
+let recordsCompareDays = [];
+
+function renderRecordsCompareDays() {
+  if (!recordsCompareControlContent) return;
+  if (!recordsCompareDays.length) {
+    recordsCompareControlContent.innerHTML =
+      '<p class="empty-state">No hay datos en ninguna de las dos fuentes para este intervalo.</p>';
+    return;
+  }
+  const sortKey = document.querySelector("#records-compare-sort")?.value || "fecha";
+  const days = recordsCompareDays.slice().sort((a, b) => {
+    if (sortKey !== "fecha") {
+      const rankA = a.status === sortKey ? 0 : 1;
+      const rankB = b.status === sortKey ? 0 : 1;
+      if (rankA !== rankB) return rankA - rankB;
+    }
+    return a.date.localeCompare(b.date);
+  });
+  recordsCompareControlContent.innerHTML = days.map((day) => {
+    const statusLabel = day.status === "match"
+      ? "Encaja"
+      : day.status === "warning"
+        ? "Mismas horas, horario distinto"
+        : "No encaja";
+    return `
+      <section class="records-compare-day records-compare-${day.status}">
+        <header>
+          <h3>${escapeHtml(formatComparisonDate(day.date))}</h3>
+          <span class="records-compare-status">${statusLabel}</span>
+        </header>
+        <div class="records-compare-columns">
+          <div>
+            <h4>Registros <span>${formatComparisonDuration(day.recordMinutes)}</span></h4>
+            ${renderComparisonRows(day.dayRecords, "records")}
+          </div>
+          <div>
+            <h4>Control personal <span>${formatComparisonDuration(day.controlMinutes)}</span></h4>
+            ${renderComparisonRows(day.dayControls, "control")}
+          </div>
+        </div>
+      </section>
+    `;
+  }).join("");
+}
+
 async function openRecordsCompareControl() {
   const filters = getRecordsFilterValues();
   syncRecordsCompareControlButton();
@@ -16720,35 +16765,8 @@ async function openRecordsCompareControl() {
           formatDisplayDate(filters.fechaHasta)
         } · ${matches} encajan · ${warnings + mismatches} para revisar`;
     }
-    if (recordsCompareControlContent) {
-      recordsCompareControlContent.innerHTML = relevantDays.length
-        ? relevantDays.map((day) => {
-            const statusLabel = day.status === "match"
-              ? "Encaja"
-              : day.status === "warning"
-                ? "Mismas horas, horario distinto"
-                : "No encaja";
-            return `
-              <section class="records-compare-day records-compare-${day.status}">
-                <header>
-                  <h3>${escapeHtml(formatComparisonDate(day.date))}</h3>
-                  <span class="records-compare-status">${statusLabel}</span>
-                </header>
-                <div class="records-compare-columns">
-                  <div>
-                    <h4>Registros <span>${formatComparisonDuration(day.recordMinutes)}</span></h4>
-                    ${renderComparisonRows(day.dayRecords, "records")}
-                  </div>
-                  <div>
-                    <h4>Control personal <span>${formatComparisonDuration(day.controlMinutes)}</span></h4>
-                    ${renderComparisonRows(day.dayControls, "control")}
-                  </div>
-                </div>
-              </section>
-            `;
-          }).join("")
-        : '<p class="empty-state">No hay datos en ninguna de las dos fuentes para este intervalo.</p>';
-    }
+    recordsCompareDays = relevantDays;
+    renderRecordsCompareDays();
   } catch (error) {
     if (recordsCompareControlSummary) recordsCompareControlSummary.textContent = "No se pudo completar el cotejo.";
     if (recordsCompareControlContent) {
@@ -36657,6 +36675,7 @@ async function init() {
   recordsOverlapButton?.addEventListener("click", toggleRecordsOverlapOnly);
   recordsCompareControlButton?.addEventListener("click", () => void openRecordsCompareControl());
   recordsCompareControlCloseButton?.addEventListener("click", closeRecordsCompareControl);
+  document.querySelector("#records-compare-sort")?.addEventListener("change", renderRecordsCompareDays);
   recordsCompareControlBackdrop?.addEventListener("click", closeRecordsCompareControl);
   recordsReportPreviewButton?.addEventListener("click", () => void openRecordsReportPreview());
   recordsReportPreviewCloseButton?.addEventListener("click", closeRecordsReportPreview);
