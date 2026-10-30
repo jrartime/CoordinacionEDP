@@ -244,6 +244,52 @@ $$;
 revoke all on function public.dias_suspendidos_periodo(integer, date, date) from public;
 grant execute on function public.dias_suspendidos_periodo(integer, date, date) to authenticated;
 
+-- Dias de nomina mes a mes. Si la persona tiene en ese mes algun registro con
+-- situacion IT o LG (incapacidad / permiso de larga duracion: riesgo de
+-- embarazo, lactancia, maternidad...), NO se ajusta a 30: se cuentan los dias
+-- naturales de cada tramo y un mes de 31 dias suma 31 (regla TGSS con IT).
+-- Sin ellas rige dias_nomina (base 30 repartida entre los tramos).
+-- Caso de referencia: Miriam Clemente, octubre 2026, variacion el 09/10.
+create or replace function public.dias_nomina_con_situacion(
+  p_personal_id integer, p_desde date, p_hasta date, p_empresa_id integer default null
+)
+returns integer
+language plpgsql stable security invoker
+set search_path = public
+as $$
+declare
+  v_total integer := 0;
+  v_mes record;
+begin
+  for v_mes in
+    select greatest(p_desde, d::date) as ini,
+           least(p_hasta, (d + interval '1 month' - interval '1 day')::date) as fin,
+           d::date as mes_ini,
+           (d + interval '1 month' - interval '1 day')::date as mes_fin
+    from generate_series(date_trunc('month', p_desde::timestamp),
+                         date_trunc('month', p_hasta::timestamp), interval '1 month') d
+  loop
+    if exists (
+      select 1 from public.registros r
+      join public.situaciones s on s.id = r.situacion_id
+      where r.personal_id = p_personal_id
+        and r.fecha between v_mes.mes_ini and v_mes.mes_fin
+        and s.situacion in ('IT', 'LG')
+    ) then
+      v_total := v_total + (v_mes.fin - v_mes.ini + 1);
+    else
+      v_total := v_total + public.dias_nomina(
+        v_mes.ini, v_mes.fin,
+        public.tiene_alta_continua_desde_inicio_mes(p_personal_id, v_mes.ini, p_empresa_id));
+    end if;
+  end loop;
+  return greatest(v_total, 0);
+end;
+$$;
+
+revoke all on function public.dias_nomina_con_situacion(integer, date, date, integer) from public;
+grant execute on function public.dias_nomina_con_situacion(integer, date, date, integer) to authenticated;
+
 -- Dias de nomina de [p_desde, p_hasta] descontando los permisos suspendido
 -- que la solapen (ver dias_suspendidos_periodo). NO basta con restar su
 -- recuento al resultado de dias_nomina(p_desde, p_hasta, ...): dias_nomina
@@ -281,6 +327,15 @@ declare
   v_primero boolean := true;
   v_permiso record;
 begin
+  if not exists (
+    select 1 from public.personal_permisos pp
+    join public.personal_permisos_tipo ppt on ppt.id = pp.tipo_id
+    where pp.personal_id = p_personal_id and ppt.tratamiento_nomina = 'suspendido'
+      and pp.fecha_inicio <= p_hasta and coalesce(pp.fecha_fin, p_hasta) >= p_desde
+  ) then
+    return public.dias_nomina_con_situacion(p_personal_id, p_desde, p_hasta, p_empresa_id);
+  end if;
+
   for v_permiso in
     select greatest(p_desde, pp.fecha_inicio) as ini,
            least(p_hasta, coalesce(pp.fecha_fin, p_hasta)) as fin
