@@ -16813,11 +16813,17 @@ function renderComparisonRows(rows, source, pending = []) {
               recordsCompareSelected.has(String(row.id)) ? "checked" : ""
             } />`
           : "";
+        const timeText = `${escapeHtml(String(row.hora_inicio || "").slice(0, 5) || "—")}–${escapeHtml(
+          String(row.hora_fin || "").slice(0, 5) || "—"
+        )}`;
+        // En Registros el horario se edita aquí mismo: lápiz o doble clic sobre la hora.
+        const timeCell = source === "records"
+          ? `<span class="records-compare-time" data-record-time="${escapeHtml(row.id)}" title="Doble clic para editar el horario">${timeText}</span>
+             <button type="button" class="records-compare-edit" data-record-time-edit="${escapeHtml(row.id)}" title="Editar horario" aria-label="Editar horario">&#9998;</button>`
+          : timeText;
         return `
           <div class="records-compare-row">
-            <strong>${pick}${escapeHtml(String(row.hora_inicio || "").slice(0, 5) || "—")}–${escapeHtml(
-              String(row.hora_fin || "").slice(0, 5) || "—"
-            )}</strong>
+            <strong>${pick}${timeCell}</strong>
             <span>${escapeHtml(formatComparisonDuration(minutes))}</span>
             ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
           </div>
@@ -17097,6 +17103,82 @@ async function submitRecordsCompareTransfer(form) {
   }
 }
 
+// Datos de origen del cotejo vigente, para recalcular tras editar un horario sin
+// volver a consultar.
+let recordsCompareSource = null;
+
+function recomputeRecordsCompareDays() {
+  if (!recordsCompareSource) return;
+  const { workedRecords, controls, dateFrom, dateTo, personName } = recordsCompareSource;
+  recordsCompareDays = buildRecordsControlComparison(workedRecords, controls, dateFrom, dateTo)
+    .filter((day) => day.status !== "empty");
+  const matches = recordsCompareDays.filter((day) => day.status === "match").length;
+  if (recordsCompareControlSummary) {
+    recordsCompareControlSummary.textContent =
+      `${personName || "Personal"} · ${formatDisplayDate(dateFrom)}–${formatDisplayDate(dateTo)} · ${
+        matches
+      } encajan · ${recordsCompareDays.length - matches} para revisar`;
+  }
+}
+
+function startRecordTimeEdit(recordId) {
+  const row = recordsCompareSource?.workedRecords.find((item) => String(item.id) === String(recordId));
+  const cell = recordsCompareControlContent?.querySelector(`[data-record-time="${CSS.escape(String(recordId))}"]`);
+  if (!row || !cell || cell.dataset.editing) return;
+  cell.dataset.editing = "1";
+  const pencil = recordsCompareControlContent.querySelector(`[data-record-time-edit="${CSS.escape(String(recordId))}"]`);
+  pencil?.classList.add("hidden");
+  cell.innerHTML = `
+    <input type="time" data-time-field="start" value="${escapeHtml(String(row.hora_inicio || "").slice(0, 5))}" />
+    –
+    <input type="time" data-time-field="end" value="${escapeHtml(String(row.hora_fin || "").slice(0, 5))}" />`;
+  const first = cell.querySelector("input");
+  first?.focus();
+}
+
+async function commitRecordTimeEdit(cell, { save }) {
+  if (!cell || cell.dataset.saving) return;
+  const recordId = cell.dataset.recordTime;
+  const row = recordsCompareSource?.workedRecords.find((item) => String(item.id) === String(recordId));
+  const start = cell.querySelector('[data-time-field="start"]')?.value || "";
+  const end = cell.querySelector('[data-time-field="end"]')?.value || "";
+  const unchanged =
+    start === String(row?.hora_inicio || "").slice(0, 5) && end === String(row?.hora_fin || "").slice(0, 5);
+  if (!save || !row || unchanged) {
+    renderRecordsCompareDays();
+    return;
+  }
+  if (!start || !end) {
+    setStatus("Indica hora de inicio y de fin.", "error");
+    return;
+  }
+  cell.dataset.saving = "1";
+  try {
+    await window.CoordinacionActividades?.loadRecordRules?.();
+    const patch = {
+      hora_inicio: start,
+      hora_fin: end,
+      horas: calculateRecordHoursForSituacion(row.situacion_id, start, end),
+      // Nulo = lo recalcula el trigger con la franja del contrato.
+      horas_nocturnas: null,
+    };
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.from("registros").update(patch).eq("id", row.id);
+    if (error) throw error;
+    row.hora_inicio = start;
+    row.hora_fin = end;
+    const scroll = recordsCompareControlContent.scrollTop;
+    recomputeRecordsCompareDays();
+    renderRecordsCompareDays();
+    recordsCompareControlContent.scrollTop = scroll;
+    setStatus("Horario actualizado.", "success");
+    window.CoordinacionRegistros?.refresh?.();
+  } catch (error) {
+    delete cell.dataset.saving;
+    setStatus(`No se pudo guardar el horario: ${error?.message || "error desconocido"}`, "error");
+  }
+}
+
 function renderRecordsCompareDays() {
   if (!recordsCompareControlContent) return;
   if (!recordsCompareDays.length) {
@@ -17230,6 +17312,13 @@ async function openRecordsCompareControl() {
           formatDisplayDate(filters.fechaHasta)
         } · ${matches} encajan · ${warnings + mismatches} para revisar`;
     }
+    recordsCompareSource = {
+      workedRecords,
+      controls: controlResult.data || [],
+      dateFrom: filters.fechaDesde,
+      dateTo: filters.fechaHasta,
+      personName: person.personal || "",
+    };
     recordsCompareDays = relevantDays;
     recordsComparePerson = { id: Number(filters.personalId), name: person.personal || "" };
     recordsCompareDefaults = getRecordsCompareDefaults(workedRecords);
@@ -18278,8 +18367,6 @@ function buildPersonReportData(rows) {
   });
 
   const dailyMap = new Map();
-  const puestoMap = new Map();
-  const tipoHoraMap = new Map();
   const detailRows = [];
   let totalHoras = 0;
   let bolsaEntrada = 0;
@@ -18292,8 +18379,6 @@ function buildPersonReportData(rows) {
     const tipoHora = String(row.tipo_hora || "").trim() || "Sin tipo";
 
     dailyMap.set(fecha, (dailyMap.get(fecha) || 0) + horas);
-    puestoMap.set(puesto, (puestoMap.get(puesto) || 0) + horas);
-    tipoHoraMap.set(tipoHora, (tipoHoraMap.get(tipoHora) || 0) + horas);
     totalHoras += horas;
     bolsaEntrada += Number(row.bolsa_entrada) || 0;
     bolsaSalida += Number(row.bolsa_salida) || 0;
@@ -18309,23 +18394,103 @@ function buildPersonReportData(rows) {
     });
   }
 
-  const sumEntries = (map) =>
-    Array.from(map.entries())
-      .map(([label, horas]) => ({ label, horas }))
-      .sort((a, b) => b.horas - a.horas);
+  // Resumen final: puesto x situación con las columnas del informe general
+  // (Horas, HC, HFest, HMon, PNR, Total, Noct), sin contrato.
+  const summaryMap = new Map();
+  for (const row of sorted) {
+    const puesto = String(row.puesto || row.puesto_id || "").trim() || "Sin puesto";
+    const situacion = String(row.situacion || row.situacion_id || "").trim() || "-";
+    const key = `${puesto}||${situacion}`;
+    if (!summaryMap.has(key)) {
+      summaryMap.set(key, { puesto, situacion, horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0 });
+    }
+    addRecordReportHours(summaryMap.get(key), row);
+  }
+  const summaryRows = Array.from(summaryMap.values())
+    .sort((a, b) => `${a.puesto} ${a.situacion}`.localeCompare(`${b.puesto} ${b.situacion}`, "es", { sensitivity: "base" }))
+    .map((item) => ({ ...item, total: getReportRowTotal(item) }));
+  const summaryTotals = summaryRows.reduce(
+    (acc, item) => {
+      for (const key of ["horas", "hc", "hfest", "hmon", "pnr", "noct", "total"]) acc[key] += item[key];
+      return acc;
+    },
+    { horas: 0, hc: 0, hfest: 0, hmon: 0, pnr: 0, noct: 0, total: 0 }
+  );
+
+  // Desglose diario: día -> situación -> tipo de hora (con sus horas).
+  const breakdownMap = new Map();
+  for (const row of detailRows) {
+    const day = breakdownMap.get(row.fecha) || { fecha: row.fecha, horas: 0, situaciones: new Map() };
+    const situacion = day.situaciones.get(row.situacion) || new Map();
+    situacion.set(row.tipoHora, (situacion.get(row.tipoHora) || 0) + row.horas);
+    day.situaciones.set(row.situacion, situacion);
+    day.horas += row.horas;
+    breakdownMap.set(row.fecha, day);
+  }
+  const dailyBreakdown = Array.from(breakdownMap.values())
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    .map((day) => ({
+      fecha: day.fecha,
+      horas: day.horas,
+      situaciones: Array.from(day.situaciones.entries()).map(([situacion, tipos]) => ({
+        situacion,
+        tipos: Array.from(tipos.entries()).map(([tipoHora, horas]) => ({ tipoHora, horas })),
+      })),
+    }));
 
   return {
     personName: String(sorted[0]?.personal || "").trim() || "Sin personal",
     daily: Array.from(dailyMap.entries())
       .map(([fecha, horas]) => ({ fecha, horas }))
       .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    dailyBreakdown,
+    summaryRows,
+    summaryTotals,
     detailRows,
-    byPuesto: sumEntries(puestoMap),
-    byTipoHora: sumEntries(tipoHoraMap),
     totalHoras,
     bolsaEntrada,
     bolsaSalida,
   };
+}
+
+const PERSON_REPORT_SUMMARY_KEYS = ["horas", "hc", "hfest", "hmon", "pnr", "total", "noct"];
+
+function getPersonReportSummaryRows(data) {
+  const toRow = (item, extra = {}) => ({
+    puesto: item.puesto,
+    situacion: item.situacion,
+    ...Object.fromEntries(PERSON_REPORT_SUMMARY_KEYS.map((key) => [key, formatReportNumber(item[key])])),
+    ...extra,
+  });
+  return {
+    rows: data.summaryRows.map((item) => toRow(item)),
+    total: toRow({ puesto: "Subtotal", situacion: "", ...data.summaryTotals }, { _seccion: "total" }),
+  };
+}
+
+// Filas planas del desglose diario para PDF/PNG: la fecha, la situación y el total del
+// día solo se escriben en la primera fila de su bloque.
+function flattenPersonReportBreakdown(data) {
+  const rows = [];
+  for (const day of data.dailyBreakdown) {
+    let firstOfDay = true;
+    for (const group of day.situaciones) {
+      let firstOfSituacion = true;
+      for (const item of group.tipos) {
+        rows.push({
+          dia: firstOfDay ? getControlWeekdayInfo(day.fecha).letter : "",
+          fecha: firstOfDay ? formatDisplayDate(day.fecha) : "",
+          situacion: firstOfSituacion ? group.situacion : "",
+          tipoHora: item.tipoHora,
+          horas: formatRecordHours(item.horas),
+          totalDia: firstOfDay ? formatRecordHours(day.horas) : "",
+        });
+        firstOfDay = false;
+        firstOfSituacion = false;
+      }
+    }
+  }
+  return rows;
 }
 
 function renderRecordsPersonReportWeekdayMarker(fecha) {
@@ -18359,16 +18524,37 @@ function renderPersonReportPreview(data, range) {
     return;
   }
 
-  const dailyRowsHtml = data.daily
-    .map(
-      (item) => `
-        <tr>
-          <td class="weekday-marker-cell">${renderRecordsPersonReportWeekdayMarker(item.fecha)}</td>
-          <td>${escapeHtml(formatDisplayDate(item.fecha))}</td>
-          <td class="numeric-cell">${escapeHtml(formatRecordHours(item.horas))}</td>
-        </tr>
-      `
-    )
+  const dailyRowsHtml = data.dailyBreakdown
+    .map((day) => {
+      const daySpan = day.situaciones.reduce((sum, group) => sum + group.tipos.length, 0);
+      let firstOfDay = true;
+      return day.situaciones
+        .map((group) =>
+          group.tipos
+            .map((item, index) => {
+              const dayCells = firstOfDay
+                ? `<td class="weekday-marker-cell" rowspan="${daySpan}">${renderRecordsPersonReportWeekdayMarker(day.fecha)}</td>
+                   <td rowspan="${daySpan}">${escapeHtml(formatDisplayDate(day.fecha))}</td>`
+                : "";
+              const situacionCell = index === 0
+                ? `<td rowspan="${group.tipos.length}">${escapeHtml(group.situacion)}</td>`
+                : "";
+              const totalCell = firstOfDay
+                ? `<td class="numeric-cell records-person-report-day-total" rowspan="${daySpan}">${escapeHtml(formatRecordHours(day.horas))}</td>`
+                : "";
+              firstOfDay = false;
+              return `
+                <tr class="records-person-report-day-row">
+                  ${dayCells}${situacionCell}
+                  <td>${escapeHtml(item.tipoHora)}</td>
+                  <td class="numeric-cell">${escapeHtml(formatRecordHours(item.horas))}</td>
+                  ${totalCell}
+                </tr>`;
+            })
+            .join("")
+        )
+        .join("");
+    })
     .join("");
 
   const detailRowsHtml = data.detailRows
@@ -18387,29 +18573,36 @@ function renderPersonReportPreview(data, range) {
     )
     .join("");
 
-  const summaryRowsHtml = (entries) =>
-    entries
-      .map(
-        (item) => `
-          <tr>
-            <td>${escapeHtml(item.label)}</td>
-            <td class="numeric-cell">${escapeHtml(formatRecordHours(item.horas))}</td>
-          </tr>
-        `
-      )
-      .join("");
+  const summary = getPersonReportSummaryRows(data);
+  const summaryHeadHtml = ["Horas", "HC", "HFest", "HMon", "PNR", "Total", "Noct"]
+    .map((label) => `<th class="numeric-heading">${label}</th>`)
+    .join("");
+  const summaryCells = (row) =>
+    PERSON_REPORT_SUMMARY_KEYS.map((key) => `<td class="numeric-cell">${escapeHtml(row[key])}</td>`).join("");
+  const summaryRowsHtml = summary.rows
+    .map((row) => `<tr><td>${escapeHtml(row.puesto)}</td><td>${escapeHtml(row.situacion)}</td>${summaryCells(row)}</tr>`)
+    .join("");
+
+  const copyButton = (section) => `
+    <button type="button" class="compact-button tooltip-button icon-only-button" data-person-report-copy="${section}"
+      aria-label="Copiar imagen de esta tabla" title="Copiar imagen de esta tabla">
+      <svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20261016-1#icon-copy"></use></svg>
+    </button>`;
 
   recordsPersonReportContent.innerHTML = `
     <section class="records-person-report-section">
-      <h3>Horas diarias</h3>
+      <div class="records-person-report-section-head"><h3>Horas diarias</h3>${copyButton("daily")}</div>
       <div class="records-person-report-table-wrap">
         <table class="records-person-report-table">
           <thead>
-            <tr><th>Día</th><th>Fecha</th><th class="numeric-heading">Horas</th></tr>
+            <tr>
+              <th>Día</th><th>Fecha</th><th>Situación</th><th>Tipo hora</th>
+              <th class="numeric-heading">Horas</th><th class="numeric-heading">Total día</th>
+            </tr>
           </thead>
           <tbody>${dailyRowsHtml}</tbody>
           <tfoot>
-            <tr><td colspan="2">Total</td><td class="numeric-cell">${escapeHtml(formatRecordHours(data.totalHoras))}</td></tr>
+            <tr><td colspan="5">Total</td><td class="numeric-cell">${escapeHtml(formatRecordHours(data.totalHoras))}</td></tr>
           </tfoot>
         </table>
       </div>
@@ -18424,7 +18617,7 @@ function renderPersonReportPreview(data, range) {
       }
     </section>
     <section class="records-person-report-section">
-      <h3>Detalle</h3>
+      <div class="records-person-report-section-head"><h3>Detalle</h3>${copyButton("detail")}</div>
       <div class="records-person-report-table-wrap">
         <table class="records-person-report-table">
           <thead>
@@ -18441,25 +18634,17 @@ function renderPersonReportPreview(data, range) {
           <tbody>${detailRowsHtml}</tbody>
         </table>
       </div>
-      <div class="records-person-report-summary-grid">
-        <div>
-          <h4>Resumen por puesto</h4>
-          <div class="records-person-report-table-wrap">
-            <table class="records-person-report-table">
-              <thead><tr><th>Puesto</th><th class="numeric-heading">Horas</th></tr></thead>
-              <tbody>${summaryRowsHtml(data.byPuesto)}</tbody>
-            </table>
-          </div>
-        </div>
-        <div>
-          <h4>Resumen por tipo de hora</h4>
-          <div class="records-person-report-table-wrap">
-            <table class="records-person-report-table">
-              <thead><tr><th>Tipo hora</th><th class="numeric-heading">Horas</th></tr></thead>
-              <tbody>${summaryRowsHtml(data.byTipoHora)}</tbody>
-            </table>
-          </div>
-        </div>
+    </section>
+    <section class="records-person-report-section">
+      <div class="records-person-report-section-head"><h3>Resumen</h3>${copyButton("summary")}</div>
+      <div class="records-person-report-table-wrap">
+        <table class="records-person-report-table">
+          <thead><tr><th>Puesto</th><th>Situación</th>${summaryHeadHtml}</tr></thead>
+          <tbody>${summaryRowsHtml}</tbody>
+          <tfoot>
+            <tr><td colspan="2">Subtotal</td>${summaryCells(summary.total)}</tr>
+          </tfoot>
+        </table>
       </div>
     </section>
   `;
@@ -18468,7 +18653,6 @@ function renderPersonReportPreview(data, range) {
 function setRecordsPersonReportDownloadsEnabled(enabled) {
   if (recordsPersonReportCsvButton) recordsPersonReportCsvButton.disabled = !enabled;
   if (recordsPersonReportPdfButton) recordsPersonReportPdfButton.disabled = !enabled;
-  if (copyRecordsPersonReportImageButton) copyRecordsPersonReportImageButton.disabled = !enabled;
   if (downloadRecordsPersonReportImageButton) downloadRecordsPersonReportImageButton.disabled = !enabled;
 }
 
@@ -18618,17 +18802,16 @@ async function exportRecordsPersonReportPdf() {
       ...tableDefaults,
       y,
       columns: [
-        { key: "dia", label: "Día", width: 14, align: "center" },
-        { key: "fecha", label: "Fecha", width: 36, align: "left" },
-        { key: "horas", label: "Horas", width: 30, align: "right" },
+        { key: "dia", label: "Día", width: 12, align: "center" },
+        { key: "fecha", label: "Fecha", width: 26, align: "left" },
+        { key: "situacion", label: "Situación", width: 34, align: "left" },
+        { key: "tipoHora", label: "Tipo hora", width: 40, align: "left" },
+        { key: "horas", label: "Horas", width: 22, align: "right" },
+        { key: "totalDia", label: "Total día", width: 24, align: "right" },
       ],
       rows: [
-        ...data.daily.map((item) => ({
-          dia: getControlWeekdayInfo(item.fecha).letter,
-          fecha: formatDisplayDate(item.fecha),
-          horas: formatRecordHours(item.horas),
-        })),
-        { dia: "", fecha: "Total", horas: formatRecordHours(data.totalHoras), _seccion: "total" },
+        ...flattenPersonReportBreakdown(data),
+        { dia: "", fecha: "Total", situacion: "", tipoHora: "", horas: "", totalDia: formatRecordHours(data.totalHoras), _seccion: "total" },
       ],
     });
     y += 8;
@@ -18658,33 +18841,23 @@ async function exportRecordsPersonReportPdf() {
     });
     y += 8;
 
-    sectionTitle("Resumen por puesto");
+    sectionTitle("Resumen");
+    const pdfSummary = getPersonReportSummaryRows(data);
     y = drawNominaPdfTable(doc, {
       ...tableDefaults,
       y,
       columns: [
-        { key: "label", label: "Puesto", width: 100, align: "left" },
-        { key: "horas", label: "Horas", width: 30, align: "right" },
+        { key: "puesto", label: "Puesto", width: 50, align: "left" },
+        { key: "situacion", label: "Situación", width: 24, align: "left" },
+        { key: "horas", label: "Horas", width: 17, align: "right" },
+        { key: "hc", label: "HC", width: 14, align: "right" },
+        { key: "hfest", label: "HFest", width: 16, align: "right" },
+        { key: "hmon", label: "HMon", width: 16, align: "right" },
+        { key: "pnr", label: "PNR", width: 14, align: "right" },
+        { key: "total", label: "Total", width: 17, align: "right" },
+        { key: "noct", label: "Noct", width: 14, align: "right" },
       ],
-      rows: [
-        ...data.byPuesto.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) })),
-        { label: "Total", horas: formatRecordHours(data.totalHoras), _seccion: "total" },
-      ],
-    });
-    y += 8;
-
-    sectionTitle("Resumen por tipo de hora");
-    y = drawNominaPdfTable(doc, {
-      ...tableDefaults,
-      y,
-      columns: [
-        { key: "label", label: "Tipo hora", width: 100, align: "left" },
-        { key: "horas", label: "Horas", width: 30, align: "right" },
-      ],
-      rows: [
-        ...data.byTipoHora.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) })),
-        { label: "Total", horas: formatRecordHours(data.totalHoras), _seccion: "total" },
-      ],
+      rows: [...pdfSummary.rows, pdfSummary.total],
     });
 
     if (data.bolsaEntrada || data.bolsaSalida) {
@@ -18814,7 +18987,9 @@ function getRecordsPersonReportImageFileName(personName, dateFrom, dateTo) {
   return `informe-horas-${sanitizeFileName(personName)}-${dateFrom || "sin-inicio"}-${dateTo || "sin-fin"}.png`;
 }
 
-function drawRecordsPersonReportImage(data, range) {
+// `only` limita la imagen a una tabla ("daily" | "detail" | "summary"); sin él, el informe entero.
+function drawRecordsPersonReportImage(data, range, only = null) {
+  const show = (section) => !only || only === section;
   const scale = 2;
   const margin = 40;
   const cellPadding = 10;
@@ -18826,8 +19001,11 @@ function drawRecordsPersonReportImage(data, range) {
 
   const dailyColumns = [
     { key: "dia", label: "Dia", width: 70 },
-    { key: "fecha", label: "Fecha", width: 160 },
-    { key: "horas", label: "Horas", width: 130 },
+    { key: "fecha", label: "Fecha", width: 150 },
+    { key: "situacion", label: "Situación", width: 200 },
+    { key: "tipoHora", label: "Tipo hora", width: 220 },
+    { key: "horas", label: "Horas", width: 110 },
+    { key: "totalDia", label: "Total día", width: 130 },
   ];
   const detailColumns = [
     { key: "fecha", label: "Fecha", width: 150 },
@@ -18838,25 +19016,27 @@ function drawRecordsPersonReportImage(data, range) {
     { key: "tipoHora", label: "Tipo hora", width: 220 },
     { key: "situacion", label: "Situación", width: 200 },
   ];
-  const puestoColumns = [
-    { key: "label", label: "Puesto", width: 340 },
-    { key: "horas", label: "Horas", width: 130 },
-  ];
-  const tipoHoraColumns = [
-    { key: "label", label: "Tipo hora", width: 340 },
-    { key: "horas", label: "Horas", width: 130 },
+  const summaryColumns = [
+    { key: "puesto", label: "Puesto", width: 300 },
+    { key: "situacion", label: "Situación", width: 130 },
+    { key: "horas", label: "Horas", width: 100 },
+    { key: "hc", label: "HC", width: 80 },
+    { key: "hfest", label: "HFest", width: 100 },
+    { key: "hmon", label: "HMon", width: 100 },
+    { key: "pnr", label: "PNR", width: 80 },
+    { key: "total", label: "Total", width: 100 },
+    { key: "noct", label: "Noct", width: 90 },
   ];
   const bolsaColumns = [
     { key: "label", label: "Movimiento", width: 340 },
     { key: "horas", label: "Horas", width: 130 },
   ];
-  const hasBolsa = Boolean(data.bolsaEntrada || data.bolsaSalida);
+  const hasBolsa = !only && Boolean(data.bolsaEntrada || data.bolsaSalida);
 
   const tableWidth = Math.max(
     dailyColumns.reduce((sum, column) => sum + column.width, 0),
     detailColumns.reduce((sum, column) => sum + column.width, 0),
-    puestoColumns.reduce((sum, column) => sum + column.width, 0),
-    tipoHoraColumns.reduce((sum, column) => sum + column.width, 0)
+    summaryColumns.reduce((sum, column) => sum + column.width, 0)
   );
   const canvasWidth = tableWidth + margin * 2;
 
@@ -18865,11 +19045,7 @@ function drawRecordsPersonReportImage(data, range) {
   scratchContext.font = "24px Arial";
   const layoutOptions = { lineHeight, cellPadding, minRowHeight };
 
-  const dailyRows = data.daily.map((item) => ({
-    dia: getControlWeekdayInfo(item.fecha).letter,
-    fecha: formatDisplayDate(item.fecha),
-    horas: formatRecordHours(item.horas),
-  }));
+  const dailyRows = flattenPersonReportBreakdown(data);
   const detailRows = data.detailRows.map((row) => ({
     fecha: formatDisplayDate(row.fecha),
     puesto: row.puesto,
@@ -18879,8 +19055,8 @@ function drawRecordsPersonReportImage(data, range) {
     tipoHora: row.tipoHora,
     situacion: row.situacion,
   }));
-  const puestoRows = data.byPuesto.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) }));
-  const tipoHoraRows = data.byTipoHora.map((item) => ({ label: item.label, horas: formatRecordHours(item.horas) }));
+  const pngSummary = getPersonReportSummaryRows(data);
+  const summaryRows = [...pngSummary.rows, pngSummary.total];
   const bolsaRows = [
     ...(data.bolsaEntrada ? [{ label: "Metidas en la bolsa", horas: formatRecordHours(data.bolsaEntrada) }] : []),
     ...(data.bolsaSalida ? [{ label: "Sacadas de la bolsa", horas: formatRecordHours(data.bolsaSalida) }] : []),
@@ -18888,8 +19064,7 @@ function drawRecordsPersonReportImage(data, range) {
 
   const dailyLayouts = layoutCanvasTableRows(scratchContext, dailyColumns, dailyRows, layoutOptions);
   const detailLayouts = layoutCanvasTableRows(scratchContext, detailColumns, detailRows, layoutOptions);
-  const puestoLayouts = layoutCanvasTableRows(scratchContext, puestoColumns, puestoRows, layoutOptions);
-  const tipoHoraLayouts = layoutCanvasTableRows(scratchContext, tipoHoraColumns, tipoHoraRows, layoutOptions);
+  const summaryLayouts = layoutCanvasTableRows(scratchContext, summaryColumns, summaryRows, layoutOptions);
   const bolsaLayouts = hasBolsa
     ? layoutCanvasTableRows(scratchContext, bolsaColumns, bolsaRows, layoutOptions)
     : [];
@@ -18899,10 +19074,9 @@ function drawRecordsPersonReportImage(data, range) {
 
   const canvasHeight =
     titleHeight +
-    sectionHeight(dailyLayouts, true) +
-    sectionHeight(detailLayouts, false) +
-    sectionHeight(puestoLayouts, true) +
-    sectionHeight(tipoHoraLayouts, true) +
+    (show("daily") ? sectionHeight(dailyLayouts, true) : 0) +
+    (show("detail") ? sectionHeight(detailLayouts, false) : 0) +
+    (show("summary") ? sectionHeight(summaryLayouts, false) : 0) +
     (hasBolsa ? sectionHeight(bolsaLayouts, false) : 0) +
     footerHeight;
 
@@ -18928,7 +19102,7 @@ function drawRecordsPersonReportImage(data, range) {
 
   let y = titleHeight;
   const sectionDefaults = { x: margin, headerHeight, cellPadding, lineHeight };
-  y = drawCanvasTableSection(context, {
+  if (show("daily")) y = drawCanvasTableSection(context, {
     ...sectionDefaults,
     y,
     title: "Horas diarias",
@@ -18936,31 +19110,21 @@ function drawRecordsPersonReportImage(data, range) {
     rowLayouts: dailyLayouts,
     totalLabel: "Total",
     totalValue: formatRecordHours(data.totalHoras),
+    valueColumnKey: "totalDia",
   });
-  y = drawCanvasTableSection(context, {
+  if (show("detail")) y = drawCanvasTableSection(context, {
     ...sectionDefaults,
     y,
     title: "Detalle",
     columns: detailColumns,
     rowLayouts: detailLayouts,
   });
-  y = drawCanvasTableSection(context, {
+  if (show("summary")) y = drawCanvasTableSection(context, {
     ...sectionDefaults,
     y,
-    title: "Resumen por puesto",
-    columns: puestoColumns,
-    rowLayouts: puestoLayouts,
-    totalLabel: "Total",
-    totalValue: formatRecordHours(data.totalHoras),
-  });
-  y = drawCanvasTableSection(context, {
-    ...sectionDefaults,
-    y,
-    title: "Resumen por tipo de hora",
-    columns: tipoHoraColumns,
-    rowLayouts: tipoHoraLayouts,
-    totalLabel: "Total",
-    totalValue: formatRecordHours(data.totalHoras),
+    title: "Resumen",
+    columns: summaryColumns,
+    rowLayouts: summaryLayouts,
   });
   if (hasBolsa) {
     y = drawCanvasTableSection(context, {
@@ -18980,12 +19144,12 @@ function drawRecordsPersonReportImage(data, range) {
 }
 
 // La imagen se dibuja al pulsar Copiar/Descargar, a partir del informe abierto en el panel.
-function buildRecordsPersonReportImage() {
+function buildRecordsPersonReportImage(only = null) {
   if (!recordsPersonReportPayload) {
     throw new Error("Abre primero el informe individual.");
   }
   const { data, range } = recordsPersonReportPayload;
-  currentRecordsPersonReportImageCanvas = drawRecordsPersonReportImage(data, range);
+  currentRecordsPersonReportImageCanvas = drawRecordsPersonReportImage(data, range, only);
   currentRecordsPersonReportImageFileName = getRecordsPersonReportImageFileName(
     data.personName,
     range.from,
@@ -18993,9 +19157,9 @@ function buildRecordsPersonReportImage() {
   );
 }
 
-async function copyRecordsPersonReportImageToClipboard() {
+async function copyRecordsPersonReportImageToClipboard(only = null) {
   try {
-    buildRecordsPersonReportImage();
+    buildRecordsPersonReportImage(only);
     if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
       throw new Error("El navegador no permite copiar imagenes al portapapeles.");
     }
@@ -19228,7 +19392,6 @@ const recordsPersonReportContent = document.querySelector("#records-person-repor
 const recordsPersonReportCloseButton = document.querySelector("#records-person-report-close-button");
 const recordsPersonReportCsvButton = document.querySelector("#records-person-report-csv-button");
 const recordsPersonReportPdfButton = document.querySelector("#records-person-report-pdf-button");
-const copyRecordsPersonReportImageButton = document.querySelector("#copy-records-person-report-image-button");
 const downloadRecordsPersonReportImageButton = document.querySelector(
   "#download-records-person-report-image-button"
 );
@@ -37180,6 +37343,33 @@ async function init() {
     else recordsCompareSelected.delete(id);
     updateRecordsCompareSelectionUi();
   });
+  recordsCompareControlContent?.addEventListener("click", (event) => {
+    const pencil = event.target.closest("[data-record-time-edit]");
+    if (pencil) startRecordTimeEdit(pencil.dataset.recordTimeEdit);
+  });
+  recordsCompareControlContent?.addEventListener("dblclick", (event) => {
+    const cell = event.target.closest("[data-record-time]");
+    if (cell) startRecordTimeEdit(cell.dataset.recordTime);
+  });
+  recordsCompareControlContent?.addEventListener("keydown", (event) => {
+    const cell = event.target.closest?.("[data-record-time][data-editing]");
+    if (!cell) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void commitRecordTimeEdit(cell, { save: true });
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      void commitRecordTimeEdit(cell, { save: false });
+    }
+  });
+  // Guardado automático: al salir de los dos campos de hora se guarda lo escrito.
+  recordsCompareControlContent?.addEventListener("focusout", (event) => {
+    const cell = event.target.closest?.("[data-record-time][data-editing]");
+    if (!cell || cell.contains(event.relatedTarget)) return;
+    window.setTimeout(() => {
+      if (document.contains(cell)) void commitRecordTimeEdit(cell, { save: true });
+    }, 0);
+  });
   recordsCompareControlContent?.addEventListener("submit", (event) => {
     const form = event.target.closest("[data-compare-transfer-form]");
     if (!form) return;
@@ -37201,8 +37391,9 @@ async function init() {
   recordsPersonReportBackdrop?.addEventListener("click", closeRecordsPersonReport);
   recordsPersonReportCsvButton?.addEventListener("click", exportRecordsPersonReportCsv);
   recordsPersonReportPdfButton?.addEventListener("click", () => void exportRecordsPersonReportPdf());
-  copyRecordsPersonReportImageButton?.addEventListener("click", () => {
-    void copyRecordsPersonReportImageToClipboard();
+  recordsPersonReportContent?.addEventListener("click", (event) => {
+    const copyButton = event.target.closest("[data-person-report-copy]");
+    if (copyButton) void copyRecordsPersonReportImageToClipboard(copyButton.dataset.personReportCopy);
   });
   downloadRecordsPersonReportImageButton?.addEventListener("click", () => {
     void downloadRecordsPersonReportImage();

@@ -8811,3 +8811,39 @@ details[open] > .gestion-collapsible-header::before {
 .personal-reconocimientos-listado-table td {
   max-width: none;
 }
+
+.records-compare-edit {
+  margin-left: 4px;
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  color: var(--muted-color, #667085);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.records-compare-edit:hover { color: #1d4ed8; }
+.records-compare-time { cursor: text; }
+
+.records-compare-time[data-editing] input[type="time"] {
+  width: 5.6rem;
+  padding: 1px 3px;
+  font-size: 0.78rem;
+}
+
+.records-person-report-day-row td[rowspan] {
+  vertical-align: middle;
+  border-right: 1px solid var(--line, #e5e7eb);
+}
+
+.records-person-report-day-row .records-person-report-day-total {
+  font-weight: 700;
+}
+
+.records-person-report-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
