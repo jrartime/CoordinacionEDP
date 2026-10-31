@@ -508,7 +508,7 @@ begin
         and r.fecha >= v_desde and r.fecha <= v_hasta
         and (s.situacion in ('NORM','SUST') or (s.situacion = 'FEST' and th.tipo_hora = 'FTRAB'))),
     h.jornada, h.jornada_maxima, h.coeficiente_temporalidad_miles,
-    public.horas_teoricas_jornada(v_desde, v_hasta, h.jornada),
+    public.horas_teoricas_jornada_con_permisos(h.personal_id, v_desde, v_hasta, h.jornada),
     h.modalidad_pago_id,
     (select mp.modalidad_pago from public.historiales_laborales_modalidades_pago mp
       where mp.id = h.modalidad_pago_id),

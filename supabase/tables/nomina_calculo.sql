@@ -854,7 +854,8 @@ begin
   -- con la bolsa (situacion VAC, 6 dias librados con la bolsa) = 132,5 h de
   -- jornada, todo dentro de v_horas_reg.
   v_horas_jornada := v_horas_reg + v_horas_pnr;
-  v_horas_teoricas := public.horas_teoricas_jornada(v_desde, v_hasta, h.jornada);
+  -- Descuenta los permisos suspendidos, como v_dias (ver horas_teoricas_permisos.sql).
+  v_horas_teoricas := public.horas_teoricas_jornada_con_permisos(h.personal_id, v_desde, v_hasta, h.jornada);
   v_valor_jornada := v_base * (1 + v_extras / 12.0);
   if coalesce(v_horas_teoricas, 0) > 0 then
     v_precio_jornada := v_valor_jornada / v_horas_teoricas;
