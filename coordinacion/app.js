@@ -1276,6 +1276,7 @@ const recordsOverlapButton = document.querySelector("#records-overlap-button");
 const recordsPeriodSummary = document.querySelector("#records-period-summary");
 const recordsPeriodSummaryValues = document.querySelector("#records-period-summary-values");
 const recordsPeriodSummaryTheoretical = document.querySelector("#records-period-summary-theoretical");
+const recordsAusenciasSummary = document.querySelector("#records-ausencias-summary");
 const recordsCompareControlButton = document.querySelector("#records-compare-control-button");
 const recordsCompareControlBackdrop = document.querySelector("#records-compare-control-backdrop");
 const recordsCompareControlPanel = document.querySelector("#records-compare-control-panel");
@@ -16610,6 +16611,327 @@ async function updateRecordsPeriodSummary() {
   }
 }
 
+// --- Bajas y permisos de la persona filtrada en Registros ---
+// Con una persona elegida, enseña bajo los botones de la barra solo lo que esa
+// persona tiene ACTIVO en el periodo filtrado (sin fechas, hoy): sus bajas médicas
+// y permisos (excedencia, maternidad, lactancia...) y un aviso si en los registros
+// cargados hay días IT/LG que ninguno cubre. Pulsando cualquier etiqueta se abre un
+// almanaque con todo su historial (ver openRecordsAusenciasPanel).
+const RECORDS_AUSENCIAS_MAX_CHIPS = 8;
+const RECORDS_AUSENCIAS_FETCH_LIMIT = 300;
+const recordsAusenciasCache = new Map();
+let recordsAusenciasRequestToken = 0;
+
+async function fetchPersonalAusencias(personalId, desde, hasta) {
+  const key = `${personalId}|${desde}|${hasta}`;
+  if (recordsAusenciasCache.has(key)) return recordsAusenciasCache.get(key);
+  const supabase = await getSupabaseClient();
+  const solape = (query) => {
+    let result = query.eq("personal_id", Number(personalId));
+    if (hasta) result = result.lte("fecha_inicio", hasta);
+    if (desde) result = result.or(`fecha_fin.is.null,fecha_fin.gte.${desde}`);
+    return result.order("fecha_inicio", { ascending: true }).limit(RECORDS_AUSENCIAS_FETCH_LIMIT);
+  };
+  const [bajas, permisos] = await Promise.all([
+    solape(supabase.from(BAJAS_DETAIL_VIEW).select("id,tipo,fecha_inicio,fecha_fin,en_curso,proceso")),
+    solape(
+      supabase
+        .from(PERMISOS_DETAIL_VIEW)
+        .select("id,tipo,categoria,tratamiento_nomina,fecha_inicio,fecha_fin,en_curso")
+    ),
+  ]);
+  if (bajas.error) throw bajas.error;
+  if (permisos.error) throw permisos.error;
+  const result = { bajas: bajas.data ?? [], permisos: permisos.data ?? [] };
+  recordsAusenciasCache.set(key, result);
+  return result;
+}
+
+function formatAusenciaRange(inicio, fin) {
+  return fin
+    ? `${formatDisplayDate(inicio)}–${formatDisplayDate(fin)}`
+    : `desde ${formatDisplayDate(inicio)} (en curso)`;
+}
+
+function ausenciaCubreDia(item, fecha) {
+  return item.fecha_inicio <= fecha && (!item.fecha_fin || item.fecha_fin >= fecha);
+}
+
+function ausenciaSolapaPeriodo(item, desde, hasta) {
+  return (!hasta || item.fecha_inicio <= hasta) && (!item.fecha_fin || !desde || item.fecha_fin >= desde);
+}
+
+function toIsoLocalDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+async function updateRecordsAusenciasSummary() {
+  if (!recordsAusenciasSummary) return;
+  const filters = getRecordsFilterValues();
+  const token = ++recordsAusenciasRequestToken;
+  if (!filters.personalId) {
+    recordsAusenciasSummary.classList.add("hidden");
+    recordsAusenciasSummary.innerHTML = "";
+    return;
+  }
+
+  // Periodo filtrado; sin fechas, lo que está activo hoy.
+  const hoy = toIsoLocalDate(new Date());
+  const desde = filters.fechaDesde || filters.fechaHasta || hoy;
+  const hasta = filters.fechaHasta || (filters.fechaDesde ? "" : hoy);
+
+  // Para saber si un día IT/LG está cubierto hay que mirar bajas y permisos de todo
+  // el tramo de registros cargados, no solo los del periodo.
+  const filasPersona = filteredRecordsRows.filter(
+    (row) => String(row.personal_id) === String(filters.personalId) && row.fecha
+  );
+  const fechasFilas = filasPersona.map((row) => String(row.fecha).slice(0, 10)).sort();
+  const spanDesde = [desde, fechasFilas[0]].filter(Boolean).sort()[0];
+  const spanHasta = hasta
+    ? [hasta, fechasFilas[fechasFilas.length - 1]].filter(Boolean).sort().pop()
+    : "";
+
+  let data;
+  try {
+    data = await fetchPersonalAusencias(filters.personalId, spanDesde, spanHasta);
+  } catch (error) {
+    if (token === recordsAusenciasRequestToken) recordsAusenciasSummary.classList.add("hidden");
+    console.warn("No se pudieron cargar las bajas y permisos de la persona:", error);
+    return;
+  }
+  if (token !== recordsAusenciasRequestToken) return;
+
+  const cubierto = (fecha, items) => items.some((item) => ausenciaCubreDia(item, fecha));
+  const diasIT = new Set();
+  const diasLG = new Set();
+  for (const row of filasPersona) {
+    const fecha = String(row.fecha).slice(0, 10);
+    if (row.situacion === "IT" && !cubierto(fecha, data.bajas)) diasIT.add(fecha);
+    if (row.situacion === "LG" && !cubierto(fecha, data.bajas) && !cubierto(fecha, data.permisos)) diasLG.add(fecha);
+  }
+
+  const chips = [
+    ...data.bajas
+      .filter((baja) => ausenciaSolapaPeriodo(baja, desde, hasta))
+      .map((baja) => ({
+        clase: "is-baja",
+        texto: `Baja · ${baja.tipo || "sin tipo"} · ${formatAusenciaRange(baja.fecha_inicio, baja.fecha_fin)}`,
+        titulo: `Baja médica: ${baja.tipo || "sin tipo"}. Pulsa para ver el calendario completo.`,
+        inicio: baja.fecha_inicio,
+      })),
+    ...data.permisos
+      .filter((permiso) => ausenciaSolapaPeriodo(permiso, desde, hasta))
+      .map((permiso) => {
+        const suspende = permiso.tratamiento_nomina === "suspendido";
+        return {
+          clase: suspende ? "is-suspendido" : "",
+          texto: `${permiso.tipo || "Permiso"} · ${formatAusenciaRange(permiso.fecha_inicio, permiso.fecha_fin)}`,
+          titulo: `Permiso: ${permiso.tipo || ""}${permiso.categoria ? ` (${permiso.categoria})` : ""}${
+            suspende ? " · suspende el contrato: sin nómina mientras dura" : ""
+          }. Pulsa para ver el calendario completo.`,
+          inicio: permiso.fecha_inicio,
+        };
+      }),
+  ].sort((a, b) => String(a.inicio).localeCompare(String(b.inicio)));
+
+  const avisos = [];
+  if (diasIT.size) {
+    const dias = [...diasIT].sort();
+    avisos.push({
+      clase: "is-aviso",
+      texto: `⚠ ${diasIT.size} ${diasIT.size === 1 ? "día" : "días"} IT sin baja médica`,
+      titulo: `Días IT en los registros cargados que ninguna baja cubre: ${dias.map(formatDisplayDate).join(", ")}`,
+      inicio: dias[0],
+    });
+  }
+  if (diasLG.size) {
+    const dias = [...diasLG].sort();
+    avisos.push({
+      clase: "is-aviso",
+      texto: `⚠ ${diasLG.size} ${diasLG.size === 1 ? "día" : "días"} LG sin baja ni permiso`,
+      titulo: `Días LG en los registros cargados que ningún permiso ni baja cubre: ${dias.map(formatDisplayDate).join(", ")}`,
+      inicio: dias[0],
+    });
+  }
+
+  const visibles = chips.slice(0, RECORDS_AUSENCIAS_MAX_CHIPS);
+  const resto = chips.slice(RECORDS_AUSENCIAS_MAX_CHIPS);
+  const todos = [
+    ...avisos,
+    ...visibles,
+    ...(resto.length
+      ? [{ clase: "", texto: `+${resto.length} más`, titulo: resto.map((item) => item.texto).join("\n"), inicio: resto[0].inicio }]
+      : []),
+    { clase: "is-calendario", texto: "📅 Calendario", titulo: "Ver todas sus bajas y permisos en un calendario", inicio: "" },
+  ];
+  recordsAusenciasSummary.innerHTML = todos
+    .map(
+      (chip) =>
+        `<button type="button" class="records-ausencia-chip ${chip.clase}" data-ausencia-focus="${escapeHtml(
+          chip.inicio || ""
+        )}" title="${escapeHtml(chip.titulo || chip.texto)}">${escapeHtml(chip.texto)}</button>`
+    )
+    .join("");
+  recordsAusenciasSummary.classList.remove("hidden");
+}
+
+// --- Almanaque de bajas y permisos ---
+const recordsAusenciasPanel = document.querySelector("#records-ausencias-panel");
+const recordsAusenciasBackdrop = document.querySelector("#records-ausencias-backdrop");
+const recordsAusenciasTitle = document.querySelector("#records-ausencias-title");
+const closeRecordsAusenciasButton = document.querySelector("#close-records-ausencias-button");
+const ausenciasPrevButton = document.querySelector("#ausencias-prev");
+const ausenciasNextButton = document.querySelector("#ausencias-next");
+const ausenciasYearLabel = document.querySelector("#ausencias-year");
+const ausenciasCalendar = document.querySelector("#ausencias-calendar");
+const ausenciasList = document.querySelector("#ausencias-list");
+
+// dias: año -> { it: Set, lg: Set } con los días IT/LG que tiene en Registros.
+let ausenciasState = null;
+
+async function loadAusenciasYear(year) {
+  if (!ausenciasState || ausenciasState.dias.has(year)) return;
+  const supabase = await getSupabaseClient();
+  const it = new Set();
+  const lg = new Set();
+  const pageSize = 1000;
+  for (let page = 0; page < 6; page += 1) {
+    const { data, error } = await supabase
+      .from("registros_detalle")
+      .select("fecha,situacion")
+      .eq("personal_id", Number(ausenciasState.personalId))
+      .in("situacion", ["IT", "LG"])
+      .gte("fecha", `${year}-01-01`)
+      .lte("fecha", `${year}-12-31`)
+      .order("fecha", { ascending: true })
+      .range(page * pageSize, page * pageSize + pageSize - 1);
+    if (error) throw error;
+    for (const row of data ?? []) {
+      (row.situacion === "IT" ? it : lg).add(String(row.fecha).slice(0, 10));
+    }
+    if ((data ?? []).length < pageSize) break;
+  }
+  ausenciasState.dias.set(year, { it, lg });
+}
+
+function renderAusenciasCalendar() {
+  if (!ausenciasState || !ausenciasCalendar) return;
+  const { year, bajas, permisos, focus } = ausenciasState;
+  const dias = ausenciasState.dias.get(year) ?? { it: new Set(), lg: new Set() };
+  const hoy = toIsoLocalDate(new Date());
+  if (ausenciasYearLabel) ausenciasYearLabel.textContent = String(year);
+
+  const semana = ["L", "M", "X", "J", "V", "S", "D"]
+    .map((letra) => `<span class="ausencias-weekday">${letra}</span>`)
+    .join("");
+  const meses = [];
+  for (let mes = 0; mes < 12; mes += 1) {
+    const nombre = new Date(year, mes, 1).toLocaleDateString("es-ES", { month: "long" });
+    const hueco = (new Date(year, mes, 1).getDay() + 6) % 7;
+    const diasMes = new Date(year, mes + 1, 0).getDate();
+    let celdas = "<span></span>".repeat(hueco);
+    for (let dia = 1; dia <= diasMes; dia += 1) {
+      const fecha = `${year}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+      const bajasDia = bajas.filter((item) => ausenciaCubreDia(item, fecha));
+      const permisosDia = permisos.filter((item) => ausenciaCubreDia(item, fecha));
+      const clases = ["ausencias-day"];
+      if (bajasDia.length) clases.push("is-baja");
+      else if (permisosDia.some((item) => item.tratamiento_nomina === "suspendido")) clases.push("is-suspendido");
+      else if (permisosDia.length) clases.push("is-permiso");
+      const finde = (hueco + dia - 1) % 7 >= 5;
+      if (finde) clases.push("is-weekend");
+      if (fecha === hoy) clases.push("is-hoy");
+      if (fecha === focus) clases.push("is-enfocado");
+
+      const lineas = [
+        ...bajasDia.map((item) => `Baja: ${item.tipo || "sin tipo"} (${formatAusenciaRange(item.fecha_inicio, item.fecha_fin)})`),
+        ...permisosDia.map((item) => `${item.tipo || "Permiso"} (${formatAusenciaRange(item.fecha_inicio, item.fecha_fin)})`),
+      ];
+      let punto = "";
+      if (dias.it.has(fecha)) {
+        const sinBaja = !bajasDia.length;
+        punto = `<i class="ausencias-dot${sinBaja ? " is-uncovered" : ""}"></i>`;
+        lineas.push(sinBaja ? "IT en Registros SIN baja médica" : "IT en Registros");
+      } else if (dias.lg.has(fecha)) {
+        const sinNada = !bajasDia.length && !permisosDia.length;
+        punto = `<i class="ausencias-dot${sinNada ? " is-uncovered" : ""}"></i>`;
+        lineas.push(sinNada ? "LG en Registros SIN baja ni permiso" : "LG en Registros");
+      }
+      const titulo = [formatDisplayDate(fecha), ...lineas].join("\n");
+      celdas += `<span class="${clases.join(" ")}" title="${escapeHtml(titulo)}">${dia}${punto}</span>`;
+    }
+    meses.push(
+      `<div class="ausencias-month"><h4>${escapeHtml(nombre)}</h4><div class="ausencias-month-days">${semana}${celdas}</div></div>`
+    );
+  }
+  ausenciasCalendar.innerHTML = meses.join("");
+
+  if (ausenciasList) {
+    const items = [
+      ...bajas.map((item) => ({ ...item, clase: "is-baja", etiqueta: `Baja · ${item.tipo || "sin tipo"}` })),
+      ...permisos.map((item) => ({
+        ...item,
+        clase: item.tratamiento_nomina === "suspendido" ? "is-suspendido" : "is-permiso",
+        etiqueta: item.tipo || "Permiso",
+      })),
+    ].sort((a, b) => String(a.fecha_inicio).localeCompare(String(b.fecha_inicio)));
+    ausenciasList.innerHTML = items.length
+      ? items
+          .map(
+            (item) =>
+              `<button type="button" class="ausencias-list-item" data-ausencia-inicio="${escapeHtml(item.fecha_inicio)}">` +
+              `<i class="ausencias-swatch ${item.clase}"></i><strong>${escapeHtml(item.etiqueta)}</strong>` +
+              `<span>${escapeHtml(formatAusenciaRange(item.fecha_inicio, item.fecha_fin))}</span>` +
+              `${item.proceso ? `<span>proceso ${escapeHtml(item.proceso)}</span>` : ""}</button>`
+          )
+          .join("")
+      : '<p class="empty-state">Esta persona no tiene bajas ni permisos registrados.</p>';
+  }
+}
+
+async function showAusenciasYear(year, focus = null) {
+  if (!ausenciasState) return;
+  ausenciasState.year = year;
+  ausenciasState.focus = focus;
+  renderAusenciasCalendar();
+  try {
+    await loadAusenciasYear(year);
+  } catch (error) {
+    console.warn("No se pudieron cargar los días IT/LG del año:", error);
+  }
+  if (ausenciasState?.year === year) renderAusenciasCalendar();
+}
+
+async function openRecordsAusenciasPanel(focusDate = "") {
+  const filters = getRecordsFilterValues();
+  if (!filters.personalId || !recordsAusenciasPanel) return;
+  try {
+    const data = await fetchPersonalAusencias(filters.personalId, "", "");
+    const nombre =
+      document.querySelector("#records-filter-personal-input")?.value?.trim() || `Persona ${filters.personalId}`;
+    ausenciasState = {
+      personalId: filters.personalId,
+      nombre,
+      bajas: data.bajas,
+      permisos: data.permisos,
+      dias: new Map(),
+      year: new Date().getFullYear(),
+      focus: null,
+    };
+    if (recordsAusenciasTitle) recordsAusenciasTitle.textContent = `Calendario · ${nombre}`;
+    recordsAusenciasPanel.classList.remove("hidden");
+    const referencia = focusDate || filters.fechaDesde || toIsoLocalDate(new Date());
+    await showAusenciasYear(Number(referencia.slice(0, 4)), focusDate || null);
+  } catch (error) {
+    setStatus(`No se pudo abrir el calendario de bajas y permisos: ${error.message}`, "error");
+  }
+}
+
+function closeRecordsAusenciasPanel() {
+  recordsAusenciasPanel?.classList.add("hidden");
+  ausenciasState = null;
+}
+
 function buildRecordsSummaryText(rows) {
   const n = rows.length;
   let horas = 0;
@@ -16650,6 +16972,7 @@ function renderRecordsTable() {
   }
   updateRecordsOverlapButton();
   void updateRecordsPeriodSummary();
+  void updateRecordsAusenciasSummary();
 
   const listColumns = getRecordsListColumns();
   const editable = Boolean(recordsEditModeInput?.checked);
@@ -19963,6 +20286,12 @@ async function applyRecordsBulkAssignment() {
     }
     await loadRecords();
     clearRecordsBulkSelection();
+    if (changesSituacion) {
+      void offerBajaIfIT(
+        matches.filter((row) => String(row.situacion_id ?? "") !== String(newValue ?? "")),
+        newValue
+      );
+    }
     const resumen = `${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}.`;
     setStatus(
       situacionDestinoSinHoras
@@ -20143,6 +20472,13 @@ async function saveRecordPatch(recordId, patch) {
   }
 
   updateRecordRowsLocally(recordId, finalPatch);
+  if (
+    row &&
+    Object.prototype.hasOwnProperty.call(finalPatch, "situacion_id") &&
+    String(row.situacion_id ?? "") !== String(finalPatch.situacion_id ?? "")
+  ) {
+    void offerBajaIfIT([{ personal_id: row.personal_id, personal: row.personal, fecha: row.fecha }], finalPatch.situacion_id);
+  }
   // El trigger trg_registro_ftrab_factor (registros_ftrab_factor.sql) aplica el
   // x1,75 al festivo trabajado en base: si la fila es o era FTRAB y cambia el
   // horario, las horas locales quedarían sin recargo hasta recargar.
@@ -31957,7 +32293,7 @@ async function applyHistorialBulkAssignment() {
 const BAJAS_TABLE = "personal_bajas";
 const BAJAS_DETAIL_VIEW = "personal_bajas_detalle";
 const BAJAS_DETAIL_SELECT =
-  "id,personal_id,personal,dni,tipo_id,tipo,sin_nomina_empresa,lugar_id,lugar,fecha_inicio,fecha_fin,dias,en_curso,con_parte_baja,ingreso_hospitalario,observacion";
+  "id,personal_id,personal,dni,tipo_id,tipo,sin_nomina_empresa,lugar_id,lugar,fecha_inicio,fecha_fin,dias,en_curso,con_parte_baja,ingreso_hospitalario,observacion,proceso,fecha_hecho_causante,recaida,motivo_alta";
 const PERMISOS_TABLE = "personal_permisos";
 const PERMISOS_DETAIL_VIEW = "personal_permisos_detalle";
 const PERMISOS_DETAIL_SELECT =
@@ -31986,8 +32322,23 @@ const bajasDetailFechaFin = document.querySelector("#bajas-detail-fecha-fin");
 const bajasDetailConParteBaja = document.querySelector("#bajas-detail-con-parte-baja");
 const bajasDetailIngresoHospitalario = document.querySelector("#bajas-detail-ingreso-hospitalario");
 const bajasDetailObservacion = document.querySelector("#bajas-detail-observacion");
+const bajasDetailProceso = document.querySelector("#bajas-detail-proceso");
+const bajasDetailFechaHechoCausante = document.querySelector("#bajas-detail-fecha-hecho-causante");
+const bajasDetailRecaida = document.querySelector("#bajas-detail-recaida");
+const bajasDetailMotivoAlta = document.querySelector("#bajas-detail-motivo-alta");
 const bajasDeleteButton = document.querySelector("#bajas-delete-button");
 const bajasCancelButton = document.querySelector("#bajas-cancel-button");
+const bajasPanelAviso = document.querySelector("#bajas-panel-aviso");
+const bajasCotejoButton = document.querySelector("#bajas-cotejo-button");
+const bajasCotejoPanel = document.querySelector("#bajas-cotejo-panel");
+const bajasCotejoPanelBackdrop = document.querySelector("#bajas-cotejo-panel-backdrop");
+const closeBajasCotejoPanelButton = document.querySelector("#close-bajas-cotejo-panel-button");
+const bajasCotejoForm = document.querySelector("#bajas-cotejo-form");
+const bajasCotejoDesde = document.querySelector("#bajas-cotejo-desde");
+const bajasCotejoHasta = document.querySelector("#bajas-cotejo-hasta");
+const bajasCotejoCategoria = document.querySelector("#bajas-cotejo-categoria");
+const bajasCotejoSummary = document.querySelector("#bajas-cotejo-summary");
+const bajasCotejoTableBody = document.querySelector("#bajas-cotejo-table-body");
 
 const permisosFiltersForm = document.querySelector("#permisos-filters-form");
 const permisosSummary = document.querySelector("#permisos-summary");
@@ -32489,6 +32840,162 @@ function renderPermisosTable(rows) {
     .join("");
 }
 
+// Cotejo de bajas contra Registros (get_bajas_cotejo, supabase/tables/bajas_cotejo.sql).
+// Solo lectura: el RPC enumera diferencias entre personal_bajas y los días IT/LG de
+// registros; nada se corrige desde aquí.
+const BAJAS_COTEJO_CATEGORIAS = {
+  it_sin_baja: "Días IT sin baja",
+  lg_sin_cobertura: "Días LG sin baja ni permiso",
+  baja_sin_registros: "Baja sin días IT/LG",
+  trabajo_en_baja: "Trabajo dentro de una baja",
+  bajas_solapadas: "Bajas solapadas",
+};
+// Texto que sale al poner el ratón sobre una fila: qué significa la diferencia y
+// por dónde empezar a corregirla.
+const BAJAS_COTEJO_AYUDA = {
+  it_sin_baja:
+    "Hay días marcados IT en Registros y ninguna baja los cubre. Crea la baja que falta o corrige la situación de esos registros.",
+  lg_sin_cobertura:
+    "Hay días marcados LG en Registros y ninguna baja ni permiso los cubre. Falta la baja, el permiso o la excedencia que lo explique.",
+  baja_sin_registros:
+    "La baja no tiene ningún día IT/LG en Registros dentro de su rango. Puede ser correcto si la persona no tenía actividad programada esos días; si no, faltan marcarlos.",
+  trabajo_en_baja:
+    "Hay registros de trabajo (NORM/SUST) dentro del rango de la baja. O las fechas de la baja no son las reales, o esos registros están mal marcados.",
+  bajas_solapadas:
+    "Dos bajas de la misma persona se pisan. Normalmente una está duplicada o una fecha de fin está mal.",
+};
+let bajasCotejoRows = [];
+
+function openBajasCotejoPanel() {
+  const filters = getBajasFilterValues();
+  const today = new Date();
+  const yearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+  const toIso = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  if (bajasCotejoDesde && !bajasCotejoDesde.value) {
+    bajasCotejoDesde.value = filters.fechaDesde || toIso(yearAgo);
+  }
+  // Registros ya trae los días programados por delante: más allá de hoy el cotejo
+  // contaría como "trabajo dentro de una baja" turnos que aún no han ocurrido.
+  if (bajasCotejoHasta) {
+    bajasCotejoHasta.max = toIso(today);
+    if (!bajasCotejoHasta.value) {
+      const wanted = filters.fechaHasta || toIso(today);
+      bajasCotejoHasta.value = wanted > toIso(today) ? toIso(today) : wanted;
+    }
+  }
+  bajasCotejoPanel?.classList.remove("hidden");
+}
+
+function closeBajasCotejoPanel() {
+  bajasCotejoPanel?.classList.add("hidden");
+}
+
+function renderBajasCotejo() {
+  if (!bajasCotejoTableBody) return;
+  const categoria = bajasCotejoCategoria?.value || "";
+  const rows = categoria ? bajasCotejoRows.filter((row) => row.categoria === categoria) : bajasCotejoRows;
+  if (bajasCotejoSummary) {
+    const counts = Object.entries(BAJAS_COTEJO_CATEGORIAS)
+      .map(([key, label]) => [label, bajasCotejoRows.filter((row) => row.categoria === key).length])
+      .filter(([, count]) => count > 0)
+      .map(([label, count]) => `${label}: ${count}`);
+    bajasCotejoSummary.textContent = counts.length
+      ? counts.join(" · ")
+      : "Todo cuadra en este periodo.";
+  }
+  if (!rows.length) {
+    bajasCotejoTableBody.innerHTML =
+      '<tr><td colspan="7" class="empty-state">No hay diferencias que mostrar.</td></tr>';
+    return;
+  }
+  bajasCotejoTableBody.innerHTML = rows
+    .map((row) => {
+      const cells = [
+        BAJAS_COTEJO_CATEGORIAS[row.categoria] || row.categoria,
+        row.personal || `ID ${row.personal_id}`,
+        formatDisplayDate(row.fecha_desde),
+        row.fecha_hasta ? formatDisplayDate(row.fecha_hasta) : "En curso",
+        row.dias ?? "",
+        row.detalle || "",
+      ];
+      const dataCells = cells.map((value) => `<td>${escapeHtml(String(value ?? ""))}</td>`).join("");
+      const actionCell = row.baja_id
+        ? `<td class="records-row-actions"><button type="button" class="compact-button" data-bajas-cotejo-baja="${escapeHtml(
+            row.baja_id
+          )}" title="Abrir la baja" aria-label="Abrir la baja">&#9998;</button></td>`
+        : "<td></td>";
+      const periodo = row.fecha_hasta
+        ? `${formatDisplayDate(row.fecha_desde)} – ${formatDisplayDate(row.fecha_hasta)}`
+        : `desde ${formatDisplayDate(row.fecha_desde)} (en curso)`;
+      const tooltip = [
+        `${BAJAS_COTEJO_CATEGORIAS[row.categoria] || row.categoria} · ${row.personal || `ID ${row.personal_id}`}`,
+        `Periodo: ${periodo}${row.dias != null ? ` (${row.dias} días)` : ""}`,
+        row.detalle || "",
+        BAJAS_COTEJO_AYUDA[row.categoria] || "",
+        row.baja_id ? `Baja nº ${row.baja_id}: pulsa el lápiz para abrirla.` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      return `<tr title="${escapeHtml(tooltip)}">${dataCells}${actionCell}</tr>`;
+    })
+    .join("");
+}
+
+async function runBajasCotejo(event) {
+  event?.preventDefault();
+  const desde = bajasCotejoDesde?.value;
+  const hasta = bajasCotejoHasta?.value;
+  if (!desde || !hasta || desde > hasta) {
+    setStatus("Indica un periodo válido para cotejar (Desde no puede ser posterior a Hasta).", "error");
+    return;
+  }
+  if (bajasCotejoHasta?.max && hasta > bajasCotejoHasta.max) {
+    setStatus("El cotejo llega como mucho hasta hoy: los días posteriores aún no han ocurrido.", "error");
+    return;
+  }
+  if (bajasCotejoSummary) bajasCotejoSummary.textContent = "Cotejando...";
+  if (bajasCotejoTableBody) {
+    bajasCotejoTableBody.innerHTML = '<tr><td colspan="7" class="empty-state">Cotejando...</td></tr>';
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const personalId = getBajasFilterValues().personalId;
+    const { data, error } = await supabase.rpc("get_bajas_cotejo", {
+      p_desde: desde,
+      p_hasta: hasta,
+      p_personal_id: personalId ? Number(personalId) : null,
+    });
+    if (error) throw error;
+    bajasCotejoRows = data ?? [];
+    renderBajasCotejo();
+  } catch (error) {
+    bajasCotejoRows = [];
+    if (bajasCotejoSummary) bajasCotejoSummary.textContent = "No se pudo cotejar.";
+    if (bajasCotejoTableBody) {
+      bajasCotejoTableBody.innerHTML = `<tr><td colspan="7" class="empty-state">${escapeHtml(error.message)}</td></tr>`;
+    }
+    setStatus(`No se pudo cotejar las bajas: ${error.message}`, "error");
+  }
+}
+
+// La baja de una fila del cotejo puede no estar en la lista filtrada de Bajas
+// médicas, así que se pide por id y se abre el mismo panel de edición.
+async function openBajaFromCotejo(id) {
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase
+    .from(BAJAS_DETAIL_VIEW)
+    .select(BAJAS_DETAIL_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) {
+    setStatus(`No se pudo abrir la baja: ${error?.message || "no encontrada"}`, "error");
+    return;
+  }
+  closeBajasCotejoPanel();
+  await openBajasPanel(data);
+}
+
 async function loadBajas() {
   if (bajasSummary) bajasSummary.textContent = "Cargando bajas médicas...";
   if (bajasTableBody) {
@@ -32528,6 +33035,9 @@ async function loadBajas() {
 
     bajasRows = data ?? [];
     renderBajasTable(bajasRows);
+    // El resumen de bajas y permisos de Registros se cachea por persona y periodo.
+    recordsAusenciasCache.clear();
+    void updateRecordsAusenciasSummary();
     if (bajasSummary) {
       bajasSummary.textContent =
         bajasRows.length >= BAJAS_CONCILIACION_FETCH_LIMIT
@@ -32589,6 +33099,8 @@ async function loadPermisos() {
 
     permisosRows = data ?? [];
     renderPermisosTable(permisosRows);
+    recordsAusenciasCache.clear();
+    void updateRecordsAusenciasSummary();
     if (permisosSummary) {
       permisosSummary.textContent =
         permisosRows.length >= BAJAS_CONCILIACION_FETCH_LIMIT
@@ -32624,7 +33136,98 @@ function resetBajasForm() {
   clearPersonalPicker("bajas-detail");
   if (bajasDetailConParteBaja) bajasDetailConParteBaja.checked = true;
   bajasDeleteButton?.classList.add("hidden");
+  bajasPanelAviso?.classList.add("hidden");
   markFormPristine(bajasForm);
+}
+
+// --- Aviso al marcar IT en Registros ---
+// Marcar días como IT sin que exista una baja médica que los cubra deja el
+// expediente cojo (y la nómina sin saber que hay IT). Se abre el panel de la baja
+// ya rellenado, pero sin obligar: se puede cerrar sin guardar.
+let situacionITIdCache = null;
+
+async function getSituacionITId() {
+  if (situacionITIdCache != null) return situacionITIdCache;
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase.from("situaciones").select("id").eq("situacion", "IT").maybeSingle();
+  if (error) throw error;
+  situacionITIdCache = data?.id ?? -1;
+  return situacionITIdCache;
+}
+
+async function openBajasPanelForIT(grupo, otrasPersonas) {
+  // El panel vive dentro de la pestaña Bajas y permisos, que está oculta mientras
+  // se trabaja en Registros: se pasa al final del body para que se pueda mostrar
+  // desde cualquier pestaña (es un panel fixed, no depende de su contenedor).
+  if (bajasPanel && bajasPanel.parentElement !== document.body) {
+    document.body.appendChild(bajasPanel);
+  }
+  await openBajasPanel(null);
+  setPersonalPickerSelection("bajas-detail", String(grupo.personal_id), grupo.personal || "");
+  const inicio = grupo.sin[0];
+  const fin = grupo.sin[grupo.sin.length - 1];
+  if (bajasDetailFechaInicio) bajasDetailFechaInicio.value = inicio;
+  if (bajasDetailFechaFin) bajasDetailFechaFin.value = fin;
+  const comun = [...(bajasDetailTipoSelect?.options || [])].find((option) =>
+    /enfermedad com/i.test(option.textContent || ""));
+  if (comun && bajasDetailTipoSelect) bajasDetailTipoSelect.value = comun.value;
+  if (bajasPanelAviso) {
+    const dias = grupo.sin.length;
+    bajasPanelAviso.textContent =
+      `Has marcado ${dias} ${dias === 1 ? "día" : "días"} como IT` +
+      `${inicio === fin ? ` (${formatDisplayDate(inicio)})` : ` (${formatDisplayDate(inicio)} a ${formatDisplayDate(fin)})`}` +
+      ` y ${grupo.personal || "esta persona"} no tiene ninguna baja médica que los cubra. ` +
+      "Puedes añadirla ahora o cerrar este panel: no es obligatorio." +
+      (otrasPersonas
+        ? ` Hay ${otrasPersonas} ${otrasPersonas === 1 ? "persona más" : "personas más"} en la misma situación; revísalas con «Cotejar con Registros».`
+        : "");
+    bajasPanelAviso.classList.remove("hidden");
+  }
+  markFormPristine(bajasForm);
+}
+
+// rows: registros ya cambiados ({ personal_id, personal, fecha }). No hace nada si
+// la situación nueva no es IT o si todos los días ya los cubre alguna baja.
+async function offerBajaIfIT(rows, situacionId) {
+  try {
+    if (situacionId == null || !rows?.length) return;
+    if (Number(situacionId) !== (await getSituacionITId())) return;
+
+    const porPersona = new Map();
+    for (const row of rows) {
+      if (!row?.personal_id || !row.fecha) continue;
+      const key = String(row.personal_id);
+      if (!porPersona.has(key)) {
+        porPersona.set(key, { personal_id: row.personal_id, personal: row.personal || "", fechas: new Set() });
+      }
+      porPersona.get(key).fechas.add(String(row.fecha).slice(0, 10));
+    }
+    if (!porPersona.size) return;
+
+    const todas = rows.map((row) => String(row.fecha).slice(0, 10)).sort();
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from(BAJAS_TABLE)
+      .select("personal_id,fecha_inicio,fecha_fin")
+      .in("personal_id", [...porPersona.values()].map((item) => item.personal_id))
+      .lte("fecha_inicio", todas[todas.length - 1])
+      .or(`fecha_fin.is.null,fecha_fin.gte.${todas[0]}`);
+    if (error) throw error;
+
+    const sinBaja = [];
+    for (const item of porPersona.values()) {
+      const bajas = (data ?? []).filter((baja) => String(baja.personal_id) === String(item.personal_id));
+      const sin = [...item.fechas]
+        .sort()
+        .filter((fecha) => !bajas.some((baja) => baja.fecha_inicio <= fecha && (!baja.fecha_fin || baja.fecha_fin >= fecha)));
+      if (sin.length) sinBaja.push({ ...item, sin });
+    }
+    if (!sinBaja.length) return;
+    await openBajasPanelForIT(sinBaja[0], sinBaja.length - 1);
+  } catch (error) {
+    // Es un aviso de cortesía: un fallo aquí no debe estropear el cambio ya guardado.
+    console.warn("No se pudo comprobar la baja médica de los días IT:", error);
+  }
 }
 
 function fillBajasForm(row) {
@@ -32642,6 +33245,10 @@ function fillBajasForm(row) {
   if (bajasDetailConParteBaja) bajasDetailConParteBaja.checked = Boolean(row.con_parte_baja);
   if (bajasDetailIngresoHospitalario) bajasDetailIngresoHospitalario.checked = Boolean(row.ingreso_hospitalario);
   if (bajasDetailObservacion) bajasDetailObservacion.value = row.observacion || "";
+  if (bajasDetailProceso) bajasDetailProceso.value = row.proceso || "";
+  if (bajasDetailFechaHechoCausante) bajasDetailFechaHechoCausante.value = row.fecha_hecho_causante || "";
+  if (bajasDetailRecaida) bajasDetailRecaida.value = row.recaida == null ? "" : String(row.recaida);
+  if (bajasDetailMotivoAlta) bajasDetailMotivoAlta.value = row.motivo_alta || "";
 }
 
 async function openBajasPanel(row = null) {
@@ -32683,9 +33290,21 @@ async function saveBajas(event) {
     con_parte_baja: Boolean(bajasDetailConParteBaja?.checked),
     ingreso_hospitalario: Boolean(bajasDetailIngresoHospitalario?.checked),
     observacion: bajasDetailObservacion?.value?.trim() || null,
+    proceso: bajasDetailProceso?.value?.trim() || null,
+    fecha_hecho_causante: bajasDetailFechaHechoCausante?.value || null,
+    recaida: bajasDetailRecaida?.value ? bajasDetailRecaida.value === "true" : null,
+    motivo_alta: bajasDetailMotivoAlta?.value || null,
   };
 
   clearPanelFormValidationError(bajasForm);
+  if (payload.fecha_hecho_causante && payload.fecha_inicio && payload.fecha_hecho_causante > payload.fecha_inicio) {
+    showPanelFormValidationError(
+      bajasForm,
+      "la fecha del accidente no puede ser posterior a la fecha de inicio de la baja.",
+      bajasDetailFechaHechoCausante
+    );
+    return false;
+  }
   if (!payload.personal_id || !payload.tipo_id || !payload.fecha_inicio) {
     showPanelFormValidationError(
       bajasForm,
@@ -32714,7 +33333,14 @@ async function saveBajas(event) {
     : await supabase.from(BAJAS_TABLE).insert(payload).select("id").single();
 
   if (result.error) {
-    showPanelFormValidationError(bajasForm, result.error.message || "no se pudo guardar la baja.");
+    const duplicatedProceso = String(result.error.message || "").includes("personal_bajas_proceso_uidx");
+    showPanelFormValidationError(
+      bajasForm,
+      duplicatedProceso
+        ? "ya existe otra baja con ese número de proceso."
+        : result.error.message || "no se pudo guardar la baja.",
+      duplicatedProceso ? bajasDetailProceso : undefined
+    );
     return false;
   }
 
@@ -36228,7 +36854,37 @@ async function init() {
   bajasRefreshButton?.addEventListener("click", () => {
     void loadBajas();
   });
+  // Almanaque de bajas y permisos (Registros): etiquetas, cierre, año y lista.
+  recordsAusenciasSummary?.addEventListener("click", (event) => {
+    const chip = event.target.closest("[data-ausencia-focus]");
+    if (chip) void openRecordsAusenciasPanel(chip.dataset.ausenciaFocus || "");
+  });
+  closeRecordsAusenciasButton?.addEventListener("click", () => closeRecordsAusenciasPanel());
+  recordsAusenciasBackdrop?.addEventListener("click", () => closeRecordsAusenciasPanel());
+  ausenciasPrevButton?.addEventListener("click", () => {
+    if (ausenciasState) void showAusenciasYear(ausenciasState.year - 1);
+  });
+  ausenciasNextButton?.addEventListener("click", () => {
+    if (ausenciasState) void showAusenciasYear(ausenciasState.year + 1);
+  });
+  ausenciasList?.addEventListener("click", (event) => {
+    const inicio = event.target.closest("[data-ausencia-inicio]")?.dataset.ausenciaInicio;
+    if (inicio && ausenciasState) {
+      void showAusenciasYear(Number(inicio.slice(0, 4)), inicio);
+      ausenciasCalendar?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  });
+
   bajasNewButton?.addEventListener("click", () => void openBajasPanel());
+  bajasCotejoButton?.addEventListener("click", () => openBajasCotejoPanel());
+  closeBajasCotejoPanelButton?.addEventListener("click", () => closeBajasCotejoPanel());
+  bajasCotejoPanelBackdrop?.addEventListener("click", () => closeBajasCotejoPanel());
+  bajasCotejoForm?.addEventListener("submit", (event) => void runBajasCotejo(event));
+  bajasCotejoCategoria?.addEventListener("change", () => renderBajasCotejo());
+  bajasCotejoTableBody?.addEventListener("click", (event) => {
+    const id = event.target.closest("[data-bajas-cotejo-baja]")?.dataset.bajasCotejoBaja;
+    if (id) void openBajaFromCotejo(id);
+  });
   closeBajasPanelButton?.addEventListener("click", () => {
     void closeBajasPanel();
   });

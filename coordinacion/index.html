@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261030-2" />
+    <link rel="stylesheet" href="./styles.css?v=20261031-3" />
   </head>
   <body>
     <script>
@@ -965,6 +965,7 @@
                     <div id="records-period-summary-values" class="records-period-summary-values"></div>
                     <p id="records-period-summary-theoretical" class="records-period-summary-theoretical"></p>
                   </div>
+                  <div class="records-actions-column">
                   <div class="results-actions">
                     <button
                       id="records-compare-control-button"
@@ -991,7 +992,38 @@
                       Informe individual
                     </button>
                   </div>
+                  <div id="records-ausencias-summary" class="records-ausencias-summary hidden" aria-live="polite"></div>
+                  </div>
                 </div>
+
+                <section id="records-ausencias-panel" class="detail-panel hidden">
+                  <div id="records-ausencias-backdrop" class="detail-overlay"></div>
+                  <aside class="detail-drawer records-ausencias-drawer">
+                    <div class="detail-header">
+                      <div>
+                        <p class="eyebrow">Bajas y permisos</p>
+                        <h3 id="records-ausencias-title">Calendario</h3>
+                      </div>
+                      <button id="close-records-ausencias-button" type="button" class="secondary-button">
+                        Cerrar
+                      </button>
+                    </div>
+                    <div class="ausencias-controls">
+                      <button id="ausencias-prev" type="button" class="secondary-button compact-button" aria-label="Año anterior">&#9664;</button>
+                      <strong id="ausencias-year"></strong>
+                      <button id="ausencias-next" type="button" class="secondary-button compact-button" aria-label="Año siguiente">&#9654;</button>
+                      <div class="ausencias-legend">
+                        <span><i class="ausencias-swatch is-baja"></i>Baja médica</span>
+                        <span><i class="ausencias-swatch is-suspendido"></i>Permiso que suspende el contrato</span>
+                        <span><i class="ausencias-swatch is-permiso"></i>Otro permiso</span>
+                        <span><i class="ausencias-dot"></i>IT/LG en Registros</span>
+                        <span><i class="ausencias-dot is-uncovered"></i>sin baja ni permiso</span>
+                      </div>
+                    </div>
+                    <div id="ausencias-calendar" class="ausencias-year-grid"></div>
+                    <div id="ausencias-list" class="ausencias-list"></div>
+                  </aside>
+                </section>
 
                 <div id="records-compare-control-backdrop" class="panel-backdrop hidden"></div>
                 <aside
@@ -1824,6 +1856,14 @@
                     <button id="bajas-new-button" type="button" title="Añadir baja">
                       + Añadir
                     </button>
+                    <button
+                      id="bajas-cotejo-button"
+                      type="button"
+                      class="secondary-button"
+                      title="Cruza las bajas con los días IT/LG de Registros y enseña lo que no cuadra"
+                    >
+                      Cotejar con Registros
+                    </button>
                     <button id="bajas-refresh-button" type="button" class="secondary-button">Actualizar</button>
                   </div>
                 </div>
@@ -1950,6 +1990,7 @@
                     </button>
                   </div>
 
+                  <p id="bajas-panel-aviso" class="muted-text bajas-panel-aviso hidden"></p>
                   <form id="bajas-form" class="form-grid">
                     <input id="bajas-id" type="hidden" />
                     <fieldset class="detail-form-section full-width">
@@ -2013,6 +2054,32 @@
                           <input id="bajas-detail-ingreso-hospitalario" type="checkbox" />
                           <span>Ingreso hospitalario</span>
                         </label>
+                        <label>
+                          Nº de proceso (mutua)
+                          <input id="bajas-detail-proceso" type="text" maxlength="40" placeholder="2026/473958" />
+                        </label>
+                        <label title="Solo para accidente de trabajo: el día del accidente, que puede ser anterior al de la baja médica">
+                          Fecha del accidente
+                          <input id="bajas-detail-fecha-hecho-causante" type="date" />
+                        </label>
+                        <label>
+                          Recaída
+                          <select id="bajas-detail-recaida">
+                            <option value="">No consta</option>
+                            <option value="true">Sí</option>
+                            <option value="false">No</option>
+                          </select>
+                        </label>
+                        <label>
+                          Motivo del alta
+                          <select id="bajas-detail-motivo-alta">
+                            <option value="">Sin especificar</option>
+                            <option value="mejora">Mejora que permite trabajar</option>
+                            <option value="curacion">Curación</option>
+                            <option value="cese_temporal">Cese temporal</option>
+                            <option value="resolucion">Resolución</option>
+                          </select>
+                        </label>
                         <label class="full-width">
                           Observación
                           <textarea id="bajas-detail-observacion" rows="3"></textarea>
@@ -2033,6 +2100,82 @@
                       <button id="bajas-save-button" type="submit">Guardar baja</button>
                     </div>
                   </form>
+                </aside>
+              </section>
+
+              <section id="bajas-cotejo-panel" class="detail-panel hidden">
+                <div id="bajas-cotejo-panel-backdrop" class="detail-overlay"></div>
+                <aside class="detail-drawer">
+                  <div class="detail-header">
+                    <div>
+                      <p class="eyebrow">Bajas médicas</p>
+                      <h3>Cotejo con Registros</h3>
+                    </div>
+                    <button id="close-bajas-cotejo-panel-button" type="button" class="secondary-button">
+                      Cerrar
+                    </button>
+                  </div>
+
+                  <div class="detail-form-sections full-width">
+                    <fieldset class="detail-form-section full-width">
+                      <legend>Periodo</legend>
+                      <p class="muted-text">
+                        Compara el expediente de bajas con los días marcados IT/LG en Registros. Solo
+                        enseña diferencias, no cambia ningún dato. Registros solo tiene los días con
+                        actividad programada, así que los días sueltos se agrupan en tramos.
+                      </p>
+                      <form id="bajas-cotejo-form" class="detail-form-section-grid">
+                        <label>
+                          Desde
+                          <input id="bajas-cotejo-desde" type="date" required />
+                        </label>
+                        <label>
+                          Hasta
+                          <input id="bajas-cotejo-hasta" type="date" required />
+                        </label>
+                        <label>
+                          Mostrar
+                          <select id="bajas-cotejo-categoria">
+                            <option value="">Todo</option>
+                            <option value="it_sin_baja">Días IT sin baja</option>
+                            <option value="lg_sin_cobertura">Días LG sin baja ni permiso</option>
+                            <option value="baja_sin_registros">Bajas sin días IT/LG</option>
+                            <option value="trabajo_en_baja">Trabajo dentro de una baja</option>
+                            <option value="bajas_solapadas">Bajas solapadas</option>
+                          </select>
+                        </label>
+                        <div class="detail-actions full-width">
+                          <button id="bajas-cotejo-run" type="submit">Cotejar</button>
+                        </div>
+                      </form>
+                      <p class="muted-text">
+                        La persona se toma del filtro de personal de Bajas médicas, si está puesto.
+                      </p>
+                    </fieldset>
+
+                    <fieldset class="detail-form-section full-width">
+                      <legend>Resultado</legend>
+                      <p id="bajas-cotejo-summary" class="summary-chip" style="white-space: normal">Sin cotejar todavía.</p>
+                      <div class="table-wrapper records-table-wrapper">
+                        <table class="records-table">
+                          <thead>
+                            <tr>
+                              <th>Tipo de diferencia</th>
+                              <th>Personal</th>
+                              <th>Desde</th>
+                              <th>Hasta</th>
+                              <th>Días</th>
+                              <th>Detalle</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody id="bajas-cotejo-table-body">
+                            <tr><td colspan="7" class="empty-state">Pulsa Cotejar.</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </fieldset>
+                  </div>
                 </aside>
               </section>
               </div>
@@ -10683,6 +10826,6 @@
     <script src="./facturacion.js?v=20261006-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./app.js?v=20261030-3" defer></script>
+    <script src="./app.js?v=20261031-4" defer></script>
   </body>
 </html>

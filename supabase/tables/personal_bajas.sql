@@ -137,6 +137,32 @@ before update on public.personal_bajas
 for each row
 execute function public.set_personal_bajas_updated_at();
 
+-- Datos de la mutua (UMIVALE), añadidos el 31/10/2026 al cotejar sus bajas con
+-- el panel. Aplicado en Portal Laboral (esquema coordinacion); la migración
+-- original de las 81 bajas que coincidían está descrita en la memoria
+-- nominas-incapacidad-transitoria-pendiente.
+--   proceso               nº de proceso de la mutua (único), p. ej. 2026/473958
+--   fecha_hecho_causante  fecha del accidente (solo AT); fecha_inicio es la baja médica
+--   recaida               null = no consta
+--   motivo_alta           mejora | curacion | cese_temporal | resolucion
+alter table public.personal_bajas
+  add column if not exists proceso text,
+  add column if not exists fecha_hecho_causante date,
+  add column if not exists recaida boolean,
+  add column if not exists motivo_alta text;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'personal_bajas_motivo_alta_check') then
+    alter table public.personal_bajas
+      add constraint personal_bajas_motivo_alta_check
+      check (motivo_alta is null or motivo_alta in ('mejora', 'curacion', 'cese_temporal', 'resolucion'));
+  end if;
+end $$;
+
+create unique index if not exists personal_bajas_proceso_uidx
+  on public.personal_bajas (proceso) where proceso is not null;
+
 drop view if exists public.personal_bajas_detalle;
 
 create or replace view public.personal_bajas_detalle as
@@ -161,7 +187,11 @@ select
   b.ingreso_hospitalario,
   b.observacion,
   b.created_at,
-  b.updated_at
+  b.updated_at,
+  b.proceso,
+  b.fecha_hecho_causante,
+  b.recaida,
+  b.motivo_alta
 from public.personal_bajas b
 left join public.personal p
   on p.id = b.personal_id
