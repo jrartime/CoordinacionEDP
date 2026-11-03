@@ -29378,7 +29378,8 @@ function buildHistorialReportPlaceholders({ historialRow, company, personal, act
       .map((row) => String(row.puesto || "").trim())
       .filter(Boolean)
   ));
-  const puesto = activityPuestos.join(", ");
+  // Sin actividades en el periodo, el puesto es el del propio periodo.
+  const puesto = activityPuestos.join(", ") || String(historialRow.puesto || historialRow.puesto_texto || "").trim();
   const horarios = historialRow.horarios || activities
     .map((row) => [describeHistorialActivitySchedule(row), row.instalacion].filter(Boolean).join(" "))
     .filter(Boolean)
