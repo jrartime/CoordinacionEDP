@@ -769,7 +769,7 @@ const PERSONAL_FIELDS = [
   { key: "cuenta_corriente", label: "Cuenta corriente", type: "text", confidential: true, group: "economico" },
   { key: "prorrateo_pagas", label: "Prorrateo pagas", type: "boolean", confidential: true, group: "economico" },
   { key: "num_pagas_extra", label: "Num. pagas extra", type: "integer", confidential: true, group: "economico" },
-  { key: "irpf", label: "IRPF", type: "numeric", confidential: true, group: "economico" },
+  { key: "irpf", label: "IRPF (%)", type: "percent", confidential: true, group: "economico" },
   { key: "carpeta", label: "Carpeta", type: "text", group: "otros" },
   { key: "observacion", label: "Observacion", type: "textarea", group: "otros" },
 ];
@@ -997,6 +997,77 @@ const CONTROL_HORARIO_HEADERS = [
   "tipo_jornada",
   "observacion",
 ];
+
+// Porcentajes. En la base son fracciones (0,21 = 21 %); en pantalla se escriben y se leen como
+// porcentaje (21), con el «%» pegado al campo. La conversión es siempre ×100 / ÷100, sin adivinar
+// la intención de quien escribe: un valor menor que 1 sólo genera un aviso (ver más abajo).
+function roundDecimals(value, decimals) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function fractionToPercentText(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  const number = Number(value);
+  return Number.isFinite(number) ? String(roundDecimals(number * 100, 6)) : "";
+}
+
+function percentTextToFraction(text) {
+  const cleaned = String(text ?? "").trim().replace(/%/g, "").replace(",", ".");
+  if (!cleaned) {
+    return null;
+  }
+  const number = Number(cleaned);
+  return Number.isFinite(number) ? roundDecimals(number / 100, 8) : null;
+}
+
+function formatPercentDisplay(value) {
+  const text = fractionToPercentText(value);
+  return text ? `${Number(text).toLocaleString("es-ES", { maximumFractionDigits: 6 })} %` : "";
+}
+
+function renderPercentInputHtml({ name, value = "", attributes = "" }) {
+  return `<span class="pct-input"><input name="${escapeHtml(name)}" type="number" step="any" min="0" inputmode="decimal" data-percent value="${escapeHtml(
+    value
+  )}"${attributes} /><span class="pct-input__suffix" aria-hidden="true">%</span></span>`;
+}
+
+// Un 0,21 escrito en un campo de porcentaje se guardaría como 0,21 % (no como 21 %): se avisa
+// junto al campo, sin impedir guardar, porque 0,5 % puede ser un valor correcto.
+function updatePercentInputHint(input) {
+  const anchor = input.closest(".pct-input") ?? input;
+  let hint = anchor.nextElementSibling?.classList.contains("pct-input__hint") ? anchor.nextElementSibling : null;
+  const number = Number(String(input.value ?? "").replace(",", "."));
+  const suspicious = Number.isFinite(number) && number > 0 && number < 1;
+  anchor.classList.toggle("pct-input--warn", suspicious);
+  if (!suspicious) {
+    hint?.remove();
+    return;
+  }
+  if (!hint) {
+    hint = document.createElement("small");
+    hint.className = "pct-input__hint";
+    anchor.insertAdjacentElement("afterend", hint);
+  }
+  const asText = (n) => `${n.toLocaleString("es-ES", { maximumFractionDigits: 6 })} %`;
+  hint.textContent = `Se guardará ${asText(number)}. ¿Querías ${asText(roundDecimals(number * 100, 6))}?`;
+}
+
+function clearPercentInputHint(input) {
+  const anchor = input.closest(".pct-input") ?? input;
+  anchor.classList.remove("pct-input--warn");
+  if (anchor.nextElementSibling?.classList.contains("pct-input__hint")) {
+    anchor.nextElementSibling.remove();
+  }
+}
+
+document.addEventListener("change", (event) => {
+  if (event.target instanceof HTMLInputElement && event.target.matches("input[data-percent]")) {
+    updatePercentInputHint(event.target);
+  }
+});
 
 const config = window.APP_CONFIG ?? {};
 const supabaseConfig = config.supabase ?? {};
@@ -1276,6 +1347,7 @@ const recordsOverlapButton = document.querySelector("#records-overlap-button");
 const recordsPeriodSummary = document.querySelector("#records-period-summary");
 const recordsPeriodSummaryValues = document.querySelector("#records-period-summary-values");
 const recordsPeriodSummaryTheoretical = document.querySelector("#records-period-summary-theoretical");
+const recordsAusenciasSummary = document.querySelector("#records-ausencias-summary");
 const recordsCompareControlButton = document.querySelector("#records-compare-control-button");
 const recordsCompareControlBackdrop = document.querySelector("#records-compare-control-backdrop");
 const recordsCompareControlPanel = document.querySelector("#records-compare-control-panel");
@@ -2051,7 +2123,7 @@ const CONTRACT_BULK_FIELDS = {
   cliente: { label: "Cliente", type: "text" },
   expediente: { label: "Expediente", type: "text" },
   importe: { label: "Importe", type: "text" },
-  iva: { label: "IVA", type: "number" },
+  iva: { label: "IVA (%)", type: "percent" },
   cpv: { label: "CPV", type: "text" },
   agrupacion_nomina: { label: "Agrupación nómina", type: "text" },
   descripcion: { label: "Descripción", type: "text" },
@@ -12024,6 +12096,15 @@ function renderPersonalFieldControl(field) {
     `;
   }
 
+  if (field.type === "percent") {
+    return `
+    <label>
+      ${escapeHtml(field.label)}
+      ${renderPercentInputHtml({ name: field.key, attributes: ` disabled${required}` })}
+    </label>
+  `;
+  }
+
   const inputType =
     field.type === "integer" || field.type === "numeric"
       ? "number"
@@ -12222,6 +12303,7 @@ function clearPersonalForm() {
       input.checked = false;
     } else {
       input.value = "";
+      clearPercentInputHint(input);
     }
   });
 }
@@ -12391,6 +12473,9 @@ function fillPersonalForm(row) {
       input.value = formatNullableDate(value);
     } else if (field.key === "cuenta_corriente") {
       input.value = formatAccountNumber(value);
+    } else if (field.type === "percent") {
+      input.value = fractionToPercentText(value);
+      clearPercentInputHint(input);
     } else {
       input.value = value ?? "";
     }
@@ -12999,6 +13084,10 @@ function collectPersonalPayload() {
     }
     if (field.type === "numeric") {
       payload[field.key] = Number(rawValue.replace(",", "."));
+      return;
+    }
+    if (field.type === "percent") {
+      payload[field.key] = percentTextToFraction(rawValue);
       return;
     }
     payload[field.key] = rawValue;
@@ -13916,7 +14005,9 @@ function getContractBulkControlValue(kind = "current") {
     return kind === "new" ? contractsBulkNewBoolSelect?.value || "false" : contractsBulkCurrentBoolSelect?.value || "false";
   }
 
-  return kind === "new" ? contractsBulkNewValueInput?.value || "" : contractsBulkCurrentValueInput?.value || "";
+  const rawValue = kind === "new" ? contractsBulkNewValueInput?.value || "" : contractsBulkCurrentValueInput?.value || "";
+  // Los porcentajes se escriben como 21 y se comparan y guardan como fracción (0,21).
+  return config.type === "percent" ? String(percentTextToFraction(rawValue) ?? "") : rawValue;
 }
 
 function normalizeContractBulkValue(value, config = getContractBulkFieldConfig()) {
@@ -13928,7 +14019,7 @@ function normalizeContractBulkValue(value, config = getContractBulkFieldConfig()
     return formatNullableDate(value);
   }
 
-  if (config.type === "number") {
+  if (config.type === "number" || config.type === "percent") {
     const text = String(value ?? "").trim().replace(",", ".");
     return text ? Number(text) : null;
   }
@@ -13943,6 +14034,10 @@ function formatContractBulkValue(value, config = getContractBulkFieldConfig()) {
 
   if (config.type === "date") {
     return formatDisplayDate(value) || "vacío";
+  }
+
+  if (config.type === "percent") {
+    return formatPercentDisplay(value) || "vacío";
   }
 
   return String(value ?? "").trim() || "vacío";
@@ -13974,10 +14069,17 @@ function syncContractsBulkAssignmentUi() {
   contractsBulkCurrentBoolSelect?.classList.toggle("hidden", !isBoolean);
   contractsBulkNewBoolSelect?.classList.toggle("hidden", !isBoolean);
   if (!isBoolean) {
-    contractsBulkCurrentValueInput.type = config.type === "number" ? "number" : config.type;
-    contractsBulkNewValueInput.type = config.type === "number" ? "number" : config.type;
-    contractsBulkCurrentValueInput.step = config.type === "number" ? "0.01" : "";
-    contractsBulkNewValueInput.step = config.type === "number" ? "0.01" : "";
+    const isPercent = config.type === "percent";
+    const inputType = config.type === "number" || isPercent ? "number" : config.type;
+    [contractsBulkCurrentValueInput, contractsBulkNewValueInput].forEach((input) => {
+      input.type = inputType;
+      input.step = isPercent ? "any" : config.type === "number" ? "0.01" : "";
+      input.placeholder = isPercent ? "% (p. ej. 21)" : "";
+      input.toggleAttribute("data-percent", isPercent);
+      if (!isPercent) {
+        clearPercentInputHint(input);
+      }
+    });
   }
 
   const matches = getContractBulkMatchingRows();
@@ -14005,7 +14107,7 @@ async function applyContractsBulkAssignment() {
 
   const currentValue = normalizeContractBulkValue(getContractBulkControlValue("current"), config);
   const newValue = normalizeContractBulkValue(getContractBulkControlValue("new"), config);
-  if (config.type === "number" && getContractBulkControlValue("new").trim() && !Number.isFinite(newValue)) {
+  if ((config.type === "number" || config.type === "percent") && getContractBulkControlValue("new").trim() && !Number.isFinite(newValue)) {
     setContractsStatus("Indica un valor numérico válido.", "error");
     return;
   }
@@ -14222,7 +14324,8 @@ function openContractDetailPanel(contractId = "") {
     contractDetailAmountInput.value = contract?.importe || "";
   }
   if (contractDetailVatInput) {
-    contractDetailVatInput.value = contract?.iva ?? "";
+    contractDetailVatInput.value = fractionToPercentText(contract?.iva);
+    clearPercentInputHint(contractDetailVatInput);
   }
   if (contractDetailActiveInput) {
     contractDetailActiveInput.checked = Boolean(contract?.activo);
@@ -14286,7 +14389,7 @@ function getContractPayload() {
     fecha_inicio: contractDetailStartInput?.value || null,
     fecha_fin: contractDetailEndInput?.value || null,
     importe: contractDetailAmountInput?.value.trim() || null,
-    iva: contractDetailVatInput?.value ? Number(contractDetailVatInput.value) : null,
+    iva: percentTextToFraction(contractDetailVatInput?.value),
     activo: Boolean(contractDetailActiveInput?.checked),
     tiene_nocturnidad: Boolean(contractDetailNightInput?.checked),
     nocturnidad_inicio: contractDetailNightStartInput?.value || "22:00",
@@ -16610,6 +16713,327 @@ async function updateRecordsPeriodSummary() {
   }
 }
 
+// --- Bajas y permisos de la persona filtrada en Registros ---
+// Con una persona elegida, enseña bajo los botones de la barra solo lo que esa
+// persona tiene ACTIVO en el periodo filtrado (sin fechas, hoy): sus bajas médicas
+// y permisos (excedencia, maternidad, lactancia...) y un aviso si en los registros
+// cargados hay días IT/LG que ninguno cubre. Pulsando cualquier etiqueta se abre un
+// almanaque con todo su historial (ver openRecordsAusenciasPanel).
+const RECORDS_AUSENCIAS_MAX_CHIPS = 8;
+const RECORDS_AUSENCIAS_FETCH_LIMIT = 300;
+const recordsAusenciasCache = new Map();
+let recordsAusenciasRequestToken = 0;
+
+async function fetchPersonalAusencias(personalId, desde, hasta) {
+  const key = `${personalId}|${desde}|${hasta}`;
+  if (recordsAusenciasCache.has(key)) return recordsAusenciasCache.get(key);
+  const supabase = await getSupabaseClient();
+  const solape = (query) => {
+    let result = query.eq("personal_id", Number(personalId));
+    if (hasta) result = result.lte("fecha_inicio", hasta);
+    if (desde) result = result.or(`fecha_fin.is.null,fecha_fin.gte.${desde}`);
+    return result.order("fecha_inicio", { ascending: true }).limit(RECORDS_AUSENCIAS_FETCH_LIMIT);
+  };
+  const [bajas, permisos] = await Promise.all([
+    solape(supabase.from(BAJAS_DETAIL_VIEW).select("id,tipo,fecha_inicio,fecha_fin,en_curso,proceso")),
+    solape(
+      supabase
+        .from(PERMISOS_DETAIL_VIEW)
+        .select("id,tipo,categoria,tratamiento_nomina,fecha_inicio,fecha_fin,en_curso")
+    ),
+  ]);
+  if (bajas.error) throw bajas.error;
+  if (permisos.error) throw permisos.error;
+  const result = { bajas: bajas.data ?? [], permisos: permisos.data ?? [] };
+  recordsAusenciasCache.set(key, result);
+  return result;
+}
+
+function formatAusenciaRange(inicio, fin) {
+  return fin
+    ? `${formatDisplayDate(inicio)}–${formatDisplayDate(fin)}`
+    : `desde ${formatDisplayDate(inicio)} (en curso)`;
+}
+
+function ausenciaCubreDia(item, fecha) {
+  return item.fecha_inicio <= fecha && (!item.fecha_fin || item.fecha_fin >= fecha);
+}
+
+function ausenciaSolapaPeriodo(item, desde, hasta) {
+  return (!hasta || item.fecha_inicio <= hasta) && (!item.fecha_fin || !desde || item.fecha_fin >= desde);
+}
+
+function toIsoLocalDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+async function updateRecordsAusenciasSummary() {
+  if (!recordsAusenciasSummary) return;
+  const filters = getRecordsFilterValues();
+  const token = ++recordsAusenciasRequestToken;
+  if (!filters.personalId) {
+    recordsAusenciasSummary.classList.add("hidden");
+    recordsAusenciasSummary.innerHTML = "";
+    return;
+  }
+
+  // Periodo filtrado; sin fechas, lo que está activo hoy.
+  const hoy = toIsoLocalDate(new Date());
+  const desde = filters.fechaDesde || filters.fechaHasta || hoy;
+  const hasta = filters.fechaHasta || (filters.fechaDesde ? "" : hoy);
+
+  // Para saber si un día IT/LG está cubierto hay que mirar bajas y permisos de todo
+  // el tramo de registros cargados, no solo los del periodo.
+  const filasPersona = filteredRecordsRows.filter(
+    (row) => String(row.personal_id) === String(filters.personalId) && row.fecha
+  );
+  const fechasFilas = filasPersona.map((row) => String(row.fecha).slice(0, 10)).sort();
+  const spanDesde = [desde, fechasFilas[0]].filter(Boolean).sort()[0];
+  const spanHasta = hasta
+    ? [hasta, fechasFilas[fechasFilas.length - 1]].filter(Boolean).sort().pop()
+    : "";
+
+  let data;
+  try {
+    data = await fetchPersonalAusencias(filters.personalId, spanDesde, spanHasta);
+  } catch (error) {
+    if (token === recordsAusenciasRequestToken) recordsAusenciasSummary.classList.add("hidden");
+    console.warn("No se pudieron cargar las bajas y permisos de la persona:", error);
+    return;
+  }
+  if (token !== recordsAusenciasRequestToken) return;
+
+  const cubierto = (fecha, items) => items.some((item) => ausenciaCubreDia(item, fecha));
+  const diasIT = new Set();
+  const diasLG = new Set();
+  for (const row of filasPersona) {
+    const fecha = String(row.fecha).slice(0, 10);
+    if (row.situacion === "IT" && !cubierto(fecha, data.bajas)) diasIT.add(fecha);
+    if (row.situacion === "LG" && !cubierto(fecha, data.bajas) && !cubierto(fecha, data.permisos)) diasLG.add(fecha);
+  }
+
+  const chips = [
+    ...data.bajas
+      .filter((baja) => ausenciaSolapaPeriodo(baja, desde, hasta))
+      .map((baja) => ({
+        clase: "is-baja",
+        texto: `Baja · ${baja.tipo || "sin tipo"} · ${formatAusenciaRange(baja.fecha_inicio, baja.fecha_fin)}`,
+        titulo: `Baja médica: ${baja.tipo || "sin tipo"}. Pulsa para ver el calendario completo.`,
+        inicio: baja.fecha_inicio,
+      })),
+    ...data.permisos
+      .filter((permiso) => ausenciaSolapaPeriodo(permiso, desde, hasta))
+      .map((permiso) => {
+        const suspende = permiso.tratamiento_nomina === "suspendido";
+        return {
+          clase: suspende ? "is-suspendido" : "",
+          texto: `${permiso.tipo || "Permiso"} · ${formatAusenciaRange(permiso.fecha_inicio, permiso.fecha_fin)}`,
+          titulo: `Permiso: ${permiso.tipo || ""}${permiso.categoria ? ` (${permiso.categoria})` : ""}${
+            suspende ? " · suspende el contrato: sin nómina mientras dura" : ""
+          }. Pulsa para ver el calendario completo.`,
+          inicio: permiso.fecha_inicio,
+        };
+      }),
+  ].sort((a, b) => String(a.inicio).localeCompare(String(b.inicio)));
+
+  const avisos = [];
+  if (diasIT.size) {
+    const dias = [...diasIT].sort();
+    avisos.push({
+      clase: "is-aviso",
+      texto: `⚠ ${diasIT.size} ${diasIT.size === 1 ? "día" : "días"} IT sin baja médica`,
+      titulo: `Días IT en los registros cargados que ninguna baja cubre: ${dias.map(formatDisplayDate).join(", ")}`,
+      inicio: dias[0],
+    });
+  }
+  if (diasLG.size) {
+    const dias = [...diasLG].sort();
+    avisos.push({
+      clase: "is-aviso",
+      texto: `⚠ ${diasLG.size} ${diasLG.size === 1 ? "día" : "días"} LG sin baja ni permiso`,
+      titulo: `Días LG en los registros cargados que ningún permiso ni baja cubre: ${dias.map(formatDisplayDate).join(", ")}`,
+      inicio: dias[0],
+    });
+  }
+
+  const visibles = chips.slice(0, RECORDS_AUSENCIAS_MAX_CHIPS);
+  const resto = chips.slice(RECORDS_AUSENCIAS_MAX_CHIPS);
+  const todos = [
+    ...avisos,
+    ...visibles,
+    ...(resto.length
+      ? [{ clase: "", texto: `+${resto.length} más`, titulo: resto.map((item) => item.texto).join("\n"), inicio: resto[0].inicio }]
+      : []),
+    { clase: "is-calendario", texto: "📅 Calendario", titulo: "Ver todas sus bajas y permisos en un calendario", inicio: "" },
+  ];
+  recordsAusenciasSummary.innerHTML = todos
+    .map(
+      (chip) =>
+        `<button type="button" class="records-ausencia-chip ${chip.clase}" data-ausencia-focus="${escapeHtml(
+          chip.inicio || ""
+        )}" title="${escapeHtml(chip.titulo || chip.texto)}">${escapeHtml(chip.texto)}</button>`
+    )
+    .join("");
+  recordsAusenciasSummary.classList.remove("hidden");
+}
+
+// --- Almanaque de bajas y permisos ---
+const recordsAusenciasPanel = document.querySelector("#records-ausencias-panel");
+const recordsAusenciasBackdrop = document.querySelector("#records-ausencias-backdrop");
+const recordsAusenciasTitle = document.querySelector("#records-ausencias-title");
+const closeRecordsAusenciasButton = document.querySelector("#close-records-ausencias-button");
+const ausenciasPrevButton = document.querySelector("#ausencias-prev");
+const ausenciasNextButton = document.querySelector("#ausencias-next");
+const ausenciasYearLabel = document.querySelector("#ausencias-year");
+const ausenciasCalendar = document.querySelector("#ausencias-calendar");
+const ausenciasList = document.querySelector("#ausencias-list");
+
+// dias: año -> { it: Set, lg: Set } con los días IT/LG que tiene en Registros.
+let ausenciasState = null;
+
+async function loadAusenciasYear(year) {
+  if (!ausenciasState || ausenciasState.dias.has(year)) return;
+  const supabase = await getSupabaseClient();
+  const it = new Set();
+  const lg = new Set();
+  const pageSize = 1000;
+  for (let page = 0; page < 6; page += 1) {
+    const { data, error } = await supabase
+      .from("registros_detalle")
+      .select("fecha,situacion")
+      .eq("personal_id", Number(ausenciasState.personalId))
+      .in("situacion", ["IT", "LG"])
+      .gte("fecha", `${year}-01-01`)
+      .lte("fecha", `${year}-12-31`)
+      .order("fecha", { ascending: true })
+      .range(page * pageSize, page * pageSize + pageSize - 1);
+    if (error) throw error;
+    for (const row of data ?? []) {
+      (row.situacion === "IT" ? it : lg).add(String(row.fecha).slice(0, 10));
+    }
+    if ((data ?? []).length < pageSize) break;
+  }
+  ausenciasState.dias.set(year, { it, lg });
+}
+
+function renderAusenciasCalendar() {
+  if (!ausenciasState || !ausenciasCalendar) return;
+  const { year, bajas, permisos, focus } = ausenciasState;
+  const dias = ausenciasState.dias.get(year) ?? { it: new Set(), lg: new Set() };
+  const hoy = toIsoLocalDate(new Date());
+  if (ausenciasYearLabel) ausenciasYearLabel.textContent = String(year);
+
+  const semana = ["L", "M", "X", "J", "V", "S", "D"]
+    .map((letra) => `<span class="ausencias-weekday">${letra}</span>`)
+    .join("");
+  const meses = [];
+  for (let mes = 0; mes < 12; mes += 1) {
+    const nombre = new Date(year, mes, 1).toLocaleDateString("es-ES", { month: "long" });
+    const hueco = (new Date(year, mes, 1).getDay() + 6) % 7;
+    const diasMes = new Date(year, mes + 1, 0).getDate();
+    let celdas = "<span></span>".repeat(hueco);
+    for (let dia = 1; dia <= diasMes; dia += 1) {
+      const fecha = `${year}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+      const bajasDia = bajas.filter((item) => ausenciaCubreDia(item, fecha));
+      const permisosDia = permisos.filter((item) => ausenciaCubreDia(item, fecha));
+      const clases = ["ausencias-day"];
+      if (bajasDia.length) clases.push("is-baja");
+      else if (permisosDia.some((item) => item.tratamiento_nomina === "suspendido")) clases.push("is-suspendido");
+      else if (permisosDia.length) clases.push("is-permiso");
+      const finde = (hueco + dia - 1) % 7 >= 5;
+      if (finde) clases.push("is-weekend");
+      if (fecha === hoy) clases.push("is-hoy");
+      if (fecha === focus) clases.push("is-enfocado");
+
+      const lineas = [
+        ...bajasDia.map((item) => `Baja: ${item.tipo || "sin tipo"} (${formatAusenciaRange(item.fecha_inicio, item.fecha_fin)})`),
+        ...permisosDia.map((item) => `${item.tipo || "Permiso"} (${formatAusenciaRange(item.fecha_inicio, item.fecha_fin)})`),
+      ];
+      let punto = "";
+      if (dias.it.has(fecha)) {
+        const sinBaja = !bajasDia.length;
+        punto = `<i class="ausencias-dot${sinBaja ? " is-uncovered" : ""}"></i>`;
+        lineas.push(sinBaja ? "IT en Registros SIN baja médica" : "IT en Registros");
+      } else if (dias.lg.has(fecha)) {
+        const sinNada = !bajasDia.length && !permisosDia.length;
+        punto = `<i class="ausencias-dot${sinNada ? " is-uncovered" : ""}"></i>`;
+        lineas.push(sinNada ? "LG en Registros SIN baja ni permiso" : "LG en Registros");
+      }
+      const titulo = [formatDisplayDate(fecha), ...lineas].join("\n");
+      celdas += `<span class="${clases.join(" ")}" title="${escapeHtml(titulo)}">${dia}${punto}</span>`;
+    }
+    meses.push(
+      `<div class="ausencias-month"><h4>${escapeHtml(nombre)}</h4><div class="ausencias-month-days">${semana}${celdas}</div></div>`
+    );
+  }
+  ausenciasCalendar.innerHTML = meses.join("");
+
+  if (ausenciasList) {
+    const items = [
+      ...bajas.map((item) => ({ ...item, clase: "is-baja", etiqueta: `Baja · ${item.tipo || "sin tipo"}` })),
+      ...permisos.map((item) => ({
+        ...item,
+        clase: item.tratamiento_nomina === "suspendido" ? "is-suspendido" : "is-permiso",
+        etiqueta: item.tipo || "Permiso",
+      })),
+    ].sort((a, b) => String(a.fecha_inicio).localeCompare(String(b.fecha_inicio)));
+    ausenciasList.innerHTML = items.length
+      ? items
+          .map(
+            (item) =>
+              `<button type="button" class="ausencias-list-item" data-ausencia-inicio="${escapeHtml(item.fecha_inicio)}">` +
+              `<i class="ausencias-swatch ${item.clase}"></i><strong>${escapeHtml(item.etiqueta)}</strong>` +
+              `<span>${escapeHtml(formatAusenciaRange(item.fecha_inicio, item.fecha_fin))}</span>` +
+              `${item.proceso ? `<span>proceso ${escapeHtml(item.proceso)}</span>` : ""}</button>`
+          )
+          .join("")
+      : '<p class="empty-state">Esta persona no tiene bajas ni permisos registrados.</p>';
+  }
+}
+
+async function showAusenciasYear(year, focus = null) {
+  if (!ausenciasState) return;
+  ausenciasState.year = year;
+  ausenciasState.focus = focus;
+  renderAusenciasCalendar();
+  try {
+    await loadAusenciasYear(year);
+  } catch (error) {
+    console.warn("No se pudieron cargar los días IT/LG del año:", error);
+  }
+  if (ausenciasState?.year === year) renderAusenciasCalendar();
+}
+
+async function openRecordsAusenciasPanel(focusDate = "") {
+  const filters = getRecordsFilterValues();
+  if (!filters.personalId || !recordsAusenciasPanel) return;
+  try {
+    const data = await fetchPersonalAusencias(filters.personalId, "", "");
+    const nombre =
+      document.querySelector("#records-filter-personal-input")?.value?.trim() || `Persona ${filters.personalId}`;
+    ausenciasState = {
+      personalId: filters.personalId,
+      nombre,
+      bajas: data.bajas,
+      permisos: data.permisos,
+      dias: new Map(),
+      year: new Date().getFullYear(),
+      focus: null,
+    };
+    if (recordsAusenciasTitle) recordsAusenciasTitle.textContent = `Calendario · ${nombre}`;
+    recordsAusenciasPanel.classList.remove("hidden");
+    const referencia = focusDate || filters.fechaDesde || toIsoLocalDate(new Date());
+    await showAusenciasYear(Number(referencia.slice(0, 4)), focusDate || null);
+  } catch (error) {
+    setStatus(`No se pudo abrir el calendario de bajas y permisos: ${error.message}`, "error");
+  }
+}
+
+function closeRecordsAusenciasPanel() {
+  recordsAusenciasPanel?.classList.add("hidden");
+  ausenciasState = null;
+}
+
 function buildRecordsSummaryText(rows) {
   const n = rows.length;
   let horas = 0;
@@ -16650,6 +17074,7 @@ function renderRecordsTable() {
   }
   updateRecordsOverlapButton();
   void updateRecordsPeriodSummary();
+  void updateRecordsAusenciasSummary();
 
   const listColumns = getRecordsListColumns();
   const editable = Boolean(recordsEditModeInput?.checked);
@@ -19547,7 +19972,10 @@ function getRecordBulkMatchingRows() {
   return filteredRecordsRows.filter((row) => normalizeRecordBulkValue(row[field], config) === currentValue);
 }
 
-function syncRecordsBulkUi() {
+// `resetValues: false` es para refrescar los catálogos tras recargar la tabla sin borrar lo que la
+// persona ya ha escrito: al elegir una fecha en «Valor actual» se filtra la lista, y esa recarga
+// vaciaba el campo, que volvía a filtrar y a recargar.
+function syncRecordsBulkUi({ resetValues = true } = {}) {
   const config = getRecordsBulkFieldConfig();
   const isSelect = config.type === "select" || config.type === "boolean";
 
@@ -19580,8 +20008,11 @@ function syncRecordsBulkUi() {
     }
   } else {
     const inputType = config.type === "date" ? "date" : config.type === "time" ? "time" : config.type === "number" ? "number" : "text";
-    if (recordsBulkCurrentValueInput) { recordsBulkCurrentValueInput.type = inputType; recordsBulkCurrentValueInput.value = ""; }
-    if (recordsBulkNewValueInput) { recordsBulkNewValueInput.type = inputType; recordsBulkNewValueInput.value = ""; }
+    [recordsBulkCurrentValueInput, recordsBulkNewValueInput].forEach((input) => {
+      if (!input) return;
+      if (input.type !== inputType) input.type = inputType;
+      if (resetValues) input.value = "";
+    });
   }
 
   updateRecordsBulkMatchCount();
@@ -19963,6 +20394,12 @@ async function applyRecordsBulkAssignment() {
     }
     await loadRecords();
     clearRecordsBulkSelection();
+    if (changesSituacion) {
+      void offerBajaIfIT(
+        matches.filter((row) => String(row.situacion_id ?? "") !== String(newValue ?? "")),
+        newValue
+      );
+    }
     const resumen = `${config.label} actualizado en ${matches.length} registro${matches.length !== 1 ? "s" : ""}.`;
     setStatus(
       situacionDestinoSinHoras
@@ -20060,7 +20497,7 @@ async function loadRecords({ force = false } = {}) {
     // Refresca también los catálogos de asignación masiva. Así, al pulsar
     // Actualizar, un contrato creado después de abrir la pestaña aparece sin
     // tener que cambiar de campo ni recargar toda la aplicación.
-    syncRecordsBulkUi();
+    syncRecordsBulkUi({ resetValues: false });
     // La tabla ya está pintada; las facetas (para los desplegables) pueden tardar
     // en el peor caso, así que se cargan después sin bloquear el render.
     await loadRecordsFacets(filters);
@@ -20143,6 +20580,13 @@ async function saveRecordPatch(recordId, patch) {
   }
 
   updateRecordRowsLocally(recordId, finalPatch);
+  if (
+    row &&
+    Object.prototype.hasOwnProperty.call(finalPatch, "situacion_id") &&
+    String(row.situacion_id ?? "") !== String(finalPatch.situacion_id ?? "")
+  ) {
+    void offerBajaIfIT([{ personal_id: row.personal_id, personal: row.personal, fecha: row.fecha }], finalPatch.situacion_id);
+  }
   // El trigger trg_registro_ftrab_factor (registros_ftrab_factor.sql) aplica el
   // x1,75 al festivo trabajado en base: si la fila es o era FTRAB y cambia el
   // horario, las horas locales quedarían sin recargo hasta recargar.
@@ -28095,10 +28539,10 @@ const HISTORIAL_FORM_FIELDS = [
   // Campo heredado de Access (1244 de 1245 periodos recientes lo tienen vacío): se oculta del formulario.
   { key: "movimiento", label: "Movimiento", type: "text", group: "contrato", hidden: true },
   { key: "grupo_cotizacion", label: "Grupo cotización", type: "number", group: "cotizacion", span: 60 },
-  { key: "cotizacion_comunes_pct", label: "Cot. comunes (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 54 },
-  { key: "cotizacion_mei_pct", label: "Cot. MEI (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 48 },
-  { key: "cotizacion_formacion_pct", label: "Cot. formación (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 57 },
-  { key: "cotizacion_desempleo_pct", label: "Cot. desempleo (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 68 },
+  { key: "cotizacion_comunes_pct", label: "Cot. comunes (%)", type: "percent", group: "cotizacion", span: 54 },
+  { key: "cotizacion_mei_pct", label: "Cot. MEI (%)", type: "percent", group: "cotizacion", span: 48 },
+  { key: "cotizacion_formacion_pct", label: "Cot. formación (%)", type: "percent", group: "cotizacion", span: 57 },
+  { key: "cotizacion_desempleo_pct", label: "Cot. desempleo (%)", type: "percent", group: "cotizacion", span: 68 },
   { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean", group: "salario", span: 82 },
   { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean", group: "salario", span: 84 },
   { key: "tiene_plus_transporte", label: "Plus transporte", type: "boolean", group: "salario", span: 60 },
@@ -28122,7 +28566,7 @@ const HISTORIAL_DETAIL_FIELD_GROUPS = [
   { key: "notas", label: "Notas" },
 ];
 const HISTORIAL_FIELD_BY_KEY = new Map(HISTORIAL_FORM_FIELDS.map((field) => [field.key, field]));
-const HISTORIAL_NUMERIC_TYPES = new Set(["number", "decimal", "relation"]);
+const HISTORIAL_NUMERIC_TYPES = new Set(["number", "decimal", "percent", "relation"]);
 
 const HISTORIAL_BULK_FIELDS = {
   empresa_id: { label: "Empresa", type: "relation", labelKey: "empresa" },
@@ -29042,7 +29486,8 @@ function buildHistorialReportPlaceholders({ historialRow, company, personal, act
       .map((row) => String(row.puesto || "").trim())
       .filter(Boolean)
   ));
-  const puesto = activityPuestos.join(", ");
+  // Sin actividades en el periodo, el puesto es el del propio periodo.
+  const puesto = activityPuestos.join(", ") || String(historialRow.puesto || historialRow.puesto_texto || "").trim();
   const horarios = historialRow.horarios || activities
     .map((row) => [describeHistorialActivitySchedule(row), row.instalacion].filter(Boolean).join(" "))
     .filter(Boolean)
@@ -29888,7 +30333,10 @@ function getHistorialImportChangedColumns(existingRow, importRow) {
     .map((column) => ({
       column,
       label: getHistorialImportFieldLabel(column),
-      value: normalizeHistorialImportComparable(importRow[column]),
+      value:
+        HISTORIAL_FIELD_BY_KEY.get(column)?.type === "percent"
+          ? formatPercentDisplay(importRow[column]) || normalizeHistorialImportComparable(importRow[column])
+          : normalizeHistorialImportComparable(importRow[column]),
       kind: isHistorialImportEmptyValue(existingRow?.[column]) ? "complete" : "update",
     }));
 }
@@ -30730,6 +31178,14 @@ function renderHistorialDetailFieldControlInner(field, row) {
     return `<label>${label}${renderHistorialRelationSelect(field, value, field.readonly)}</label>`;
   }
 
+  if (field.type === "percent") {
+    return `<label>${label}${renderPercentInputHtml({
+      name: field.key,
+      value: fractionToPercentText(value),
+      attributes: field.readonly ? " readonly" : "",
+    })}</label>`;
+  }
+
   const inputType =
     field.type === "date" ? "date" : HISTORIAL_NUMERIC_TYPES.has(field.type) ? "number" : "text";
   const step = field.type === "decimal" ? ` step="${field.step || "0.0001"}"` : "";
@@ -31002,7 +31458,9 @@ function collectHistorialDetailPayload({ full = false } = {}) {
       return;
     }
     const control = historialDetailForm.elements[field.key];
-    const rawValue = field.type === "boolean" ? Boolean(control?.checked) : formData.get(field.key);
+    const formValue = field.type === "boolean" ? Boolean(control?.checked) : formData.get(field.key);
+    // El formulario trae el porcentaje escrito (21); el resto del código trabaja con la fracción (0,21).
+    const rawValue = field.type === "percent" ? percentTextToFraction(formValue) : formValue;
     const nextValue = parseHistorialFieldValue(rawValue, field);
     if (full) {
       payload[field.key] = nextValue;
@@ -31286,7 +31744,8 @@ async function duplicateHistorialDetail() {
     HISTORIAL_FORM_FIELDS.forEach((field) => {
       if (field.readonly || field.hidden) return;
       const control = historialDetailForm?.elements[field.key];
-      const rawValue = field.type === "boolean" ? Boolean(control?.checked) : control?.value;
+      const formValue = field.type === "boolean" ? Boolean(control?.checked) : control?.value;
+      const rawValue = field.type === "percent" ? percentTextToFraction(formValue) : formValue;
       seed[field.key] = parseHistorialFieldValue(rawValue, field);
     });
     // Una copia sirve como base para un nuevo periodo, no como repetición de sus
@@ -31957,7 +32416,7 @@ async function applyHistorialBulkAssignment() {
 const BAJAS_TABLE = "personal_bajas";
 const BAJAS_DETAIL_VIEW = "personal_bajas_detalle";
 const BAJAS_DETAIL_SELECT =
-  "id,personal_id,personal,dni,tipo_id,tipo,sin_nomina_empresa,lugar_id,lugar,fecha_inicio,fecha_fin,dias,en_curso,con_parte_baja,ingreso_hospitalario,observacion";
+  "id,personal_id,personal,dni,tipo_id,tipo,sin_nomina_empresa,lugar_id,lugar,fecha_inicio,fecha_fin,dias,en_curso,con_parte_baja,ingreso_hospitalario,observacion,proceso,fecha_hecho_causante,recaida,motivo_alta";
 const PERMISOS_TABLE = "personal_permisos";
 const PERMISOS_DETAIL_VIEW = "personal_permisos_detalle";
 const PERMISOS_DETAIL_SELECT =
@@ -31986,8 +32445,23 @@ const bajasDetailFechaFin = document.querySelector("#bajas-detail-fecha-fin");
 const bajasDetailConParteBaja = document.querySelector("#bajas-detail-con-parte-baja");
 const bajasDetailIngresoHospitalario = document.querySelector("#bajas-detail-ingreso-hospitalario");
 const bajasDetailObservacion = document.querySelector("#bajas-detail-observacion");
+const bajasDetailProceso = document.querySelector("#bajas-detail-proceso");
+const bajasDetailFechaHechoCausante = document.querySelector("#bajas-detail-fecha-hecho-causante");
+const bajasDetailRecaida = document.querySelector("#bajas-detail-recaida");
+const bajasDetailMotivoAlta = document.querySelector("#bajas-detail-motivo-alta");
 const bajasDeleteButton = document.querySelector("#bajas-delete-button");
 const bajasCancelButton = document.querySelector("#bajas-cancel-button");
+const bajasPanelAviso = document.querySelector("#bajas-panel-aviso");
+const bajasCotejoButton = document.querySelector("#bajas-cotejo-button");
+const bajasCotejoPanel = document.querySelector("#bajas-cotejo-panel");
+const bajasCotejoPanelBackdrop = document.querySelector("#bajas-cotejo-panel-backdrop");
+const closeBajasCotejoPanelButton = document.querySelector("#close-bajas-cotejo-panel-button");
+const bajasCotejoForm = document.querySelector("#bajas-cotejo-form");
+const bajasCotejoDesde = document.querySelector("#bajas-cotejo-desde");
+const bajasCotejoHasta = document.querySelector("#bajas-cotejo-hasta");
+const bajasCotejoCategoria = document.querySelector("#bajas-cotejo-categoria");
+const bajasCotejoSummary = document.querySelector("#bajas-cotejo-summary");
+const bajasCotejoTableBody = document.querySelector("#bajas-cotejo-table-body");
 
 const permisosFiltersForm = document.querySelector("#permisos-filters-form");
 const permisosSummary = document.querySelector("#permisos-summary");
@@ -32489,6 +32963,162 @@ function renderPermisosTable(rows) {
     .join("");
 }
 
+// Cotejo de bajas contra Registros (get_bajas_cotejo, supabase/tables/bajas_cotejo.sql).
+// Solo lectura: el RPC enumera diferencias entre personal_bajas y los días IT/LG de
+// registros; nada se corrige desde aquí.
+const BAJAS_COTEJO_CATEGORIAS = {
+  it_sin_baja: "Días IT sin baja",
+  lg_sin_cobertura: "Días LG sin baja ni permiso",
+  baja_sin_registros: "Baja sin días IT/LG",
+  trabajo_en_baja: "Trabajo dentro de una baja",
+  bajas_solapadas: "Bajas solapadas",
+};
+// Texto que sale al poner el ratón sobre una fila: qué significa la diferencia y
+// por dónde empezar a corregirla.
+const BAJAS_COTEJO_AYUDA = {
+  it_sin_baja:
+    "Hay días marcados IT en Registros y ninguna baja los cubre. Crea la baja que falta o corrige la situación de esos registros.",
+  lg_sin_cobertura:
+    "Hay días marcados LG en Registros y ninguna baja ni permiso los cubre. Falta la baja, el permiso o la excedencia que lo explique.",
+  baja_sin_registros:
+    "La baja no tiene ningún día IT/LG en Registros dentro de su rango. Puede ser correcto si la persona no tenía actividad programada esos días; si no, faltan marcarlos.",
+  trabajo_en_baja:
+    "Hay registros de trabajo (NORM/SUST) dentro del rango de la baja. O las fechas de la baja no son las reales, o esos registros están mal marcados.",
+  bajas_solapadas:
+    "Dos bajas de la misma persona se pisan. Normalmente una está duplicada o una fecha de fin está mal.",
+};
+let bajasCotejoRows = [];
+
+function openBajasCotejoPanel() {
+  const filters = getBajasFilterValues();
+  const today = new Date();
+  const yearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+  const toIso = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  if (bajasCotejoDesde && !bajasCotejoDesde.value) {
+    bajasCotejoDesde.value = filters.fechaDesde || toIso(yearAgo);
+  }
+  // Registros ya trae los días programados por delante: más allá de hoy el cotejo
+  // contaría como "trabajo dentro de una baja" turnos que aún no han ocurrido.
+  if (bajasCotejoHasta) {
+    bajasCotejoHasta.max = toIso(today);
+    if (!bajasCotejoHasta.value) {
+      const wanted = filters.fechaHasta || toIso(today);
+      bajasCotejoHasta.value = wanted > toIso(today) ? toIso(today) : wanted;
+    }
+  }
+  bajasCotejoPanel?.classList.remove("hidden");
+}
+
+function closeBajasCotejoPanel() {
+  bajasCotejoPanel?.classList.add("hidden");
+}
+
+function renderBajasCotejo() {
+  if (!bajasCotejoTableBody) return;
+  const categoria = bajasCotejoCategoria?.value || "";
+  const rows = categoria ? bajasCotejoRows.filter((row) => row.categoria === categoria) : bajasCotejoRows;
+  if (bajasCotejoSummary) {
+    const counts = Object.entries(BAJAS_COTEJO_CATEGORIAS)
+      .map(([key, label]) => [label, bajasCotejoRows.filter((row) => row.categoria === key).length])
+      .filter(([, count]) => count > 0)
+      .map(([label, count]) => `${label}: ${count}`);
+    bajasCotejoSummary.textContent = counts.length
+      ? counts.join(" · ")
+      : "Todo cuadra en este periodo.";
+  }
+  if (!rows.length) {
+    bajasCotejoTableBody.innerHTML =
+      '<tr><td colspan="7" class="empty-state">No hay diferencias que mostrar.</td></tr>';
+    return;
+  }
+  bajasCotejoTableBody.innerHTML = rows
+    .map((row) => {
+      const cells = [
+        BAJAS_COTEJO_CATEGORIAS[row.categoria] || row.categoria,
+        row.personal || `ID ${row.personal_id}`,
+        formatDisplayDate(row.fecha_desde),
+        row.fecha_hasta ? formatDisplayDate(row.fecha_hasta) : "En curso",
+        row.dias ?? "",
+        row.detalle || "",
+      ];
+      const dataCells = cells.map((value) => `<td>${escapeHtml(String(value ?? ""))}</td>`).join("");
+      const actionCell = row.baja_id
+        ? `<td class="records-row-actions"><button type="button" class="compact-button" data-bajas-cotejo-baja="${escapeHtml(
+            row.baja_id
+          )}" title="Abrir la baja" aria-label="Abrir la baja">&#9998;</button></td>`
+        : "<td></td>";
+      const periodo = row.fecha_hasta
+        ? `${formatDisplayDate(row.fecha_desde)} – ${formatDisplayDate(row.fecha_hasta)}`
+        : `desde ${formatDisplayDate(row.fecha_desde)} (en curso)`;
+      const tooltip = [
+        `${BAJAS_COTEJO_CATEGORIAS[row.categoria] || row.categoria} · ${row.personal || `ID ${row.personal_id}`}`,
+        `Periodo: ${periodo}${row.dias != null ? ` (${row.dias} días)` : ""}`,
+        row.detalle || "",
+        BAJAS_COTEJO_AYUDA[row.categoria] || "",
+        row.baja_id ? `Baja nº ${row.baja_id}: pulsa el lápiz para abrirla.` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      return `<tr title="${escapeHtml(tooltip)}">${dataCells}${actionCell}</tr>`;
+    })
+    .join("");
+}
+
+async function runBajasCotejo(event) {
+  event?.preventDefault();
+  const desde = bajasCotejoDesde?.value;
+  const hasta = bajasCotejoHasta?.value;
+  if (!desde || !hasta || desde > hasta) {
+    setStatus("Indica un periodo válido para cotejar (Desde no puede ser posterior a Hasta).", "error");
+    return;
+  }
+  if (bajasCotejoHasta?.max && hasta > bajasCotejoHasta.max) {
+    setStatus("El cotejo llega como mucho hasta hoy: los días posteriores aún no han ocurrido.", "error");
+    return;
+  }
+  if (bajasCotejoSummary) bajasCotejoSummary.textContent = "Cotejando...";
+  if (bajasCotejoTableBody) {
+    bajasCotejoTableBody.innerHTML = '<tr><td colspan="7" class="empty-state">Cotejando...</td></tr>';
+  }
+  try {
+    const supabase = await getSupabaseClient();
+    const personalId = getBajasFilterValues().personalId;
+    const { data, error } = await supabase.rpc("get_bajas_cotejo", {
+      p_desde: desde,
+      p_hasta: hasta,
+      p_personal_id: personalId ? Number(personalId) : null,
+    });
+    if (error) throw error;
+    bajasCotejoRows = data ?? [];
+    renderBajasCotejo();
+  } catch (error) {
+    bajasCotejoRows = [];
+    if (bajasCotejoSummary) bajasCotejoSummary.textContent = "No se pudo cotejar.";
+    if (bajasCotejoTableBody) {
+      bajasCotejoTableBody.innerHTML = `<tr><td colspan="7" class="empty-state">${escapeHtml(error.message)}</td></tr>`;
+    }
+    setStatus(`No se pudo cotejar las bajas: ${error.message}`, "error");
+  }
+}
+
+// La baja de una fila del cotejo puede no estar en la lista filtrada de Bajas
+// médicas, así que se pide por id y se abre el mismo panel de edición.
+async function openBajaFromCotejo(id) {
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase
+    .from(BAJAS_DETAIL_VIEW)
+    .select(BAJAS_DETAIL_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) {
+    setStatus(`No se pudo abrir la baja: ${error?.message || "no encontrada"}`, "error");
+    return;
+  }
+  closeBajasCotejoPanel();
+  await openBajasPanel(data);
+}
+
 async function loadBajas() {
   if (bajasSummary) bajasSummary.textContent = "Cargando bajas médicas...";
   if (bajasTableBody) {
@@ -32528,6 +33158,9 @@ async function loadBajas() {
 
     bajasRows = data ?? [];
     renderBajasTable(bajasRows);
+    // El resumen de bajas y permisos de Registros se cachea por persona y periodo.
+    recordsAusenciasCache.clear();
+    void updateRecordsAusenciasSummary();
     if (bajasSummary) {
       bajasSummary.textContent =
         bajasRows.length >= BAJAS_CONCILIACION_FETCH_LIMIT
@@ -32589,6 +33222,8 @@ async function loadPermisos() {
 
     permisosRows = data ?? [];
     renderPermisosTable(permisosRows);
+    recordsAusenciasCache.clear();
+    void updateRecordsAusenciasSummary();
     if (permisosSummary) {
       permisosSummary.textContent =
         permisosRows.length >= BAJAS_CONCILIACION_FETCH_LIMIT
@@ -32624,7 +33259,98 @@ function resetBajasForm() {
   clearPersonalPicker("bajas-detail");
   if (bajasDetailConParteBaja) bajasDetailConParteBaja.checked = true;
   bajasDeleteButton?.classList.add("hidden");
+  bajasPanelAviso?.classList.add("hidden");
   markFormPristine(bajasForm);
+}
+
+// --- Aviso al marcar IT en Registros ---
+// Marcar días como IT sin que exista una baja médica que los cubra deja el
+// expediente cojo (y la nómina sin saber que hay IT). Se abre el panel de la baja
+// ya rellenado, pero sin obligar: se puede cerrar sin guardar.
+let situacionITIdCache = null;
+
+async function getSituacionITId() {
+  if (situacionITIdCache != null) return situacionITIdCache;
+  const supabase = await getSupabaseClient();
+  const { data, error } = await supabase.from("situaciones").select("id").eq("situacion", "IT").maybeSingle();
+  if (error) throw error;
+  situacionITIdCache = data?.id ?? -1;
+  return situacionITIdCache;
+}
+
+async function openBajasPanelForIT(grupo, otrasPersonas) {
+  // El panel vive dentro de la pestaña Bajas y permisos, que está oculta mientras
+  // se trabaja en Registros: se pasa al final del body para que se pueda mostrar
+  // desde cualquier pestaña (es un panel fixed, no depende de su contenedor).
+  if (bajasPanel && bajasPanel.parentElement !== document.body) {
+    document.body.appendChild(bajasPanel);
+  }
+  await openBajasPanel(null);
+  setPersonalPickerSelection("bajas-detail", String(grupo.personal_id), grupo.personal || "");
+  const inicio = grupo.sin[0];
+  const fin = grupo.sin[grupo.sin.length - 1];
+  if (bajasDetailFechaInicio) bajasDetailFechaInicio.value = inicio;
+  if (bajasDetailFechaFin) bajasDetailFechaFin.value = fin;
+  const comun = [...(bajasDetailTipoSelect?.options || [])].find((option) =>
+    /enfermedad com/i.test(option.textContent || ""));
+  if (comun && bajasDetailTipoSelect) bajasDetailTipoSelect.value = comun.value;
+  if (bajasPanelAviso) {
+    const dias = grupo.sin.length;
+    bajasPanelAviso.textContent =
+      `Has marcado ${dias} ${dias === 1 ? "día" : "días"} como IT` +
+      `${inicio === fin ? ` (${formatDisplayDate(inicio)})` : ` (${formatDisplayDate(inicio)} a ${formatDisplayDate(fin)})`}` +
+      ` y ${grupo.personal || "esta persona"} no tiene ninguna baja médica que los cubra. ` +
+      "Puedes añadirla ahora o cerrar este panel: no es obligatorio." +
+      (otrasPersonas
+        ? ` Hay ${otrasPersonas} ${otrasPersonas === 1 ? "persona más" : "personas más"} en la misma situación; revísalas con «Cotejar con Registros».`
+        : "");
+    bajasPanelAviso.classList.remove("hidden");
+  }
+  markFormPristine(bajasForm);
+}
+
+// rows: registros ya cambiados ({ personal_id, personal, fecha }). No hace nada si
+// la situación nueva no es IT o si todos los días ya los cubre alguna baja.
+async function offerBajaIfIT(rows, situacionId) {
+  try {
+    if (situacionId == null || !rows?.length) return;
+    if (Number(situacionId) !== (await getSituacionITId())) return;
+
+    const porPersona = new Map();
+    for (const row of rows) {
+      if (!row?.personal_id || !row.fecha) continue;
+      const key = String(row.personal_id);
+      if (!porPersona.has(key)) {
+        porPersona.set(key, { personal_id: row.personal_id, personal: row.personal || "", fechas: new Set() });
+      }
+      porPersona.get(key).fechas.add(String(row.fecha).slice(0, 10));
+    }
+    if (!porPersona.size) return;
+
+    const todas = rows.map((row) => String(row.fecha).slice(0, 10)).sort();
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from(BAJAS_TABLE)
+      .select("personal_id,fecha_inicio,fecha_fin")
+      .in("personal_id", [...porPersona.values()].map((item) => item.personal_id))
+      .lte("fecha_inicio", todas[todas.length - 1])
+      .or(`fecha_fin.is.null,fecha_fin.gte.${todas[0]}`);
+    if (error) throw error;
+
+    const sinBaja = [];
+    for (const item of porPersona.values()) {
+      const bajas = (data ?? []).filter((baja) => String(baja.personal_id) === String(item.personal_id));
+      const sin = [...item.fechas]
+        .sort()
+        .filter((fecha) => !bajas.some((baja) => baja.fecha_inicio <= fecha && (!baja.fecha_fin || baja.fecha_fin >= fecha)));
+      if (sin.length) sinBaja.push({ ...item, sin });
+    }
+    if (!sinBaja.length) return;
+    await openBajasPanelForIT(sinBaja[0], sinBaja.length - 1);
+  } catch (error) {
+    // Es un aviso de cortesía: un fallo aquí no debe estropear el cambio ya guardado.
+    console.warn("No se pudo comprobar la baja médica de los días IT:", error);
+  }
 }
 
 function fillBajasForm(row) {
@@ -32642,6 +33368,10 @@ function fillBajasForm(row) {
   if (bajasDetailConParteBaja) bajasDetailConParteBaja.checked = Boolean(row.con_parte_baja);
   if (bajasDetailIngresoHospitalario) bajasDetailIngresoHospitalario.checked = Boolean(row.ingreso_hospitalario);
   if (bajasDetailObservacion) bajasDetailObservacion.value = row.observacion || "";
+  if (bajasDetailProceso) bajasDetailProceso.value = row.proceso || "";
+  if (bajasDetailFechaHechoCausante) bajasDetailFechaHechoCausante.value = row.fecha_hecho_causante || "";
+  if (bajasDetailRecaida) bajasDetailRecaida.value = row.recaida == null ? "" : String(row.recaida);
+  if (bajasDetailMotivoAlta) bajasDetailMotivoAlta.value = row.motivo_alta || "";
 }
 
 async function openBajasPanel(row = null) {
@@ -32683,9 +33413,21 @@ async function saveBajas(event) {
     con_parte_baja: Boolean(bajasDetailConParteBaja?.checked),
     ingreso_hospitalario: Boolean(bajasDetailIngresoHospitalario?.checked),
     observacion: bajasDetailObservacion?.value?.trim() || null,
+    proceso: bajasDetailProceso?.value?.trim() || null,
+    fecha_hecho_causante: bajasDetailFechaHechoCausante?.value || null,
+    recaida: bajasDetailRecaida?.value ? bajasDetailRecaida.value === "true" : null,
+    motivo_alta: bajasDetailMotivoAlta?.value || null,
   };
 
   clearPanelFormValidationError(bajasForm);
+  if (payload.fecha_hecho_causante && payload.fecha_inicio && payload.fecha_hecho_causante > payload.fecha_inicio) {
+    showPanelFormValidationError(
+      bajasForm,
+      "la fecha del accidente no puede ser posterior a la fecha de inicio de la baja.",
+      bajasDetailFechaHechoCausante
+    );
+    return false;
+  }
   if (!payload.personal_id || !payload.tipo_id || !payload.fecha_inicio) {
     showPanelFormValidationError(
       bajasForm,
@@ -32714,7 +33456,14 @@ async function saveBajas(event) {
     : await supabase.from(BAJAS_TABLE).insert(payload).select("id").single();
 
   if (result.error) {
-    showPanelFormValidationError(bajasForm, result.error.message || "no se pudo guardar la baja.");
+    const duplicatedProceso = String(result.error.message || "").includes("personal_bajas_proceso_uidx");
+    showPanelFormValidationError(
+      bajasForm,
+      duplicatedProceso
+        ? "ya existe otra baja con ese número de proceso."
+        : result.error.message || "no se pudo guardar la baja.",
+      duplicatedProceso ? bajasDetailProceso : undefined
+    );
     return false;
   }
 
@@ -36228,7 +36977,37 @@ async function init() {
   bajasRefreshButton?.addEventListener("click", () => {
     void loadBajas();
   });
+  // Almanaque de bajas y permisos (Registros): etiquetas, cierre, año y lista.
+  recordsAusenciasSummary?.addEventListener("click", (event) => {
+    const chip = event.target.closest("[data-ausencia-focus]");
+    if (chip) void openRecordsAusenciasPanel(chip.dataset.ausenciaFocus || "");
+  });
+  closeRecordsAusenciasButton?.addEventListener("click", () => closeRecordsAusenciasPanel());
+  recordsAusenciasBackdrop?.addEventListener("click", () => closeRecordsAusenciasPanel());
+  ausenciasPrevButton?.addEventListener("click", () => {
+    if (ausenciasState) void showAusenciasYear(ausenciasState.year - 1);
+  });
+  ausenciasNextButton?.addEventListener("click", () => {
+    if (ausenciasState) void showAusenciasYear(ausenciasState.year + 1);
+  });
+  ausenciasList?.addEventListener("click", (event) => {
+    const inicio = event.target.closest("[data-ausencia-inicio]")?.dataset.ausenciaInicio;
+    if (inicio && ausenciasState) {
+      void showAusenciasYear(Number(inicio.slice(0, 4)), inicio);
+      ausenciasCalendar?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  });
+
   bajasNewButton?.addEventListener("click", () => void openBajasPanel());
+  bajasCotejoButton?.addEventListener("click", () => openBajasCotejoPanel());
+  closeBajasCotejoPanelButton?.addEventListener("click", () => closeBajasCotejoPanel());
+  bajasCotejoPanelBackdrop?.addEventListener("click", () => closeBajasCotejoPanel());
+  bajasCotejoForm?.addEventListener("submit", (event) => void runBajasCotejo(event));
+  bajasCotejoCategoria?.addEventListener("change", () => renderBajasCotejo());
+  bajasCotejoTableBody?.addEventListener("click", (event) => {
+    const id = event.target.closest("[data-bajas-cotejo-baja]")?.dataset.bajasCotejoBaja;
+    if (id) void openBajaFromCotejo(id);
+  });
   closeBajasPanelButton?.addEventListener("click", () => {
     void closeBajasPanel();
   });

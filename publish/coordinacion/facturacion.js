@@ -472,9 +472,231 @@
       : '<tr><td colspan="5" class="empty-state">No hay estados configurados.</td></tr>';
   }
 
+  // ---------- Comparativa (varios contratos, dos años, mismos periodos) ----------
+  const CMP_MONTHS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const cmp = {
+    ready: false,
+    yearA: "",
+    yearB: "",
+    from: 1,
+    to: 12,
+    gran: "mes",
+    amount: "base_imponible",
+    excludeVoid: true,
+    selected: new Set(),
+    search: "",
+  };
+
+  function voidStatusIds() {
+    return new Set(state.statuses.filter((s) => /anulad/i.test(String(s.estado || ""))).map((s) => String(s.id)));
+  }
+
+  function cmpYears() {
+    const years = new Set();
+    state.invoices.forEach((row) => row.fecha && years.add(String(row.fecha).slice(0, 4)));
+    return Array.from(years).sort();
+  }
+
+  function cmpContractsWithInvoices() {
+    const ids = new Set(state.invoices.map((row) => String(row.contrato_id)));
+    return state.contracts
+      .filter((c) => ids.has(String(c.id)))
+      .sort((a, b) => String(a.contrato).localeCompare(String(b.contrato), "es"));
+  }
+
+  function cmpInit() {
+    if (cmp.ready || !state.loaded) return;
+    const years = cmpYears();
+    cmp.yearA = years.includes("2025") ? "2025" : years[Math.max(0, years.length - 2)] || "";
+    cmp.yearB = years.includes("2026") ? "2026" : years[years.length - 1] || "";
+    cmp.selected = new Set(cmpContractsWithInvoices().map((c) => String(c.id)));
+    cmp.ready = true;
+  }
+
+  function cmpPeriodKey(month) {
+    if (cmp.gran === "anual") return 1;
+    if (cmp.gran === "trimestre") return Math.ceil(month / 3);
+    return month;
+  }
+
+  function cmpPeriodLabel(key) {
+    if (cmp.gran === "anual") return `${CMP_MONTHS[cmp.from - 1]}–${CMP_MONTHS[cmp.to - 1]}`;
+    if (cmp.gran === "trimestre") return `T${key}`;
+    return CMP_MONTHS[key - 1];
+  }
+
+  function cmpCompute() {
+    const voids = cmp.excludeVoid ? voidStatusIds() : new Set();
+    const byContract = new Map();
+    const byPeriod = new Map();
+    let a = 0;
+    let b = 0;
+    state.invoices.forEach((row) => {
+      const year = String(row.fecha || "").slice(0, 4);
+      if (year !== cmp.yearA && year !== cmp.yearB) return;
+      const cid = String(row.contrato_id);
+      if (!cmp.selected.has(cid)) return;
+      const month = Number(String(row.fecha).slice(5, 7));
+      if (month < cmp.from || month > cmp.to) return;
+      if (voids.has(String(row.contrato_estado_factura_id))) return;
+      const value = numeric(row[cmp.amount]);
+      const side = year === cmp.yearA ? "a" : "b";
+      const key = cmpPeriodKey(month);
+      const c = byContract.get(cid) || { a: 0, b: 0 };
+      c[side] += value;
+      byContract.set(cid, c);
+      const p = byPeriod.get(key) || { a: 0, b: 0 };
+      p[side] += value;
+      byPeriod.set(key, p);
+      if (side === "a") a += value; else b += value;
+    });
+    return { byContract, byPeriod, a, b };
+  }
+
+  function cmpDelta(a, b) {
+    const diff = b - a;
+    const pct = a ? (diff / Math.abs(a)) * 100 : null;
+    const tone = diff > 0 ? "cmp-up" : diff < 0 ? "cmp-down" : "";
+    return { diff, pct, tone };
+  }
+
+  function cmpDeltaCells(a, b) {
+    const d = cmpDelta(a, b);
+    return `<td class="num ${d.tone}">${formatMoney(d.diff)}</td><td class="num ${d.tone}">${d.pct === null ? "—" : `${percent.format(d.pct)} %`}</td>`;
+  }
+
+  function renderComparativa() {
+    if (state.view !== "comparativa" || !state.loaded) return;
+    cmpInit();
+    const years = cmpYears();
+    const yearOptions = (sel) => years.map((y) => `<option value="${y}"${y === sel ? " selected" : ""}>${y}</option>`).join("");
+    el.cmpYearA.innerHTML = yearOptions(cmp.yearA);
+    el.cmpYearB.innerHTML = yearOptions(cmp.yearB);
+    const monthOptions = (sel) => CMP_MONTHS.map((m, i) => `<option value="${i + 1}"${i + 1 === sel ? " selected" : ""}>${m}</option>`).join("");
+    el.cmpFrom.innerHTML = monthOptions(cmp.from);
+    el.cmpTo.innerHTML = monthOptions(cmp.to);
+    el.cmpGran.value = cmp.gran;
+    el.cmpAmount.value = cmp.amount;
+    el.cmpVoid.checked = cmp.excludeVoid;
+
+    const term = cmp.search.trim().toLocaleLowerCase("es");
+    const all = cmpContractsWithInvoices();
+    const visible = all.filter((c) => !term || String(c.contrato).toLocaleLowerCase("es").includes(term));
+    el.cmpCount.textContent = `${cmp.selected.size} de ${all.length}`;
+    el.cmpList.innerHTML = visible.length
+      ? visible.map((c) => `
+          <label><input type="checkbox" data-cmp-contract="${c.id}"${cmp.selected.has(String(c.id)) ? " checked" : ""} /> ${escapeHtml(c.contrato)}${c.activo ? "" : ' <small>(no activo)</small>'}</label>`).join("")
+      : '<p class="empty-state">Sin resultados.</p>';
+
+    const data = cmpCompute();
+    const d = cmpDelta(data.a, data.b);
+    el.cmpKpis.innerHTML = `
+      <article><span>${escapeHtml(cmp.yearA)}</span><strong>${formatMoney(data.a)}</strong></article>
+      <article><span>${escapeHtml(cmp.yearB)}</span><strong>${formatMoney(data.b)}</strong></article>
+      <article><span>Diferencia</span><strong class="${d.tone}">${formatMoney(d.diff)}</strong></article>
+      <article><span>Variación</span><strong class="${d.tone}">${d.pct === null ? "—" : `${percent.format(d.pct)} %`}</strong></article>`;
+
+    const head = `<thead><tr><th>__FIRST__</th><th class="num">${escapeHtml(cmp.yearA)}</th><th class="num">${escapeHtml(cmp.yearB)}</th><th class="num">Diferencia</th><th class="num">%</th></tr></thead>`;
+    const periodKeys = [];
+    if (cmp.gran === "anual") periodKeys.push(1);
+    else {
+      const first = cmpPeriodKey(cmp.from);
+      const last = cmpPeriodKey(cmp.to);
+      for (let k = first; k <= last; k += 1) periodKeys.push(k);
+    }
+    const periodRows = periodKeys.map((k) => {
+      const v = data.byPeriod.get(k) || { a: 0, b: 0 };
+      return `<tr><td>${cmpPeriodLabel(k)}</td><td class="num">${formatMoney(v.a)}</td><td class="num">${formatMoney(v.b)}</td>${cmpDeltaCells(v.a, v.b)}</tr>`;
+    });
+    const totalRow = `<tr class="cmp-total"><td>Total</td><td class="num">${formatMoney(data.a)}</td><td class="num">${formatMoney(data.b)}</td>${cmpDeltaCells(data.a, data.b)}</tr>`;
+    el.cmpPeriods.innerHTML = `<table class="facturacion-table">${head.replace("__FIRST__", "Periodo")}<tbody>${periodRows.join("")}${totalRow}</tbody></table>`;
+
+    const names = new Map(state.contracts.map((c) => [String(c.id), c.contrato]));
+    const contractRows = Array.from(cmp.selected)
+      .map((id) => [id, data.byContract.get(id) || { a: 0, b: 0 }])
+      .filter(([, v]) => v.a || v.b)
+      .sort((x, y) => (y[1].a + y[1].b) - (x[1].a + x[1].b))
+      .map(([id, v]) => `<tr><td>${escapeHtml(names.get(id) || `Contrato ${id}`)}</td><td class="num">${formatMoney(v.a)}</td><td class="num">${formatMoney(v.b)}</td>${cmpDeltaCells(v.a, v.b)}</tr>`);
+    el.cmpContractsTable.innerHTML = contractRows.length
+      ? `<table class="facturacion-table">${head.replace("__FIRST__", "Contrato")}<tbody>${contractRows.join("")}${totalRow.replace(">Total<", ">Total<")}</tbody></table>`
+      : '<p class="empty-state">Sin facturas para esta selección.</p>';
+  }
+
+  async function exportComparativaExcel() {
+    const data = cmpCompute();
+    const names = new Map(state.contracts.map((c) => [String(c.id), c.contrato]));
+    try {
+      const xlsxModule = await import("https://esm.sh/xlsx@0.18.5");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const row = (label, v, key) => ({
+        [key]: label,
+        [cmp.yearA]: Math.round(v.a * 100) / 100,
+        [cmp.yearB]: Math.round(v.b * 100) / 100,
+        Diferencia: Math.round((v.b - v.a) * 100) / 100,
+        "%": v.a ? Math.round(((v.b - v.a) / Math.abs(v.a)) * 10000) / 100 : "",
+      });
+      const periods = Array.from(data.byPeriod.entries()).sort((x, y) => x[0] - y[0]).map(([k, v]) => row(cmpPeriodLabel(k), v, "Periodo"));
+      periods.push(row("Total", { a: data.a, b: data.b }, "Periodo"));
+      const contracts = Array.from(data.byContract.entries()).map(([id, v]) => row(names.get(id) || id, v, "Contrato"));
+      contracts.push(row("Total", { a: data.a, b: data.b }, "Contrato"));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(periods), "Por periodo");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(contracts), "Por contrato");
+      const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      downloadBlob(
+        new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+        `comparativa-facturacion-${cmp.yearA}-${cmp.yearB}.xlsx`
+      );
+    } catch (error) {
+      setStatus(`No se pudo exportar el Excel: ${error.message}`, "error");
+    }
+  }
+
+  function bindComparativa() {
+    const rerender = () => renderComparativa();
+    el.cmpYearA.addEventListener("change", () => { cmp.yearA = el.cmpYearA.value; rerender(); });
+    el.cmpYearB.addEventListener("change", () => { cmp.yearB = el.cmpYearB.value; rerender(); });
+    el.cmpFrom.addEventListener("change", () => {
+      cmp.from = Number(el.cmpFrom.value);
+      if (cmp.to < cmp.from) cmp.to = cmp.from;
+      rerender();
+    });
+    el.cmpTo.addEventListener("change", () => {
+      cmp.to = Number(el.cmpTo.value);
+      if (cmp.from > cmp.to) cmp.from = cmp.to;
+      rerender();
+    });
+    el.cmpGran.addEventListener("change", () => { cmp.gran = el.cmpGran.value; rerender(); });
+    el.cmpAmount.addEventListener("change", () => { cmp.amount = el.cmpAmount.value; rerender(); });
+    el.cmpVoid.addEventListener("change", () => { cmp.excludeVoid = el.cmpVoid.checked; rerender(); });
+    el.cmpSearch.addEventListener("input", () => { cmp.search = el.cmpSearch.value; rerender(); });
+    el.cmpAll.addEventListener("click", () => {
+      const term = cmp.search.trim().toLocaleLowerCase("es");
+      cmpContractsWithInvoices()
+        .filter((c) => !term || String(c.contrato).toLocaleLowerCase("es").includes(term))
+        .forEach((c) => cmp.selected.add(String(c.id)));
+      rerender();
+    });
+    el.cmpNone.addEventListener("click", () => {
+      const term = cmp.search.trim().toLocaleLowerCase("es");
+      cmpContractsWithInvoices()
+        .filter((c) => !term || String(c.contrato).toLocaleLowerCase("es").includes(term))
+        .forEach((c) => cmp.selected.delete(String(c.id)));
+      rerender();
+    });
+    el.cmpList.addEventListener("change", (event) => {
+      const id = event.target.closest("[data-cmp-contract]")?.dataset.cmpContract;
+      if (!id) return;
+      if (event.target.checked) cmp.selected.add(id); else cmp.selected.delete(id);
+      rerender();
+    });
+    el.cmpExcel.addEventListener("click", () => void exportComparativaExcel());
+  }
+
   function render() {
     const hasContract = Boolean(selectedContract());
-    const preparationWithoutContract = state.view === "preparacion";
+    const preparationWithoutContract = state.view === "preparacion" || state.view === "comparativa";
+    renderComparativa();
     el.empty.classList.toggle("hidden", hasContract || preparationWithoutContract);
     qa("[data-facturacion-panel]").forEach((panel) => {
       const isActive = panel.dataset.facturacionPanel === state.view;
@@ -494,7 +716,7 @@
   }
 
   function switchView(view) {
-    state.view = ["resumen", "presupuestos", "facturas", "preparacion", "control", "configuracion"].includes(view) ? view : "resumen";
+    state.view = ["resumen", "presupuestos", "facturas", "comparativa", "preparacion", "control", "configuracion"].includes(view) ? view : "resumen";
     qa("[data-facturacion-view]").forEach((button) => {
       const active = button.dataset.facturacionView === state.view;
       button.classList.toggle("active", active);
@@ -2770,6 +2992,7 @@
       state.year = el.yearSelect.value;
       render();
     });
+    bindComparativa();
     el.refresh.addEventListener("click", () => void load({ force: true }));
     el.invoiceSearch.addEventListener("input", renderInvoices);
     qa("[data-facturacion-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.facturacionView)));
@@ -2974,6 +3197,22 @@
       newBudget: q("#facturacion-new-budget"),
       newInvoice: q("#facturacion-new-invoice"),
       invoicesExcel: q("#facturacion-invoices-excel"),
+      cmpYearA: q("#facturacion-cmp-year-a"),
+      cmpYearB: q("#facturacion-cmp-year-b"),
+      cmpFrom: q("#facturacion-cmp-from"),
+      cmpTo: q("#facturacion-cmp-to"),
+      cmpGran: q("#facturacion-cmp-gran"),
+      cmpAmount: q("#facturacion-cmp-amount"),
+      cmpVoid: q("#facturacion-cmp-void"),
+      cmpSearch: q("#facturacion-cmp-search"),
+      cmpAll: q("#facturacion-cmp-all"),
+      cmpNone: q("#facturacion-cmp-none"),
+      cmpList: q("#facturacion-cmp-list"),
+      cmpCount: q("#facturacion-cmp-count"),
+      cmpKpis: q("#facturacion-cmp-kpis"),
+      cmpPeriods: q("#facturacion-cmp-periods"),
+      cmpContractsTable: q("#facturacion-cmp-contracts-table"),
+      cmpExcel: q("#facturacion-cmp-excel"),
       budgetDialog: q("#facturacion-budget-dialog"),
       invoiceDialog: q("#facturacion-invoice-dialog"),
       budgetForm: q("#facturacion-budget-form"),

@@ -9130,3 +9130,31 @@ input[data-percent].pct-input--warn {
   font-size: 0.8rem;
   font-weight: 400;
 }
+
+/* Facturación · Comparativa */
+.facturacion-cmp-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.facturacion-cmp-filters label { display: grid; gap: 4px; font-size: 0.85rem; }
+.facturacion-cmp-filters .facturacion-cmp-check { display: flex; align-items: center; gap: 6px; }
+.facturacion-cmp-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+.facturacion-cmp-contracts { padding: 12px; display: grid; gap: 8px; position: sticky; top: 8px; }
+.facturacion-cmp-contracts-head { display: flex; justify-content: space-between; }
+.facturacion-cmp-contracts-actions { display: flex; gap: 8px; }
+.facturacion-cmp-list { max-height: 420px; overflow: auto; display: grid; gap: 4px; }
+.facturacion-cmp-list label { display: flex; gap: 6px; align-items: flex-start; font-size: 0.85rem; }
+.facturacion-cmp-results { display: grid; gap: 12px; min-width: 0; }
+.facturacion-cmp-results .card { padding: 12px 16px; }
+.facturacion-table .num { text-align: right; white-space: nowrap; }
+.facturacion-table .cmp-total td { font-weight: 700; border-top: 2px solid currentColor; }
+.cmp-up { color: #15803d; }
+.cmp-down { color: #b91c1c; }
+@media (max-width: 900px) {
+  .facturacion-cmp-layout { grid-template-columns: 1fr; }
+  .facturacion-cmp-contracts { position: static; }
+}

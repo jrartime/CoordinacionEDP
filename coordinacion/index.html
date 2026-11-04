@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261104-1" />
+    <link rel="stylesheet" href="./styles.css?v=20261104-2" />
   </head>
   <body>
     <script>
@@ -6508,6 +6508,7 @@
               <button type="button" class="active" data-facturacion-view="resumen" aria-pressed="true">Resumen</button>
               <button type="button" data-facturacion-view="presupuestos" aria-pressed="false">Presupuestos</button>
               <button type="button" data-facturacion-view="facturas" aria-pressed="false">Facturas</button>
+              <button type="button" data-facturacion-view="comparativa" aria-pressed="false">Comparativa</button>
               <button type="button" data-facturacion-view="preparacion" aria-pressed="false">Preparación de facturas</button>
               <button type="button" data-facturacion-view="control" aria-pressed="false">Control</button>
               <button type="button" data-facturacion-view="configuracion" aria-pressed="false">Configuración</button>
@@ -6609,6 +6610,58 @@
                   </tr></thead>
                   <tbody id="facturacion-invoices-body"></tbody>
                 </table>
+              </div>
+            </section>
+
+            <section data-facturacion-panel="comparativa" class="facturacion-view hidden">
+              <div class="facturacion-section-title">
+                <div><p class="eyebrow">Evolución</p><h3>Comparativa de facturación</h3></div>
+                <button id="facturacion-cmp-excel" type="button">Exportar Excel</button>
+              </div>
+              <div class="facturacion-cmp-filters card">
+                <label>Año A<select id="facturacion-cmp-year-a"></select></label>
+                <label>Año B<select id="facturacion-cmp-year-b"></select></label>
+                <label>Mes desde<select id="facturacion-cmp-from"></select></label>
+                <label>Mes hasta<select id="facturacion-cmp-to"></select></label>
+                <label>Detalle
+                  <select id="facturacion-cmp-gran">
+                    <option value="mes">Mensual</option>
+                    <option value="trimestre">Trimestral</option>
+                    <option value="anual">Anual</option>
+                  </select>
+                </label>
+                <label>Importe
+                  <select id="facturacion-cmp-amount">
+                    <option value="base_imponible">Base imponible</option>
+                    <option value="total">Total con IVA</option>
+                  </select>
+                </label>
+                <label class="facturacion-cmp-check"><input id="facturacion-cmp-void" type="checkbox" checked /> Excluir anuladas</label>
+              </div>
+              <div class="facturacion-cmp-layout">
+                <aside class="card facturacion-cmp-contracts">
+                  <div class="facturacion-cmp-contracts-head">
+                    <strong>Contratos</strong>
+                    <span id="facturacion-cmp-count"></span>
+                  </div>
+                  <input id="facturacion-cmp-search" type="search" placeholder="Buscar contrato" />
+                  <div class="facturacion-cmp-contracts-actions">
+                    <button type="button" class="secondary-button row-action" id="facturacion-cmp-all">Todos</button>
+                    <button type="button" class="secondary-button row-action" id="facturacion-cmp-none">Ninguno</button>
+                  </div>
+                  <div id="facturacion-cmp-list" class="facturacion-cmp-list"></div>
+                </aside>
+                <div class="facturacion-cmp-results">
+                  <div id="facturacion-cmp-kpis" class="facturacion-kpis"></div>
+                  <article class="card">
+                    <h3>Por periodo</h3>
+                    <div id="facturacion-cmp-periods" class="table-scroll"></div>
+                  </article>
+                  <article class="card">
+                    <h3>Por contrato</h3>
+                    <div id="facturacion-cmp-contracts-table" class="table-scroll"></div>
+                  </article>
+                </div>
               </div>
             </section>
 
@@ -10823,7 +10876,7 @@
     <script src="../shared/auth.js" defer></script>
     <script src="./list-scroll-keeper.js?v=20260930-1" defer></script>
     <script src="./concilia-integrated.js?v=20261025-2" defer></script>
-    <script src="./facturacion.js?v=20261006-1" defer></script>
+    <script src="./facturacion.js?v=20261104-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
     <script src="./app.js?v=20261104-1" defer></script>
