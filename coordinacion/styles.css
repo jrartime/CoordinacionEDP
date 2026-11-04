@@ -9096,3 +9096,37 @@ details[open] > .gestion-collapsible-header::before {
   justify-content: space-between;
   gap: 8px;
 }
+
+/* Campos de porcentaje: se escribe 21 y se guarda 0,21; el % va pegado al campo. */
+.pct-input {
+  position: relative;
+  display: block;
+}
+
+.pct-input > input {
+  width: 100%;
+  padding-right: 28px;
+  box-sizing: border-box;
+}
+
+.pct-input__suffix {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  color: #667085;
+  pointer-events: none;
+}
+
+.pct-input--warn > input,
+input[data-percent].pct-input--warn {
+  border-color: #d97706;
+}
+
+.pct-input__hint {
+  display: block;
+  margin-top: 4px;
+  color: #b45309;
+  font-size: 0.8rem;
+  font-weight: 400;
+}

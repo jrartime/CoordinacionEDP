@@ -769,7 +769,7 @@ const PERSONAL_FIELDS = [
   { key: "cuenta_corriente", label: "Cuenta corriente", type: "text", confidential: true, group: "economico" },
   { key: "prorrateo_pagas", label: "Prorrateo pagas", type: "boolean", confidential: true, group: "economico" },
   { key: "num_pagas_extra", label: "Num. pagas extra", type: "integer", confidential: true, group: "economico" },
-  { key: "irpf", label: "IRPF", type: "numeric", confidential: true, group: "economico" },
+  { key: "irpf", label: "IRPF (%)", type: "percent", confidential: true, group: "economico" },
   { key: "carpeta", label: "Carpeta", type: "text", group: "otros" },
   { key: "observacion", label: "Observacion", type: "textarea", group: "otros" },
 ];
@@ -997,6 +997,77 @@ const CONTROL_HORARIO_HEADERS = [
   "tipo_jornada",
   "observacion",
 ];
+
+// Porcentajes. En la base son fracciones (0,21 = 21 %); en pantalla se escriben y se leen como
+// porcentaje (21), con el «%» pegado al campo. La conversión es siempre ×100 / ÷100, sin adivinar
+// la intención de quien escribe: un valor menor que 1 sólo genera un aviso (ver más abajo).
+function roundDecimals(value, decimals) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function fractionToPercentText(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  const number = Number(value);
+  return Number.isFinite(number) ? String(roundDecimals(number * 100, 6)) : "";
+}
+
+function percentTextToFraction(text) {
+  const cleaned = String(text ?? "").trim().replace(/%/g, "").replace(",", ".");
+  if (!cleaned) {
+    return null;
+  }
+  const number = Number(cleaned);
+  return Number.isFinite(number) ? roundDecimals(number / 100, 8) : null;
+}
+
+function formatPercentDisplay(value) {
+  const text = fractionToPercentText(value);
+  return text ? `${Number(text).toLocaleString("es-ES", { maximumFractionDigits: 6 })} %` : "";
+}
+
+function renderPercentInputHtml({ name, value = "", attributes = "" }) {
+  return `<span class="pct-input"><input name="${escapeHtml(name)}" type="number" step="any" min="0" inputmode="decimal" data-percent value="${escapeHtml(
+    value
+  )}"${attributes} /><span class="pct-input__suffix" aria-hidden="true">%</span></span>`;
+}
+
+// Un 0,21 escrito en un campo de porcentaje se guardaría como 0,21 % (no como 21 %): se avisa
+// junto al campo, sin impedir guardar, porque 0,5 % puede ser un valor correcto.
+function updatePercentInputHint(input) {
+  const anchor = input.closest(".pct-input") ?? input;
+  let hint = anchor.nextElementSibling?.classList.contains("pct-input__hint") ? anchor.nextElementSibling : null;
+  const number = Number(String(input.value ?? "").replace(",", "."));
+  const suspicious = Number.isFinite(number) && number > 0 && number < 1;
+  anchor.classList.toggle("pct-input--warn", suspicious);
+  if (!suspicious) {
+    hint?.remove();
+    return;
+  }
+  if (!hint) {
+    hint = document.createElement("small");
+    hint.className = "pct-input__hint";
+    anchor.insertAdjacentElement("afterend", hint);
+  }
+  const asText = (n) => `${n.toLocaleString("es-ES", { maximumFractionDigits: 6 })} %`;
+  hint.textContent = `Se guardará ${asText(number)}. ¿Querías ${asText(roundDecimals(number * 100, 6))}?`;
+}
+
+function clearPercentInputHint(input) {
+  const anchor = input.closest(".pct-input") ?? input;
+  anchor.classList.remove("pct-input--warn");
+  if (anchor.nextElementSibling?.classList.contains("pct-input__hint")) {
+    anchor.nextElementSibling.remove();
+  }
+}
+
+document.addEventListener("change", (event) => {
+  if (event.target instanceof HTMLInputElement && event.target.matches("input[data-percent]")) {
+    updatePercentInputHint(event.target);
+  }
+});
 
 const config = window.APP_CONFIG ?? {};
 const supabaseConfig = config.supabase ?? {};
@@ -2052,7 +2123,7 @@ const CONTRACT_BULK_FIELDS = {
   cliente: { label: "Cliente", type: "text" },
   expediente: { label: "Expediente", type: "text" },
   importe: { label: "Importe", type: "text" },
-  iva: { label: "IVA", type: "number" },
+  iva: { label: "IVA (%)", type: "percent" },
   cpv: { label: "CPV", type: "text" },
   agrupacion_nomina: { label: "Agrupación nómina", type: "text" },
   descripcion: { label: "Descripción", type: "text" },
@@ -12025,6 +12096,15 @@ function renderPersonalFieldControl(field) {
     `;
   }
 
+  if (field.type === "percent") {
+    return `
+    <label>
+      ${escapeHtml(field.label)}
+      ${renderPercentInputHtml({ name: field.key, attributes: ` disabled${required}` })}
+    </label>
+  `;
+  }
+
   const inputType =
     field.type === "integer" || field.type === "numeric"
       ? "number"
@@ -12223,6 +12303,7 @@ function clearPersonalForm() {
       input.checked = false;
     } else {
       input.value = "";
+      clearPercentInputHint(input);
     }
   });
 }
@@ -12392,6 +12473,9 @@ function fillPersonalForm(row) {
       input.value = formatNullableDate(value);
     } else if (field.key === "cuenta_corriente") {
       input.value = formatAccountNumber(value);
+    } else if (field.type === "percent") {
+      input.value = fractionToPercentText(value);
+      clearPercentInputHint(input);
     } else {
       input.value = value ?? "";
     }
@@ -13000,6 +13084,10 @@ function collectPersonalPayload() {
     }
     if (field.type === "numeric") {
       payload[field.key] = Number(rawValue.replace(",", "."));
+      return;
+    }
+    if (field.type === "percent") {
+      payload[field.key] = percentTextToFraction(rawValue);
       return;
     }
     payload[field.key] = rawValue;
@@ -13917,7 +14005,9 @@ function getContractBulkControlValue(kind = "current") {
     return kind === "new" ? contractsBulkNewBoolSelect?.value || "false" : contractsBulkCurrentBoolSelect?.value || "false";
   }
 
-  return kind === "new" ? contractsBulkNewValueInput?.value || "" : contractsBulkCurrentValueInput?.value || "";
+  const rawValue = kind === "new" ? contractsBulkNewValueInput?.value || "" : contractsBulkCurrentValueInput?.value || "";
+  // Los porcentajes se escriben como 21 y se comparan y guardan como fracción (0,21).
+  return config.type === "percent" ? String(percentTextToFraction(rawValue) ?? "") : rawValue;
 }
 
 function normalizeContractBulkValue(value, config = getContractBulkFieldConfig()) {
@@ -13929,7 +14019,7 @@ function normalizeContractBulkValue(value, config = getContractBulkFieldConfig()
     return formatNullableDate(value);
   }
 
-  if (config.type === "number") {
+  if (config.type === "number" || config.type === "percent") {
     const text = String(value ?? "").trim().replace(",", ".");
     return text ? Number(text) : null;
   }
@@ -13944,6 +14034,10 @@ function formatContractBulkValue(value, config = getContractBulkFieldConfig()) {
 
   if (config.type === "date") {
     return formatDisplayDate(value) || "vacío";
+  }
+
+  if (config.type === "percent") {
+    return formatPercentDisplay(value) || "vacío";
   }
 
   return String(value ?? "").trim() || "vacío";
@@ -13975,10 +14069,17 @@ function syncContractsBulkAssignmentUi() {
   contractsBulkCurrentBoolSelect?.classList.toggle("hidden", !isBoolean);
   contractsBulkNewBoolSelect?.classList.toggle("hidden", !isBoolean);
   if (!isBoolean) {
-    contractsBulkCurrentValueInput.type = config.type === "number" ? "number" : config.type;
-    contractsBulkNewValueInput.type = config.type === "number" ? "number" : config.type;
-    contractsBulkCurrentValueInput.step = config.type === "number" ? "0.01" : "";
-    contractsBulkNewValueInput.step = config.type === "number" ? "0.01" : "";
+    const isPercent = config.type === "percent";
+    const inputType = config.type === "number" || isPercent ? "number" : config.type;
+    [contractsBulkCurrentValueInput, contractsBulkNewValueInput].forEach((input) => {
+      input.type = inputType;
+      input.step = isPercent ? "any" : config.type === "number" ? "0.01" : "";
+      input.placeholder = isPercent ? "% (p. ej. 21)" : "";
+      input.toggleAttribute("data-percent", isPercent);
+      if (!isPercent) {
+        clearPercentInputHint(input);
+      }
+    });
   }
 
   const matches = getContractBulkMatchingRows();
@@ -14006,7 +14107,7 @@ async function applyContractsBulkAssignment() {
 
   const currentValue = normalizeContractBulkValue(getContractBulkControlValue("current"), config);
   const newValue = normalizeContractBulkValue(getContractBulkControlValue("new"), config);
-  if (config.type === "number" && getContractBulkControlValue("new").trim() && !Number.isFinite(newValue)) {
+  if ((config.type === "number" || config.type === "percent") && getContractBulkControlValue("new").trim() && !Number.isFinite(newValue)) {
     setContractsStatus("Indica un valor numérico válido.", "error");
     return;
   }
@@ -14223,7 +14324,8 @@ function openContractDetailPanel(contractId = "") {
     contractDetailAmountInput.value = contract?.importe || "";
   }
   if (contractDetailVatInput) {
-    contractDetailVatInput.value = contract?.iva ?? "";
+    contractDetailVatInput.value = fractionToPercentText(contract?.iva);
+    clearPercentInputHint(contractDetailVatInput);
   }
   if (contractDetailActiveInput) {
     contractDetailActiveInput.checked = Boolean(contract?.activo);
@@ -14287,7 +14389,7 @@ function getContractPayload() {
     fecha_inicio: contractDetailStartInput?.value || null,
     fecha_fin: contractDetailEndInput?.value || null,
     importe: contractDetailAmountInput?.value.trim() || null,
-    iva: contractDetailVatInput?.value ? Number(contractDetailVatInput.value) : null,
+    iva: percentTextToFraction(contractDetailVatInput?.value),
     activo: Boolean(contractDetailActiveInput?.checked),
     tiene_nocturnidad: Boolean(contractDetailNightInput?.checked),
     nocturnidad_inicio: contractDetailNightStartInput?.value || "22:00",
@@ -28437,10 +28539,10 @@ const HISTORIAL_FORM_FIELDS = [
   // Campo heredado de Access (1244 de 1245 periodos recientes lo tienen vacío): se oculta del formulario.
   { key: "movimiento", label: "Movimiento", type: "text", group: "contrato", hidden: true },
   { key: "grupo_cotizacion", label: "Grupo cotización", type: "number", group: "cotizacion", span: 60 },
-  { key: "cotizacion_comunes_pct", label: "Cot. comunes (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 54 },
-  { key: "cotizacion_mei_pct", label: "Cot. MEI (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 48 },
-  { key: "cotizacion_formacion_pct", label: "Cot. formación (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 57 },
-  { key: "cotizacion_desempleo_pct", label: "Cot. desempleo (%)", type: "decimal", step: "0.000001", group: "cotizacion", span: 68 },
+  { key: "cotizacion_comunes_pct", label: "Cot. comunes (%)", type: "percent", group: "cotizacion", span: 54 },
+  { key: "cotizacion_mei_pct", label: "Cot. MEI (%)", type: "percent", group: "cotizacion", span: 48 },
+  { key: "cotizacion_formacion_pct", label: "Cot. formación (%)", type: "percent", group: "cotizacion", span: 57 },
+  { key: "cotizacion_desempleo_pct", label: "Cot. desempleo (%)", type: "percent", group: "cotizacion", span: 68 },
   { key: "tiene_complemento_movilidad", label: "Complemento movilidad", type: "boolean", group: "salario", span: 82 },
   { key: "tiene_complemento_dedicacion", label: "Complemento dedicación", type: "boolean", group: "salario", span: 84 },
   { key: "tiene_plus_transporte", label: "Plus transporte", type: "boolean", group: "salario", span: 60 },
@@ -28464,7 +28566,7 @@ const HISTORIAL_DETAIL_FIELD_GROUPS = [
   { key: "notas", label: "Notas" },
 ];
 const HISTORIAL_FIELD_BY_KEY = new Map(HISTORIAL_FORM_FIELDS.map((field) => [field.key, field]));
-const HISTORIAL_NUMERIC_TYPES = new Set(["number", "decimal", "relation"]);
+const HISTORIAL_NUMERIC_TYPES = new Set(["number", "decimal", "percent", "relation"]);
 
 const HISTORIAL_BULK_FIELDS = {
   empresa_id: { label: "Empresa", type: "relation", labelKey: "empresa" },
@@ -30231,7 +30333,10 @@ function getHistorialImportChangedColumns(existingRow, importRow) {
     .map((column) => ({
       column,
       label: getHistorialImportFieldLabel(column),
-      value: normalizeHistorialImportComparable(importRow[column]),
+      value:
+        HISTORIAL_FIELD_BY_KEY.get(column)?.type === "percent"
+          ? formatPercentDisplay(importRow[column]) || normalizeHistorialImportComparable(importRow[column])
+          : normalizeHistorialImportComparable(importRow[column]),
       kind: isHistorialImportEmptyValue(existingRow?.[column]) ? "complete" : "update",
     }));
 }
@@ -31073,6 +31178,14 @@ function renderHistorialDetailFieldControlInner(field, row) {
     return `<label>${label}${renderHistorialRelationSelect(field, value, field.readonly)}</label>`;
   }
 
+  if (field.type === "percent") {
+    return `<label>${label}${renderPercentInputHtml({
+      name: field.key,
+      value: fractionToPercentText(value),
+      attributes: field.readonly ? " readonly" : "",
+    })}</label>`;
+  }
+
   const inputType =
     field.type === "date" ? "date" : HISTORIAL_NUMERIC_TYPES.has(field.type) ? "number" : "text";
   const step = field.type === "decimal" ? ` step="${field.step || "0.0001"}"` : "";
@@ -31345,7 +31458,9 @@ function collectHistorialDetailPayload({ full = false } = {}) {
       return;
     }
     const control = historialDetailForm.elements[field.key];
-    const rawValue = field.type === "boolean" ? Boolean(control?.checked) : formData.get(field.key);
+    const formValue = field.type === "boolean" ? Boolean(control?.checked) : formData.get(field.key);
+    // El formulario trae el porcentaje escrito (21); el resto del código trabaja con la fracción (0,21).
+    const rawValue = field.type === "percent" ? percentTextToFraction(formValue) : formValue;
     const nextValue = parseHistorialFieldValue(rawValue, field);
     if (full) {
       payload[field.key] = nextValue;
@@ -31629,7 +31744,8 @@ async function duplicateHistorialDetail() {
     HISTORIAL_FORM_FIELDS.forEach((field) => {
       if (field.readonly || field.hidden) return;
       const control = historialDetailForm?.elements[field.key];
-      const rawValue = field.type === "boolean" ? Boolean(control?.checked) : control?.value;
+      const formValue = field.type === "boolean" ? Boolean(control?.checked) : control?.value;
+      const rawValue = field.type === "percent" ? percentTextToFraction(formValue) : formValue;
       seed[field.key] = parseHistorialFieldValue(rawValue, field);
     });
     // Una copia sirve como base para un nuevo periodo, no como repetición de sus
