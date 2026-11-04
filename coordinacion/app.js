@@ -19870,7 +19870,10 @@ function getRecordBulkMatchingRows() {
   return filteredRecordsRows.filter((row) => normalizeRecordBulkValue(row[field], config) === currentValue);
 }
 
-function syncRecordsBulkUi() {
+// `resetValues: false` es para refrescar los catálogos tras recargar la tabla sin borrar lo que la
+// persona ya ha escrito: al elegir una fecha en «Valor actual» se filtra la lista, y esa recarga
+// vaciaba el campo, que volvía a filtrar y a recargar.
+function syncRecordsBulkUi({ resetValues = true } = {}) {
   const config = getRecordsBulkFieldConfig();
   const isSelect = config.type === "select" || config.type === "boolean";
 
@@ -19903,8 +19906,11 @@ function syncRecordsBulkUi() {
     }
   } else {
     const inputType = config.type === "date" ? "date" : config.type === "time" ? "time" : config.type === "number" ? "number" : "text";
-    if (recordsBulkCurrentValueInput) { recordsBulkCurrentValueInput.type = inputType; recordsBulkCurrentValueInput.value = ""; }
-    if (recordsBulkNewValueInput) { recordsBulkNewValueInput.type = inputType; recordsBulkNewValueInput.value = ""; }
+    [recordsBulkCurrentValueInput, recordsBulkNewValueInput].forEach((input) => {
+      if (!input) return;
+      if (input.type !== inputType) input.type = inputType;
+      if (resetValues) input.value = "";
+    });
   }
 
   updateRecordsBulkMatchCount();
@@ -20389,7 +20395,7 @@ async function loadRecords({ force = false } = {}) {
     // Refresca también los catálogos de asignación masiva. Así, al pulsar
     // Actualizar, un contrato creado después de abrir la pestaña aparece sin
     // tener que cambiar de campo ni recargar toda la aplicación.
-    syncRecordsBulkUi();
+    syncRecordsBulkUi({ resetValues: false });
     // La tabla ya está pintada; las facetas (para los desplegables) pueden tardar
     // en el peor caso, así que se cargan después sin bloquear el render.
     await loadRecordsFacets(filters);
