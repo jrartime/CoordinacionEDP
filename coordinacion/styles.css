@@ -9158,3 +9158,34 @@ input[data-percent].pct-input--warn {
   .facturacion-cmp-layout { grid-template-columns: 1fr; }
   .facturacion-cmp-contracts { position: static; }
 }
+
+/* Facturación · archivos de la factura (arrastrar y soltar) */
+.facturacion-docs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.facturacion-dropzone {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 2px dashed #94a3b8;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.facturacion-dropzone:hover, .facturacion-dropzone:focus-visible { border-color: #2563eb; outline: none; }
+.facturacion-dropzone.is-dragover { background: rgba(37, 99, 235, 0.1); border-color: #2563eb; }
+.facturacion-dropzone.has-file { border-style: solid; border-color: #15803d; }
+.facturacion-dropzone-file { font-size: 0.85rem; overflow-wrap: anywhere; }
+.facturacion-dropzone-actions { display: flex; gap: 8px; justify-content: center; }
+.facturacion-docs-cell { white-space: nowrap; }
+.doc-chip {
+  padding: 2px 8px;
+  margin-right: 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  cursor: default;
+}
+.doc-chip.has-file { color: #15803d; border-color: #15803d; background: rgba(21, 128, 61, 0.08); cursor: pointer; }
+@media (max-width: 700px) { .facturacion-docs { grid-template-columns: 1fr; } }

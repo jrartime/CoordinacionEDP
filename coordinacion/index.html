@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261104-2" />
+    <link rel="stylesheet" href="./styles.css?v=20261106-1" />
   </head>
   <body>
     <script>
@@ -6606,6 +6606,7 @@
                     <th><button type="button" class="sort-button" data-invoices-sort-field="presupuesto">Presupuesto</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="estado">Estado</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="cobro">Cobro</button></th>
+                    <th>Archivos</th>
                     <th></th>
                   </tr></thead>
                   <tbody id="facturacion-invoices-body"></tbody>
@@ -6884,6 +6885,26 @@
                 <label class="facturacion-check"><input name="cobrada" type="checkbox" /><span>Cobrada</span></label>
                 <label>Fecha de cobro<input name="fecha_cobro" type="date" /></label>
                 <label class="wide">Observaciones<textarea name="observacion" rows="3"></textarea></label>
+                <div class="wide facturacion-docs">
+                  <div class="facturacion-dropzone" data-doc="factura" tabindex="0" role="button" aria-label="Adjuntar la factura">
+                    <strong>Factura (PDF)</strong>
+                    <span class="facturacion-dropzone-file">Arrastra aquí el archivo o haz clic</span>
+                    <span class="facturacion-dropzone-actions">
+                      <button type="button" class="secondary-button row-action hidden" data-doc-view="factura">Ver</button>
+                      <button type="button" class="secondary-button row-action hidden" data-doc-clear="factura">Quitar</button>
+                    </span>
+                    <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" class="hidden" data-doc-input="factura" />
+                  </div>
+                  <div class="facturacion-dropzone" data-doc="justificante" tabindex="0" role="button" aria-label="Adjuntar el justificante de pago">
+                    <strong>Justificante de pago</strong>
+                    <span class="facturacion-dropzone-file">Arrastra aquí el archivo o haz clic</span>
+                    <span class="facturacion-dropzone-actions">
+                      <button type="button" class="secondary-button row-action hidden" data-doc-view="justificante">Ver</button>
+                      <button type="button" class="secondary-button row-action hidden" data-doc-clear="justificante">Quitar</button>
+                    </span>
+                    <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" class="hidden" data-doc-input="justificante" />
+                  </div>
+                </div>
               </div>
               <div class="facturacion-dialog-footer">
                 <button id="facturacion-delete-invoice" type="button" class="danger-button hidden">Eliminar</button>
@@ -10876,7 +10897,7 @@
     <script src="../shared/auth.js" defer></script>
     <script src="./list-scroll-keeper.js?v=20260930-1" defer></script>
     <script src="./concilia-integrated.js?v=20261025-2" defer></script>
-    <script src="./facturacion.js?v=20261104-1" defer></script>
+    <script src="./facturacion.js?v=20261106-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
     <script src="./app.js?v=20261104-1" defer></script>

@@ -396,9 +396,13 @@
             <td>${escapeHtml(budgetNames.get(String(row.presupuesto_id)) || "Sin asignar")}</td>
             <td>${escapeHtml(statusNames.get(String(row.contrato_estado_factura_id)) || "Sin estado")}</td>
             <td>${row.cobrada ? `Cobrada · ${formatDate(row.fecha_cobro)}` : "Pendiente"}</td>
+            <td class="facturacion-docs-cell">
+              <button type="button" class="doc-chip${row.factura_archivo ? " has-file" : ""}" ${row.factura_archivo ? `data-open-doc="factura" data-invoice-id="${row.id}" title="Ver la factura"` : 'disabled title="Sin factura adjunta"'}>Factura</button>
+              <button type="button" class="doc-chip${row.justificante_archivo ? " has-file" : ""}" ${row.justificante_archivo ? `data-open-doc="justificante" data-invoice-id="${row.id}" title="Ver el justificante de pago"` : 'disabled title="Sin justificante adjunto"'}>Justificante</button>
+            </td>
             <td><button type="button" class="secondary-button row-action" data-edit-invoice="${row.id}">Editar</button></td>
           </tr>`).join("")
-      : '<tr><td colspan="10" class="empty-state">No hay facturas para esta selección.</td></tr>';
+      : '<tr><td colspan="11" class="empty-state">No hay facturas para esta selección.</td></tr>';
   }
 
   // Exporta exactamente lo que se ve en el listado: mismo contrato/año/
@@ -504,6 +508,15 @@
       .sort((a, b) => String(a.contrato).localeCompare(String(b.contrato), "es"));
   }
 
+  function cmpNorm(value) {
+    return String(value ?? "").toLocaleLowerCase("es").replace(/[^a-z0-9ñ]/g, "").replace(/(cc\d{4})0+(\d)/, "$1$2");
+  }
+
+  function cmpContractMatches(contract, term) {
+    const needle = cmpNorm(term);
+    return !needle || cmpNorm(`${contract.contrato} ${contract.expediente || ""}`).includes(needle);
+  }
+
   function cmpInit() {
     if (cmp.ready || !state.loaded) return;
     const years = cmpYears();
@@ -579,13 +592,13 @@
     el.cmpAmount.value = cmp.amount;
     el.cmpVoid.checked = cmp.excludeVoid;
 
-    const term = cmp.search.trim().toLocaleLowerCase("es");
+    const term = cmp.search.trim();
     const all = cmpContractsWithInvoices();
-    const visible = all.filter((c) => !term || String(c.contrato).toLocaleLowerCase("es").includes(term));
+    const visible = all.filter((c) => !term || cmpContractMatches(c, term));
     el.cmpCount.textContent = `${cmp.selected.size} de ${all.length}`;
     el.cmpList.innerHTML = visible.length
       ? visible.map((c) => `
-          <label><input type="checkbox" data-cmp-contract="${c.id}"${cmp.selected.has(String(c.id)) ? " checked" : ""} /> ${escapeHtml(c.contrato)}${c.activo ? "" : ' <small>(no activo)</small>'}</label>`).join("")
+          <label><input type="checkbox" data-cmp-contract="${c.id}"${cmp.selected.has(String(c.id)) ? " checked" : ""} /> ${escapeHtml(c.contrato)}${c.expediente ? ` <small>· ${escapeHtml(c.expediente)}</small>` : ""}${c.activo ? "" : ' <small>(no activo)</small>'}</label>`).join("")
       : '<p class="empty-state">Sin resultados.</p>';
 
     const data = cmpCompute();
@@ -671,16 +684,16 @@
     el.cmpVoid.addEventListener("change", () => { cmp.excludeVoid = el.cmpVoid.checked; rerender(); });
     el.cmpSearch.addEventListener("input", () => { cmp.search = el.cmpSearch.value; rerender(); });
     el.cmpAll.addEventListener("click", () => {
-      const term = cmp.search.trim().toLocaleLowerCase("es");
+      const term = cmp.search.trim();
       cmpContractsWithInvoices()
-        .filter((c) => !term || String(c.contrato).toLocaleLowerCase("es").includes(term))
+        .filter((c) => !term || cmpContractMatches(c, term))
         .forEach((c) => cmp.selected.add(String(c.id)));
       rerender();
     });
     el.cmpNone.addEventListener("click", () => {
-      const term = cmp.search.trim().toLocaleLowerCase("es");
+      const term = cmp.search.trim();
       cmpContractsWithInvoices()
-        .filter((c) => !term || String(c.contrato).toLocaleLowerCase("es").includes(term))
+        .filter((c) => !term || cmpContractMatches(c, term))
         .forEach((c) => cmp.selected.delete(String(c.id)));
       rerender();
     });
@@ -2744,6 +2757,136 @@
     }
   }
 
+  // ---------- Archivos de la factura (factura en PDF y justificante de pago) ----------
+  // Bucket privado "facturas"; ruta <contrato_id>/<factura_id>/<tipo>-<marca>.<ext>.
+  // Los archivos soltados quedan pendientes hasta pulsar Guardar.
+  const DOC_BUCKET = "facturas";
+  const DOC_MAX_BYTES = 20 * 1024 * 1024;
+  const DOC_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+  const DOC_FIELDS = { factura: "factura_archivo", justificante: "justificante_archivo" };
+  const invoiceDocs = {
+    factura: { file: null, clear: false, current: null },
+    justificante: { file: null, clear: false, current: null },
+  };
+
+  function docFileName(path) {
+    const name = String(path || "").split("/").pop() || "";
+    return name.replace(/-\d{10,}(?=\.[^.]+$)/, "");
+  }
+
+  function renderInvoiceDocs() {
+    Object.keys(DOC_FIELDS).forEach((kind) => {
+      const zone = el.invoiceForm.querySelector(`[data-doc="${kind}"]`);
+      const doc = invoiceDocs[kind];
+      const hasFile = Boolean(doc.file || (doc.current && !doc.clear));
+      const label = doc.file
+        ? `${doc.file.name} (pendiente de guardar)`
+        : doc.current && !doc.clear
+          ? docFileName(doc.current)
+          : "Arrastra aquí el archivo o haz clic";
+      zone.querySelector(".facturacion-dropzone-file").textContent = label;
+      zone.classList.toggle("has-file", hasFile);
+      zone.querySelector(`[data-doc-view="${kind}"]`).classList.toggle("hidden", !(doc.current && !doc.clear && !doc.file));
+      zone.querySelector(`[data-doc-clear="${kind}"]`).classList.toggle("hidden", !hasFile);
+    });
+  }
+
+  function setInvoiceDocFile(kind, file) {
+    if (!file) return;
+    if (!DOC_TYPES.includes(file.type)) {
+      setStatus("Solo se admiten PDF o imágenes (JPG, PNG, WebP).", "error");
+      return;
+    }
+    if (file.size > DOC_MAX_BYTES) {
+      setStatus("El archivo supera los 20 MB.", "error");
+      return;
+    }
+    invoiceDocs[kind].file = file;
+    invoiceDocs[kind].clear = false;
+    setStatus("");
+    renderInvoiceDocs();
+  }
+
+  async function openInvoiceDoc(path) {
+    const supabase = await getClient();
+    const { data, error } = await supabase.storage.from(DOC_BUCKET).createSignedUrl(path, 300);
+    if (error || !data?.signedUrl) {
+      setStatus(`No se pudo abrir el archivo: ${error?.message || "sin acceso"}`, "error");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener");
+  }
+
+  // Sube/quita lo pendiente tras guardar la factura y anota las rutas en la fila.
+  async function syncInvoiceDocs(invoiceId, contractId) {
+    const supabase = await getClient();
+    const patch = {};
+    const toRemove = [];
+    for (const kind of Object.keys(DOC_FIELDS)) {
+      const doc = invoiceDocs[kind];
+      if (doc.file) {
+        const ext = (doc.file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "") || "pdf";
+        const path = `${contractId}/${invoiceId}/${kind}-${Date.now()}.${ext}`;
+        const upload = await supabase.storage.from(DOC_BUCKET).upload(path, doc.file, { contentType: doc.file.type, upsert: false });
+        if (upload.error) throw new Error(`no se pudo subir ${kind === "factura" ? "la factura" : "el justificante"}: ${upload.error.message}`);
+        patch[DOC_FIELDS[kind]] = path;
+        if (doc.current) toRemove.push(doc.current);
+      } else if (doc.clear && doc.current) {
+        patch[DOC_FIELDS[kind]] = null;
+        toRemove.push(doc.current);
+      }
+    }
+    if (!Object.keys(patch).length) return;
+    const result = await supabase.from("contratos_facturacion").update(patch).eq("id", invoiceId);
+    if (result.error) throw new Error(`no se pudieron anotar los archivos: ${result.error.message}`);
+    if (toRemove.length) await supabase.storage.from(DOC_BUCKET).remove(toRemove);
+  }
+
+  function bindInvoiceDocs() {
+    el.invoiceForm.querySelectorAll("[data-doc]").forEach((zone) => {
+      const kind = zone.dataset.doc;
+      const input = zone.querySelector("[data-doc-input]");
+      zone.addEventListener("click", (event) => {
+        if (event.target.closest("button")) return;
+        input.click();
+      });
+      zone.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          input.click();
+        }
+      });
+      input.addEventListener("change", () => {
+        setInvoiceDocFile(kind, input.files?.[0]);
+        input.value = "";
+      });
+      ["dragenter", "dragover"].forEach((name) => zone.addEventListener(name, (event) => {
+        event.preventDefault();
+        zone.classList.add("is-dragover");
+      }));
+      ["dragleave", "drop"].forEach((name) => zone.addEventListener(name, (event) => {
+        event.preventDefault();
+        zone.classList.remove("is-dragover");
+      }));
+      zone.addEventListener("drop", (event) => setInvoiceDocFile(kind, event.dataTransfer?.files?.[0]));
+      zone.querySelector(`[data-doc-view="${kind}"]`).addEventListener("click", () => {
+        if (invoiceDocs[kind].current) void openInvoiceDoc(invoiceDocs[kind].current);
+      });
+      zone.querySelector(`[data-doc-clear="${kind}"]`).addEventListener("click", () => {
+        invoiceDocs[kind].file = null;
+        invoiceDocs[kind].clear = Boolean(invoiceDocs[kind].current);
+        renderInvoiceDocs();
+      });
+    });
+    el.invoicesBody.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-open-doc]");
+      if (!button) return;
+      const row = state.invoices.find((invoice) => String(invoice.id) === String(button.dataset.invoiceId));
+      const path = row?.[DOC_FIELDS[button.dataset.openDoc]];
+      if (path) void openInvoiceDoc(path);
+    });
+  }
+
   function fillInvoiceForm(row = {}) {
     const form = el.invoiceForm;
     form.reset();
@@ -2770,6 +2913,10 @@
     form.elements.presupuesto_id.value = row.presupuesto_id || "";
     form.elements.contrato_estado_factura_id.value = row.contrato_estado_factura_id || "";
     el.deleteInvoice.classList.toggle("hidden", !row.id);
+    Object.keys(DOC_FIELDS).forEach((kind) => {
+      invoiceDocs[kind] = { file: null, clear: false, current: row[DOC_FIELDS[kind]] || null };
+    });
+    renderInvoiceDocs();
     el.invoiceDialog.showModal();
   }
 
@@ -2852,14 +2999,24 @@
     const id = form.elements.id.value;
     const result = id
       ? await supabase.from("contratos_facturacion").update(payload).eq("id", id)
-      : await supabase.from("contratos_facturacion").insert(payload);
+      : await supabase.from("contratos_facturacion").insert(payload).select("id").single();
     if (result.error) {
       setStatus(`No se pudo guardar la factura: ${result.error.message}`, "error");
       return;
     }
+    const savedId = id || result.data?.id;
+    let docsError = "";
+    if (savedId) {
+      try {
+        await syncInvoiceDocs(savedId, payload.contrato_id);
+      } catch (error) {
+        docsError = error.message;
+      }
+    }
     el.invoiceDialog.close();
     await reloadInvoices();
-    setStatus("Factura guardada.", "success");
+    if (docsError) setStatus(`Factura guardada, pero ${docsError}`, "error");
+    else setStatus("Factura guardada.", "success");
   }
 
   // Reemplaza al antiguo "recargar las 11 tablas de load()" tras guardar una
@@ -2993,6 +3150,7 @@
       render();
     });
     bindComparativa();
+    bindInvoiceDocs();
     el.refresh.addEventListener("click", () => void load({ force: true }));
     el.invoiceSearch.addEventListener("input", renderInvoices);
     qa("[data-facturacion-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.facturacionView)));
@@ -3149,8 +3307,18 @@
       void deleteConfigurationRow("contratos_estado_facturas", el.statusForm.elements.id.value, "el estado de factura", el.statusDialog));
     el.deleteBudget.addEventListener("click", () =>
       void deleteConfigurationRow("contratos_presupuestos", el.budgetForm.elements.id.value, "el presupuesto", el.budgetDialog, "presupuestos"));
-    el.deleteInvoice.addEventListener("click", () =>
-      void deleteConfigurationRow("contratos_facturacion", el.invoiceForm.elements.id.value, "la factura", el.invoiceDialog, "facturas"));
+    el.deleteInvoice.addEventListener("click", async () => {
+      const invoiceId = el.invoiceForm.elements.id.value;
+      const paths = Object.values(DOC_FIELDS)
+        .map((field) => state.invoices.find((row) => String(row.id) === String(invoiceId))?.[field])
+        .filter(Boolean);
+      await deleteConfigurationRow("contratos_facturacion", invoiceId, "la factura", el.invoiceDialog, "facturas");
+      // Si la factura ya no está en la tabla, se borran también sus archivos.
+      if (paths.length && !state.invoices.some((row) => String(row.id) === String(invoiceId))) {
+        const supabase = await getClient();
+        await supabase.storage.from(DOC_BUCKET).remove(paths);
+      }
+    });
     ["base_imponible", "iva"].forEach((name) => {
       el.invoiceForm.elements[name].addEventListener("input", () => {
         el.invoiceForm.elements.total.value = (
