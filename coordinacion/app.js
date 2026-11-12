@@ -7,6 +7,8 @@ const JOB_OPTIONS = [
   "Control biosanitario",
   "Montaje de eventos",
   "Tecnico Informatico/imagen y sonido",
+  "Coordinacion de Ocio y Tiempo Libre",
+  "TCAE (Tecnico en cuidados auxiliares de enfermeria)",
 ];
 
 const CANDIDATE_STATUS_OPTIONS = [
@@ -2415,6 +2417,8 @@ function formatCandidateOptionLabel(value) {
 
   const labelMap = {
     Conserjeria: "Conserjería",
+    "Coordinacion de Ocio y Tiempo Libre": "Coordinación de Ocio y Tiempo Libre",
+    "TCAE (Tecnico en cuidados auxiliares de enfermeria)": "TCAE (Técnico en cuidados auxiliares de enfermería)",
     "Monitorado acuatico": "Monitorado acuático",
     "Sala de musculacion": "Sala de musculación",
     "Tenis y padel": "Tenis y pádel",

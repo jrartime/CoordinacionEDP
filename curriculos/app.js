@@ -8,6 +8,8 @@
     "Control biosanitario",
     "Montaje de eventos",
     "Tecnico Informatico/imagen y sonido",
+  "Coordinacion de Ocio y Tiempo Libre",
+  "TCAE (Tecnico en cuidados auxiliares de enfermeria)",
   ];
 
   const config = window.APP_CONFIG ?? {};

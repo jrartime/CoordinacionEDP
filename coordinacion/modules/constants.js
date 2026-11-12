@@ -7,6 +7,8 @@ const JOB_OPTIONS = [
   "Control biosanitario",
   "Montaje de eventos",
   "Tecnico Informatico/imagen y sonido",
+  "Coordinacion de Ocio y Tiempo Libre",
+  "TCAE (Tecnico en cuidados auxiliares de enfermeria)",
 ];
 
 const CANDIDATE_STATUS_OPTIONS = [
