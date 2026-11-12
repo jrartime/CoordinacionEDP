@@ -207,7 +207,7 @@ const SETTINGS_CATALOGS = {
     singularLabel: "puesto",
     table: "puestos",
     order: "puesto",
-    columns: "id,puesto,detalle_puesto,convenio_id,categoria_id,dea,rec_medico,epi,clausula_preferencia,activo",
+    columns: "id,puesto,detalle_puesto,convenio_id,dea,rec_medico,epi,clausula_preferencia,activo",
     fields: [
       { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
       { key: "puesto", label: "Puesto", type: "text", required: true },
@@ -223,18 +223,6 @@ const SETTINGS_CATALOGS = {
           valueKey: "id",
           order: "convenio",
           label: (row) => [row.grupo_nivel, row.convenio].filter(Boolean).join(" · "),
-        },
-      },
-      {
-        key: "categoria_id",
-        label: "Categoría",
-        type: "select",
-        optionsFrom: {
-          table: "categorias_puesto",
-          columns: "id,categoria",
-          valueKey: "id",
-          order: "categoria",
-          label: (row) => row.categoria,
         },
       },
       { key: "rec_medico", label: "Reconocimiento médico", type: "number" },
