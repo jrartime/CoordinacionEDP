@@ -207,13 +207,12 @@ const SETTINGS_CATALOGS = {
     singularLabel: "puesto",
     table: "puestos",
     order: "puesto",
-    columns: "id,puesto,detalle_puesto,siglas,convenio_id,categoria_id,dea,rec_medico,epi,clausula_preferencia,activo",
+    columns: "id,puesto,detalle_puesto,convenio_id,categoria_id,dea,rec_medico,epi,clausula_preferencia,activo",
     fields: [
       { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
       { key: "puesto", label: "Puesto", type: "text", required: true },
       { key: "activo", label: "Activo", type: "checkbox" },
       { key: "detalle_puesto", label: "Detalle", type: "textarea" },
-      { key: "siglas", label: "Siglas", type: "text" },
       {
         key: "convenio_id",
         label: "Convenio / categoría de convenio",
