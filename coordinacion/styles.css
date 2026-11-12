@@ -6790,8 +6790,48 @@ th {
   gap: 12px;
 }
 
+.facturacion-form-grid.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .facturacion-form-grid .wide {
   grid-column: 1 / -1;
+}
+
+/* Diálogos de Facturación: mismos tamaños y tipografía que los campos del panel
+   de edición de Registros (.detail-drawer). */
+.facturacion-dialog .facturacion-form-grid label {
+  gap: 1px;
+  font-family: inherit;
+  font-size: 0.72rem;
+}
+
+.facturacion-dialog .facturacion-form-grid input,
+.facturacion-dialog .facturacion-form-grid select,
+.facturacion-dialog .facturacion-form-grid textarea {
+  height: 28px;
+  min-height: 28px;
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
+.facturacion-dialog .facturacion-form-grid textarea {
+  height: auto;
+  min-height: 56px;
+  line-height: 1.25;
+}
+
+.facturacion-dialog .facturacion-form-grid .facturacion-check {
+  min-height: 28px;
+}
+
+.facturacion-dialog .facturacion-form-grid input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  min-height: auto;
+  padding: 0;
 }
 
 .facturacion-form-grid .facturacion-check {
@@ -6838,7 +6878,8 @@ th {
   .facturacion-contract-card dl,
   .facturacion-kpis,
   .facturacion-generation-summary,
-  .facturacion-form-grid {
+  .facturacion-form-grid,
+  .facturacion-form-grid.cols-3 {
     grid-template-columns: 1fr;
   }
 }
