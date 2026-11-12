@@ -424,9 +424,7 @@
             <td>${escapeHtml([row.serie, row.n_documento].filter(Boolean).join(" / ") || "—")}</td>
             <td class="facturacion-period-cell" title="${escapeHtml(row.periodo_desde ? `${formatDate(row.periodo_desde)} – ${formatDate(row.periodo_hasta || row.periodo_desde)}` : "Sin periodo")}">${escapeHtml(formatInvoicePeriod(row))}</td>
             <td title="${escapeHtml(row.referencia)}">${escapeHtml(row.referencia || "—")}</td>
-            <td class="numeric">${formatMoney(row.base_imponible)}</td>
-            <td class="numeric">${formatMoney(row.iva)}</td>
-            <td class="numeric">${formatMoney(row.total)}</td>
+            <td class="numeric" title="Base ${escapeHtml(formatMoney(row.base_imponible))} · IVA ${escapeHtml(formatMoney(row.iva))}">${formatMoney(row.total)}</td>
             <td>${escapeHtml(budgetNames.get(String(row.presupuesto_id)) || "Sin asignar")}</td>
             <td>${escapeHtml(statusNames.get(String(row.contrato_estado_factura_id)) || "Sin estado")}</td>
             <td>${row.cobrada ? `Cobrada · ${formatDate(row.fecha_cobro)}` : "Pendiente"}</td>
@@ -436,7 +434,7 @@
             </td>
             <td><button type="button" class="secondary-button row-action" data-edit-invoice="${row.id}">Editar</button></td>
           </tr>`).join("")
-      : '<tr><td colspan="12" class="empty-state">No hay facturas para esta selección.</td></tr>';
+      : '<tr><td colspan="10" class="empty-state">No hay facturas para esta selección.</td></tr>';
   }
 
   // Exporta exactamente lo que se ve en el listado: mismo contrato/año/
@@ -697,14 +695,96 @@
     el.cmpPeriods.innerHTML = `<table class="facturacion-table">${head.replace("__FIRST__", "Periodo")}<tbody>${periodRows.join("")}${totalRow}</tbody></table>`;
 
     const names = new Map(state.contracts.map((c) => [String(c.id), c.contrato]));
-    const contractRows = Array.from(cmp.selected)
-      .map((id) => [id, data.byContract.get(id) || { a: 0, b: 0 }])
-      .filter(([, v]) => v.a || v.b)
-      .sort((x, y) => (y[1].a + y[1].b) - (x[1].a + x[1].b))
-      .map(([id, v]) => `<tr><td>${escapeHtml(names.get(id) || `Contrato ${id}`)}</td><td class="num">${formatMoney(v.a)}</td><td class="num">${formatMoney(v.b)}</td>${cmpDeltaCells(v.a, v.b)}</tr>`);
+    const contractData = Array.from(cmp.selected)
+      .map((id) => ({ name: names.get(id) || `Contrato ${id}`, ...(data.byContract.get(id) || { a: 0, b: 0 }) }))
+      .filter((v) => v.a || v.b)
+      .sort((x, y) => (y.a + y.b) - (x.a + x.b));
+    const contractRows = contractData
+      .map((v) => `<tr><td>${escapeHtml(v.name)}</td><td class="num">${formatMoney(v.a)}</td><td class="num">${formatMoney(v.b)}</td>${cmpDeltaCells(v.a, v.b)}</tr>`);
     el.cmpContractsTable.innerHTML = contractRows.length
       ? `<table class="facturacion-table">${head.replace("__FIRST__", "Contrato")}<tbody>${contractRows.join("")}${totalRow.replace(">Total<", ">Total<")}</tbody></table>`
       : '<p class="empty-state">Sin facturas para esta selección.</p>';
+
+    renderCmpCharts(periodKeys.map((k) => ({ name: cmpPeriodLabel(k), ...(data.byPeriod.get(k) || { a: 0, b: 0 }) })), contractData);
+  }
+
+  // ---- Gráficos de barras de la Comparativa (SVG/CSS propios, sin librerías) ----
+  function cmpCompactMoney(value) {
+    const abs = Math.abs(value);
+    const sign = value < 0 ? "−" : "";
+    const fmt = (n, digits) => n.toLocaleString("es-ES", { maximumFractionDigits: digits });
+    if (abs >= 1e6) return `${sign}${fmt(abs / 1e6, 1)} M`;
+    if (abs >= 1e3) return `${sign}${fmt(abs / 1e3, abs >= 1e5 ? 0 : 1)} k`;
+    return `${sign}${fmt(abs, 0)}`;
+  }
+
+  function cmpNiceStep(range, ticks) {
+    const rough = range / ticks;
+    const pow = 10 ** Math.floor(Math.log10(rough || 1));
+    const n = rough / pow;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow;
+  }
+
+  function cmpLegend() {
+    return `<div class="cmp-legend"><span><i class="cmp-swatch cmp-swatch-a"></i>${escapeHtml(cmp.yearA)}</span><span><i class="cmp-swatch cmp-swatch-b"></i>${escapeHtml(cmp.yearB)}</span></div>`;
+  }
+
+  function renderCmpPeriodChart(rows) {
+    if (!rows.length || rows.every((r) => !r.a && !r.b)) return '<p class="empty-state">Sin facturas para esta selección.</p>';
+    const values = rows.flatMap((r) => [r.a, r.b]);
+    const rawMax = Math.max(0, ...values);
+    const rawMin = Math.min(0, ...values);
+    const step = cmpNiceStep((rawMax - rawMin) || 1, 4);
+    const top = Math.ceil(rawMax / step) * step;
+    const bottom = Math.floor(rawMin / step) * step;
+    const left = 52;
+    const right = 12;
+    const padTop = 18;
+    const padBottom = 28;
+    const plotH = 220;
+    const groupW = rows.length > 12 ? 40 : 64;
+    const plotW = Math.max(rows.length * groupW, 320);
+    const width = left + plotW + right;
+    const height = padTop + plotH + padBottom;
+    const y = (v) => padTop + ((top - v) / ((top - bottom) || 1)) * plotH;
+    const slot = plotW / rows.length;
+    const barW = Math.min(26, (slot - 10) / 2);
+    const showValues = rows.length <= 6;
+    let grid = "";
+    for (let t = bottom; t <= top + step / 2; t += step) {
+      grid += `<line x1="${left}" x2="${left + plotW}" y1="${y(t)}" y2="${y(t)}" class="cmp-grid${t === 0 ? " cmp-grid-zero" : ""}"/><text x="${left - 6}" y="${y(t) + 4}" text-anchor="end" class="cmp-axis">${cmpCompactMoney(t)}</text>`;
+    }
+    const bars = rows.map((r, i) => {
+      const cx = left + slot * i + slot / 2;
+      const one = (value, cls, x, year) => {
+        const y0 = y(0);
+        const y1 = y(value);
+        const h = Math.max(Math.abs(y1 - y0), value ? 1 : 0);
+        const by = value >= 0 ? y0 - h : y0;
+        const label = showValues && value
+          ? `<text x="${x + barW / 2}" y="${value >= 0 ? by - 4 : by + h + 11}" text-anchor="middle" class="cmp-value">${cmpCompactMoney(value)}</text>`
+          : "";
+        return `<rect x="${x}" y="${by}" width="${barW}" height="${h}" rx="2" class="${cls}"><title>${escapeHtml(`${r.name} ${year}: ${formatMoney(value)}`)}</title></rect>${label}`;
+      };
+      return `${one(r.a, "cmp-bar-a", cx - barW - 1, cmp.yearA)}${one(r.b, "cmp-bar-b", cx + 1, cmp.yearB)}<text x="${cx}" y="${padTop + plotH + 17}" text-anchor="middle" class="cmp-axis">${escapeHtml(r.name)}</text>`;
+    }).join("");
+    return `${cmpLegend()}<div class="cmp-chart-scroll"><svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Facturación por periodo, ${escapeHtml(cmp.yearA)} frente a ${escapeHtml(cmp.yearB)}">${grid}${bars}</svg></div>`;
+  }
+
+  function renderCmpContractChart(rows) {
+    if (!rows.length) return '<p class="empty-state">Sin facturas para esta selección.</p>';
+    const max = Math.max(...rows.flatMap((r) => [Math.abs(r.a), Math.abs(r.b)])) || 1;
+    const bar = (value, cls) => `<div class="cmp-hbar-track"><div class="cmp-hbar ${cls}${value < 0 ? " cmp-hbar-neg" : ""}" style="width:${(Math.abs(value) / max) * 100}%"></div><span>${cmpCompactMoney(value)}</span></div>`;
+    return `${cmpLegend()}<div class="cmp-hchart">${rows.map((r) => `
+      <div class="cmp-hrow" title="${escapeHtml(`${r.name} · ${cmp.yearA}: ${formatMoney(r.a)} · ${cmp.yearB}: ${formatMoney(r.b)}`)}">
+        <div class="cmp-hname">${escapeHtml(r.name)}</div>
+        <div class="cmp-hbars">${bar(r.a, "cmp-bar-a")}${bar(r.b, "cmp-bar-b")}</div>
+      </div>`).join("")}</div>`;
+  }
+
+  function renderCmpCharts(periodRows, contractRows) {
+    el.cmpChartPeriods.innerHTML = renderCmpPeriodChart(periodRows);
+    el.cmpChartContracts.innerHTML = renderCmpContractChart(contractRows);
   }
 
   async function exportComparativaExcel() {
@@ -3471,6 +3551,8 @@
       cmpCount: q("#facturacion-cmp-count"),
       cmpKpis: q("#facturacion-cmp-kpis"),
       cmpPeriods: q("#facturacion-cmp-periods"),
+      cmpChartPeriods: q("#facturacion-cmp-chart-periods"),
+      cmpChartContracts: q("#facturacion-cmp-chart-contracts"),
       cmpContractsTable: q("#facturacion-cmp-contracts-table"),
       cmpExcel: q("#facturacion-cmp-excel"),
       budgetDialog: q("#facturacion-budget-dialog"),

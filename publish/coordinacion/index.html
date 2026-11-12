@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261110-4" />
+    <link rel="stylesheet" href="./styles.css?v=20261112-1" />
   </head>
   <body>
     <script>
@@ -6601,8 +6601,6 @@
                     <th><button type="button" class="sort-button" data-invoices-sort-field="serie">Serie / Número</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="periodo">Periodo</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="referencia">Referencia</button></th>
-                    <th><button type="button" class="sort-button" data-invoices-sort-field="base">Base</button></th>
-                    <th><button type="button" class="sort-button" data-invoices-sort-field="iva">IVA</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="total">Total</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="presupuesto">Presupuesto</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="estado">Estado</button></th>
@@ -6655,6 +6653,14 @@
                 </aside>
                 <div class="facturacion-cmp-results">
                   <div id="facturacion-cmp-kpis" class="facturacion-kpis"></div>
+                  <details class="card facturacion-cmp-chart" open>
+                    <summary>Gráfico por periodo</summary>
+                    <div id="facturacion-cmp-chart-periods"></div>
+                  </details>
+                  <details class="card facturacion-cmp-chart">
+                    <summary>Gráfico por contrato</summary>
+                    <div id="facturacion-cmp-chart-contracts"></div>
+                  </details>
                   <article class="card">
                     <h3>Por periodo</h3>
                     <div id="facturacion-cmp-periods" class="table-scroll"></div>
@@ -10900,7 +10906,7 @@
     <script src="./shared/auth.js" defer></script>
     <script src="./list-scroll-keeper.js?v=20260930-1" defer></script>
     <script src="./concilia-integrated.js?v=20261025-2" defer></script>
-    <script src="./facturacion.js?v=20261110-3" defer></script>
+    <script src="./facturacion.js?v=20261112-2" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
     <script src="./app.js?v=20261104-1" defer></script>
