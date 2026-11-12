@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261106-1" />
+    <link rel="stylesheet" href="./styles.css?v=20261110-4" />
   </head>
   <body>
     <script>
@@ -6599,6 +6599,7 @@
                   <thead><tr>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="fecha">Fecha</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="serie">Serie / Número</button></th>
+                    <th><button type="button" class="sort-button" data-invoices-sort-field="periodo">Periodo</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="referencia">Referencia</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="base">Base</button></th>
                     <th><button type="button" class="sort-button" data-invoices-sort-field="iva">IVA</button></th>
@@ -6616,7 +6617,7 @@
 
             <section data-facturacion-panel="comparativa" class="facturacion-view hidden">
               <div class="facturacion-section-title">
-                <div><p class="eyebrow">Evolución</p><h3>Comparativa de facturación</h3></div>
+                <div><p class="eyebrow">Evolución</p><h3>Comparativa de facturación</h3><p class="muted" style="margin:2px 0 0;font-size:0.8rem">Cada factura cuenta en los meses de su periodo facturado (no en el de su fecha); si abarca varios meses, el importe se reparte por días.</p></div>
                 <button id="facturacion-cmp-excel" type="button">Exportar Excel</button>
               </div>
               <div class="facturacion-cmp-filters card">
@@ -6877,6 +6878,8 @@
                 <label>Serie<input name="serie" /></label>
                 <label>Número<input name="n_documento" /></label>
                 <label>Presupuesto<select name="presupuesto_id"></select></label>
+                <label title="Primer día del periodo que factura esta factura">Periodo desde<input name="periodo_desde" type="date" /></label>
+                <label title="Último día del periodo que factura esta factura">Periodo hasta<input name="periodo_hasta" type="date" /></label>
                 <label class="wide">Referencia<input name="referencia" /></label>
                 <label>Base imponible<input name="base_imponible" type="number" step="0.01" required /></label>
                 <label>IVA<input name="iva" type="number" step="0.01" required /></label>
@@ -10897,7 +10900,7 @@
     <script src="./shared/auth.js" defer></script>
     <script src="./list-scroll-keeper.js?v=20260930-1" defer></script>
     <script src="./concilia-integrated.js?v=20261025-2" defer></script>
-    <script src="./facturacion.js?v=20261106-1" defer></script>
+    <script src="./facturacion.js?v=20261110-3" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
     <script src="./app.js?v=20261104-1" defer></script>

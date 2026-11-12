@@ -9142,12 +9142,24 @@ input[data-percent].pct-input--warn {
 }
 .facturacion-cmp-filters label { display: grid; gap: 4px; font-size: 0.85rem; }
 .facturacion-cmp-filters .facturacion-cmp-check { display: flex; align-items: center; gap: 6px; }
-.facturacion-cmp-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+.facturacion-cmp-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
 .facturacion-cmp-contracts { padding: 12px; display: grid; gap: 8px; position: sticky; top: 8px; }
 .facturacion-cmp-contracts-head { display: flex; justify-content: space-between; }
 .facturacion-cmp-contracts-actions { display: flex; gap: 8px; }
 .facturacion-cmp-list { max-height: 420px; overflow: auto; display: grid; gap: 4px; }
-.facturacion-cmp-list label { display: flex; gap: 6px; align-items: flex-start; font-size: 0.85rem; }
+.facturacion-cmp-list label {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  padding: 2px 0;
+  white-space: nowrap;
+}
+.facturacion-cmp-list label input[type="checkbox"] { width: 14px; min-width: 14px; height: 14px; margin: 0; padding: 0; flex: 0 0 14px; }
+.facturacion-cmp-list label small { white-space: nowrap; }
 .facturacion-cmp-results { display: grid; gap: 12px; min-width: 0; }
 .facturacion-cmp-results .card { padding: 12px 16px; }
 .facturacion-table .num { text-align: right; white-space: nowrap; }
@@ -9177,6 +9189,7 @@ input[data-percent].pct-input--warn {
 .facturacion-dropzone-file { font-size: 0.85rem; overflow-wrap: anywhere; }
 .facturacion-dropzone-actions { display: flex; gap: 8px; justify-content: center; }
 .facturacion-docs-cell { white-space: nowrap; }
+.facturacion-period-cell { white-space: nowrap; }
 .doc-chip {
   padding: 2px 8px;
   margin-right: 4px;

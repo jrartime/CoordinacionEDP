@@ -86,6 +86,38 @@
     return Number.isNaN(date.getTime()) ? "—" : dateFmt.format(date);
   }
 
+  const PERIOD_MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+  // Periodo que factura una factura: «sep 2026», «jun–sep 2026», «01/06–26/06/2026».
+  function formatInvoicePeriod(row) {
+    const from = String(row.periodo_desde || "").slice(0, 10);
+    const to = String(row.periodo_hasta || row.periodo_desde || "").slice(0, 10);
+    if (!from) return "—";
+    const [y1, m1, d1] = from.split("-").map(Number);
+    const [y2, m2, d2] = to.split("-").map(Number);
+    const lastDay = (y, m) => new Date(y, m, 0).getDate();
+    const wholeMonths = d1 === 1 && d2 === lastDay(y2, m2);
+    if (!wholeMonths) return `${formatDate(from)} – ${formatDate(to)}`;
+    if (y1 === y2 && m1 === m2) return `${PERIOD_MONTHS[m1 - 1]} ${y1}`;
+    if (y1 === y2) return `${PERIOD_MONTHS[m1 - 1]}–${PERIOD_MONTHS[m2 - 1]} ${y1}`;
+    return `${PERIOD_MONTHS[m1 - 1]} ${y1} – ${PERIOD_MONTHS[m2 - 1]} ${y2}`;
+  }
+
+  // Periodo que se propone según la fecha de emisión: de finales de mes (día 16
+  // en adelante) es ese mismo mes; de principios (hasta el 15), el mes anterior.
+  function suggestInvoicePeriod(dateValue) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateValue || ""));
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const target = new Date(year, day <= 15 ? month - 2 : month - 1, 1);
+    const pad = (n) => String(n).padStart(2, "0");
+    const last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    const base = `${target.getFullYear()}-${pad(target.getMonth() + 1)}`;
+    return { from: `${base}-01`, to: `${base}-${pad(last)}` };
+  }
+
   function setStatus(message = "", tone = "") {
     el.status.textContent = message;
     el.status.className = `panel-status-message${tone ? ` ${tone}` : ""}`;
@@ -335,6 +367,7 @@
     switch (field) {
       case "fecha": return String(row.fecha ?? "");
       case "serie": return [row.serie, row.n_documento].filter(Boolean).join("/");
+      case "periodo": return String(row.periodo_desde ?? "");
       case "referencia": return String(row.referencia ?? "");
       case "base": return numeric(row.base_imponible);
       case "iva": return numeric(row.iva);
@@ -389,6 +422,7 @@
           <tr>
             <td>${formatDate(row.fecha)}</td>
             <td>${escapeHtml([row.serie, row.n_documento].filter(Boolean).join(" / ") || "—")}</td>
+            <td class="facturacion-period-cell" title="${escapeHtml(row.periodo_desde ? `${formatDate(row.periodo_desde)} – ${formatDate(row.periodo_hasta || row.periodo_desde)}` : "Sin periodo")}">${escapeHtml(formatInvoicePeriod(row))}</td>
             <td title="${escapeHtml(row.referencia)}">${escapeHtml(row.referencia || "—")}</td>
             <td class="numeric">${formatMoney(row.base_imponible)}</td>
             <td class="numeric">${formatMoney(row.iva)}</td>
@@ -402,7 +436,7 @@
             </td>
             <td><button type="button" class="secondary-button row-action" data-edit-invoice="${row.id}">Editar</button></td>
           </tr>`).join("")
-      : '<tr><td colspan="11" class="empty-state">No hay facturas para esta selección.</td></tr>';
+      : '<tr><td colspan="12" class="empty-state">No hay facturas para esta selección.</td></tr>';
   }
 
   // Exporta exactamente lo que se ve en el listado: mismo contrato/año/
@@ -420,6 +454,9 @@
       const rows = invoices.map((row) => ({
         Fecha: formatDate(row.fecha),
         "Serie/Número": [row.serie, row.n_documento].filter(Boolean).join("/"),
+        Periodo: formatInvoicePeriod(row),
+        "Periodo desde": row.periodo_desde ? formatDate(row.periodo_desde) : "",
+        "Periodo hasta": row.periodo_hasta ? formatDate(row.periodo_hasta) : "",
         Referencia: row.referencia || "",
         Base: numeric(row.base_imponible),
         IVA: numeric(row.iva),
@@ -430,7 +467,7 @@
       }));
       const worksheet = XLSX.utils.json_to_sheet(rows);
       worksheet["!cols"] = [
-        { wch: 12 }, { wch: 14 }, { wch: 24 }, { wch: 12 }, { wch: 10 },
+        { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 24 }, { wch: 12 }, { wch: 10 },
         { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 20 },
       ];
       const workbook = XLSX.utils.book_new();
@@ -495,12 +532,44 @@
     return new Set(state.statuses.filter((s) => /anulad/i.test(String(s.estado || ""))).map((s) => String(s.id)));
   }
 
+  // Trozos del periodo facturado por mes natural: [{ year, month, weight }] con
+  // weight = días del periodo en ese mes / días totales del periodo. Sin periodo
+  // se usa el mes de la fecha de emisión.
+  function cmpInvoiceSegments(row) {
+    const parse = (value) => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ""));
+      return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+    };
+    const dayMs = 86400000;
+    let start = parse(row.periodo_desde);
+    let end = parse(row.periodo_hasta) ?? start;
+    if (start === null) {
+      start = parse(row.fecha);
+      end = start;
+    }
+    if (start === null) return [];
+    if (end < start) end = start;
+    const totalDays = Math.round((end - start) / dayMs) + 1;
+    const segments = [];
+    let cursor = start;
+    while (cursor <= end) {
+      const d = new Date(cursor);
+      const monthEnd = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0);
+      const segEnd = Math.min(monthEnd, end);
+      const days = Math.round((segEnd - cursor) / dayMs) + 1;
+      segments.push({ year: String(d.getUTCFullYear()), month: d.getUTCMonth() + 1, weight: days / totalDays });
+      cursor = segEnd + dayMs;
+    }
+    return segments;
+  }
+
   function cmpYears() {
     const years = new Set();
-    state.invoices.forEach((row) => row.fecha && years.add(String(row.fecha).slice(0, 4)));
+    state.invoices.forEach((row) => cmpInvoiceSegments(row).forEach((s) => years.add(s.year)));
     return Array.from(years).sort();
   }
 
+  // (La comparativa cuenta cada factura en los meses de su periodo facturado, no en el de su fecha.)
   function cmpContractsWithInvoices() {
     const ids = new Set(state.invoices.map((row) => String(row.contrato_id)));
     return state.contracts
@@ -545,23 +614,26 @@
     let a = 0;
     let b = 0;
     state.invoices.forEach((row) => {
-      const year = String(row.fecha || "").slice(0, 4);
-      if (year !== cmp.yearA && year !== cmp.yearB) return;
       const cid = String(row.contrato_id);
       if (!cmp.selected.has(cid)) return;
-      const month = Number(String(row.fecha).slice(5, 7));
-      if (month < cmp.from || month > cmp.to) return;
       if (voids.has(String(row.contrato_estado_factura_id))) return;
-      const value = numeric(row[cmp.amount]);
-      const side = year === cmp.yearA ? "a" : "b";
-      const key = cmpPeriodKey(month);
-      const c = byContract.get(cid) || { a: 0, b: 0 };
-      c[side] += value;
-      byContract.set(cid, c);
-      const p = byPeriod.get(key) || { a: 0, b: 0 };
-      p[side] += value;
-      byPeriod.set(key, p);
-      if (side === "a") a += value; else b += value;
+      const total = numeric(row[cmp.amount]);
+      // El importe se reparte entre los meses del periodo facturado, en
+      // proporción a sus días (una factura de jun–sep aporta a cada mes lo suyo).
+      cmpInvoiceSegments(row).forEach(({ year, month, weight }) => {
+        if (year !== cmp.yearA && year !== cmp.yearB) return;
+        if (month < cmp.from || month > cmp.to) return;
+        const value = total * weight;
+        const side = year === cmp.yearA ? "a" : "b";
+        const key = cmpPeriodKey(month);
+        const c = byContract.get(cid) || { a: 0, b: 0 };
+        c[side] += value;
+        byContract.set(cid, c);
+        const p = byPeriod.get(key) || { a: 0, b: 0 };
+        p[side] += value;
+        byPeriod.set(key, p);
+        if (side === "a") a += value; else b += value;
+      });
     });
     return { byContract, byPeriod, a, b };
   }
@@ -2894,6 +2966,10 @@
     form.elements.fecha.value = String(row.fecha || new Date().toISOString().slice(0, 10)).slice(0, 10);
     form.elements.serie.value = row.serie || "";
     form.elements.n_documento.value = row.n_documento || "";
+    const suggested = row.id ? null : suggestInvoicePeriod(form.elements.fecha.value);
+    form.elements.periodo_desde.value = String(row.periodo_desde || suggested?.from || "").slice(0, 10);
+    form.elements.periodo_hasta.value = String(row.periodo_hasta || suggested?.to || "").slice(0, 10);
+    form.dataset.periodTouched = row.id ? "1" : "";
     form.elements.referencia.value = row.referencia || "";
     form.elements.base_imponible.value = row.base_imponible ?? "";
     form.elements.iva.value = row.iva ?? "";
@@ -2981,6 +3057,8 @@
       fecha: form.elements.fecha.value,
       serie: form.elements.serie.value.trim() || null,
       n_documento: form.elements.n_documento.value.trim() || null,
+      periodo_desde: form.elements.periodo_desde.value || null,
+      periodo_hasta: form.elements.periodo_hasta.value || form.elements.periodo_desde.value || null,
       referencia: form.elements.referencia.value.trim() || null,
       base_imponible: numeric(form.elements.base_imponible.value),
       iva: numeric(form.elements.iva.value),
@@ -2993,6 +3071,10 @@
     };
     if (payload.cobrada && !payload.fecha_cobro) {
       setStatus("Indica la fecha de cobro de la factura.", "error");
+      return;
+    }
+    if (payload.periodo_desde && payload.periodo_hasta < payload.periodo_desde) {
+      setStatus("El fin del periodo facturado no puede ser anterior a su inicio.", "error");
       return;
     }
     const supabase = await getClient();
@@ -3325,6 +3407,16 @@
           numeric(el.invoiceForm.elements.base_imponible.value) + numeric(el.invoiceForm.elements.iva.value)
         ).toFixed(2);
       });
+    });
+    ["periodo_desde", "periodo_hasta"].forEach((name) => {
+      el.invoiceForm.elements[name].addEventListener("input", () => { el.invoiceForm.dataset.periodTouched = "1"; });
+    });
+    el.invoiceForm.elements.fecha.addEventListener("change", () => {
+      if (el.invoiceForm.dataset.periodTouched) return;
+      const suggested = suggestInvoicePeriod(el.invoiceForm.elements.fecha.value);
+      if (!suggested) return;
+      el.invoiceForm.elements.periodo_desde.value = suggested.from;
+      el.invoiceForm.elements.periodo_hasta.value = suggested.to;
     });
     el.invoiceForm.elements.cobrada.addEventListener("change", () => {
       if (el.invoiceForm.elements.cobrada.checked && !el.invoiceForm.elements.fecha_cobro.value) {
