@@ -7578,39 +7578,18 @@ async function loadProgrammingPersonnel() {
     return;
   }
 
+  // El personal disponible es el que el RLS deja ver al perfil (contratos asignados).
   const supabase = await getSupabaseClient();
-  const [catalogResult, personnelResultWithLink] = await Promise.all([
-    supabase
-      .from("personal")
-      .select("id, personal, dni, vinculacion_id")
-      .in("vinculacion_id", [1, 2])
-      .order("personal", { ascending: true }),
-    supabase
-      .from("programming_personnel")
-      .select("id, name, personal_id, dni, pin")
-      .order("name", { ascending: true }),
-  ]);
-  let personnelResult = personnelResultWithLink;
-
-  if (personnelResultWithLink.error) {
-    const details = formatSupabaseErrorDetails(personnelResultWithLink.error).toLowerCase();
-    const tableMissing =
-      details.includes("programming_personnel") && details.includes("does not exist");
-    if (tableMissing) {
-      personnelResult = personnelResultWithLink;
-    } else {
-    const fallbackResult = await supabase
-      .from("programming_personnel")
-      .select("id, name, pin")
-      .order("name", { ascending: true });
-    if (!fallbackResult.error) {
-      personnelResult = fallbackResult;
-    }
-    }
-  }
+  const catalogResult = await supabase
+    .from("personal")
+    .select("id, personal, dni, vinculacion_id")
+    .in("vinculacion_id", [1, 2])
+    .order("personal", { ascending: true })
+    .limit(5000);
 
   if (catalogResult.error) {
     programmingPersonnelCatalogRows = [];
+    currentProgrammingPersonnel = [];
     renderProgrammingPersonnelUi();
     setStatus(`No se pudo cargar el personal de plantilla: ${catalogResult.error.message}`, "error");
     return;
@@ -7619,34 +7598,12 @@ async function loadProgrammingPersonnel() {
   programmingPersonnelCatalogRows = (catalogResult.data || [])
     .map(normalizeProgrammingPersonnelCatalogRow)
     .filter((row) => row.id && row.personal);
-
-  if (personnelResult.error) {
-    currentProgrammingPersonnel = [];
-    renderProgrammingPersonnelUi();
-    if (isMissingProgrammingPersonnelTableError(personnelResult.error)) {
-      setStatus(
-        "Falta la tabla programming_personnel en Supabase. Ejecuta el SQL actualizado de supabase/schema.sql.",
-        "error"
-      );
-      return;
-    }
-
-    setStatus(`No se pudo cargar el listado de personal: ${personnelResult.error.message}`, "error");
-    return;
-  }
-
-  currentProgrammingPersonnel = (personnelResult.data || []).map((person) => {
-    const name = normalizeProgrammingPersonnelName(person.name);
-    const catalogMatch = programmingPersonnelCatalogRows.find(
-      (row) => normalizeProgrammingPersonnelName(row.personal) === name
-    );
-    return {
-      id: person.id,
-      personalId: Number(person.personal_id || catalogMatch?.id || 0),
-      name,
-      dni: normalizeProgrammingPersonnelDni(person.dni || catalogMatch?.dni),
-    };
-  });
+  currentProgrammingPersonnel = programmingPersonnelCatalogRows.map((row) => ({
+    id: row.id,
+    personalId: Number(row.id),
+    name: normalizeProgrammingPersonnelName(row.personal),
+    dni: normalizeProgrammingPersonnelDni(row.dni),
+  }));
   renderProgrammingPersonnelUi();
 }
 
@@ -8427,16 +8384,11 @@ function renderProgrammingInstallationOptions(extraNames = []) {
 }
 
 async function loadProgrammingInstallationCatalog(supabase) {
-  const [catalogResult, assignedResult] = await Promise.all([
-    supabase
-      .from("instalaciones")
-      .select("id, instalacion, activo")
-      .limit(10000),
-    supabase
-      .from("programming_installations")
-      .select("id, installation_id, name")
-      .order("name", { ascending: true }),
-  ]);
+  // Las instalaciones disponibles son las que el RLS deja ver al perfil (contratos asignados).
+  const catalogResult = await supabase
+    .from("instalaciones")
+    .select("id, instalacion, activo")
+    .limit(10000);
 
   if (catalogResult.error) {
     throw new Error(`No se pudieron cargar las instalaciones: ${catalogResult.error.message}`);
@@ -8446,32 +8398,9 @@ async function loadProgrammingInstallationCatalog(supabase) {
     .map(normalizeProgrammingInstallationCatalogRow)
     .filter((row) => row.id && row.instalacion);
 
-  const activeCatalogRows = programmingInstallationCatalogRows.filter((row) => row.activo);
-  const assignedTableMissing =
-    assignedResult.error &&
-    formatSupabaseErrorDetails(assignedResult.error).toLowerCase().includes("programming_installations");
-
-  if (assignedResult.error && !assignedTableMissing) {
-    throw new Error(`No se pudieron cargar las instalaciones asignadas: ${assignedResult.error.message}`);
-  }
-
-  currentProgrammingAssignedInstallations = assignedTableMissing
-    ? activeCatalogRows.map((row) => ({
-        id: row.id,
-        installationId: row.id,
-        name: row.instalacion,
-      }))
-    : (assignedResult.data ?? []).map((row) => {
-        const name = normalizeProgrammingCell(row.name);
-        const catalogMatch = programmingInstallationCatalogRows.find(
-          (item) => normalizeProgrammingText(item.instalacion) === normalizeProgrammingText(name)
-        );
-        return {
-          id: row.id,
-          installationId: Number(row.installation_id || catalogMatch?.id || 0),
-          name,
-        };
-      }).filter((row) => row.name);
+  currentProgrammingAssignedInstallations = programmingInstallationCatalogRows
+    .filter((row) => row.activo)
+    .map((row) => ({ id: row.id, installationId: row.id, name: row.instalacion }));
 
   currentProgrammingActiveInstallations = sortTextValues(
     currentProgrammingAssignedInstallations.map((row) => row.name).filter(Boolean)
@@ -38600,7 +38529,7 @@ async function init() {
     void loadProgrammingFromSupabase();
   });
   programmingImportButton?.addEventListener("click", () => {
-    openProgrammingImportPanel();
+    void window.CoordinacionProgramacionCarga?.open();
   });
   closeProgrammingImportButton?.addEventListener("click", closeProgrammingImportPanel);
   programmingImportCancelButton?.addEventListener("click", closeProgrammingImportPanel);

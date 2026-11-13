@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261112-7" />
+    <link rel="stylesheet" href="./styles.css?v=20261113-5" />
   </head>
   <body>
     <script>
@@ -5117,16 +5117,6 @@
                     <button id="programming-import-button" type="button" class="warm-button">
                       Cargar datos
                     </button>
-                    <button
-                      id="open-programming-settings-button"
-                      type="button"
-                      class="secondary-button tooltip-button"
-                      aria-label="Configuración de programación"
-                    >
-                      <svg class="button-icon" aria-hidden="true">
-                        <use href="./icons.svg#icon-settings"></use>
-                      </svg>
-                    </button>
                   </div>
                 </div>
 
@@ -10039,157 +10029,6 @@
           </aside>
         </section>
 
-        <section id="programming-import-panel" class="detail-panel hidden">
-          <div class="detail-overlay" id="programming-import-overlay"></div>
-          <aside class="detail-drawer programming-import-drawer">
-            <div class="detail-header">
-              <div>
-                <p class="eyebrow">Programación</p>
-                <h3>Cargar datos desde Word o CSV</h3>
-              </div>
-              <div class="detail-header-actions">
-                <button
-                  id="close-programming-import-button"
-                  type="button"
-                  class="secondary-button"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-
-            <form id="programming-import-form" class="detail-form">
-              <label>
-                Archivo Word o CSV
-                <input
-                  id="programming-import-file"
-                  type="file"
-                  accept=".docx,.csv,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv"
-                  required
-                />
-              </label>
-
-              <div class="form-grid compact-form-grid">
-                <label>
-                  Mes
-                  <select id="programming-import-month" required>
-                    <option value="1">Enero</option>
-                    <option value="2">Febrero</option>
-                    <option value="3">Marzo</option>
-                    <option value="4">Abril</option>
-                    <option value="5">Mayo</option>
-                    <option value="6">Junio</option>
-                    <option value="7">Julio</option>
-                    <option value="8">Agosto</option>
-                    <option value="9">Septiembre</option>
-                    <option value="10">Octubre</option>
-                    <option value="11">Noviembre</option>
-                    <option value="12">Diciembre</option>
-                  </select>
-                </label>
-
-                <label>
-                  Año
-                  <input id="programming-import-year" type="number" min="2020" max="2100" required />
-                </label>
-
-                <label>
-                  Cargar como
-                  <select id="programming-import-type" required>
-                    <option value="fin_semana">Fin de semana</option>
-                    <option value="semanal">Semanal</option>
-                  </select>
-                </label>
-              </div>
-
-              <p class="inline-note">
-                En Word se tomará el nombre de instalación del texto situado encima de cada tabla.
-                En CSV se esperan las columnas PERSONAL, INSTALACIÓN, FECHA, INICI., FIN, HORA,
-                DEPORTE y ACTIVIDAD.
-              </p>
-
-              <div class="detail-actions">
-                <button
-                  id="programming-import-cancel-button"
-                  type="button"
-                  class="secondary-button"
-                >
-                  Cancelar
-                </button>
-                <button id="programming-import-process-button" type="submit">
-                  Procesar archivo
-                </button>
-              </div>
-            </form>
-
-            <p
-              id="programming-import-status"
-              class="panel-status-message"
-              role="status"
-              aria-live="polite"
-            ></p>
-
-            <section id="programming-import-preview" class="programming-import-preview hidden">
-              <div class="programming-import-preview-header">
-                <div>
-                  <p class="eyebrow">Vista previa</p>
-                  <h4>Registros detectados</h4>
-                </div>
-                <strong id="programming-import-preview-count">0 filtrados</strong>
-              </div>
-
-              <form id="programming-import-preview-filters" class="programming-import-preview-filters">
-                <label>
-                  Fecha
-                  <select id="programming-import-preview-date">
-                    <option value="">Todas las fechas</option>
-                  </select>
-                </label>
-                <label>
-                  Instalación
-                  <select id="programming-import-preview-installation">
-                    <option value="">Todas las instalaciones</option>
-                  </select>
-                </label>
-              </form>
-
-              <div class="table-wrapper programming-import-preview-table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Personal</th>
-                      <th>Instalación</th>
-                      <th>Fecha</th>
-                      <th>Inicio</th>
-                      <th>Fin</th>
-                      <th>Hora</th>
-                      <th>Deporte</th>
-                      <th>Actividad</th>
-                    </tr>
-                  </thead>
-                  <tbody id="programming-import-preview-table-body">
-                    <tr>
-                      <td colspan="8" class="empty-state">Procesa un Word o CSV para revisar los registros.</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="detail-actions">
-                <button
-                  id="programming-import-clear-preview-button"
-                  type="button"
-                  class="secondary-button"
-                >
-                  Limpiar vista previa
-                </button>
-                <button id="programming-import-insert-button" type="button">
-                  Insertar registros filtrados
-                </button>
-              </div>
-            </section>
-          </aside>
-        </section>
 
         <section id="control-totals-panel" class="detail-panel hidden">
           <div class="detail-overlay" id="control-totals-overlay"></div>
@@ -10579,96 +10418,6 @@
           </aside>
         </section>
 
-        <section id="programming-settings-panel" class="detail-panel hidden">
-          <div class="detail-overlay" id="programming-settings-overlay"></div>
-          <aside class="detail-drawer">
-            <div class="detail-header">
-              <div>
-                <p class="eyebrow">Configuración</p>
-                <h3>Ajustes de programación</h3>
-              </div>
-              <div class="detail-header-actions">
-                <button
-                  id="close-programming-settings-button"
-                  type="button"
-                  class="secondary-button"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-
-            <details class="settings-section" open>
-              <summary>Personal asignado a programación</summary>
-              <p class="muted-text">
-                El personal seleccionado aparecerá en los desplegables de programación con su nombre y DNI.
-              </p>
-              <label>
-                Filtrar personal
-                <input
-                  id="programming-personnel-filter"
-                  type="search"
-                  placeholder="Nombre o DNI"
-                />
-              </label>
-              <div class="dual-list">
-                <section>
-                  <h5>Disponible</h5>
-                  <select id="programming-personnel-available-select" multiple size="14"></select>
-                </section>
-                <div class="dual-list-actions" aria-label="Cambiar personal de programación">
-                  <button id="programming-personnel-add-selected-button" type="button">&gt;</button>
-                  <button
-                    id="programming-personnel-remove-selected-button"
-                    type="button"
-                    class="secondary-button"
-                  >
-                    &lt;
-                  </button>
-                </div>
-                <section>
-                  <h5>Asignado al servicio</h5>
-                  <select id="programming-personnel-selected-select" multiple size="14"></select>
-                </section>
-              </div>
-            </details>
-
-            <details class="settings-section">
-              <summary>Instalaciones asignadas</summary>
-              <p class="muted-text">
-                Las instalaciones seleccionadas aparecerán en los desplegables de programación.
-              </p>
-              <label>
-                Filtrar instalación
-                <input
-                  id="programming-installation-filter"
-                  type="search"
-                  placeholder="Nombre de instalación"
-                />
-              </label>
-              <div class="dual-list">
-                <section>
-                  <h5>Disponible</h5>
-                  <select id="programming-installation-available-select" multiple size="14"></select>
-                </section>
-                <div class="dual-list-actions" aria-label="Cambiar instalaciones de programación">
-                  <button id="programming-installation-add-selected-button" type="button">&gt;</button>
-                  <button
-                    id="programming-installation-remove-selected-button"
-                    type="button"
-                    class="secondary-button"
-                  >
-                    &lt;
-                  </button>
-                </div>
-                <section>
-                  <h5>Asignadas</h5>
-                  <select id="programming-installation-selected-select" multiple size="14"></select>
-                </section>
-              </div>
-            </details>
-          </aside>
-        </section>
 
         <section id="candidate-detail-panel" class="detail-panel hidden">
           <div class="detail-overlay" id="detail-overlay"></div>
@@ -10929,10 +10678,12 @@
     <script src="../shared/supabase-client.js" defer></script>
     <script src="../shared/auth.js" defer></script>
     <script src="./list-scroll-keeper.js?v=20260930-1" defer></script>
+    <script src="./suggest-keyboard.js?v=20261113-1" defer></script>
     <script src="./concilia-integrated.js?v=20261025-2" defer></script>
     <script src="./facturacion.js?v=20261112-4" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./app.js?v=20261112-4" defer></script>
+    <script src="./app.js?v=20261113-1" defer></script>
+    <script src="./programacion-carga.js?v=20261113-5" defer></script>
   </body>
 </html>
