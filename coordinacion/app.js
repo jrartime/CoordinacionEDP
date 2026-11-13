@@ -22,14 +22,7 @@ const CANDIDATE_STATUS_OPTIONS = [
 
 const PROGRAMMING_UNASSIGNED_PERSONAL = "Sin asignar";
 const PROGRAMMING_TABLE_NAME = "programacion_conserjes";
-const PROGRAMMING_TYPE_ALL = "all";
-const PROGRAMMING_TYPE_FS = "fin_semana";
-const PROGRAMMING_TYPE_WEEKLY = "semanal";
 const PROGRAMMING_FETCH_PAGE_SIZE = 1000;
-const PROGRAMMING_TYPE_OPTIONS = [
-  { value: PROGRAMMING_TYPE_FS, label: "Programación FS" },
-  { value: PROGRAMMING_TYPE_WEEKLY, label: "Programación semanal" },
-];
 const PRIVATE_TAB_STORAGE_KEY = "curriculos_private_tab";
 const CONCILIA_CLONED_TABS = [
   { key: "concilia_alumnado", label: "Concilia Alumnado" },
@@ -1581,7 +1574,6 @@ const eventScheduleRemovePersonnelButton = document.querySelector("#event-schedu
 const eventScheduleDeleteButton = document.querySelector("#event-schedule-delete-button");
 const programmingLoadBundledButton = document.querySelector("#programming-load-bundled-button");
 const programmingImportButton = document.querySelector("#programming-import-button");
-const programmingTypeSwitch = document.querySelector("#programming-type-switch");
 const programmingImportPanel = document.querySelector("#programming-import-panel");
 const programmingImportOverlay = document.querySelector("#programming-import-overlay");
 const closeProgrammingImportButton = document.querySelector("#close-programming-import-button");
@@ -1590,7 +1582,6 @@ const programmingImportForm = document.querySelector("#programming-import-form")
 const programmingImportFileInput = document.querySelector("#programming-import-file");
 const programmingImportMonthInput = document.querySelector("#programming-import-month");
 const programmingImportYearInput = document.querySelector("#programming-import-year");
-const programmingImportTypeInput = document.querySelector("#programming-import-type");
 const programmingImportPreview = document.querySelector("#programming-import-preview");
 const programmingImportPreviewFilters = document.querySelector("#programming-import-preview-filters");
 const programmingImportPreviewDate = document.querySelector("#programming-import-preview-date");
@@ -1898,7 +1889,6 @@ const programmingDetailTitle = document.querySelector("#programming-detail-title
 const programmingDetailModeInput = document.querySelector("#programming-detail-mode");
 const programmingDetailIdInput = document.querySelector("#programming-detail-id");
 const programmingDetailPersonalInput = document.querySelector("#programming-detail-personal");
-const programmingDetailTypeInput = document.querySelector("#programming-detail-type");
 const programmingDetailInstallationInput = document.querySelector("#programming-detail-installation");
 const programmingDetailDateInput = document.querySelector("#programming-detail-date");
 const programmingDetailStartInput = document.querySelector("#programming-detail-start");
@@ -2025,7 +2015,6 @@ let pendingProgrammingImportSourceName = "";
 let programmingSortCriteria = [{ field: "fecha", direction: "asc" }];
 let programmingSelectiveDeleteMode = false;
 let programmingSelectionMode = "";
-let currentProgrammingType = PROGRAMMING_TYPE_FS;
 let selectedProgrammingDeleteIds = new Set();
 let currentProgrammingPersonnel = [];
 let programmingPersonnelCatalogRows = [];
@@ -3084,7 +3073,6 @@ function switchPrivateTab(target) {
   privateTabContabilidadButton?.setAttribute("aria-pressed", String(showContabilidad));
   privateTabFacturacionButton?.setAttribute("aria-pressed", String(showFacturacion));
   privateTabSettingsButton?.setAttribute("aria-pressed", String(showSettings));
-  syncProgrammingTypeUi();
 }
 
 function showPublicToastMessage(message) {
@@ -6699,7 +6687,7 @@ function resetProgrammingPreview() {
   programmingDateTo.textContent = "-";
   programmingPreviewTableBody.innerHTML = `
     <tr>
-      <td colspan="11" class="empty-state">Carga un Word o CSV para previsualizar la programación.</td>
+      <td colspan="10" class="empty-state">Carga un Word o CSV para previsualizar la programación.</td>
     </tr>
   `;
   programmingUploadSupabaseButton?.classList.add("hidden");
@@ -6817,12 +6805,6 @@ function getProgrammingImportPeriod() {
   return { month, year };
 }
 
-function getProgrammingImportType() {
-  return normalizeProgrammingType(
-    programmingImportTypeInput?.value || getDefaultProgrammingTypeForNewRows()
-  );
-}
-
 function extractProgrammingRowsFromWordHtml(html, { month, year }) {
   const documentHtml = new DOMParser().parseFromString(html, "text/html");
   const rows = [];
@@ -6889,9 +6871,6 @@ function openProgrammingImportPanel() {
   }
   if (programmingImportYearInput) {
     programmingImportYearInput.value = String(now.getFullYear());
-  }
-  if (programmingImportTypeInput) {
-    programmingImportTypeInput.value = getDefaultProgrammingTypeForNewRows();
   }
   setProgrammingImportStatus("");
   programmingImportPanel?.classList.remove("hidden");
@@ -8250,7 +8229,7 @@ function renderProgrammingPreview(rows, sourceName, options = {}) {
 function refreshProgrammingPreviewPage() {
   const visibleRows = getPaginatedProgrammingRows(filteredProgrammingRows);
   const selectionModeEnabled = Boolean(programmingSelectionMode);
-  const visibleColumnCount = selectionModeEnabled ? 12 : 11;
+  const visibleColumnCount = selectionModeEnabled ? 11 : 10;
   updateProgrammingPaginationUi(filteredProgrammingRows.length);
 
   programmingPreviewTableBody.innerHTML = visibleRows.length
@@ -8287,7 +8266,6 @@ function refreshProgrammingPreviewPage() {
                   }>${renderIcon("duplicate")}</button>
                 </div>
               </td>
-              <td>${escapeHtml(getProgrammingTypeBadgeLabel(row.tipoProgramacion))}</td>
               <td>${escapeHtml(getProgrammingPersonnelDisplayName(row.personal))}</td>
               <td>${escapeHtml(row.instalacion)}</td>
               <td class="weekday-marker-cell">
@@ -8331,59 +8309,15 @@ function mapFindeSemanaRowsToProgramming(rows) {
     deporte: String(row.deporte ?? "").trim(),
     actividad: String(row.actividad ?? "").trim(),
     sortOrder: Number(row.sort_order ?? 0) || 0,
-    tipoProgramacion: String(row.tipo_programacion ?? PROGRAMMING_TYPE_FS).trim() || PROGRAMMING_TYPE_FS,
   }));
 }
 
-function normalizeProgrammingType(type) {
-  return type === PROGRAMMING_TYPE_WEEKLY ? PROGRAMMING_TYPE_WEEKLY : PROGRAMMING_TYPE_FS;
+function getProgrammingTypeLabel() {
+  return "las actividades programadas";
 }
 
-function isAllProgrammingTypes(type = currentProgrammingType) {
-  return type === PROGRAMMING_TYPE_ALL;
-}
-
-function applyProgrammingTypeFilter(query, type = currentProgrammingType) {
-  return isAllProgrammingTypes(type)
-    ? query
-    : query.eq("tipo_programacion", normalizeProgrammingType(type));
-}
-
-function getDefaultProgrammingTypeForNewRows() {
-  return isAllProgrammingTypes() ? PROGRAMMING_TYPE_FS : normalizeProgrammingType(currentProgrammingType);
-}
-
-function getProgrammingTypeBadgeLabel(type) {
-  return normalizeProgrammingType(type) === PROGRAMMING_TYPE_WEEKLY ? "Semanal" : "FS";
-}
-
-function getProgrammingTypeLabel(type = currentProgrammingType) {
-  if (isAllProgrammingTypes(type)) {
-    return "toda la programación";
-  }
-  return type === PROGRAMMING_TYPE_WEEKLY ? "programación semanal" : "programación FS";
-}
-
-function getProgrammingSourceLabel(type = currentProgrammingType) {
-  if (isAllProgrammingTypes(type)) {
-    return "programacion_conserjes FS + semanal";
-  }
-  return type === PROGRAMMING_TYPE_WEEKLY ? "programacion_conserjes semanal" : "programacion_conserjes FS";
-}
-
-function syncProgrammingTypeUi() {
-  programmingTypeSwitch?.querySelectorAll("[data-programming-type-filter]").forEach((button) => {
-    const isActive = button.dataset.programmingTypeFilter === currentProgrammingType;
-    button.classList.toggle("active", isActive);
-    button.setAttribute("aria-pressed", String(isActive));
-  });
-
-  if (programmingPanelEyebrow) {
-    programmingPanelEyebrow.textContent = "Programación";
-  }
-  if (programmingPanelTitle) {
-    programmingPanelTitle.textContent = "Gestión de la programación";
-  }
+function getProgrammingSourceLabel() {
+  return "programacion_conserjes";
 }
 
 function renderProgrammingInstallationOptions(extraNames = []) {
@@ -8494,7 +8428,7 @@ async function fetchProgrammingRowsForReport(dateFrom, dateTo) {
     let reportQuery = supabase
       .from(PROGRAMMING_TABLE_NAME)
       .select("id, personal, personal_id, instalacion, instalacion_id, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order");
-    reportQuery = applyProgrammingTypeFilter(reportQuery)
+    reportQuery = reportQuery
       .gte("fecha", dateFrom)
       .lte("fecha", dateTo)
       .order("personal", { ascending: true })
@@ -9306,9 +9240,9 @@ async function loadProgrammingFromSupabase() {
       let query = supabase
         .from(PROGRAMMING_TABLE_NAME)
         .select(
-          "id, personal, personal_id, instalacion, instalacion_id, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order, tipo_programacion"
+          "id, personal, personal_id, instalacion, instalacion_id, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order"
         );
-      query = applyProgrammingTypeFilter(query)
+      query = query
         .order("fecha", { ascending: true })
         .order("sort_order", { ascending: true });
       return query;
@@ -9344,11 +9278,6 @@ function populateProgrammingDetailForm(row, options = {}) {
   renderProgrammingPersonnelOptions([row?.personal ?? ""]);
   programmingDetailPersonalInput.value =
     normalizeProgrammingPersonnelName(row?.personal) || PROGRAMMING_UNASSIGNED_PERSONAL;
-  if (programmingDetailTypeInput) {
-    programmingDetailTypeInput.value = normalizeProgrammingType(
-      row?.tipoProgramacion ?? currentProgrammingType
-    );
-  }
   programmingDetailInstallationInput.value = row?.instalacion ?? "";
   programmingDetailDateInput.value = formatProgrammingDateInputValue(row?.fecha);
   programmingDetailStartInput.value = formatProgrammingTimeInputValue(row?.inicio);
@@ -9388,7 +9317,6 @@ function openProgrammingCreateDetail() {
       hora: "",
       deporte: "",
       actividad: "",
-      tipoProgramacion: getDefaultProgrammingTypeForNewRows(),
     },
     {
       mode: "create",
@@ -9450,7 +9378,6 @@ function applyProgrammingPayloadToPreviewRow(row, payload) {
     hora: formatProgrammingTimeInputValue(payload.hora_evento),
     deporte: payload.deporte || "",
     actividad: payload.actividad || "",
-    tipoProgramacion: normalizeProgrammingType(payload.tipo_programacion || currentProgrammingType),
   });
 }
 
@@ -9465,10 +9392,6 @@ async function saveProgrammingDetail(event) {
     return;
   }
 
-  const selectedProgrammingType = normalizeProgrammingType(
-    programmingDetailTypeInput?.value || currentProgrammingType
-  );
-
   const payload = {
     personal: String(programmingDetailPersonalInput.value).trim() || PROGRAMMING_UNASSIGNED_PERSONAL,
     instalacion: String(programmingDetailInstallationInput.value).trim(),
@@ -9479,7 +9402,6 @@ async function saveProgrammingDetail(event) {
     deporte: String(programmingDetailSportInput.value).trim() || null,
     actividad: String(programmingDetailActivityInput.value).trim() || null,
     source_file: currentProgrammingSourceName || "edicion-manual",
-    tipo_programacion: selectedProgrammingType,
   };
 
   const validationErrors = validateProgrammingRowsForSupabase([payload]);
@@ -9510,13 +9432,11 @@ async function saveProgrammingDetail(event) {
   let updatedRow = null;
 
   if (detailMode === "edit") {
-    const originalProgrammingType = normalizeProgrammingType(row.tipoProgramacion);
     const result = await supabase
       .from(PROGRAMMING_TABLE_NAME)
       .update(payload)
       .eq("id", row.id)
-      .eq("tipo_programacion", originalProgrammingType)
-      .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order, tipo_programacion")
+      .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order")
       .single();
     error = result.error;
     updatedRow = result.data;
@@ -9542,13 +9462,8 @@ async function saveProgrammingDetail(event) {
       const rowIndex = currentProgrammingRows.findIndex(
         (currentRow) => String(currentRow.id) === String(mappedRow.id)
       );
-      if (
-        rowIndex >= 0 &&
-        (isAllProgrammingTypes() || mappedRow.tipoProgramacion === currentProgrammingType)
-      ) {
+      if (rowIndex >= 0) {
         currentProgrammingRows[rowIndex] = mappedRow;
-      } else if (rowIndex >= 0) {
-        currentProgrammingRows.splice(rowIndex, 1);
       }
       renderProgrammingPreview(currentProgrammingRows, currentProgrammingSourceName, {
         canUpload: currentProgrammingCanUpload,
@@ -9595,8 +9510,7 @@ async function deleteProgrammingRecord(recordId) {
   const { error } = await supabase
     .from(PROGRAMMING_TABLE_NAME)
     .delete()
-    .eq("id", recordId)
-    .eq("tipo_programacion", normalizeProgrammingType(row.tipoProgramacion));
+    .eq("id", recordId);
 
   if (error) {
     setStatus(`No se pudo borrar el registro: ${error.message}`, "error");
@@ -9809,11 +9723,7 @@ function downloadProgrammingJson() {
   setStatus("JSON de programación descargado correctamente.", "success");
 }
 
-function mapProgrammingRowsForSupabase(
-  rows,
-  sourceName = currentProgrammingSourceName,
-  programmingType = null
-) {
+function mapProgrammingRowsForSupabase(rows, sourceName = currentProgrammingSourceName) {
   return rows.map((row, index) => ({
     personal: String(row.personal ?? "").trim() || PROGRAMMING_UNASSIGNED_PERSONAL,
     instalacion: row.instalacion,
@@ -9825,9 +9735,6 @@ function mapProgrammingRowsForSupabase(
     actividad: row.actividad || null,
     source_file: sourceName || "programacion.csv",
     sort_order: index + 1,
-    tipo_programacion: normalizeProgrammingType(
-      programmingType ?? row.tipoProgramacion ?? getDefaultProgrammingTypeForNewRows()
-    ),
   }));
 }
 
@@ -9907,12 +9814,11 @@ async function insertProgrammingRowsWithDiagnostics(supabase, rows, batchSize = 
   }
 }
 
-async function countInsertedProgrammingRowsBySource(supabase, sourceName, programmingType) {
+async function countInsertedProgrammingRowsBySource(supabase, sourceName) {
   const { count, error } = await supabase
     .from(PROGRAMMING_TABLE_NAME)
     .select("id", { count: "exact", head: true })
-    .eq("source_file", sourceName || "programacion.csv")
-    .eq("tipo_programacion", normalizeProgrammingType(programmingType));
+    .eq("source_file", sourceName || "programacion.csv");
 
   if (error) {
     throw error;
@@ -9921,9 +9827,7 @@ async function countInsertedProgrammingRowsBySource(supabase, sourceName, progra
   return count ?? 0;
 }
 
-async function switchProgrammingTypeAndReload(programmingType) {
-  currentProgrammingType = normalizeProgrammingType(programmingType);
-  syncProgrammingTypeUi();
+async function reloadProgramming() {
   await loadProgrammingPersonnel();
   await loadProgrammingFromSupabase();
 }
@@ -9947,8 +9851,7 @@ async function clearFindeSemanaTable() {
     .from(PROGRAMMING_TABLE_NAME)
     .delete()
     .gte("id", 0);
-  deleteQuery = applyProgrammingTypeFilter(deleteQuery);
-  const { error } = await deleteQuery;
+    const { error } = await deleteQuery;
 
   if (error) {
     setStatus(`No se pudo vaciar ${getProgrammingTypeLabel()}: ${error.message}`, "error");
@@ -10028,12 +9931,11 @@ async function insertFilteredProgrammingImportRows() {
     return;
   }
 
-  const importType = getProgrammingImportType();
   const insertButtonPreviousDisabled = programmingImportInsertButton?.disabled ?? false;
   const confirmed = window.confirm(
     `Se insertaran ${filteredProgrammingImportRows.length} registro${
       filteredProgrammingImportRows.length === 1 ? "" : "s"
-    } filtrado${filteredProgrammingImportRows.length === 1 ? "" : "s"} en ${getProgrammingTypeLabel(importType)}.`
+    } filtrado${filteredProgrammingImportRows.length === 1 ? "" : "s"} en ${getProgrammingTypeLabel()}.`
   );
   if (!confirmed) {
     return;
@@ -10042,8 +9944,7 @@ async function insertFilteredProgrammingImportRows() {
   const supabase = await getSupabaseClient();
   const rows = mapProgrammingRowsForSupabase(
     filteredProgrammingImportRows,
-    pendingProgrammingImportSourceName,
-    importType
+    pendingProgrammingImportSourceName
   );
   const unassignedCount = countProgrammingUnassignedRows(rows);
   const validationErrors = validateProgrammingRowsForSupabase(rows);
@@ -10063,17 +9964,14 @@ async function insertFilteredProgrammingImportRows() {
     await insertProgrammingRowsWithDiagnostics(supabase, rows);
     const insertedCount = await countInsertedProgrammingRowsBySource(
       supabase,
-      pendingProgrammingImportSourceName,
-      importType
+      pendingProgrammingImportSourceName
     );
-    await switchProgrammingTypeAndReload(importType);
+    await reloadProgramming();
     applyProgrammingImportPreviewFilters();
     setProgrammingImportStatus(
-      `Registros filtrados insertados correctamente: ${rows.length}. La vista se ha cambiado a ${getProgrammingTypeLabel(
-        importType
-      )}. Supabase tiene ${insertedCount} registro${
+      `Registros filtrados insertados correctamente: ${rows.length}. Supabase tiene ${insertedCount} registro${
         insertedCount === 1 ? "" : "s"
-      } de este archivo en ese tipo.${
+      } de este archivo.${
         unassignedCount
           ? ` ${unassignedCount} filas se importaron con Personal = "${PROGRAMMING_UNASSIGNED_PERSONAL}".`
           : ""
@@ -36122,18 +36020,6 @@ async function init() {
   openCandidateCreateButton?.addEventListener("click", openCandidateCreatePanel);
   closeCandidateCreateButton?.addEventListener("click", closeCandidateCreatePanel);
   candidateCreateOverlay?.addEventListener("click", closeCandidateCreatePanel);
-  programmingTypeSwitch?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-programming-type-filter]");
-    if (!button) {
-      return;
-    }
-
-    const nextType = button.dataset.programmingTypeFilter;
-    currentProgrammingType = nextType === PROGRAMMING_TYPE_ALL ? PROGRAMMING_TYPE_ALL : normalizeProgrammingType(nextType);
-    syncProgrammingTypeUi();
-    void loadProgrammingPersonnel();
-    void loadProgrammingFromSupabase();
-  });
   loginForm.addEventListener("submit", (event) => {
     void handleLogin(event);
   });

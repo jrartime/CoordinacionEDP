@@ -21,28 +21,11 @@ create table if not exists public.programacion_conserjes (
   actividad text,
   source_file text,
   sort_order integer not null default 0,
-  tipo_programacion text not null default 'fin_semana',
-  created_at timestamp with time zone not null default timezone('utc', now()),
-  constraint programacion_conserjes_tipo_check
-    check (tipo_programacion in ('fin_semana', 'semanal'))
+  created_at timestamp with time zone not null default timezone('utc', now())
 );
 
 alter table public.programacion_conserjes
-add column if not exists tipo_programacion text not null default 'fin_semana';
-
-alter table public.programacion_conserjes
 add column if not exists created_at timestamp with time zone not null default timezone('utc', now());
-
-alter table public.programacion_conserjes
-drop constraint if exists programacion_conserjes_tipo_check;
-
-alter table public.programacion_conserjes
-add constraint programacion_conserjes_tipo_check
-check (tipo_programacion in ('fin_semana', 'semanal'));
-
-update public.programacion_conserjes
-set tipo_programacion = 'semanal'
-where source_file = 'planning_completo_revisado.csv';
 
 drop index if exists idx_findesemana_loaded_at;
 drop index if exists idx_findesemana_fecha;
@@ -53,8 +36,8 @@ drop index if exists idx_findesemana_archived_at;
 alter table public.programacion_conserjes
 drop column if exists loaded_at;
 
-create index if not exists idx_programacion_conserjes_tipo_fecha
-on public.programacion_conserjes (tipo_programacion, fecha);
+create index if not exists idx_programacion_conserjes_fecha
+on public.programacion_conserjes (fecha);
 
 create index if not exists idx_programacion_conserjes_instalacion
 on public.programacion_conserjes (instalacion);

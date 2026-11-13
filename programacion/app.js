@@ -1,10 +1,7 @@
 (function () {
   const PERSONAL_ACCESS_CODE = "5417";
-  const WEEKLY_ACCESS_CODE = "semana5417";
   const PROGRAMMING_FETCH_PAGE_SIZE = 1000;
   const PROGRAMMING_TABLE_NAME = "programacion_conserjes";
-  const PROGRAMMING_TYPE_FS = "fin_semana";
-  const PROGRAMMING_TYPE_WEEKLY = "semanal";
   const config = window.APP_CONFIG ?? {};
   const supabaseConfig = config.supabase ?? {};
   const hasSupabaseConfig =
@@ -16,11 +13,11 @@
   let filteredRows = [];
   let personalUnlocked = false;
   let personalAccessName = "";
-  let currentProgrammingType = PROGRAMMING_TYPE_FS;
+  let datePreset = "month";
   let supabaseClient = null;
 
   const filtersForm = document.querySelector("#filters-form");
-  const filterDate = document.querySelector("#filter-date");
+  const datePresetButtons = document.querySelectorAll("[data-date-preset]");
   const filterInstallation = document.querySelector("#filter-installation");
   const filterPersonalField = document.querySelector("#filter-personal-field");
   const filterPersonal = document.querySelector("#filter-personal");
@@ -103,10 +100,39 @@
     return personalUnlocked ? 8 : 7;
   }
 
-  function getProgrammingTypeLabel() {
-    return currentProgrammingType === PROGRAMMING_TYPE_WEEKLY
-      ? "programación semanal"
-      : "programación de fin de semana";
+  // Fecha: mes en curso, semana en curso (lunes a domingo), hoy, mañana o pasado mañana.
+  function toIsoDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  function getPresetRange(preset, today = new Date()) {
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const day = today.getDate();
+    if (preset === "month") {
+      return [toIsoDate(new Date(year, month, 1)), toIsoDate(new Date(year, month + 1, 0))];
+    }
+    if (preset === "week") {
+      const sinceMonday = (today.getDay() + 6) % 7;
+      return [toIsoDate(new Date(year, month, day - sinceMonday)), toIsoDate(new Date(year, month, day - sinceMonday + 6))];
+    }
+    const offset = preset === "tomorrow" ? 1 : preset === "dayafter" ? 2 : 0;
+    const target = toIsoDate(new Date(year, month, day + offset));
+    return [target, target];
+  }
+
+  function rowInDateRange(row) {
+    const [from, to] = getPresetRange(datePreset);
+    const date = normalizeDate(row.fecha);
+    return Boolean(date) && date >= from && date <= to;
+  }
+
+  function syncDatePresetButtons() {
+    datePresetButtons.forEach((button) => {
+      const active = button.dataset.datePreset === datePreset;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
   }
 
   function syncPersonalVisibility() {
@@ -127,18 +153,14 @@
     accessCodeButton.textContent = "Ocultar personal";
     accessCodeStatus.textContent = personalAccessName
       ? `Mostrando solo la programación de ${personalAccessName}.`
-      : `Campo personal visible en ${getProgrammingTypeLabel()}. Ya puedes filtrar y ordenar por personal.`;
+      : "Campo personal visible. Ya puedes filtrar y ordenar por personal.";
   }
 
   function renderFilters(rows) {
     const accessibleRows = personalAccessName
       ? rows.filter((row) => row.personal === personalAccessName)
       : rows;
-    const dates = Array.from(new Set(accessibleRows.map((row) => normalizeDate(row.fecha)).filter(Boolean))).sort();
-    const selectedDate = dates.includes(filterDate.value) ? filterDate.value : "";
-    const dateScopedRows = selectedDate
-      ? accessibleRows.filter((row) => normalizeDate(row.fecha) === selectedDate)
-      : accessibleRows;
+    const dateScopedRows = accessibleRows.filter(rowInDateRange);
     const installations = sortTextValues(
       Array.from(new Set(dateScopedRows.map((row) => row.instalacion).filter(Boolean)))
     );
@@ -148,19 +170,11 @@
     const sports = sortTextValues(Array.from(new Set(dateScopedRows.map((row) => row.deporte).filter(Boolean))));
 
     const currentValues = {
-      date: filterDate.value,
       installation: filterInstallation.value,
       personal: filterPersonal.value,
       sport: filterSport.value,
     };
 
-    filterDate.innerHTML = ['<option value="">Todas las fechas</option>']
-      .concat(
-        dates.map(
-          (value) => `<option value="${escapeHtml(value)}">${escapeHtml(formatDate(value))}</option>`
-        )
-      )
-      .join("");
     filterInstallation.innerHTML = ['<option value="">Todas las instalaciones</option>']
       .concat(
         installations.map(
@@ -177,7 +191,6 @@
       .concat(sports.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`))
       .join("");
 
-    filterDate.value = selectedDate;
     filterInstallation.value = installations.includes(currentValues.installation)
       ? currentValues.installation
       : "";
@@ -198,7 +211,7 @@
   function applyFilters() {
     const activityQuery = normalizeText(filterActivity.value);
     filteredRows = sourceRows.filter((row) => {
-      if (filterDate.value && normalizeDate(row.fecha) !== filterDate.value) {
+      if (!rowInDateRange(row)) {
         return false;
       }
       if (filterInstallation.value && row.instalacion !== filterInstallation.value) {
@@ -298,10 +311,13 @@
     return supabaseClient;
   }
 
-  function mapSupabaseRows(rows) {
+  // El nombre que se muestra es el de la tabla de instalaciones (por id), no el texto guardado
+  // en cada registro, que puede ser un nombre antiguo o escrito de otra forma.
+  function mapSupabaseRows(rows, catalog) {
     return (rows ?? []).map((row) => ({
       personal: String(row.personal ?? "").trim(),
-      instalacion: String(row.instalacion ?? "").trim(),
+      instalacionId: row.instalacion_id ?? null,
+      instalacion: String(catalog?.names.get(row.instalacion_id) ?? row.instalacion ?? "").trim(),
       fecha: String(row.fecha ?? "").trim(),
       inicio: String(row.hora_inicio ?? "").trim(),
       fin: String(row.hora_fin ?? "").trim(),
@@ -311,26 +327,32 @@
     }));
   }
 
-  async function loadActiveInstallationNames(supabase) {
+  async function loadInstallationCatalog(supabase) {
     const { data, error } = await supabase
       .from("instalaciones")
-      .select("instalacion")
-      .eq("activo", true)
+      .select("id, instalacion, activo")
       .limit(10000);
 
-    if (error) {
-      return new Set();
+    const names = new Map();
+    const inactiveIds = new Set();
+    if (!error) {
+      (data ?? []).forEach((row) => {
+        if (row.activo) {
+          names.set(row.id, String(row.instalacion ?? "").trim());
+        } else {
+          inactiveIds.add(row.id);
+        }
+      });
     }
-
-    return new Set((data ?? []).map((row) => normalizeText(row.instalacion)).filter(Boolean));
+    return { names, inactiveIds, available: !error && names.size > 0 };
   }
 
-  function filterActiveInstallationRows(rows, activeInstallationNames) {
-    if (!activeInstallationNames.size) {
+  // Solo se muestran registros de instalaciones activas de la base de datos.
+  function filterActiveInstallationRows(rows, catalog) {
+    if (!catalog.available) {
       return rows;
     }
-
-    return rows.filter((row) => activeInstallationNames.has(normalizeText(row.instalacion)));
+    return rows.filter((row) => (row.instalacionId ? catalog.names.has(row.instalacionId) : true));
   }
 
   async function fetchAllProgrammingRows(buildQuery, pageSize = PROGRAMMING_FETCH_PAGE_SIZE) {
@@ -352,66 +374,28 @@
     }
   }
 
-  function isMissingArchivedAtColumnError(error) {
-    const message = String(error?.message ?? "");
-    const details = String(error?.details ?? "");
-    const hint = String(error?.hint ?? "");
-    return [message, details, hint].some((value) => value.includes("archived_at"));
-  }
-
-  function isMissingProgrammingTypeColumnError(error) {
-    const message = String(error?.message ?? "");
-    const details = String(error?.details ?? "");
-    const hint = String(error?.hint ?? "");
-    return [message, details, hint].some((value) => value.includes("tipo_programacion"));
-  }
-
   async function loadRowsFromSupabase() {
     if (!hasSupabaseConfig) {
       throw new Error("No hay configuracion de Supabase disponible para el panel.");
     }
 
     const supabase = await getSupabaseClient();
-    const activeInstallationNames = await loadActiveInstallationNames(supabase);
-    let { data, error } = await fetchAllProgrammingRows(() =>
+    const catalog = await loadInstallationCatalog(supabase);
+    const { data, error } = await fetchAllProgrammingRows(() =>
       supabase
         .from(PROGRAMMING_TABLE_NAME)
         .select(
-          "personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order"
+          "personal, instalacion, instalacion_id, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order"
         )
-        .eq("tipo_programacion", currentProgrammingType)
-        .is("archived_at", null)
         .order("fecha", { ascending: true })
         .order("sort_order", { ascending: true })
     );
-
-    if (error && isMissingArchivedAtColumnError(error)) {
-      ({ data, error } = await fetchAllProgrammingRows(() =>
-        supabase
-          .from(PROGRAMMING_TABLE_NAME)
-          .select("personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order")
-          .eq("tipo_programacion", currentProgrammingType)
-          .order("fecha", { ascending: true })
-          .order("sort_order", { ascending: true })
-      ));
-    }
-
-    if (error && isMissingProgrammingTypeColumnError(error)) {
-      ({ data, error } = await fetchAllProgrammingRows(() =>
-        supabase
-          .from(PROGRAMMING_TABLE_NAME)
-          .select("personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order")
-          .is("archived_at", null)
-          .order("fecha", { ascending: true })
-          .order("sort_order", { ascending: true })
-      ));
-    }
 
     if (error) {
       throw error;
     }
 
-    return filterActiveInstallationRows(mapSupabaseRows(data), activeInstallationNames);
+    return filterActiveInstallationRows(mapSupabaseRows(data, catalog), catalog);
   }
 
   async function loadRows() {
@@ -420,7 +404,7 @@
       sourceRows = await loadRowsFromSupabase();
       renderFilters(sourceRows);
       applyFilters();
-      statusMessage.textContent = `Datos de ${getProgrammingTypeLabel()} cargados correctamente desde programacion_conserjes: ${sourceRows.length} registros.`;
+      statusMessage.textContent = `Programación cargada correctamente: ${sourceRows.length} registros.`;
     } catch (error) {
       tableBody.innerHTML = `
         <tr>
@@ -444,31 +428,24 @@
     return String(data?.[0]?.name ?? "").trim();
   }
 
-  filterDate.addEventListener("change", () => {
-    syncDateScopedFilters();
+  datePresetButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      datePreset = button.dataset.datePreset;
+      syncDatePresetButtons();
+      syncDateScopedFilters();
+      applyFilters();
+    });
+  });
+  filtersForm.addEventListener("input", () => {
     applyFilters();
   });
-  filterDate.addEventListener("input", () => {
-    syncDateScopedFilters();
-    applyFilters();
-  });
-  filtersForm.addEventListener("input", (event) => {
-    if (event.target === filterDate) {
-      return;
-    }
-    applyFilters();
-  });
-  filtersForm.addEventListener("change", (event) => {
-    if (event.target === filterDate) {
-      return;
-    }
+  filtersForm.addEventListener("change", () => {
     applyFilters();
   });
   accessCodeButton.addEventListener("click", async () => {
     if (personalUnlocked) {
       personalUnlocked = false;
       personalAccessName = "";
-      currentProgrammingType = PROGRAMMING_TYPE_FS;
       accessCodeInput.value = "";
       await loadRows();
       syncPersonalVisibility();
@@ -478,17 +455,11 @@
     }
 
     const accessCode = accessCodeInput.value.trim();
-    const normalizedAccessCode = accessCode.toLowerCase();
     if (accessCode === PERSONAL_ACCESS_CODE) {
       personalAccessName = "";
-      currentProgrammingType = PROGRAMMING_TYPE_FS;
-    } else if (normalizedAccessCode === WEEKLY_ACCESS_CODE) {
-      personalAccessName = "";
-      currentProgrammingType = PROGRAMMING_TYPE_WEEKLY;
     } else {
       try {
         personalAccessName = await findPersonalNameByAccessCode(accessCode);
-        currentProgrammingType = PROGRAMMING_TYPE_FS;
       } catch (error) {
         accessCodeStatus.textContent = `No se pudo validar el código: ${error.message}`;
         return;

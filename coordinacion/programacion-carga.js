@@ -7,8 +7,8 @@
  * Reutiliza de app.js (scripts clásicos, mismo ámbito global): getSupabaseClient,
  * ensurePrivateSession, getMammothClient, extractProgrammingRowsFromWordHtml,
  * normalizeProgrammingRows, isProgrammingCsvFile, normalizeProgrammingText,
- * getProgrammingTextDistance, normalizeImportedDate/Time, normalizeProgrammingType,
- * insertProgrammingRowsWithDiagnostics, switchProgrammingTypeAndReload, setStatus.
+ * getProgrammingTextDistance, normalizeImportedDate/Time,
+ * insertProgrammingRowsWithDiagnostics, reloadProgramming, setStatus.
  * El alcance (qué personal e instalaciones ve cada perfil) lo da el RLS por contrato.
  */
 (function () {
@@ -21,7 +21,6 @@
     file: null,
     rows: [],
     sourceName: "",
-    type: "fin_semana",
     personal: [],
     instalaciones: [],
     instMap: {}, // nombre en el archivo -> instalacion_id | "skip" | ""
@@ -90,7 +89,6 @@
       instMap: {},
       assign: {},
       busy: false,
-      type: typeof getDefaultProgrammingTypeForNewRows === "function" ? getDefaultProgrammingTypeForNewRows() : "fin_semana",
     });
     state.skipDays = new Set();
     state.dates = new Set();
@@ -180,7 +178,6 @@
     if (!file) throw new Error("Arrastra o selecciona un archivo Word o CSV.");
     const month = Number($("#pc-month")?.value);
     const year = Number($("#pc-year")?.value);
-    state.type = normalizeProgrammingType($("#pc-type")?.value || state.type);
     let rows;
     if (isProgrammingCsvFile(file)) {
       rows = normalizeProgrammingRows(await file.text());
@@ -219,12 +216,6 @@
         </label>
         <label>Año
           <input id="pc-year" type="number" min="2020" max="2100" value="${now.getFullYear()}" />
-        </label>
-        <label>Cargar como
-          <select id="pc-type">
-            <option value="fin_semana" ${state.type === "fin_semana" ? "selected" : ""}>Fin de semana</option>
-            <option value="semanal" ${state.type === "semanal" ? "selected" : ""}>Semanal</option>
-          </select>
         </label>
       </div>
       <p class="inline-note">En Word se toma el nombre de la instalación del texto situado encima de cada tabla (mes y año se aplican a los días). En CSV se esperan las columnas PERSONAL, INSTALACIÓN, FECHA, INICI., FIN, HORA, DEPORTE y ACTIVIDAD.</p>`;
@@ -762,7 +753,6 @@
           deporte: row.deporte || null,
           actividad: row.actividad || null,
           source_file: state.sourceName || "programacion.csv",
-          tipo_programacion: normalizeProgrammingType(state.type),
         });
       });
     });
@@ -774,14 +764,14 @@
     if (!records.length) throw new Error("No hay registros que generar.");
     const invalid = records.find((r) => !r.fecha || !r.hora_inicio);
     if (invalid) throw new Error(`Hay un registro sin fecha u hora de inicio válidas (${invalid.instalacion}).`);
-    if (!window.confirm(`Se generarán ${records.length} registros de programación (${typeof getProgrammingTypeLabel === "function" ? getProgrammingTypeLabel(state.type) : state.type}). ¿Continuar?`)) return;
+    if (!window.confirm(`Se generarán ${records.length} actividades programadas. ¿Continuar?`)) return;
     setBusy(true, "Generando registros...");
     const supabase = await getSupabaseClient();
     await insertProgrammingRowsWithDiagnostics(supabase, records);
     state.rows = [];
     setBusy(false);
     dialog.close();
-    await switchProgrammingTypeAndReload(state.type);
+    await reloadProgramming();
     setStatus(`Programación generada: ${records.length} registros con personal e instalación enlazados.`, "success");
   }
 

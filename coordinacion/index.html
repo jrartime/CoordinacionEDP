@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261113-12" />
+    <link rel="stylesheet" href="./styles.css?v=20261114-1" />
   </head>
   <body>
     <script>
@@ -5063,7 +5063,7 @@
                 <div class="card-header">
                   <div>
                     <p id="programming-panel-eyebrow" class="eyebrow">Programación</p>
-                    <h3 id="programming-panel-title">Gestión de la programación</h3>
+                    <h3 id="programming-panel-title">Actividades programadas</h3>
                   </div>
                 </div>
 
@@ -5136,18 +5136,6 @@
                     </button>
                   </div>
                   </div>
-                </div>
-
-                <div class="programming-type-switch" id="programming-type-switch" aria-label="Tipo de programación">
-                  <button type="button" class="active" data-programming-type-filter="fin_semana">
-                    Fin de semana
-                  </button>
-                  <button type="button" data-programming-type-filter="semanal">
-                    Semanal
-                  </button>
-                  <button type="button" data-programming-type-filter="all">
-                    Ambas
-                  </button>
                 </div>
 
                 <div id="programming-report-preview-backdrop" class="panel-backdrop hidden"></div>
@@ -5424,11 +5412,6 @@
                         </th>
                         <th>Acciones</th>
                         <th>
-                          <button type="button" class="sort-button" data-programming-sort-field="tipoProgramacion">
-                            Tipo
-                          </button>
-                        </th>
-                        <th>
                           <button type="button" class="sort-button" data-programming-sort-field="personal">
                             Personal
                           </button>
@@ -5473,7 +5456,7 @@
                     </thead>
                     <tbody id="programming-preview-table-body">
                       <tr>
-                        <td colspan="11" class="empty-state">
+                        <td colspan="10" class="empty-state">
                           Carga los datos actuales o importa un Word o CSV para previsualizar la programación.
                         </td>
                       </tr>
@@ -10172,13 +10155,6 @@
                       <select id="programming-detail-personal"></select>
                     </label>
                     <label>
-                      Tipo de programación
-                      <select id="programming-detail-type">
-                        <option value="fin_semana">Programación FS</option>
-                        <option value="semanal">Programación semanal</option>
-                      </select>
-                    </label>
-                    <label>
                       Instalación
                       <input
                         id="programming-detail-installation"
@@ -10508,7 +10484,7 @@
     <script src="./facturacion.js?v=20261112-4" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./app.js?v=20261113-16" defer></script>
-    <script src="./programacion-carga.js?v=20261113-5" defer></script>
+    <script src="./app.js?v=20261114-2" defer></script>
+    <script src="./programacion-carga.js?v=20261114-1" defer></script>
   </body>
 </html>

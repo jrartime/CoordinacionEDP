@@ -474,3 +474,21 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+/* Selector rápido de fechas: mes, semana (lunes a domingo), hoy, mañana y pasado mañana. */
+.date-presets { display: grid; gap: 4px; }
+.date-presets-label { font-size: 0.72rem; }
+.date-presets-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset-button {
+  background: #ffffff;
+  color: #364153;
+  border: 1px solid var(--line-strong);
+  min-height: 30px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  box-shadow: none;
+  white-space: nowrap;
+}
+.preset-button:hover { background: #f3f4f6; color: #101828; }
+.preset-button.active, .preset-button.active:hover { background: var(--accent); border-color: var(--accent); color: #ffffff; font-weight: 600; }

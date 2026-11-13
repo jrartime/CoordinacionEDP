@@ -22,13 +22,7 @@ const CANDIDATE_STATUS_OPTIONS = [
 
 const PROGRAMMING_UNASSIGNED_PERSONAL = "Sin asignar";
 const PROGRAMMING_TABLE_NAME = "programacion_conserjes";
-const PROGRAMMING_TYPE_ALL = "all";
-const PROGRAMMING_TYPE_FS = "fin_semana";
-const PROGRAMMING_TYPE_WEEKLY = "semanal";
-const PROGRAMMING_TYPE_OPTIONS = [
-  { value: PROGRAMMING_TYPE_FS, label: "Programación FS" },
-  { value: PROGRAMMING_TYPE_WEEKLY, label: "Programación semanal" },
-];
+const PROGRAMMING_FETCH_PAGE_SIZE = 1000;
 const PRIVATE_TAB_STORAGE_KEY = "curriculos_private_tab";
 const CONCILIA_CLONED_TABS = [
   { key: "concilia_alumnado", label: "Concilia Alumnado" },

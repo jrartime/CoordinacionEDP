@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Programación | Educación Deportiva del Principado</title>
-    <link rel="stylesheet" href="./styles.css?v=20260903-1" />
+    <link rel="stylesheet" href="./styles.css?v=20261114-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -103,12 +103,16 @@
         </div>
 
         <form id="filters-form" class="filters-grid records-filters-compact" autocomplete="off">
-          <label>
-            Fecha
-            <select id="filter-date">
-              <option value="">Todas las fechas</option>
-            </select>
-          </label>
+          <div class="date-presets full-width" role="group" aria-label="Fecha">
+            <span class="date-presets-label">Fecha</span>
+            <div class="date-presets-buttons">
+              <button type="button" class="preset-button active" data-date-preset="month" aria-pressed="true">Mes completo</button>
+              <button type="button" class="preset-button" data-date-preset="week" aria-pressed="false">Semana completa</button>
+              <button type="button" class="preset-button" data-date-preset="today" aria-pressed="false">Hoy</button>
+              <button type="button" class="preset-button" data-date-preset="tomorrow" aria-pressed="false">Mañana</button>
+              <button type="button" class="preset-button" data-date-preset="dayafter" aria-pressed="false">Pasado mañana</button>
+            </div>
+          </div>
 
           <label>
             Instalación
@@ -178,6 +182,6 @@
     </main>
 
     <script src="./config.js"></script>
-    <script src="./app.js?v=20260518-1"></script>
+    <script src="./app.js?v=20261114-1"></script>
   </body>
 </html>
