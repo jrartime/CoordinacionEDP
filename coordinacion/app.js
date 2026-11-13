@@ -1607,14 +1607,12 @@ const programmingImportClearPreviewButton = document.querySelector(
 const programmingImportInsertButton = document.querySelector("#programming-import-insert-button");
 const programmingImportStatus = document.querySelector("#programming-import-status");
 const programmingFiltersForm = document.querySelector("#programming-filters-form");
-const programmingFilterDate = document.querySelector("#programming-filter-date");
+const programmingFilterDateFrom = document.querySelector("#programming-filter-date-from");
+const programmingFilterDateTo = document.querySelector("#programming-filter-date-to");
 const programmingFilterInstallation = document.querySelector("#programming-filter-installation");
 const programmingFilterPersonal = document.querySelector("#programming-filter-personal");
 const programmingFilterSport = document.querySelector("#programming-filter-sport");
 const programmingFilterActivity = document.querySelector("#programming-filter-activity");
-const programmingFilterIncludeArchived = document.querySelector(
-  "#programming-filter-include-archived"
-);
 const programmingPanelEyebrow = document.querySelector("#programming-panel-eyebrow");
 const programmingPanelTitle = document.querySelector("#programming-panel-title");
 const programmingSourceName = document.querySelector("#programming-source-name");
@@ -1623,7 +1621,6 @@ const programmingInstallationCount = document.querySelector("#programming-instal
 const programmingPersonCount = document.querySelector("#programming-person-count");
 const programmingDateFrom = document.querySelector("#programming-date-from");
 const programmingDateTo = document.querySelector("#programming-date-to");
-const programmingArchivedCount = document.querySelector("#programming-archived-count");
 const programmingDownloadCsvButton = document.querySelector("#programming-download-csv-button");
 const programmingCreateButton = document.querySelector("#programming-create-button");
 const programmingUploadSupabaseButton = document.querySelector("#programming-upload-supabase-button");
@@ -1683,84 +1680,27 @@ const programmingBulkSelectButton = document.querySelector("#programming-bulk-se
 const programmingBulkDeleteButton = document.querySelector("#programming-bulk-delete-button");
 const programmingBulkMatchCount = document.querySelector("#programming-bulk-match-count");
 const programmingBulkSelectionCount = document.querySelector("#programming-bulk-selection-count");
-const programmingOpenUnmatchedPersonnelButton = document.querySelector(
-  "#programming-open-unmatched-personnel-button"
-);
-const programmingOpenUnmatchedInstallationButton = document.querySelector(
-  "#programming-open-unmatched-installation-button"
-);
-const programmingUnmatchedPersonnelPanel = document.querySelector(
-  "#programming-unmatched-personnel-panel"
-);
-const programmingUnmatchedPersonnelOverlay = document.querySelector(
-  "#programming-unmatched-personnel-overlay"
-);
-const closeProgrammingUnmatchedPersonnelButton = document.querySelector(
-  "#close-programming-unmatched-personnel-button"
-);
-const programmingUnmatchedPersonnelCount = document.querySelector(
-  "#programming-unmatched-personnel-count"
-);
-const programmingUnmatchedPersonnelList = document.querySelector(
-  "#programming-unmatched-personnel-list"
-);
-const programmingApplyUnmatchedPersonnelButton = document.querySelector(
-  "#programming-apply-unmatched-personnel-button"
-);
-const programmingRefreshUnmatchedPersonnelButton = document.querySelector(
-  "#programming-refresh-unmatched-personnel-button"
-);
-const programmingUnmatchedInstallationPanel = document.querySelector(
-  "#programming-unmatched-installation-panel"
-);
-const programmingUnmatchedInstallationOverlay = document.querySelector(
-  "#programming-unmatched-installation-overlay"
-);
-const closeProgrammingUnmatchedInstallationButton = document.querySelector(
-  "#close-programming-unmatched-installation-button"
-);
-const programmingUnmatchedInstallationCount = document.querySelector(
-  "#programming-unmatched-installation-count"
-);
-const programmingUnmatchedInstallationList = document.querySelector(
-  "#programming-unmatched-installation-list"
-);
-const programmingApplyUnmatchedInstallationButton = document.querySelector(
-  "#programming-apply-unmatched-installation-button"
-);
-const programmingRefreshUnmatchedInstallationButton = document.querySelector(
-  "#programming-refresh-unmatched-installation-button"
-);
 const programmingInstallationOptionsList = document.querySelector("#programming-installation-options");
-const programmingReportDateFromInput = document.querySelector("#programming-report-date-from");
-const programmingReportDateToInput = document.querySelector("#programming-report-date-to");
+const programmingReportPreviewButton = document.querySelector("#programming-report-preview-button");
+const programmingReportPreviewBackdrop = document.querySelector("#programming-report-preview-backdrop");
+const programmingReportPreviewPanel = document.querySelector("#programming-report-preview-panel");
+const programmingReportPreviewSummary = document.querySelector("#programming-report-preview-summary");
+const programmingReportPreviewContent = document.querySelector("#programming-report-preview-content");
+const programmingReportPreviewCloseButton = document.querySelector("#programming-report-preview-close-button");
+const programmingPersonReportButton = document.querySelector("#programming-person-report-button");
+const programmingPersonReportBackdrop = document.querySelector("#programming-person-report-backdrop");
+const programmingPersonReportPanel = document.querySelector("#programming-person-report-panel");
+const programmingPersonReportTitle = document.querySelector("#programming-person-report-title");
+const programmingPersonReportSummary = document.querySelector("#programming-person-report-summary");
+const programmingPersonReportContent = document.querySelector("#programming-person-report-content");
+const programmingPersonReportCopyButton = document.querySelector("#programming-person-report-copy-button");
+const programmingPersonReportImageButton = document.querySelector("#programming-person-report-image-button");
+const programmingPersonReportCloseButton = document.querySelector("#programming-person-report-close-button");
 const programmingReportPdfButton = document.querySelector("#programming-report-pdf-button");
 const programmingDownloadImagesButton = document.querySelector("#programming-download-images-button");
-const programmingEnableSelectiveArchiveButton = document.querySelector(
-  "#programming-enable-selective-archive-button"
-);
-const programmingArchiveSelectedButton = document.querySelector("#programming-archive-selected-button");
-const programmingUnarchiveSelectedButton = document.querySelector(
-  "#programming-unarchive-selected-button"
-);
-const programmingCancelSelectiveArchiveButton = document.querySelector(
-  "#programming-cancel-selective-archive-button"
-);
-const programmingSelectedArchiveCount = document.querySelector(
-  "#programming-selected-archive-count"
-);
 const programmingPreviewTableBody = document.querySelector("#programming-preview-table-body");
 const programmingSelectHeader = document.querySelector("#programming-select-header");
 const programmingSelectPageCheckbox = document.querySelector("#programming-select-page-checkbox");
-const programmingPaginationSummary = document.querySelector("#programming-pagination-summary");
-const programmingPaginationPageIndicator = document.querySelector(
-  "#programming-pagination-page-indicator"
-);
-const programmingPreviousPageButton = document.querySelector(
-  "#programming-previous-page-button"
-);
-const programmingNextPageButton = document.querySelector("#programming-next-page-button");
-const programmingPageSizeSelect = document.querySelector("#programming-page-size-select");
 const contractsNewButton = document.querySelector("#contracts-new-button");
 const contractsRefreshButton = document.querySelector("#contracts-refresh-button");
 const contractsShowInactiveInput = document.querySelector("#contracts-show-inactive");
@@ -1966,8 +1906,6 @@ const programmingDetailEndInput = document.querySelector("#programming-detail-en
 const programmingDetailEventTimeInput = document.querySelector("#programming-detail-event-time");
 const programmingDetailSportInput = document.querySelector("#programming-detail-sport");
 const programmingDetailActivityInput = document.querySelector("#programming-detail-activity");
-const programmingDetailArchivedInput = document.querySelector("#programming-detail-archived");
-const programmingDetailArchiveButton = document.querySelector("#programming-detail-archive-button");
 const programmingDetailDeleteButton = document.querySelector("#programming-detail-delete-button");
 const candidateDetailPanel = document.querySelector("#candidate-detail-panel");
 const detailOverlay = document.querySelector("#detail-overlay");
@@ -2084,8 +2022,6 @@ let currentProgrammingCanUpload = false;
 let pendingProgrammingImportRows = [];
 let filteredProgrammingImportRows = [];
 let pendingProgrammingImportSourceName = "";
-let programmingCurrentPage = 1;
-let programmingPageSize = Number(programmingPageSizeSelect?.value || 25);
 let programmingSortCriteria = [{ field: "fecha", direction: "asc" }];
 let programmingSelectiveDeleteMode = false;
 let programmingSelectionMode = "";
@@ -2096,10 +2032,6 @@ let programmingPersonnelCatalogRows = [];
 let programmingInstallationCatalogRows = [];
 let currentProgrammingAssignedInstallations = [];
 let currentProgrammingActiveInstallations = [];
-let programmingUnmatchedPersonnelProposals = [];
-let programmingUnmatchedInstallationProposals = [];
-let ignoredProgrammingUnmatchedPersonnelKeys = new Set();
-let ignoredProgrammingUnmatchedInstallationKeys = new Set();
 let eventsCatalogsLoaded = false;
 let eventContractRows = [];
 let eventContractPersonalRows = [];
@@ -6754,7 +6686,6 @@ function resetProgrammingPreview() {
   filteredProgrammingRows = [];
   currentProgrammingSourceName = "";
   currentProgrammingCanUpload = false;
-  programmingCurrentPage = 1;
   programmingSelectiveDeleteMode = false;
   programmingSelectionMode = "";
   selectedProgrammingDeleteIds.clear();
@@ -6766,13 +6697,11 @@ function resetProgrammingPreview() {
   programmingPersonCount.textContent = "0";
   programmingDateFrom.textContent = "-";
   programmingDateTo.textContent = "-";
-  programmingArchivedCount.textContent = "0";
   programmingPreviewTableBody.innerHTML = `
     <tr>
-      <td colspan="12" class="empty-state">Carga un Word o CSV para previsualizar la programación.</td>
+      <td colspan="11" class="empty-state">Carga un Word o CSV para previsualizar la programación.</td>
     </tr>
   `;
-  programmingDownloadCsvButton.disabled = true;
   programmingUploadSupabaseButton?.classList.add("hidden");
   updateProgrammingPaginationUi(0);
   syncProgrammingBulkAssignmentUi();
@@ -6809,7 +6738,6 @@ function mapProgrammingRow(row, headers) {
     hora: normalizeProgrammingCell(source.hora),
     deporte: normalizeProgrammingCell(source.deporte),
     actividad: normalizeProgrammingCell(source.actividad),
-    archived: false,
     sortOrder: 0,
   };
 }
@@ -6936,7 +6864,6 @@ function extractProgrammingRowsFromWordHtml(html, { month, year }) {
           hora: normalizeProgrammingWordTime(eventText),
           deporte: sportText,
           actividad: activityText,
-          archived: false,
           sortOrder: rows.length + 1,
         });
       });
@@ -7141,28 +7068,26 @@ async function prepareProgrammingWordFile(file) {
   renderProgrammingImportPreview(rows, file.name);
 }
 
-function getProgrammingTotalPages(totalItems) {
-  return Math.max(1, Math.ceil(totalItems / programmingPageSize));
-}
-
+// Sin paginación: se muestran todos los registros filtrados (como en Registros).
 function getPaginatedProgrammingRows(rows) {
-  const totalPages = getProgrammingTotalPages(rows.length);
-  programmingCurrentPage = Math.min(Math.max(programmingCurrentPage, 1), totalPages);
-  const startIndex = (programmingCurrentPage - 1) * programmingPageSize;
-  const endIndex = startIndex + programmingPageSize;
-  return rows.slice(startIndex, endIndex);
+  return rows;
 }
 
-function updateProgrammingPaginationUi(totalItems) {
-  const totalPages = getProgrammingTotalPages(totalItems);
-  const hasItems = totalItems > 0;
-  const start = hasItems ? (programmingCurrentPage - 1) * programmingPageSize + 1 : 0;
-  const end = hasItems ? Math.min(programmingCurrentPage * programmingPageSize, totalItems) : 0;
-
-  programmingPaginationSummary.textContent = `Mostrando ${start}-${end} de ${totalItems}`;
-  programmingPaginationPageIndicator.textContent = `Página ${programmingCurrentPage} de ${totalPages}`;
-  programmingPreviousPageButton.disabled = programmingCurrentPage <= 1;
-  programmingNextPageButton.disabled = programmingCurrentPage >= totalPages;
+// Contadores de la cabecera: reflejan lo filtrado. Primera/última fecha son las del filtro
+// (Desde/Hasta) y, si no están puestas, las de los propios registros filtrados.
+function updateProgrammingPaginationUi() {
+  const rows = filteredProgrammingRows;
+  const dates = rows
+    .map((row) => normalizeImportedDate(row.fecha))
+    .filter(Boolean)
+    .sort();
+  const from = normalizeImportedDate(programmingFilterDateFrom?.value) || dates[0] || "";
+  const to = normalizeImportedDate(programmingFilterDateTo?.value) || dates[dates.length - 1] || "";
+  programmingTotalCount.textContent = String(rows.length);
+  programmingInstallationCount.textContent = String(new Set(rows.map((row) => row.instalacion).filter(Boolean)).size);
+  programmingPersonCount.textContent = String(new Set(rows.map((row) => row.personal).filter(Boolean)).size);
+  programmingDateFrom.textContent = from ? formatDisplayDate(from) : "-";
+  programmingDateTo.textContent = to ? formatDisplayDate(to) : "-";
 }
 
 function formatProgrammingDateInputValue(value) {
@@ -7332,10 +7257,6 @@ function getProgrammingSortValue(row, field) {
 
   if (["inicio", "fin", "hora"].includes(field)) {
     return normalizeImportedTime(row[field]) || "";
-  }
-
-  if (field === "archived") {
-    return row.archived ? "1" : "0";
   }
 
   return String(row[field] ?? "");
@@ -7899,29 +7820,7 @@ async function deleteProgrammingPersonnelManualLegacy(personId) {
 }
 
 function renderProgrammingFilters(rows) {
-  const includeArchived = Boolean(programmingFilterIncludeArchived?.checked);
-  const filterableRows = includeArchived ? rows : rows.filter((row) => !row.archived);
-  const dates = Array.from(
-    new Map(
-      filterableRows
-        .map((row) => {
-          const normalizedDate = normalizeImportedDate(row.fecha);
-          const displayDate = formatDisplayDate(normalizedDate || row.fecha);
-          return displayDate ? [normalizedDate || displayDate, displayDate] : null;
-        })
-        .filter(Boolean)
-    ).entries()
-  )
-    .sort(([leftKey], [rightKey]) =>
-      String(leftKey).localeCompare(String(rightKey), "es", { numeric: true })
-    )
-    .map(([, displayDate]) => displayDate);
-  const selectedDate = dates.includes(programmingFilterDate.value) ? programmingFilterDate.value : "";
-  const dateScopedRows = selectedDate
-    ? filterableRows.filter(
-        (row) => formatDisplayDate(normalizeImportedDate(row.fecha) || row.fecha) === selectedDate
-      )
-    : filterableRows;
+  const dateScopedRows = rows.filter(programmingRowInDateRange);
   const installations = sortTextValues(
     Array.from(new Set(dateScopedRows.map((row) => row.instalacion).filter(Boolean)))
   );
@@ -7929,15 +7828,11 @@ function renderProgrammingFilters(rows) {
   const sports = sortTextValues(Array.from(new Set(dateScopedRows.map((row) => row.deporte).filter(Boolean))));
 
   const currentValues = {
-    date: programmingFilterDate.value,
     installation: programmingFilterInstallation.value,
     personal: programmingFilterPersonal.value,
     sport: programmingFilterSport.value,
   };
 
-  programmingFilterDate.innerHTML = ['<option value="">Todas las fechas</option>']
-    .concat(dates.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`))
-    .join("");
   programmingFilterInstallation.innerHTML = ['<option value="">Todas las instalaciones</option>']
     .concat(
       installations.map(
@@ -7953,7 +7848,6 @@ function renderProgrammingFilters(rows) {
     .concat(sports.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`))
     .join("");
 
-  programmingFilterDate.value = selectedDate;
   programmingFilterInstallation.value = installations.includes(currentValues.installation)
     ? currentValues.installation
     : "";
@@ -7961,6 +7855,34 @@ function renderProgrammingFilters(rows) {
   setPersonalPickerSelection("programming-filter", keepPersonal, keepPersonal);
   programmingFilterSport.value = sports.includes(currentValues.sport) ? currentValues.sport : "";
   syncFilterResetButtons(programmingFiltersForm);
+}
+
+// Rango de fechas del filtro: por defecto el mes en curso (se fija una vez, antes de la primera carga).
+let programmingDateRangeInitialized = false;
+
+function setProgrammingDefaultDateRange() {
+  if (programmingDateRangeInitialized || !programmingFilterDateFrom || !programmingFilterDateTo) {
+    return;
+  }
+  programmingDateRangeInitialized = true;
+  const today = new Date();
+  const toIso = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  programmingFilterDateFrom.value = toIso(new Date(today.getFullYear(), today.getMonth(), 1));
+  programmingFilterDateTo.value = toIso(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+}
+
+function programmingRowInDateRange(row) {
+  const from = programmingFilterDateFrom?.value || "";
+  const to = programmingFilterDateTo?.value || "";
+  if (!from && !to) {
+    return true;
+  }
+  const date = normalizeImportedDate(row.fecha) || "";
+  if (!date) {
+    return false;
+  }
+  return (!from || date >= from) && (!to || date <= to);
 }
 
 function syncProgrammingDateScopedFilters() {
@@ -8137,8 +8059,10 @@ function applyProgrammingBulkCurrentValueToFilters() {
   }
 
   if (config.column === "fecha") {
-    programmingFilterDate.value = formatDisplayDate(raw);
-    programmingFilterDate.dispatchEvent(new Event("change", { bubbles: true }));
+    const isoDate = normalizeImportedDate(raw) || raw;
+    programmingFilterDateFrom.value = isoDate;
+    programmingFilterDateTo.value = isoDate;
+    programmingFilterDateTo.dispatchEvent(new Event("change", { bubbles: true }));
   } else if (config.column === "personal_id") {
     const name = programmingBulkCurrentSelect?.selectedOptions[0]?.textContent?.trim() || "";
     setPersonalPickerSelection("programming-filter", name, name);
@@ -8240,12 +8164,12 @@ function syncFilterResetButtons(form) {
 
 function resetSingleProgrammingFilter(filterName) {
   const resetMap = {
-    date: programmingFilterDate,
+    date_from: programmingFilterDateFrom,
+    date_to: programmingFilterDateTo,
     installation: programmingFilterInstallation,
     personal: programmingFilterPersonal,
     sport: programmingFilterSport,
     activity: programmingFilterActivity,
-    include_archived: programmingFilterIncludeArchived,
   };
   const control = resetMap[filterName];
 
@@ -8253,17 +8177,13 @@ function resetSingleProgrammingFilter(filterName) {
     return;
   }
 
-  if (control.type === "checkbox") {
-    control.checked = false;
-  } else {
-    control.value = "";
-  }
+  control.value = "";
 
   if (control === programmingFilterPersonal) {
     clearPersonalPicker("programming-filter");
   }
 
-  if (control === programmingFilterDate || control === programmingFilterIncludeArchived) {
+  if (control === programmingFilterDateFrom || control === programmingFilterDateTo) {
     syncProgrammingDateScopedFilters();
   }
 
@@ -8272,16 +8192,9 @@ function resetSingleProgrammingFilter(filterName) {
 
 function applyProgrammingFilters() {
   const activityQuery = normalizeProgrammingText(programmingFilterActivity.value);
-  const includeArchived = programmingFilterIncludeArchived.checked;
 
   filteredProgrammingRows = currentProgrammingRows.filter((row) => {
-    if (!includeArchived && row.archived) {
-      return false;
-    }
-    if (
-      programmingFilterDate.value &&
-      formatDisplayDate(normalizeImportedDate(row.fecha) || row.fecha) !== programmingFilterDate.value
-    ) {
+    if (!programmingRowInDateRange(row)) {
       return false;
     }
     if (programmingFilterInstallation.value && row.instalacion !== programmingFilterInstallation.value) {
@@ -8308,40 +8221,23 @@ function applyProgrammingFilters() {
       [...selectedProgrammingDeleteIds].filter((id) => filteredIds.has(id))
     );
   }
-  programmingCurrentPage = 1;
   refreshProgrammingPreviewPage();
   syncProgrammingSortButtons();
   syncProgrammingBulkAssignmentUi();
+  syncProgrammingPersonReport();
 }
 
 function renderProgrammingPreview(rows, sourceName, options = {}) {
   currentProgrammingRows = rows;
   currentProgrammingSourceName = sourceName;
   currentProgrammingCanUpload = Boolean(options.canUpload);
-  programmingCurrentPage = 1;
   programmingSelectiveDeleteMode = false;
   programmingSelectionMode = "";
   selectedProgrammingDeleteIds.clear();
 
-  const installationCount = new Set(rows.map((row) => row.instalacion).filter(Boolean)).size;
-  const personCount = new Set(rows.map((row) => row.personal).filter(Boolean)).size;
-  const archivedCount = rows.filter((row) => row.archived).length;
-  const sortedDates = rows
-    .map((row) => normalizeImportedDate(row.fecha))
-    .filter(Boolean)
-    .sort((left, right) => String(left).localeCompare(String(right), "es"));
-  const lastDate = sortedDates[sortedDates.length - 1] || "";
-
   if (programmingSourceName) {
     programmingSourceName.textContent = sourceName || "-";
   }
-  programmingTotalCount.textContent = String(rows.length);
-  programmingInstallationCount.textContent = String(installationCount);
-  programmingPersonCount.textContent = String(personCount);
-  programmingArchivedCount.textContent = String(archivedCount);
-  programmingDateFrom.textContent = sortedDates[0] ? formatDisplayDate(sortedDates[0]) : "-";
-  programmingDateTo.textContent = lastDate ? formatDisplayDate(lastDate) : "-";
-  programmingDownloadCsvButton.disabled = rows.length === 0;
   programmingUploadSupabaseButton?.classList.toggle(
     "hidden",
     !currentProgrammingCanUpload || rows.length === 0
@@ -8354,7 +8250,7 @@ function renderProgrammingPreview(rows, sourceName, options = {}) {
 function refreshProgrammingPreviewPage() {
   const visibleRows = getPaginatedProgrammingRows(filteredProgrammingRows);
   const selectionModeEnabled = Boolean(programmingSelectionMode);
-  const visibleColumnCount = selectionModeEnabled ? 13 : 12;
+  const visibleColumnCount = selectionModeEnabled ? 12 : 11;
   updateProgrammingPaginationUi(filteredProgrammingRows.length);
 
   programmingPreviewTableBody.innerHTML = visibleRows.length
@@ -8408,7 +8304,6 @@ function refreshProgrammingPreviewPage() {
               <td>${escapeHtml(row.hora)}</td>
               <td>${escapeHtml(row.deporte)}</td>
               <td>${escapeHtml(row.actividad)}</td>
-              <td>${row.archived ? '<span class="status-badge status-discarded">Archivado</span>' : '<span class="status-badge status-pending">Activo</span>'}</td>
             </tr>
           `;
           }
@@ -8435,7 +8330,6 @@ function mapFindeSemanaRowsToProgramming(rows) {
     hora: formatHourValue(String(row.hora_evento ?? "").trim()),
     deporte: String(row.deporte ?? "").trim(),
     actividad: String(row.actividad ?? "").trim(),
-    archived: Boolean(row.archived_at),
     sortOrder: Number(row.sort_order ?? 0) || 0,
     tipoProgramacion: String(row.tipo_programacion ?? PROGRAMMING_TYPE_FS).trim() || PROGRAMMING_TYPE_FS,
   }));
@@ -8579,11 +8473,11 @@ async function fetchAllProgrammingRows(buildQuery, pageSize = PROGRAMMING_FETCH_
 }
 
 function validateProgrammingReportRange() {
-  const dateFrom = normalizeImportedDate(programmingReportDateFromInput?.value);
-  const dateTo = normalizeImportedDate(programmingReportDateToInput?.value);
+  const dateFrom = normalizeImportedDate(programmingFilterDateFrom?.value);
+  const dateTo = normalizeImportedDate(programmingFilterDateTo?.value);
 
   if (!dateFrom || !dateTo) {
-    throw new Error("Indica fecha inicial y fecha final para generar el informe.");
+    throw new Error("Indica Desde y Hasta en los filtros para generar el informe.");
   }
 
   if (dateFrom > dateTo) {
@@ -8596,34 +8490,18 @@ function validateProgrammingReportRange() {
 async function fetchProgrammingRowsForReport(dateFrom, dateTo) {
   const supabase = await getSupabaseClient();
   const installationCatalog = await loadProgrammingInstallationCatalog(supabase);
-  let { data, error } = await fetchAllProgrammingRows(() => {
+  const { data, error } = await fetchAllProgrammingRows(() => {
     let reportQuery = supabase
       .from(PROGRAMMING_TABLE_NAME)
-      .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, archived_at, sort_order");
+      .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order");
     reportQuery = applyProgrammingTypeFilter(reportQuery)
       .gte("fecha", dateFrom)
       .lte("fecha", dateTo)
-      .is("archived_at", null)
       .order("personal", { ascending: true })
       .order("fecha", { ascending: true })
       .order("hora_inicio", { ascending: true });
     return reportQuery;
   });
-
-  if (error && isMissingArchivedAtColumnError(error)) {
-    ({ data, error } = await fetchAllProgrammingRows(() => {
-      let fallbackReportQuery = supabase
-        .from(PROGRAMMING_TABLE_NAME)
-        .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order");
-      fallbackReportQuery = applyProgrammingTypeFilter(fallbackReportQuery)
-        .gte("fecha", dateFrom)
-        .lte("fecha", dateTo)
-        .order("personal", { ascending: true })
-        .order("fecha", { ascending: true })
-        .order("hora_inicio", { ascending: true });
-      return fallbackReportQuery;
-    }));
-  }
 
   if (error) {
     throw error;
@@ -8694,14 +8572,11 @@ function exportProgrammingReportToPdf() {
       const minRowHeight = 7;
       const headerHeight = 8;
       const columns = [
-        { label: "Instalación", key: "instalacion", width: 52 },
-        { label: "Día", key: "dia", width: 9 },
-        { label: "Fecha", key: "fecha", width: 19 },
-        { label: "Inicio", key: "inicio", width: 15 },
-        { label: "Fin", key: "fin", width: 15 },
-        { label: "Hora", key: "hora", width: 15 },
-        { label: "Deporte", key: "deporte", width: 34 },
-        { label: "Actividad", key: "actividad", width: 127 },
+        { label: "Día", width: 9 },
+        { label: "Fecha", width: 19 },
+        { label: "Instalación", width: 64 },
+        { label: "Entrada – salida", width: 36 },
+        { label: "Actividades", width: 150 },
       ];
       const tableWidth = columns.reduce((total, column) => total + column.width, 0);
       const tableLeft = Math.max(margin, (pageWidth - tableWidth) / 2);
@@ -8709,15 +8584,6 @@ function exportProgrammingReportToPdf() {
       const periodText = `${formatDisplayDate(dateFrom)} - ${formatDisplayDate(dateTo)}`;
       const exportedAt = new Date().toLocaleString("es-ES");
       let y = margin;
-
-      const getRowValue = (row, key) => {
-        if (key === "dia") return getControlWeekdayInfo(row.fecha).letter;
-        if (key === "fecha") return formatDisplayDate(normalizeImportedDate(row.fecha) || row.fecha) || "-";
-        if (key === "inicio") return formatHourValue(row.inicio) || "-";
-        if (key === "fin") return formatHourValue(row.fin) || "-";
-        if (key === "hora") return formatHourValue(row.hora) || "-";
-        return row[key] || "-";
-      };
 
       const drawTableHeader = () => {
         doc.setFont("helvetica", "bold");
@@ -8736,7 +8602,7 @@ function exportProgrammingReportToPdf() {
         y += headerHeight;
       };
 
-      const drawPersonHeader = (person, rowCount) => {
+      const drawPersonHeader = (person, data) => {
         doc.setFont("helvetica", "bold");
         doc.setFontSize(15);
         doc.text(person, margin, y);
@@ -8745,62 +8611,80 @@ function exportProgrammingReportToPdf() {
         doc.setFontSize(9);
         doc.text(`Periodo: ${periodText}`, margin, y);
         y += 4.5;
-        doc.text(`Registros: ${rowCount} | Generado: ${exportedAt}`, margin, y);
+        doc.text(
+          `${data.days.length} ${data.days.length === 1 ? "día" : "días"} | ${data.turnos} ${data.turnos === 1 ? "turno" : "turnos"} | Generado: ${exportedAt}`,
+          margin,
+          y
+        );
         y += 6;
         drawTableHeader();
       };
 
-      const addPersonPage = (person, rowCount, isFirstPage) => {
-        if (!isFirstPage) {
+      groups.forEach(([person, personRows], groupIndex) => {
+        const data = buildProgrammingPersonReportFromRows(person, personRows, dateFrom, dateTo);
+        if (groupIndex > 0) {
           doc.addPage();
         }
         y = margin;
-        drawPersonHeader(person, rowCount);
-      };
+        drawPersonHeader(person, data);
 
-      groups.forEach(([person, personRows], groupIndex) => {
-        addPersonPage(person, personRows.length, groupIndex === 0);
+        data.days.forEach((day) => {
+          const weekday = getControlWeekdayInfo(day.fecha);
+          day.installations.forEach((installation, installationIndex) => {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(6.8);
+            const nameLines = doc.splitTextToSize(installation.name, columns[2].width - cellPadding * 2);
+            const timeLines = doc.splitTextToSize(installation.horario, columns[3].width - cellPadding * 2);
+            const activityLines = installation.activities.flatMap((activity) =>
+              doc.splitTextToSize(
+                `${activity.horario}   ${describeProgrammingPersonReportActivity(activity)}`,
+                columns[4].width - cellPadding * 2
+              )
+            );
+            const rowHeight = Math.max(
+              minRowHeight,
+              Math.max(nameLines.length, timeLines.length, activityLines.length) * rowLineHeight + cellPadding * 2
+            );
 
-        personRows.forEach((row) => {
-          const cellLines = columns.map((column) =>
-            doc.splitTextToSize(String(getRowValue(row, column.key)), column.width - cellPadding * 2)
-          );
-          const rowHeight = Math.max(
-            minRowHeight,
-            ...cellLines.map((lines) => lines.length * rowLineHeight + cellPadding * 2)
-          );
+            if (y + rowHeight > pageHeight - bottomMargin) {
+              doc.addPage();
+              y = margin;
+              drawPersonHeader(`${person} (continuacion)`, data);
+            }
 
-          if (y + rowHeight > pageHeight - bottomMargin) {
-            doc.addPage();
-            y = margin;
-            drawPersonHeader(`${person} (continuacion)`, personRows.length);
-          }
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(6.8);
+            doc.setDrawColor(210, 219, 231);
+            let x = tableLeft;
+            columns.forEach((column) => {
+              doc.rect(x, y, column.width, rowHeight);
+              x += column.width;
+            });
 
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(6.8);
-          doc.setDrawColor(210, 219, 231);
-
-          let x = tableLeft;
-          columns.forEach((column, columnIndex) => {
-            doc.rect(x, y, column.width, rowHeight);
-            if (column.key === "dia") {
-              const weekday = getControlWeekdayInfo(row.fecha);
+            doc.setTextColor(0, 31, 84);
+            if (installationIndex === 0) {
               doc.setFont("helvetica", "bold");
               doc.setTextColor(weekday.color);
-              doc.text(weekday.letter, x + column.width / 2, y + 4.5, {
-                align: "center",
-              });
-              doc.setFont("helvetica", "normal");
+              doc.text(weekday.letter, tableLeft + columns[0].width / 2, y + 4.5, { align: "center" });
               doc.setTextColor(0, 31, 84);
-              x += column.width;
-              return;
+              doc.setFont("helvetica", "normal");
+              doc.text(formatDisplayDate(day.fecha), tableLeft + columns[0].width + cellPadding, y + 4.5);
             }
-            doc.text(cellLines[columnIndex], x + cellPadding, y + 4.5, {
-              maxWidth: column.width - cellPadding * 2,
-            });
-            x += column.width;
+            doc.text(nameLines, tableLeft + columns[0].width + columns[1].width + cellPadding, y + 4.5);
+            doc.setFont("helvetica", "bold");
+            doc.text(
+              timeLines,
+              tableLeft + columns[0].width + columns[1].width + columns[2].width + cellPadding,
+              y + 4.5
+            );
+            doc.setFont("helvetica", "normal");
+            doc.text(
+              activityLines,
+              tableLeft + columns[0].width + columns[1].width + columns[2].width + columns[3].width + cellPadding,
+              y + 4.5
+            );
+            y += rowHeight;
           });
-          y += rowHeight;
         });
       });
 
@@ -8835,117 +8719,6 @@ function wrapCanvasText(context, text, maxWidth) {
   return lines.length ? lines : ["-"];
 }
 
-function drawProgrammingPersonImage(person, rows, dateFrom, dateTo) {
-  const scale = 2;
-  const margin = 40;
-  const tableWidth = 1720;
-  const canvasWidth = tableWidth + margin * 2;
-  const columns = [
-    { label: "Instalación", key: "instalacion", width: 320 },
-    { label: "Día", key: "dia", width: 60 },
-    { label: "Fecha", key: "fecha", width: 130 },
-    { label: "Inicio", key: "inicio", width: 90 },
-    { label: "Fin", key: "fin", width: 90 },
-    { label: "Hora", key: "hora", width: 90 },
-    { label: "Deporte", key: "deporte", width: 220 },
-    { label: "Actividad", key: "actividad", width: 720 },
-  ];
-  const lineHeight = 26;
-  const cellPadding = 10;
-  const headerHeight = 42;
-  const titleHeight = 128;
-  const footerHeight = 34;
-  const scratchCanvas = document.createElement("canvas");
-  const scratchContext = scratchCanvas.getContext("2d");
-
-  scratchContext.font = "24px Arial";
-  const rowLayouts = rows.map((row) => {
-    const cellLines = columns.map((column) => {
-      if (column.key === "dia") {
-        return [getControlWeekdayInfo(row.fecha).letter];
-      }
-      const value =
-        column.key === "fecha"
-          ? formatDisplayDate(normalizeImportedDate(row.fecha) || row.fecha) || "-"
-          : column.key === "inicio"
-            ? formatHourValue(row.inicio) || "-"
-            : column.key === "fin"
-              ? formatHourValue(row.fin) || "-"
-              : column.key === "hora"
-                ? formatHourValue(row.hora) || "-"
-                : row[column.key] || "-";
-      return wrapCanvasText(scratchContext, value, column.width - cellPadding * 2);
-    });
-    const rowHeight = Math.max(46, Math.max(...cellLines.map((lines) => lines.length)) * lineHeight + cellPadding * 2);
-    return { row, cellLines, rowHeight };
-  });
-
-  const canvasHeight =
-    titleHeight + headerHeight + rowLayouts.reduce((total, layout) => total + layout.rowHeight, 0) + footerHeight;
-  const canvas = document.createElement("canvas");
-  canvas.width = canvasWidth * scale;
-  canvas.height = canvasHeight * scale;
-  const context = canvas.getContext("2d");
-  context.scale(scale, scale);
-
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, canvasWidth, canvasHeight);
-  context.fillStyle = "#001f54";
-  context.font = "bold 34px Arial";
-  context.fillText(person, margin, 46);
-  context.font = "22px Arial";
-  context.fillText(`Periodo: ${formatDisplayDate(dateFrom)} - ${formatDisplayDate(dateTo)}`, margin, 78);
-  context.fillText(`Registros: ${rows.length}`, margin, 108);
-
-  let y = titleHeight;
-  let x = margin;
-  context.font = "bold 20px Arial";
-  columns.forEach((column) => {
-    context.fillStyle = "#e5e7eb";
-    context.fillRect(x, y, column.width, headerHeight);
-    context.strokeStyle = "#94a3b8";
-    context.strokeRect(x, y, column.width, headerHeight);
-    context.fillStyle = "#111827";
-    context.fillText(column.label, x + cellPadding, y + 27);
-    x += column.width;
-  });
-  y += headerHeight;
-
-  rowLayouts.forEach(({ row, cellLines, rowHeight }) => {
-    x = margin;
-    context.font = "20px Arial";
-    columns.forEach((column, columnIndex) => {
-      context.strokeStyle = "#d6dbe7";
-      context.strokeRect(x, y, column.width, rowHeight);
-
-      if (column.key === "dia") {
-        const weekday = getControlWeekdayInfo(row.fecha);
-        context.fillStyle = weekday.color;
-        context.font = "bold 28px Arial";
-        context.textAlign = "center";
-        context.fillText(weekday.letter, x + column.width / 2, y + 31);
-        context.textAlign = "start";
-        x += column.width;
-        return;
-      }
-
-      context.fillStyle = "#001f54";
-      context.font = "20px Arial";
-      cellLines[columnIndex].forEach((line, lineIndex) => {
-        context.fillText(line, x + cellPadding, y + cellPadding + 20 + lineIndex * lineHeight);
-      });
-      x += column.width;
-    });
-    y += rowHeight;
-  });
-
-  context.fillStyle = "#64748b";
-  context.font = "18px Arial";
-  context.fillText(`Generado: ${new Date().toLocaleString("es-ES")}`, margin, canvasHeight - 12);
-
-  return canvas;
-}
-
 function canvasToBlob(canvas) {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -8977,7 +8750,9 @@ function downloadProgrammingImages() {
       for (const [person, personRows] of groups) {
         processedCount += 1;
         setStatus(`Generando imágenes: ${processedCount}/${groups.length} (${person}).`);
-        const canvas = drawProgrammingPersonImage(person, personRows, dateFrom, dateTo);
+        const canvas = drawProgrammingPersonReportImage(
+          buildProgrammingPersonReportFromRows(person, personRows, dateFrom, dateTo)
+        );
         const blob = await canvasToBlob(canvas);
         zip.file(
           `programacion-${sanitizeFileName(person)}-${dateFrom}-${dateTo}.png`,
@@ -8998,33 +8773,480 @@ function downloadProgrammingImages() {
   })();
 }
 
+// ---- Vista previa del informe (PDF, CSV e imágenes del intervalo filtrado) ----
+let programmingReportPreviewData = [];
+
+async function copyProgrammingReportPersonImage(index) {
+  try {
+    const data = programmingReportPreviewData[Number(index)];
+    if (!data) {
+      throw new Error("No se encontró la programación de esa persona.");
+    }
+    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
+      throw new Error("El navegador no permite copiar imagenes al portapapeles.");
+    }
+    const blob = await canvasToBlob(drawProgrammingPersonReportImage(data));
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    setStatus(`Imagen de ${data.person} copiada al portapapeles.`, "success");
+    showPublicToastMessage("Imagen copiada");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo copiar la imagen.", "error");
+  }
+}
+
+function setProgrammingReportActionsEnabled(enabled) {
+  [programmingReportPdfButton, programmingDownloadCsvButton, programmingDownloadImagesButton].forEach((button) => {
+    if (button) button.disabled = !enabled;
+  });
+}
+
+function closeProgrammingReportPreview() {
+  programmingReportPreviewPanel?.classList.add("hidden");
+  programmingReportPreviewBackdrop?.classList.add("hidden");
+}
+
+async function openProgrammingReportPreview() {
+  programmingReportPreviewPanel?.classList.remove("hidden");
+  programmingReportPreviewBackdrop?.classList.remove("hidden");
+  setProgrammingReportActionsEnabled(false);
+  programmingReportPreviewSummary.textContent = "Preparando el informe con los filtros actuales...";
+  programmingReportPreviewContent.innerHTML = '<p class="empty-state">Cargando...</p>';
+
+  try {
+    const { dateFrom, dateTo } = validateProgrammingReportRange();
+    const rows = await fetchProgrammingRowsForReport(dateFrom, dateTo);
+    const groups = groupProgrammingRowsByPerson(rows);
+    programmingReportPreviewSummary.textContent =
+      `${formatDisplayDate(dateFrom)} - ${formatDisplayDate(dateTo)} · ${groups.length} ${groups.length === 1 ? "persona" : "personas"} · ${rows.length} ${rows.length === 1 ? "registro" : "registros"}`;
+    if (!rows.length) {
+      programmingReportPreviewContent.innerHTML =
+        '<p class="empty-state">No hay registros de programación en el intervalo indicado.</p>';
+      return;
+    }
+
+    programmingReportPreviewData = groups.map(([person, personRows]) =>
+      buildProgrammingPersonReportFromRows(person, personRows, dateFrom, dateTo)
+    );
+    programmingReportPreviewContent.innerHTML = programmingReportPreviewData
+      .map((data, index) => {
+        const person = data.person;
+        return `<section class="records-person-report-section">
+          <div class="records-person-report-section-head"><h3>${escapeHtml(person)} <span class="muted-text">· ${data.days.length} ${data.days.length === 1 ? "día" : "días"} · ${data.turnos} ${data.turnos === 1 ? "turno" : "turnos"}</span></h3>
+            <button type="button" class="compact-button tooltip-button icon-only-button" data-programming-report-copy="${index}"
+              aria-label="Copiar imagen de ${escapeHtml(person)}" title="Copiar imagen de ${escapeHtml(person)}">
+              <svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20261016-1#icon-copy"></use></svg>
+            </button>
+          </div>
+          <div class="records-person-report-table-wrap">
+            <table class="records-person-report-table programming-person-report-table">
+              <thead><tr><th colspan="2">Día</th><th>Instalación</th><th>Entrada – salida</th><th>Actividades</th></tr></thead>
+              <tbody>${renderProgrammingPersonReportRowsHtml(data)}</tbody>
+            </table>
+          </div>
+        </section>`;
+      })
+      .join("");
+    setProgrammingReportActionsEnabled(true);
+  } catch (error) {
+    programmingReportPreviewSummary.textContent = "No se pudo preparar el informe.";
+    programmingReportPreviewContent.innerHTML = `<p class="empty-state">${escapeHtml(error?.message || "Error desconocido")}</p>`;
+  }
+}
+
+// ---- Informe individual de Programación ----
+// Una fila por día e instalación: horario de entrada y salida (los tramos que enlazan, con un
+// hueco menor de 30 min, se unen en uno solo) y debajo el desglose de actividades.
+let programmingPersonReportData = null;
+
+function programmingTimeToMinutes(value) {
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(value ?? "").trim());
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+function formatProgrammingMinutes(total) {
+  const minutes = ((total % 1440) + 1440) % 1440;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function mergeProgrammingSchedule(rows) {
+  const spans = [];
+  rows.forEach((row) => {
+    const start = programmingTimeToMinutes(row.inicio);
+    if (start === null) {
+      return;
+    }
+    let end = programmingTimeToMinutes(row.fin);
+    if (end === null) {
+      end = start;
+    } else if (end < start) {
+      end += 1440;
+    }
+    spans.push([start, end]);
+  });
+  spans.sort((left, right) => left[0] - right[0]);
+  const merged = [];
+  spans.forEach(([start, end]) => {
+    const last = merged[merged.length - 1];
+    if (last && start - last[1] < 30) {
+      last[1] = Math.max(last[1], end);
+    } else {
+      merged.push([start, end]);
+    }
+  });
+  return merged
+    .map(([start, end]) =>
+      end > start ? `${formatProgrammingMinutes(start)}–${formatProgrammingMinutes(end)}` : formatProgrammingMinutes(start)
+    )
+    .join(" · ");
+}
+
+function getProgrammingPersonReportRange() {
+  const from = normalizeImportedDate(programmingFilterDateFrom?.value) || "";
+  const to = normalizeImportedDate(programmingFilterDateTo?.value) || "";
+  return { from, to };
+}
+
+function isProgrammingPersonReportReady() {
+  const { from, to } = getProgrammingPersonReportRange();
+  return Boolean(normalizeProgrammingPersonnelName(programmingFilterPersonal?.value) && from && to && from <= to);
+}
+
+function buildProgrammingPersonReportData() {
+  const person = normalizeProgrammingPersonnelName(programmingFilterPersonal.value);
+  const { from, to } = getProgrammingPersonReportRange();
+  return buildProgrammingPersonReportFromRows(person, filteredProgrammingRows, from, to);
+}
+
+// Por día e instalación: horario de entrada y salida unido (hueco < 30 min) y desglose de actividades.
+function buildProgrammingPersonReportFromRows(person, sourceRows, from, to) {
+  const rows = [...sourceRows].sort(
+    (left, right) =>
+      getProgrammingSortValue(left, "fecha").localeCompare(getProgrammingSortValue(right, "fecha")) ||
+      getProgrammingSortValue(left, "inicio").localeCompare(getProgrammingSortValue(right, "inicio"))
+  );
+  const dayMap = new Map();
+  rows.forEach((row) => {
+    const fecha = normalizeImportedDate(row.fecha) || row.fecha;
+    if (!dayMap.has(fecha)) {
+      dayMap.set(fecha, new Map());
+    }
+    const installations = dayMap.get(fecha);
+    const name = row.instalacion || "-";
+    if (!installations.has(name)) {
+      installations.set(name, []);
+    }
+    installations.get(name).push(row);
+  });
+
+  const days = [...dayMap.entries()].map(([fecha, installations]) => ({
+    fecha,
+    installations: [...installations.entries()].map(([name, list]) => ({
+      name,
+      horario: mergeProgrammingSchedule(list) || "-",
+      activities: list.map((row) => {
+        const start = formatProgrammingTimeInputValue(row.inicio);
+        const end = formatProgrammingTimeInputValue(row.fin);
+        return {
+          horario: start ? (end ? `${start}–${end}` : start) : "-",
+          evento: formatProgrammingTimeInputValue(row.hora),
+          texto: [row.deporte, row.actividad].filter(Boolean).join(" · ") || "-",
+        };
+      }),
+    })),
+  }));
+
+  return {
+    person,
+    from,
+    to,
+    days,
+    jornadas: days.reduce((total, day) => total + day.installations.length, 0),
+    turnos: rows.length,
+  };
+}
+
+function describeProgrammingPersonReportActivity(activity) {
+  return `${activity.texto}${activity.evento ? ` (evento ${activity.evento})` : ""}`;
+}
+
+function setProgrammingPersonReportActionsEnabled(enabled) {
+  if (programmingPersonReportCopyButton) programmingPersonReportCopyButton.disabled = !enabled;
+  if (programmingPersonReportImageButton) programmingPersonReportImageButton.disabled = !enabled;
+}
+
+function renderProgrammingPersonReport() {
+  if (!programmingPersonReportContent) {
+    return;
+  }
+  if (!isProgrammingPersonReportReady()) {
+    programmingPersonReportData = null;
+    setProgrammingPersonReportActionsEnabled(false);
+    if (programmingPersonReportSummary) {
+      programmingPersonReportSummary.textContent = "Filtra una persona y un intervalo completo.";
+    }
+    programmingPersonReportContent.innerHTML =
+      '<p class="empty-state">Filtra una persona y un intervalo completo para ver su programación.</p>';
+    return;
+  }
+
+  const data = buildProgrammingPersonReportData();
+  programmingPersonReportData = data;
+  if (programmingPersonReportTitle) {
+    programmingPersonReportTitle.textContent = `Programación de ${data.person}`;
+  }
+  if (programmingPersonReportSummary) {
+    programmingPersonReportSummary.textContent =
+      `${formatDisplayDate(data.from)} - ${formatDisplayDate(data.to)} · ` +
+      `${data.days.length} ${data.days.length === 1 ? "día" : "días"} · ` +
+      `${data.jornadas} ${data.jornadas === 1 ? "jornada" : "jornadas"} · ${data.turnos} ${data.turnos === 1 ? "turno" : "turnos"}`;
+  }
+  if (!data.days.length) {
+    setProgrammingPersonReportActionsEnabled(false);
+    programmingPersonReportContent.innerHTML =
+      '<p class="empty-state">No hay programación con los filtros actuales.</p>';
+    return;
+  }
+
+  const rowsHtml = renderProgrammingPersonReportRowsHtml(data);
+
+  programmingPersonReportContent.innerHTML = `
+    <section class="records-person-report-section">
+      <div class="records-person-report-table-wrap">
+        <table class="records-person-report-table programming-person-report-table">
+          <thead>
+            <tr><th colspan="2">Día</th><th>Instalación</th><th>Entrada – salida</th><th>Actividades</th></tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </section>`;
+  setProgrammingPersonReportActionsEnabled(true);
+}
+
+function renderProgrammingPersonReportRowsHtml(data) {
+  return data.days
+    .map((day) => {
+      const weekday = getControlWeekdayInfo(day.fecha);
+      return day.installations
+        .map((installation, index) => {
+          const dayCells =
+            index === 0
+              ? `<td class="weekday-marker-cell programming-person-report-day" rowspan="${day.installations.length}">
+                  <span class="weekday-marker records-date-weekday" style="color: ${escapeHtml(weekday.color)};" title="${escapeHtml(weekday.label)}">${escapeHtml(weekday.letter)}</span>
+                </td>
+                <td class="programming-person-report-day" rowspan="${day.installations.length}">${escapeHtml(formatDisplayDate(day.fecha))}</td>`
+              : "";
+          return `
+            <tr class="records-person-report-day-row">
+              ${dayCells}
+              <td>${escapeHtml(installation.name)}</td>
+              <td class="programming-person-report-time">${escapeHtml(installation.horario)}</td>
+              <td>
+                <ul class="programming-person-report-activities">
+                  ${installation.activities
+                    .map(
+                      (activity) =>
+                        `<li><span class="programming-person-report-activity-time">${escapeHtml(activity.horario)}</span>${escapeHtml(describeProgrammingPersonReportActivity(activity))}</li>`
+                    )
+                    .join("")}
+                </ul>
+              </td>
+            </tr>`;
+        })
+        .join("");
+    })
+    .join("");
+}
+
+function syncProgrammingPersonReport() {
+  if (programmingPersonReportButton) {
+    const ready = isProgrammingPersonReportReady();
+    programmingPersonReportButton.disabled = !ready;
+    programmingPersonReportButton.title = ready
+      ? "Ver la programación individual de la persona filtrada"
+      : "Filtra una persona y un intervalo completo";
+  }
+  if (programmingPersonReportPanel && !programmingPersonReportPanel.classList.contains("hidden")) {
+    renderProgrammingPersonReport();
+  }
+}
+
+function openProgrammingPersonReport() {
+  if (programmingPersonReportButton?.disabled) {
+    return;
+  }
+  programmingPersonReportPanel?.classList.remove("hidden");
+  programmingPersonReportBackdrop?.classList.remove("hidden");
+  renderProgrammingPersonReport();
+}
+
+function closeProgrammingPersonReport() {
+  programmingPersonReportPanel?.classList.add("hidden");
+  programmingPersonReportBackdrop?.classList.add("hidden");
+}
+
+function drawProgrammingPersonReportImage(data) {
+  const scale = 2;
+  const margin = 40;
+  const columns = [
+    { label: "Día", width: 60 },
+    { label: "Fecha", width: 130 },
+    { label: "Instalación", width: 340 },
+    { label: "Entrada – salida", width: 200 },
+    { label: "Actividades", width: 800 },
+  ];
+  const tableWidth = columns.reduce((total, column) => total + column.width, 0);
+  const canvasWidth = tableWidth + margin * 2;
+  const lineHeight = 26;
+  const cellPadding = 10;
+  const headerHeight = 42;
+  const titleHeight = 128;
+  const footerHeight = 34;
+  const scratch = document.createElement("canvas").getContext("2d");
+  scratch.font = "20px Arial";
+
+  const dayLayouts = data.days.map((day) => {
+    const rows = day.installations.map((installation) => {
+      const nameLines = wrapCanvasText(scratch, installation.name, columns[2].width - cellPadding * 2);
+      const timeLines = wrapCanvasText(scratch, installation.horario, columns[3].width - cellPadding * 2);
+      const activityLines = installation.activities.flatMap((activity) => {
+        const lines = wrapCanvasText(
+          scratch,
+          `${activity.horario}   ${describeProgrammingPersonReportActivity(activity)}`,
+          columns[4].width - cellPadding * 2
+        );
+        return lines;
+      });
+      const height = Math.max(46, Math.max(nameLines.length, timeLines.length, activityLines.length) * lineHeight + cellPadding * 2);
+      return { nameLines, timeLines, activityLines, height };
+    });
+    return { day, rows, height: rows.reduce((total, row) => total + row.height, 0) };
+  });
+
+  const canvasHeight =
+    titleHeight + headerHeight + dayLayouts.reduce((total, layout) => total + layout.height, 0) + footerHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasWidth * scale;
+  canvas.height = canvasHeight * scale;
+  const context = canvas.getContext("2d");
+  context.scale(scale, scale);
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvasWidth, canvasHeight);
+  context.fillStyle = "#001f54";
+  context.font = "bold 34px Arial";
+  context.fillText(data.person, margin, 46);
+  context.font = "22px Arial";
+  context.fillText(`Periodo: ${formatDisplayDate(data.from)} - ${formatDisplayDate(data.to)}`, margin, 78);
+  context.fillText(
+    `${data.days.length} ${data.days.length === 1 ? "día" : "días"} · ${data.jornadas} ${data.jornadas === 1 ? "jornada" : "jornadas"}`,
+    margin,
+    108
+  );
+
+  let y = titleHeight;
+  let x = margin;
+  context.font = "bold 20px Arial";
+  columns.forEach((column) => {
+    context.fillStyle = "#e5e7eb";
+    context.fillRect(x, y, column.width, headerHeight);
+    context.strokeStyle = "#94a3b8";
+    context.strokeRect(x, y, column.width, headerHeight);
+    context.fillStyle = "#111827";
+    context.fillText(column.label, x + cellPadding, y + 27);
+    x += column.width;
+  });
+  y += headerHeight;
+
+  dayLayouts.forEach(({ day, rows, height }) => {
+    const weekday = getControlWeekdayInfo(day.fecha);
+    context.strokeStyle = "#d6dbe7";
+    context.strokeRect(margin, y, columns[0].width, height);
+    context.strokeRect(margin + columns[0].width, y, columns[1].width, height);
+    context.textAlign = "center";
+    context.fillStyle = weekday.color;
+    context.font = "bold 28px Arial";
+    context.fillText(weekday.letter, margin + columns[0].width / 2, y + height / 2 + 10);
+    context.textAlign = "start";
+    context.fillStyle = "#001f54";
+    context.font = "20px Arial";
+    context.fillText(formatDisplayDate(day.fecha), margin + columns[0].width + cellPadding, y + height / 2 + 7);
+
+    let rowY = y;
+    rows.forEach((row) => {
+      let cellX = margin + columns[0].width + columns[1].width;
+      [
+        { width: columns[2].width, lines: row.nameLines, bold: false },
+        { width: columns[3].width, lines: row.timeLines, bold: true },
+        { width: columns[4].width, lines: row.activityLines, bold: false },
+      ].forEach((cell) => {
+        context.strokeStyle = "#d6dbe7";
+        context.strokeRect(cellX, rowY, cell.width, row.height);
+        context.fillStyle = "#001f54";
+        context.font = `${cell.bold ? "bold " : ""}20px Arial`;
+        cell.lines.forEach((line, lineIndex) => {
+          context.fillText(line, cellX + cellPadding, rowY + cellPadding + 20 + lineIndex * lineHeight);
+        });
+        cellX += cell.width;
+      });
+      rowY += row.height;
+    });
+    y += height;
+  });
+
+  context.fillStyle = "#64748b";
+  context.font = "18px Arial";
+  context.fillText(`Generado: ${new Date().toLocaleString("es-ES")}`, margin, canvasHeight - 12);
+  return canvas;
+}
+
+async function copyProgrammingPersonReportImage() {
+  try {
+    if (!programmingPersonReportData) {
+      throw new Error("Abre primero el informe individual.");
+    }
+    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
+      throw new Error("El navegador no permite copiar imagenes al portapapeles.");
+    }
+    const blob = await canvasToBlob(drawProgrammingPersonReportImage(programmingPersonReportData));
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    setStatus("Imagen copiada al portapapeles.", "success");
+    showPublicToastMessage("Imagen copiada");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo copiar la imagen.", "error");
+  }
+}
+
+async function downloadProgrammingPersonReportImage() {
+  try {
+    if (!programmingPersonReportData) {
+      throw new Error("Abre primero el informe individual.");
+    }
+    const data = programmingPersonReportData;
+    const blob = await canvasToBlob(drawProgrammingPersonReportImage(data));
+    triggerDownload(blob, `programacion-${sanitizeFileName(data.person)}-${data.from}-${data.to}.png`);
+    setStatus("Imagen descargada correctamente.", "success");
+  } catch (error) {
+    setStatus(error?.message || "No se pudo descargar la imagen.", "error");
+  }
+}
+
 async function loadProgrammingFromSupabase() {
   try {
     const supabase = await getSupabaseClient();
     const installationCatalog = await loadProgrammingInstallationCatalog(supabase);
-    let { data, error } = await fetchAllProgrammingRows(() => {
+    setProgrammingDefaultDateRange();
+    const { data, error } = await fetchAllProgrammingRows(() => {
       let query = supabase
         .from(PROGRAMMING_TABLE_NAME)
         .select(
-          "id, personal, personal_id, instalacion, instalacion_id, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, archived_at, sort_order, tipo_programacion"
+          "id, personal, personal_id, instalacion, instalacion_id, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order, tipo_programacion"
         );
       query = applyProgrammingTypeFilter(query)
         .order("fecha", { ascending: true })
         .order("sort_order", { ascending: true });
       return query;
     });
-
-    if (error && isMissingArchivedAtColumnError(error)) {
-      ({ data, error } = await fetchAllProgrammingRows(() => {
-        let fallbackQuery = supabase
-          .from(PROGRAMMING_TABLE_NAME)
-          .select("id, personal, personal_id, instalacion, instalacion_id, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order, tipo_programacion");
-        fallbackQuery = applyProgrammingTypeFilter(fallbackQuery)
-          .order("fecha", { ascending: true })
-          .order("sort_order", { ascending: true });
-        return fallbackQuery;
-      }));
-    }
 
     if (error) {
       throw error;
@@ -9068,11 +9290,6 @@ function populateProgrammingDetailForm(row, options = {}) {
   programmingDetailEventTimeInput.value = formatProgrammingTimeInputValue(row?.hora);
   programmingDetailSportInput.value = row?.deporte ?? "";
   programmingDetailActivityInput.value = row?.actividad ?? "";
-  programmingDetailArchivedInput.checked = Boolean(row?.archived);
-  if (programmingDetailArchiveButton) {
-    programmingDetailArchiveButton.textContent = row?.archived ? "Recuperar" : "Archivar";
-    programmingDetailArchiveButton.disabled = !row?.id;
-  }
   if (programmingDetailDeleteButton) {
     programmingDetailDeleteButton.disabled = !row?.id;
   }
@@ -9105,7 +9322,6 @@ function openProgrammingCreateDetail() {
       hora: "",
       deporte: "",
       actividad: "",
-      archived: false,
       tipoProgramacion: getDefaultProgrammingTypeForNewRows(),
     },
     {
@@ -9124,7 +9340,6 @@ function openProgrammingDuplicateDetail(recordId) {
       {
         ...row,
         id: "",
-        archived: false,
       },
       {
         mode: "duplicate",
@@ -9169,17 +9384,8 @@ function applyProgrammingPayloadToPreviewRow(row, payload) {
     hora: formatProgrammingTimeInputValue(payload.hora_evento),
     deporte: payload.deporte || "",
     actividad: payload.actividad || "",
-    archived: Boolean(payload.archived_at),
     tipoProgramacion: normalizeProgrammingType(payload.tipo_programacion || currentProgrammingType),
   });
-}
-
-function omitProgrammingPayloadFields(payload, fields) {
-  const nextPayload = { ...payload };
-  fields.forEach((field) => {
-    delete nextPayload[field];
-  });
-  return nextPayload;
 }
 
 async function saveProgrammingDetail(event) {
@@ -9206,17 +9412,11 @@ async function saveProgrammingDetail(event) {
     hora_evento: normalizeImportedTime(programmingDetailEventTimeInput.value),
     deporte: String(programmingDetailSportInput.value).trim() || null,
     actividad: String(programmingDetailActivityInput.value).trim() || null,
-    archived_at: programmingDetailArchivedInput.checked ? new Date().toISOString() : null,
     source_file: currentProgrammingSourceName || "edicion-manual",
     tipo_programacion: selectedProgrammingType,
   };
 
-  const validationErrors = validateProgrammingRowsForSupabase([
-    {
-      ...payload,
-      archived: programmingDetailArchivedInput.checked,
-    },
-  ]);
+  const validationErrors = validateProgrammingRowsForSupabase([payload]);
 
   if (validationErrors.length) {
     setStatus(validationErrors[0], "error");
@@ -9245,43 +9445,20 @@ async function saveProgrammingDetail(event) {
 
   if (detailMode === "edit") {
     const originalProgrammingType = normalizeProgrammingType(row.tipoProgramacion);
-    let result = await supabase
+    const result = await supabase
       .from(PROGRAMMING_TABLE_NAME)
       .update(payload)
       .eq("id", row.id)
       .eq("tipo_programacion", originalProgrammingType)
-      .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, archived_at, sort_order, tipo_programacion")
+      .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order, tipo_programacion")
       .single();
-    if (result.error && isMissingArchivedAtColumnError(result.error)) {
-      if (Boolean(row.archived) !== Boolean(payload.archived_at)) {
-        setStatus(getArchivedAtMissingColumnMessage(), "error");
-        return;
-      }
-      result = await supabase
-        .from(PROGRAMMING_TABLE_NAME)
-        .update(omitProgrammingPayloadFields(payload, ["archived_at"]))
-        .eq("id", row.id)
-        .eq("tipo_programacion", originalProgrammingType)
-        .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order, tipo_programacion")
-        .single();
-    }
     error = result.error;
     updatedRow = result.data;
   } else {
-    let result = await supabase.from(PROGRAMMING_TABLE_NAME).insert({
+    const result = await supabase.from(PROGRAMMING_TABLE_NAME).insert({
       ...payload,
       sort_order: getNextProgrammingSortOrder(),
     });
-    if (result.error && isMissingArchivedAtColumnError(result.error)) {
-      if (Boolean(payload.archived_at)) {
-        setStatus(getArchivedAtMissingColumnMessage(), "error");
-        return;
-      }
-      result = await supabase.from(PROGRAMMING_TABLE_NAME).insert({
-        ...omitProgrammingPayloadFields(payload, ["archived_at"]),
-        sort_order: getNextProgrammingSortOrder(),
-      });
-    }
     error = result.error;
   }
 
@@ -9296,9 +9473,6 @@ async function saveProgrammingDetail(event) {
   if (detailMode === "edit") {
     const mappedRow = mapFindeSemanaRowsToProgramming([updatedRow])[0] || null;
     if (mappedRow) {
-      if (!Object.prototype.hasOwnProperty.call(updatedRow, "archived_at")) {
-        mappedRow.archived = row.archived;
-      }
       const rowIndex = currentProgrammingRows.findIndex(
         (currentRow) => String(currentRow.id) === String(mappedRow.id)
       );
@@ -9329,50 +9503,6 @@ async function saveProgrammingDetail(event) {
       : "Registro de programación creado correctamente.",
     "success"
   );
-}
-
-async function archiveProgrammingRecord(recordId, shouldArchive) {
-  const session = await ensurePrivateSession({ silent: true });
-  if (!session) {
-    setStatus("Necesitas iniciar sesión para archivar registros de programación.", "error");
-    return false;
-  }
-
-  const row = findProgrammingRowById(recordId);
-  if (!row) {
-    setStatus("No se encontró el registro de programación.", "error");
-    return false;
-  }
-
-  const confirmed = window.confirm(
-    shouldArchive
-      ? `Vas a archivar el registro de ${row.instalacion}.`
-      : `Vas a recuperar el registro archivado de ${row.instalacion}.`
-  );
-  if (!confirmed) {
-    return false;
-  }
-
-  const supabase = await getSupabaseClient();
-  const { error } = await supabase
-    .from(PROGRAMMING_TABLE_NAME)
-    .update({ archived_at: shouldArchive ? new Date().toISOString() : null })
-    .eq("id", recordId)
-    .eq("tipo_programacion", normalizeProgrammingType(row.tipoProgramacion));
-
-  if (error) {
-    if (isMissingArchivedAtColumnError(error)) {
-      setStatus(getArchivedAtMissingColumnMessage(), "error");
-      return false;
-    }
-
-    setStatus(`No se pudo actualizar el archivado: ${error.message}`, "error");
-    return false;
-  }
-
-  await loadProgrammingFromSupabase();
-  setStatus(shouldArchive ? "Registro archivado correctamente." : "Registro recuperado correctamente.", "success");
-  return true;
 }
 
 async function deleteProgrammingRecord(recordId) {
@@ -9419,28 +9549,10 @@ function syncProgrammingSelectionUi() {
   const selectedVisibleCount = visibleIds.filter((id) =>
     selectedProgrammingDeleteIds.has(id)
   ).length;
-  const archiveModeEnabled = programmingSelectionMode === "archive";
   const selectionModeEnabled = Boolean(programmingSelectionMode);
 
   programmingSelectiveDeleteMode = programmingSelectionMode === "bulk";
   programmingSelectHeader?.classList.toggle("hidden", !selectionModeEnabled);
-  programmingEnableSelectiveArchiveButton?.classList.toggle("hidden", archiveModeEnabled);
-  programmingCancelSelectiveArchiveButton?.classList.toggle("hidden", !archiveModeEnabled);
-  if (programmingArchiveSelectedButton) {
-    programmingArchiveSelectedButton.disabled = !archiveModeEnabled || selectedCount === 0;
-  }
-
-  if (programmingUnarchiveSelectedButton) {
-    programmingUnarchiveSelectedButton.disabled = !archiveModeEnabled || selectedCount === 0;
-  }
-
-  if (programmingSelectedArchiveCount) {
-    programmingSelectedArchiveCount.textContent = `${selectedCount} seleccionado${
-      selectedCount === 1 ? "" : "s"
-    }`;
-    programmingSelectedArchiveCount.classList.toggle("hidden", !archiveModeEnabled);
-  }
-
   if (programmingSelectPageCheckbox) {
     programmingSelectPageCheckbox.checked =
       Boolean(visibleIds.length) && selectedVisibleCount === visibleIds.length;
@@ -9539,561 +9651,6 @@ async function deleteSelectedProgrammingRecords() {
   programmingSelectionMode = "";
   await loadProgrammingFromSupabase();
   setStatus(`Registros de programación borrados correctamente: ${ids.length}.`, "success");
-}
-
-async function archiveSelectedProgrammingRecords(shouldArchive) {
-  const session = await ensurePrivateSession({ silent: true });
-  if (!session) {
-    setStatus("Necesitas iniciar sesión para archivar registros de programación.", "error");
-    return false;
-  }
-
-  const ids = [...selectedProgrammingDeleteIds]
-    .map((id) => Number(id))
-    .filter((id) => Number.isFinite(id));
-
-  if (!ids.length) {
-    setStatus("Selecciona al menos un registro de programación.", "error");
-    return false;
-  }
-
-  const confirmed = window.confirm(
-    shouldArchive
-      ? `Vas a archivar ${ids.length} registro${ids.length === 1 ? "" : "s"} seleccionado${ids.length === 1 ? "" : "s"} de ${getProgrammingTypeLabel()}.`
-      : `Vas a desarchivar ${ids.length} registro${ids.length === 1 ? "" : "s"} seleccionado${ids.length === 1 ? "" : "s"} de ${getProgrammingTypeLabel()}.`
-  );
-  if (!confirmed) {
-    return false;
-  }
-
-  const supabase = await getSupabaseClient();
-  const { error } = await supabase
-    .from(PROGRAMMING_TABLE_NAME)
-    .update({ archived_at: shouldArchive ? new Date().toISOString() : null })
-    .in("id", ids);
-
-  if (error) {
-    if (isMissingArchivedAtColumnError(error)) {
-      setStatus(getArchivedAtMissingColumnMessage(), "error");
-      return false;
-    }
-
-    setStatus(`No se pudo actualizar el archivado: ${error.message}`, "error");
-    return false;
-  }
-
-  selectedProgrammingDeleteIds.clear();
-  programmingSelectionMode = "";
-  programmingSelectiveDeleteMode = false;
-  await loadProgrammingFromSupabase();
-  setStatus(
-    shouldArchive
-      ? `Registros archivados correctamente: ${ids.length}.`
-      : `Registros desarchivados correctamente: ${ids.length}.`,
-    "success"
-  );
-  return true;
-}
-
-function getProgrammingUnmatchedPersonnelProposals() {
-  const catalogNames = new Set(
-    currentProgrammingPersonnel.map((person) => normalizeProgrammingText(person.name)).filter(Boolean)
-  );
-  const unassignedKey = normalizeProgrammingText(PROGRAMMING_UNASSIGNED_PERSONAL);
-  const proposalMap = new Map();
-
-  currentProgrammingRows.forEach((row) => {
-    const currentName = normalizeProgrammingPersonnelName(row.personal);
-    const normalizedName = normalizeProgrammingText(currentName);
-    if (
-      !normalizedName ||
-      normalizedName === unassignedKey ||
-      catalogNames.has(normalizedName) ||
-      ignoredProgrammingUnmatchedPersonnelKeys.has(normalizedName)
-    ) {
-      return;
-    }
-
-    if (!proposalMap.has(normalizedName)) {
-      const proposal = findClosestProgrammingPersonnelCatalogName(currentName);
-      proposalMap.set(normalizedName, {
-        sourceName: currentName,
-        proposalName: proposal,
-        rows: [],
-      });
-    }
-    proposalMap.get(normalizedName).rows.push(row);
-  });
-
-  return Array.from(proposalMap.values()).sort((left, right) =>
-    left.sourceName.localeCompare(right.sourceName, "es", { sensitivity: "base", numeric: true })
-  );
-}
-
-function renderProgrammingUnmatchedPersonnelPanel() {
-  programmingUnmatchedPersonnelProposals = getProgrammingUnmatchedPersonnelProposals();
-  const assignedPersonnelRows = getProgrammingAssignedPersonnelRows();
-  const personnelOptions = [
-    '<option value="">Sin asignar</option>',
-    ...assignedPersonnelRows.map(
-      (person) =>
-        `<option value="${escapeHtml(person.name)}">${escapeHtml(formatProgrammingPersonnelLabel(person))}</option>`
-    ),
-  ].join("");
-
-  if (programmingUnmatchedPersonnelCount) {
-    const count = programmingUnmatchedPersonnelProposals.length;
-    programmingUnmatchedPersonnelCount.textContent = `${count} nombre${count === 1 ? "" : "s"} pendiente${
-      count === 1 ? "" : "s"
-    }`;
-  }
-
-  if (!programmingUnmatchedPersonnelList) {
-    return;
-  }
-
-  if (!programmingUnmatchedPersonnelProposals.length) {
-    programmingUnmatchedPersonnelList.innerHTML =
-      '<p class="empty-state">No hay personal pendiente de asignación.</p>';
-    if (programmingApplyUnmatchedPersonnelButton) {
-      programmingApplyUnmatchedPersonnelButton.disabled = true;
-    }
-    return;
-  }
-
-  programmingUnmatchedPersonnelList.innerHTML = programmingUnmatchedPersonnelProposals
-    .map(
-      (item, index) => `
-        <div class="programming-unmatched-row ${item.proposalName ? "" : "is-missing-proposal"}">
-          <div class="programming-unmatched-source">
-            <strong>${escapeHtml(item.sourceName)}</strong>
-            <span>${item.rows.length} registro${item.rows.length === 1 ? "" : "s"}</span>
-          </div>
-          <button
-            type="button"
-            class="secondary-button programming-unmatched-accept-button"
-            data-programming-unmatched-personnel-accept="${escapeHtml(item.sourceName)}"
-          >
-            Aceptar
-          </button>
-          <div class="programming-unmatched-proposal">
-            <select data-programming-unmatched-proposal-index="${index}" aria-label="Personal para ${escapeHtml(item.sourceName)}">
-              ${personnelOptions}
-            </select>
-            <span>${item.proposalName ? "Propuesta automática editable" : "Selecciona el personal manualmente"}</span>
-          </div>
-          <button
-            type="button"
-            class="danger-button tooltip-button programming-unmatched-delete-button"
-            aria-label="Quitar sugerencia"
-            data-programming-unmatched-personnel-delete="${escapeHtml(item.sourceName)}"
-          >
-            ${renderIcon("delete")}
-          </button>
-          <span>${item.proposalName ? "Se aplicará este cambio" : "Revisa el personal asignado al servicio"}</span>
-        </div>
-      `
-    )
-    .join("");
-
-  programmingUnmatchedPersonnelProposals.forEach((item, index) => {
-    const select = programmingUnmatchedPersonnelList.querySelector(
-      `[data-programming-unmatched-proposal-index="${index}"]`
-    );
-    if (select) {
-      select.value = item.proposalName || "";
-    }
-  });
-
-  if (programmingApplyUnmatchedPersonnelButton) {
-    programmingApplyUnmatchedPersonnelButton.disabled = !getSelectedProgrammingUnmatchedPersonnelProposals().length;
-  }
-}
-
-function getSelectedProgrammingUnmatchedPersonnelProposals() {
-  return programmingUnmatchedPersonnelProposals
-    .map((item, index) => {
-      const select = programmingUnmatchedPersonnelList?.querySelector(
-        `[data-programming-unmatched-proposal-index="${index}"]`
-      );
-      const proposalName = normalizeProgrammingPersonnelName(select ? select.value : item.proposalName);
-      return proposalName ? { ...item, proposalName } : null;
-    })
-    .filter(Boolean);
-}
-
-async function openProgrammingUnmatchedPersonnelPanel() {
-  await loadProgrammingPersonnel();
-  ignoredProgrammingUnmatchedPersonnelKeys = new Set();
-  renderProgrammingUnmatchedPersonnelPanel();
-  programmingUnmatchedPersonnelPanel?.classList.remove("hidden");
-}
-
-function closeProgrammingUnmatchedPersonnelPanel() {
-  programmingUnmatchedPersonnelPanel?.classList.add("hidden");
-}
-
-async function applyProgrammingUnmatchedPersonnelProposals() {
-  const proposals = getSelectedProgrammingUnmatchedPersonnelProposals();
-  if (!proposals.length) {
-    setStatus("Selecciona al menos una asignación para aplicar.", "error");
-    return;
-  }
-
-  const affectedCount = proposals.reduce((total, item) => total + item.rows.length, 0);
-  const confirmed = window.confirm(
-    `Vas a aplicar asignaciones a ${affectedCount} registro${
-      affectedCount === 1 ? "" : "s"
-    } de programación, sin tener en cuenta los filtros activos.`
-  );
-  if (!confirmed) {
-    return;
-  }
-
-  const persistedChanges = proposals
-    .map((item) => ({
-      proposalName: item.proposalName,
-      ids: item.rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id)),
-    }))
-    .filter((item) => item.ids.length);
-  const previewChanges = proposals
-    .map((item) => ({
-      proposalName: item.proposalName,
-      rows: item.rows.filter((row) => !row.id),
-    }))
-    .filter((item) => item.rows.length);
-
-  if (persistedChanges.length) {
-    const session = await ensurePrivateSession({ silent: true });
-    if (!session) {
-      setStatus("Necesitas iniciar sesión para aplicar las propuestas.", "error");
-      return;
-    }
-
-    const supabase = await getSupabaseClient();
-    const results = await Promise.all(
-      persistedChanges.map((item) =>
-        supabase.from(PROGRAMMING_TABLE_NAME).update({ personal: item.proposalName }).in("id", item.ids)
-      )
-    );
-    const error = results.find((result) => result.error)?.error;
-    if (error) {
-      setStatus(`No se pudieron aplicar las propuestas: ${error.message}`, "error");
-      return;
-    }
-  }
-
-  previewChanges.forEach((item) => {
-    item.rows.forEach((row) => {
-      row.personal = item.proposalName;
-    });
-  });
-
-  if (persistedChanges.length) {
-    await loadProgrammingFromSupabase();
-  } else {
-    renderProgrammingPreview(currentProgrammingRows, currentProgrammingSourceName, {
-      canUpload: currentProgrammingCanUpload,
-    });
-  }
-
-  renderProgrammingUnmatchedPersonnelPanel();
-  setStatus(`Asignaciones aplicadas correctamente a ${affectedCount} registro${affectedCount === 1 ? "" : "s"}.`, "success");
-}
-
-async function acceptProgrammingUnmatchedPersonnelProposal(sourceName) {
-  const normalizedSource = normalizeProgrammingText(sourceName);
-  const proposal = getSelectedProgrammingUnmatchedPersonnelProposals().find(
-    (item) => normalizeProgrammingText(item.sourceName) === normalizedSource
-  );
-  if (!proposal) {
-    setStatus("Selecciona el personal que quieres asignar.", "error");
-    return;
-  }
-
-  const ids = proposal.rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id));
-  const previewRows = proposal.rows.filter((row) => !row.id);
-  if (ids.length) {
-    const session = await ensurePrivateSession({ silent: true });
-    if (!session) {
-      setStatus("Necesitas iniciar sesión para aplicar la asignación.", "error");
-      return;
-    }
-
-    const supabase = await getSupabaseClient();
-    const { error } = await supabase
-      .from(PROGRAMMING_TABLE_NAME)
-      .update({ personal: proposal.proposalName })
-      .in("id", ids);
-    if (error) {
-      setStatus(`No se pudo aplicar la asignación: ${error.message}`, "error");
-      return;
-    }
-  }
-
-  previewRows.forEach((row) => {
-    row.personal = proposal.proposalName;
-  });
-  ignoredProgrammingUnmatchedPersonnelKeys.add(normalizedSource);
-
-  if (ids.length) {
-    await loadProgrammingFromSupabase();
-  } else {
-    renderProgrammingPreview(currentProgrammingRows, currentProgrammingSourceName, {
-      canUpload: currentProgrammingCanUpload,
-    });
-  }
-
-  renderProgrammingUnmatchedPersonnelPanel();
-  setStatus(`Asignación aplicada a ${proposal.rows.length} registro${proposal.rows.length === 1 ? "" : "s"}.`, "success");
-}
-
-function getProgrammingUnmatchedInstallationProposals() {
-  const catalogNames = new Set(
-    currentProgrammingAssignedInstallations
-      .map((installation) => normalizeProgrammingText(installation.name))
-      .filter(Boolean)
-  );
-  const proposalMap = new Map();
-
-  currentProgrammingRows.forEach((row) => {
-    const currentName = normalizeProgrammingCell(row.instalacion);
-    const normalizedName = normalizeProgrammingText(currentName);
-    if (!normalizedName || catalogNames.has(normalizedName) || ignoredProgrammingUnmatchedInstallationKeys.has(normalizedName)) {
-      return;
-    }
-
-    if (!proposalMap.has(normalizedName)) {
-      proposalMap.set(normalizedName, {
-        sourceName: currentName,
-        proposalName: findClosestProgrammingInstallationCatalogName(currentName),
-        rows: [],
-      });
-    }
-    proposalMap.get(normalizedName).rows.push(row);
-  });
-
-  return Array.from(proposalMap.values()).sort((left, right) =>
-    left.sourceName.localeCompare(right.sourceName, "es", { sensitivity: "base", numeric: true })
-  );
-}
-
-function renderProgrammingUnmatchedInstallationPanel() {
-  programmingUnmatchedInstallationProposals = getProgrammingUnmatchedInstallationProposals();
-  const assignedInstallationRows = getProgrammingAssignedInstallationRows();
-  const installationOptions = [
-    '<option value="">Sin asignar</option>',
-    ...assignedInstallationRows.map(
-      (installation) =>
-        `<option value="${escapeHtml(installation.name)}">${escapeHtml(installation.name)}</option>`
-    ),
-  ].join("");
-
-  if (programmingUnmatchedInstallationCount) {
-    const count = programmingUnmatchedInstallationProposals.length;
-    programmingUnmatchedInstallationCount.textContent = `${count} instalación${count === 1 ? "" : "es"} pendiente${
-      count === 1 ? "" : "s"
-    }`;
-  }
-
-  if (!programmingUnmatchedInstallationList) {
-    return;
-  }
-
-  if (!programmingUnmatchedInstallationProposals.length) {
-    programmingUnmatchedInstallationList.innerHTML =
-      '<p class="empty-state">No hay instalaciones pendientes de asignación.</p>';
-    if (programmingApplyUnmatchedInstallationButton) {
-      programmingApplyUnmatchedInstallationButton.disabled = true;
-    }
-    return;
-  }
-
-  programmingUnmatchedInstallationList.innerHTML = programmingUnmatchedInstallationProposals
-    .map(
-      (item, index) => `
-        <div class="programming-unmatched-row ${item.proposalName ? "" : "is-missing-proposal"}">
-          <div class="programming-unmatched-source">
-            <strong>${escapeHtml(item.sourceName)}</strong>
-            <span>${item.rows.length} registro${item.rows.length === 1 ? "" : "s"}</span>
-          </div>
-          <button
-            type="button"
-            class="secondary-button programming-unmatched-accept-button"
-            data-programming-unmatched-installation-accept="${escapeHtml(item.sourceName)}"
-          >
-            Aceptar
-          </button>
-          <div class="programming-unmatched-proposal">
-          <select data-programming-unmatched-installation-proposal-index="${index}" aria-label="Instalación para ${escapeHtml(item.sourceName)}">
-            ${installationOptions}
-          </select>
-          </div>
-          <button
-            type="button"
-            class="danger-button tooltip-button programming-unmatched-delete-button"
-            aria-label="Quitar sugerencia"
-            data-programming-unmatched-installation-delete="${escapeHtml(item.sourceName)}"
-          >
-            ${renderIcon("delete")}
-          </button>
-          <span>${item.proposalName ? "Propuesta automática editable" : "Selecciona la instalación manualmente"}</span>
-        </div>
-      `
-    )
-    .join("");
-
-  programmingUnmatchedInstallationProposals.forEach((item, index) => {
-    const select = programmingUnmatchedInstallationList.querySelector(
-      `[data-programming-unmatched-installation-proposal-index="${index}"]`
-    );
-    if (select) {
-      select.value = item.proposalName || "";
-    }
-  });
-
-  if (programmingApplyUnmatchedInstallationButton) {
-    programmingApplyUnmatchedInstallationButton.disabled = !getSelectedProgrammingUnmatchedInstallationProposals().length;
-  }
-}
-
-function getSelectedProgrammingUnmatchedInstallationProposals() {
-  return programmingUnmatchedInstallationProposals
-    .map((item, index) => {
-      const select = programmingUnmatchedInstallationList?.querySelector(
-        `[data-programming-unmatched-installation-proposal-index="${index}"]`
-      );
-      const proposalName = normalizeProgrammingCell(select ? select.value : item.proposalName);
-      return proposalName ? { ...item, proposalName } : null;
-    })
-    .filter(Boolean);
-}
-
-async function openProgrammingUnmatchedInstallationPanel() {
-  const supabase = await getSupabaseClient();
-  await loadProgrammingInstallationCatalog(supabase);
-  ignoredProgrammingUnmatchedInstallationKeys = new Set();
-  renderProgrammingUnmatchedInstallationPanel();
-  programmingUnmatchedInstallationPanel?.classList.remove("hidden");
-}
-
-function closeProgrammingUnmatchedInstallationPanel() {
-  programmingUnmatchedInstallationPanel?.classList.add("hidden");
-}
-
-async function applyProgrammingUnmatchedInstallationProposals() {
-  const proposals = getSelectedProgrammingUnmatchedInstallationProposals();
-  if (!proposals.length) {
-    setStatus("Selecciona al menos una instalación para aplicar.", "error");
-    return;
-  }
-
-  const affectedCount = proposals.reduce((total, item) => total + item.rows.length, 0);
-  const confirmed = window.confirm(
-    `Vas a aplicar instalaciones a ${affectedCount} registro${
-      affectedCount === 1 ? "" : "s"
-    } de programación, sin tener en cuenta los filtros activos.`
-  );
-  if (!confirmed) {
-    return;
-  }
-
-  const persistedChanges = proposals
-    .map((item) => ({
-      proposalName: item.proposalName,
-      ids: item.rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id)),
-    }))
-    .filter((item) => item.ids.length);
-  const previewChanges = proposals
-    .map((item) => ({
-      proposalName: item.proposalName,
-      rows: item.rows.filter((row) => !row.id),
-    }))
-    .filter((item) => item.rows.length);
-
-  if (persistedChanges.length) {
-    const session = await ensurePrivateSession({ silent: true });
-    if (!session) {
-      setStatus("Necesitas iniciar sesión para aplicar las instalaciones.", "error");
-      return;
-    }
-
-    const supabase = await getSupabaseClient();
-    const results = await Promise.all(
-      persistedChanges.map((item) =>
-        supabase.from(PROGRAMMING_TABLE_NAME).update({ instalacion: item.proposalName }).in("id", item.ids)
-      )
-    );
-    const error = results.find((result) => result.error)?.error;
-    if (error) {
-      setStatus(`No se pudieron aplicar las instalaciones: ${error.message}`, "error");
-      return;
-    }
-  }
-
-  previewChanges.forEach((item) => {
-    item.rows.forEach((row) => {
-      row.instalacion = item.proposalName;
-    });
-  });
-
-  if (persistedChanges.length) {
-    await loadProgrammingFromSupabase();
-  } else {
-    renderProgrammingPreview(currentProgrammingRows, currentProgrammingSourceName, {
-      canUpload: currentProgrammingCanUpload,
-    });
-  }
-
-  renderProgrammingUnmatchedInstallationPanel();
-  setStatus(`Instalaciones aplicadas correctamente a ${affectedCount} registro${affectedCount === 1 ? "" : "s"}.`, "success");
-}
-
-async function acceptProgrammingUnmatchedInstallationProposal(sourceName) {
-  const normalizedSource = normalizeProgrammingText(sourceName);
-  const proposal = getSelectedProgrammingUnmatchedInstallationProposals().find(
-    (item) => normalizeProgrammingText(item.sourceName) === normalizedSource
-  );
-  if (!proposal) {
-    setStatus("Selecciona la instalación que quieres asignar.", "error");
-    return;
-  }
-
-  const ids = proposal.rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id));
-  const previewRows = proposal.rows.filter((row) => !row.id);
-  if (ids.length) {
-    const session = await ensurePrivateSession({ silent: true });
-    if (!session) {
-      setStatus("Necesitas iniciar sesión para aplicar la instalación.", "error");
-      return;
-    }
-
-    const supabase = await getSupabaseClient();
-    const { error } = await supabase
-      .from(PROGRAMMING_TABLE_NAME)
-      .update({ instalacion: proposal.proposalName })
-      .in("id", ids);
-    if (error) {
-      setStatus(`No se pudo aplicar la instalación: ${error.message}`, "error");
-      return;
-    }
-  }
-
-  previewRows.forEach((row) => {
-    row.instalacion = proposal.proposalName;
-  });
-  ignoredProgrammingUnmatchedInstallationKeys.add(normalizedSource);
-
-  if (ids.length) {
-    await loadProgrammingFromSupabase();
-  } else {
-    renderProgrammingPreview(currentProgrammingRows, currentProgrammingSourceName, {
-      canUpload: currentProgrammingCanUpload,
-    });
-  }
-
-  renderProgrammingUnmatchedInstallationPanel();
-  setStatus(`Instalación aplicada a ${proposal.rows.length} registro${proposal.rows.length === 1 ? "" : "s"}.`, "success");
 }
 
 async function prepareProgrammingCsv(file) {
@@ -10247,17 +9804,6 @@ function formatSupabaseErrorDetails(error) {
   return parts.join(" | ");
 }
 
-function isMissingArchivedAtColumnError(error) {
-  const message = String(error?.message ?? "");
-  const details = String(error?.details ?? "");
-  const hint = String(error?.hint ?? "");
-  return [message, details, hint].some((value) => value.includes("archived_at"));
-}
-
-function getArchivedAtMissingColumnMessage() {
-  return "No se pudo actualizar el archivado porque falta la columna archived_at en Supabase. Ejecuta el SQL actualizado de supabase/tables/programacion_conserjes.sql y espera unos segundos a que Supabase refresque la caché del esquema.";
-}
-
 async function insertProgrammingRowsWithDiagnostics(supabase, rows, batchSize = 500) {
   for (let index = 0; index < rows.length; index += batchSize) {
     const chunk = rows.slice(index, index + batchSize);
@@ -10324,7 +9870,7 @@ async function clearFindeSemanaTable() {
   }
 
   const confirmed = window.confirm(
-    `Vas a borrar todos los registros activos de ${getProgrammingTypeLabel()}. Los archivados se conservaran.`
+    `Vas a borrar todos los registros de ${getProgrammingTypeLabel()}.`
   );
   if (!confirmed) {
     return;
@@ -10334,7 +9880,7 @@ async function clearFindeSemanaTable() {
   let deleteQuery = supabase
     .from(PROGRAMMING_TABLE_NAME)
     .delete()
-    .is("archived_at", null);
+    .gte("id", 0);
   deleteQuery = applyProgrammingTypeFilter(deleteQuery);
   const { error } = await deleteQuery;
 
@@ -10344,7 +9890,7 @@ async function clearFindeSemanaTable() {
   }
 
   await loadProgrammingFromSupabase();
-  setStatus(`Registros activos de ${getProgrammingTypeLabel()} borrados correctamente.`, "success");
+  setStatus(`Registros de ${getProgrammingTypeLabel()} borrados correctamente.`, "success");
 }
 
 async function uploadProgrammingRowsToSupabase() {
@@ -38546,9 +38092,34 @@ async function init() {
         setProgrammingImportStatus(`No se pudo procesar el ${fileLabel}: ${error.message}`, "error");
       });
   });
+  document.querySelector("#programming-refresh-button")?.addEventListener("click", () => {
+    void (async () => {
+      await loadProgrammingPersonnel();
+      await loadProgrammingFromSupabase();
+      setStatus("Programación actualizada.", "success");
+    })();
+  });
   programmingDownloadCsvButton?.addEventListener("click", downloadProgrammingCsv);
   programmingReportPdfButton?.addEventListener("click", exportProgrammingReportToPdf);
   programmingDownloadImagesButton?.addEventListener("click", downloadProgrammingImages);
+  programmingReportPreviewButton?.addEventListener("click", () => {
+    void openProgrammingReportPreview();
+  });
+  programmingReportPreviewCloseButton?.addEventListener("click", closeProgrammingReportPreview);
+  programmingReportPreviewContent?.addEventListener("click", (event) => {
+    const copyButton = event.target.closest("[data-programming-report-copy]");
+    if (copyButton) void copyProgrammingReportPersonImage(copyButton.dataset.programmingReportCopy);
+  });
+  programmingReportPreviewBackdrop?.addEventListener("click", closeProgrammingReportPreview);
+  programmingPersonReportButton?.addEventListener("click", openProgrammingPersonReport);
+  programmingPersonReportCloseButton?.addEventListener("click", closeProgrammingPersonReport);
+  programmingPersonReportBackdrop?.addEventListener("click", closeProgrammingPersonReport);
+  programmingPersonReportCopyButton?.addEventListener("click", () => {
+    void copyProgrammingPersonReportImage();
+  });
+  programmingPersonReportImageButton?.addEventListener("click", () => {
+    void downloadProgrammingPersonReportImage();
+  });
   programmingCreateButton?.addEventListener("click", openProgrammingCreateDetail);
   programmingUploadSupabaseButton?.addEventListener("click", () => {
     void uploadProgrammingRowsToSupabase();
@@ -38570,70 +38141,6 @@ async function init() {
   programmingInstallationRemoveSelectedButton?.addEventListener("click", () => {
     void removeProgrammingInstallationBatch(getSelectedOptionValues(programmingInstallationSelectedSelect));
   });
-  programmingOpenUnmatchedPersonnelButton?.addEventListener("click", () => {
-    void openProgrammingUnmatchedPersonnelPanel();
-  });
-  programmingOpenUnmatchedInstallationButton?.addEventListener("click", () => {
-    void openProgrammingUnmatchedInstallationPanel();
-  });
-  closeProgrammingUnmatchedPersonnelButton?.addEventListener("click", closeProgrammingUnmatchedPersonnelPanel);
-  programmingUnmatchedPersonnelOverlay?.addEventListener("click", closeProgrammingUnmatchedPersonnelPanel);
-  closeProgrammingUnmatchedInstallationButton?.addEventListener("click", closeProgrammingUnmatchedInstallationPanel);
-  programmingUnmatchedInstallationOverlay?.addEventListener("click", closeProgrammingUnmatchedInstallationPanel);
-  programmingUnmatchedPersonnelList?.addEventListener("change", () => {
-    if (programmingApplyUnmatchedPersonnelButton) {
-      programmingApplyUnmatchedPersonnelButton.disabled = !getSelectedProgrammingUnmatchedPersonnelProposals().length;
-    }
-  });
-  programmingUnmatchedPersonnelList?.addEventListener("click", (event) => {
-    const acceptName = event.target.closest("[data-programming-unmatched-personnel-accept]")?.dataset
-      .programmingUnmatchedPersonnelAccept;
-    if (acceptName) {
-      void acceptProgrammingUnmatchedPersonnelProposal(acceptName);
-      return;
-    }
-    const deleteName = event.target.closest("[data-programming-unmatched-personnel-delete]")?.dataset
-      .programmingUnmatchedPersonnelDelete;
-    if (!deleteName) {
-      return;
-    }
-    ignoredProgrammingUnmatchedPersonnelKeys.add(normalizeProgrammingText(deleteName));
-    renderProgrammingUnmatchedPersonnelPanel();
-  });
-  programmingUnmatchedInstallationList?.addEventListener("change", () => {
-    if (programmingApplyUnmatchedInstallationButton) {
-      programmingApplyUnmatchedInstallationButton.disabled = !getSelectedProgrammingUnmatchedInstallationProposals().length;
-    }
-  });
-  programmingUnmatchedInstallationList?.addEventListener("click", (event) => {
-    const acceptName = event.target.closest("[data-programming-unmatched-installation-accept]")?.dataset
-      .programmingUnmatchedInstallationAccept;
-    if (acceptName) {
-      void acceptProgrammingUnmatchedInstallationProposal(acceptName);
-      return;
-    }
-    const deleteName = event.target.closest("[data-programming-unmatched-installation-delete]")?.dataset
-      .programmingUnmatchedInstallationDelete;
-    if (!deleteName) {
-      return;
-    }
-    ignoredProgrammingUnmatchedInstallationKeys.add(normalizeProgrammingText(deleteName));
-    renderProgrammingUnmatchedInstallationPanel();
-  });
-  programmingRefreshUnmatchedPersonnelButton?.addEventListener("click", () => {
-    ignoredProgrammingUnmatchedPersonnelKeys = new Set();
-    renderProgrammingUnmatchedPersonnelPanel();
-  });
-  programmingRefreshUnmatchedInstallationButton?.addEventListener("click", () => {
-    ignoredProgrammingUnmatchedInstallationKeys = new Set();
-    renderProgrammingUnmatchedInstallationPanel();
-  });
-  programmingApplyUnmatchedPersonnelButton?.addEventListener("click", () => {
-    void applyProgrammingUnmatchedPersonnelProposals();
-  });
-  programmingApplyUnmatchedInstallationButton?.addEventListener("click", () => {
-    void applyProgrammingUnmatchedInstallationProposals();
-  });
   programmingBulkSelectButton?.addEventListener("click", toggleProgrammingBulkSelection);
   programmingBulkFieldSelect?.addEventListener("change", () => syncProgrammingBulkUi());
   [programmingBulkCurrentSelect, programmingBulkCurrentValueInput].forEach((control) => {
@@ -38650,24 +38157,14 @@ async function init() {
   programmingBulkDeleteButton?.addEventListener("click", () => {
     void deleteSelectedProgrammingRecords();
   });
-  programmingEnableSelectiveArchiveButton?.addEventListener("click", () => {
-    setProgrammingSelectionMode("archive");
-  });
-  programmingCancelSelectiveArchiveButton?.addEventListener("click", () => {
-    setProgrammingSelectionMode("");
-  });
-  programmingArchiveSelectedButton?.addEventListener("click", () => {
-    void archiveSelectedProgrammingRecords(true);
-  });
-  programmingUnarchiveSelectedButton?.addEventListener("click", () => {
-    void archiveSelectedProgrammingRecords(false);
-  });
   programmingSelectPageCheckbox?.addEventListener("change", () => {
     toggleCurrentProgrammingPageSelection(programmingSelectPageCheckbox.checked);
   });
-  programmingFilterDate?.addEventListener("change", () => {
-    syncProgrammingDateScopedFilters();
-    applyProgrammingFilters();
+  [programmingFilterDateFrom, programmingFilterDateTo].forEach((control) => {
+    control?.addEventListener("change", () => {
+      syncProgrammingDateScopedFilters();
+      applyProgrammingFilters();
+    });
   });
   programmingFiltersForm?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -38675,11 +38172,8 @@ async function init() {
   });
   programmingFiltersForm?.addEventListener("input", debouncedProgrammingFilters);
   programmingFiltersForm?.addEventListener("change", (event) => {
-    if (event.target === programmingFilterDate) {
+    if (event.target === programmingFilterDateFrom || event.target === programmingFilterDateTo) {
       return;
-    }
-    if (event.target === programmingFilterIncludeArchived) {
-      syncProgrammingDateScopedFilters();
     }
     applyProgrammingFilters();
   });
@@ -38741,19 +38235,6 @@ async function init() {
 
     handleProgrammingRecordSelection(checkbox.dataset.programmingSelectId, checkbox.checked);
   });
-  programmingPreviousPageButton?.addEventListener("click", () => {
-    programmingCurrentPage = Math.max(1, programmingCurrentPage - 1);
-    refreshProgrammingPreviewPage();
-  });
-  programmingNextPageButton?.addEventListener("click", () => {
-    programmingCurrentPage += 1;
-    refreshProgrammingPreviewPage();
-  });
-  programmingPageSizeSelect?.addEventListener("change", () => {
-    programmingPageSize = Number(programmingPageSizeSelect.value || 25);
-    programmingCurrentPage = 1;
-    refreshProgrammingPreviewPage();
-  });
   exportCsvButton.addEventListener("click", exportFilteredCandidatesToCsv);
   exportSelectedPdfButton.addEventListener("click", exportSelectedCandidatesToPdf);
   candidatesSelectionToggleButton?.addEventListener("click", () => {
@@ -38789,19 +38270,6 @@ async function init() {
   programmingDetailOverlay?.addEventListener("click", closeProgrammingDetail);
   programmingDetailForm?.addEventListener("submit", (event) => {
     void saveProgrammingDetail(event);
-  });
-  programmingDetailArchiveButton?.addEventListener("click", () => {
-    const recordId = programmingDetailIdInput.value;
-    if (!recordId) {
-      return;
-    }
-
-    const shouldArchive = !programmingDetailArchivedInput.checked;
-    void archiveProgrammingRecord(recordId, shouldArchive).then((isArchived) => {
-      if (isArchived) {
-        closeProgrammingDetail({ force: true });
-      }
-    });
   });
   programmingDetailDeleteButton?.addEventListener("click", () => {
     const recordId = programmingDetailIdInput.value;

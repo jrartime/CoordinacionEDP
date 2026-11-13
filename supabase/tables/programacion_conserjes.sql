@@ -22,7 +22,6 @@ create table if not exists public.programacion_conserjes (
   source_file text,
   sort_order integer not null default 0,
   tipo_programacion text not null default 'fin_semana',
-  archived_at timestamp with time zone,
   created_at timestamp with time zone not null default timezone('utc', now()),
   constraint programacion_conserjes_tipo_check
     check (tipo_programacion in ('fin_semana', 'semanal'))
@@ -30,9 +29,6 @@ create table if not exists public.programacion_conserjes (
 
 alter table public.programacion_conserjes
 add column if not exists tipo_programacion text not null default 'fin_semana';
-
-alter table public.programacion_conserjes
-add column if not exists archived_at timestamp with time zone;
 
 alter table public.programacion_conserjes
 add column if not exists created_at timestamp with time zone not null default timezone('utc', now());
@@ -65,9 +61,6 @@ on public.programacion_conserjes (instalacion);
 
 create index if not exists idx_programacion_conserjes_personal
 on public.programacion_conserjes (personal);
-
-create index if not exists idx_programacion_conserjes_archived_at
-on public.programacion_conserjes (archived_at);
 
 alter table public.programacion_conserjes enable row level security;
 

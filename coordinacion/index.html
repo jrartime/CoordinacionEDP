@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261113-5" />
+    <link rel="stylesheet" href="./styles.css?v=20261113-10" />
   </head>
   <body>
     <script>
@@ -5089,12 +5089,9 @@
                       <span class="summary-label">Última fecha</span>
                       <strong id="programming-date-to">-</strong>
                     </article>
-                    <article class="summary-chip">
-                      <span class="summary-label">Archivados visibles</span>
-                      <strong id="programming-archived-count">0</strong>
-                    </article>
                   </div>
 
+                  <div class="records-actions-column programming-actions-column">
                   <div class="results-actions programming-results-actions" aria-label="Acciones de programación">
                     <a
                       class="secondary-button action-link"
@@ -5117,6 +5114,27 @@
                     <button id="programming-import-button" type="button" class="warm-button">
                       Cargar datos
                     </button>
+                    <button id="programming-refresh-button" type="button" class="secondary-button">Actualizar</button>
+                  </div>
+                  <div class="results-actions programming-results-actions">
+                    <button
+                      id="programming-report-preview-button"
+                      type="button"
+                      class="secondary-button"
+                      title="Vista previa del informe del intervalo filtrado"
+                    >
+                      Informe
+                    </button>
+                    <button
+                      id="programming-person-report-button"
+                      type="button"
+                      class="secondary-button"
+                      disabled
+                      title="Filtra una persona y un intervalo completo"
+                    >
+                      Informe individual
+                    </button>
+                  </div>
                   </div>
                 </div>
 
@@ -5132,154 +5150,82 @@
                   </button>
                 </div>
 
-                <div class="toolbar">
-                  <div class="toolbar-actions">
-                    <button
-                      id="programming-upload-supabase-button"
-                      type="button"
-                      class="hidden"
-                    >
-                      Añadir vista previa
-                    </button>
-                    <details id="programming-bulk-zone" class="programming-panel-zone">
-                      <summary>Asignación/borrado masivo</summary>
-                      <div class="activities-bulk-assignment-panel">
-                        <p class="bulk-action-help">
-                          Pulsa Seleccionar para mostrar los ticks y marca expresamente los registros.
-                          Aplicar y Borrar sólo actuarán sobre los registros seleccionados.
-                        </p>
-                        <button id="programming-bulk-select-button" type="button" class="secondary-button">
-                          Seleccionar
-                        </button>
-                        <label>
-                          Campo
-                          <select id="programming-bulk-field">
-                            <option value="fecha">Fecha</option>
-                            <option value="personal_id">Personal</option>
-                            <option value="instalacion_id">Instalación</option>
-                            <option value="hora_inicio">Hora inicio</option>
-                            <option value="hora_fin">Hora fin</option>
-                            <option value="hora_evento">Hora evento</option>
-                            <option value="deporte">Deporte</option>
-                            <option value="actividad">Actividad</option>
-                          </select>
-                        </label>
-                        <label>
-                          Valor actual
-                          <input id="programming-bulk-current-value" type="date" />
-                          <select id="programming-bulk-current-select" class="hidden"></select>
-                        </label>
-                        <label>
-                          Nuevo valor
-                          <input id="programming-bulk-new-value" type="date" />
-                          <select id="programming-bulk-new-select" class="hidden"></select>
-                        </label>
-                        <button id="programming-bulk-apply-button" type="button" disabled>
-                          Aplicar
-                        </button>
-                        <button id="programming-bulk-clear-fields-button" type="button" class="secondary-button">
-                          Limpiar campos
-                        </button>
-                        <button id="programming-bulk-delete-button" type="button" class="danger-button" disabled>
-                          Borrar seleccionados
-                        </button>
-                        <button
-                          id="programming-open-unmatched-personnel-button"
-                          type="button"
-                          class="secondary-button"
-                        >
-                          Revisar personal
-                        </button>
-                        <button
-                          id="programming-open-unmatched-installation-button"
-                          type="button"
-                          class="secondary-button"
-                        >
-                          Revisar instalaciones
-                        </button>
-                        <span id="programming-bulk-match-count" class="control-selected-delete-count">
-                          0 coincidencias
-                        </span>
-                        <span id="programming-bulk-selection-count" class="control-selected-delete-count hidden">
-                          0 seleccionados
-                        </span>
-                      </div>
-                    </details>
-                    <details class="programming-report-zone">
-                      <summary>Descargas</summary>
-                      <div class="programming-report-actions">
-                        <label>
-                          Fecha inicial
-                          <input id="programming-report-date-from" type="date" />
-                        </label>
-                        <label>
-                          Fecha final
-                          <input id="programming-report-date-to" type="date" />
-                        </label>
-                        <button
-                          id="programming-report-pdf-button"
-                          type="button"
-                          class="warm-button"
-                        >
-                          Generar PDF
-                        </button>
-                        <button
-                          id="programming-download-csv-button"
-                          type="button"
-                          class="warm-button"
-                        >
-                          Descargar CSV
-                        </button>
-                        <button
-                          id="programming-download-images-button"
-                          type="button"
-                          class="warm-button"
-                        >
-                          Descargar imágenes
-                        </button>
-                      </div>
-                    </details>
-                    <details class="control-danger-zone programming-archive-zone">
-                      <summary>Opciones de archivado</summary>
-                      <div class="control-danger-actions">
-                        <button
-                          id="programming-enable-selective-archive-button"
-                          type="button"
-                          class="secondary-button"
-                        >
-                          Seleccionar registros
-                        </button>
-                        <button
-                          id="programming-archive-selected-button"
-                          type="button"
-                          disabled
-                        >
-                          Archivar seleccionados
-                        </button>
-                        <button
-                          id="programming-unarchive-selected-button"
-                          type="button"
-                          disabled
-                        >
-                          Desarchivar seleccionados
-                        </button>
-                        <button
-                          id="programming-cancel-selective-archive-button"
-                          type="button"
-                          class="secondary-button hidden"
-                        >
-                          Cancelar selección
-                        </button>
-                        <span
-                          id="programming-selected-archive-count"
-                          class="control-selected-delete-count hidden"
-                        >
-                          0 seleccionados
-                        </span>
-                      </div>
-                    </details>
+                <div id="programming-report-preview-backdrop" class="panel-backdrop hidden"></div>
+                <aside
+                  id="programming-report-preview-panel"
+                  class="report-panel records-person-report-panel hidden"
+                  aria-labelledby="programming-report-preview-title"
+                >
+                  <div class="side-panel-header">
+                    <div class="section-heading">
+                      <p class="eyebrow">Informe</p>
+                      <h2 id="programming-report-preview-title">Programación por personal</h2>
+                      <p id="programming-report-preview-summary">Preparando el informe...</p>
+                    </div>
+                    <div class="header-actions">
+                      <button id="programming-report-pdf-button" type="button" class="warm-button compact-button" disabled>
+                        Generar PDF
+                      </button>
+                      <button id="programming-download-csv-button" type="button" class="warm-button compact-button" disabled>
+                        Descargar CSV
+                      </button>
+                      <button id="programming-download-images-button" type="button" class="warm-button compact-button" disabled>
+                        Descargar imágenes
+                      </button>
+                      <button id="programming-report-preview-close-button" type="button" class="secondary-button compact-button">
+                        Cerrar
+                      </button>
+                    </div>
                   </div>
-                </div>
+                  <div id="programming-report-preview-content" class="records-person-report-content">
+                    <p class="empty-state">Abre el informe para revisar los datos.</p>
+                  </div>
+                </aside>
+
+                <div id="programming-person-report-backdrop" class="panel-backdrop hidden"></div>
+                <aside
+                  id="programming-person-report-panel"
+                  class="report-panel records-person-report-panel hidden"
+                  aria-labelledby="programming-person-report-title"
+                >
+                  <div class="side-panel-header">
+                    <div class="section-heading">
+                      <p class="eyebrow">Informe individual</p>
+                      <h2 id="programming-person-report-title">Programación</h2>
+                      <p id="programming-person-report-summary">Filtra una persona y un intervalo.</p>
+                    </div>
+                    <div class="header-actions">
+                      <button
+                        id="programming-person-report-copy-button"
+                        title="Copiar imagen"
+                        type="button"
+                        class="warm-button compact-button"
+                        disabled
+                      >
+                        Copiar imagen
+                      </button>
+                      <button
+                        id="programming-person-report-image-button"
+                        title="Descargar PNG"
+                        type="button"
+                        class="secondary-button compact-button"
+                        disabled
+                      >
+                        Descargar PNG
+                      </button>
+                      <button
+                        id="programming-person-report-close-button"
+                        type="button"
+                        class="secondary-button compact-button"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                  <div id="programming-person-report-content" class="records-person-report-content">
+                    <p class="empty-state">Abre el informe para revisar la programación.</p>
+                  </div>
+                </aside>
 
                 <form
                   id="programming-filters-form"
@@ -5287,20 +5233,30 @@
                   autocomplete="off"
                 >
                   <label class="filter-field">
-                    Fecha
+                    Desde
                     <div class="filter-control-row">
-                      <select id="programming-filter-date">
-                        <option value="">Todas las fechas</option>
-                      </select>
+                      <input id="programming-filter-date-from" type="date" />
                       <button
                         type="button"
                         class="filter-reset-button"
-                        data-reset-programming-filter="date"
-                        aria-label="Restablecer fecha"
+                        data-reset-programming-filter="date_from"
+                        aria-label="Quitar fecha desde"
                         title="Restablecer"
-                      >
-                        x
-                      </button>
+                      >&times;</button>
+                    </div>
+                  </label>
+
+                  <label class="filter-field">
+                    Hasta
+                    <div class="filter-control-row">
+                      <input id="programming-filter-date-to" type="date" />
+                      <button
+                        type="button"
+                        class="filter-reset-button"
+                        data-reset-programming-filter="date_to"
+                        aria-label="Quitar fecha hasta"
+                        title="Restablecer"
+                      >&times;</button>
                     </div>
                   </label>
 
@@ -5391,14 +5347,72 @@
                     </div>
                   </label>
 
-                  <label class="records-show-all-toggle">
-                    <input id="programming-filter-include-archived" type="checkbox" />
-                    <span>Mostrar archivados</span>
-                  </label>
                 </form>
 
-                <div class="table-wrapper">
-                  <table class="programming-table">
+                <div class="toolbar">
+                  <div class="toolbar-actions">
+                    <button
+                      id="programming-upload-supabase-button"
+                      type="button"
+                      class="hidden"
+                    >
+                      Añadir vista previa
+                    </button>
+                    <details id="programming-bulk-zone" class="programming-panel-zone">
+                      <summary>Asignación/borrado masivo</summary>
+                      <div class="activities-bulk-assignment-panel">
+                        <p class="bulk-action-help">
+                          Pulsa Seleccionar para mostrar los ticks y marca expresamente los registros.
+                          Aplicar y Borrar sólo actuarán sobre los registros seleccionados.
+                        </p>
+                        <button id="programming-bulk-select-button" type="button" class="secondary-button">
+                          Seleccionar
+                        </button>
+                        <label>
+                          Campo
+                          <select id="programming-bulk-field">
+                            <option value="fecha">Fecha</option>
+                            <option value="personal_id">Personal</option>
+                            <option value="instalacion_id">Instalación</option>
+                            <option value="hora_inicio">Hora inicio</option>
+                            <option value="hora_fin">Hora fin</option>
+                            <option value="hora_evento">Hora evento</option>
+                            <option value="deporte">Deporte</option>
+                            <option value="actividad">Actividad</option>
+                          </select>
+                        </label>
+                        <label>
+                          Valor actual
+                          <input id="programming-bulk-current-value" type="date" />
+                          <select id="programming-bulk-current-select" class="hidden"></select>
+                        </label>
+                        <label>
+                          Nuevo valor
+                          <input id="programming-bulk-new-value" type="date" />
+                          <select id="programming-bulk-new-select" class="hidden"></select>
+                        </label>
+                        <button id="programming-bulk-apply-button" type="button" disabled>
+                          Aplicar
+                        </button>
+                        <button id="programming-bulk-clear-fields-button" type="button" class="secondary-button">
+                          Limpiar campos
+                        </button>
+                        <button id="programming-bulk-delete-button" type="button" class="danger-button" disabled>
+                          Borrar seleccionados
+                        </button>
+                        <span id="programming-bulk-match-count" class="control-selected-delete-count">
+                          0 coincidencias
+                        </span>
+                        <span id="programming-bulk-selection-count" class="control-selected-delete-count hidden">
+                          0 seleccionados
+                        </span>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+
+                <div class="table-wrapper records-table-wrapper">
+                  <table class="programming-table records-table">
                     <thead>
                       <tr>
                         <th id="programming-select-header" class="hidden">
@@ -5455,55 +5469,16 @@
                             Actividad
                           </button>
                         </th>
-                        <th>
-                          <button type="button" class="sort-button" data-programming-sort-field="archived">
-                            Estado
-                          </button>
-                        </th>
                       </tr>
                     </thead>
                     <tbody id="programming-preview-table-body">
                       <tr>
-                        <td colspan="12" class="empty-state">
+                        <td colspan="11" class="empty-state">
                           Carga los datos actuales o importa un Word o CSV para previsualizar la programación.
                         </td>
                       </tr>
                     </tbody>
                   </table>
-                </div>
-
-                <div class="pagination-bar">
-                  <div class="pagination-summary">
-                    <span id="programming-pagination-summary">Mostrando 0-0 de 0</span>
-                  </div>
-
-                  <div class="pagination-controls">
-                    <label class="pagination-size">
-                      <span>Por página</span>
-                      <select id="programming-page-size-select">
-                        <option value="25" selected>25</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="250">250</option>
-                      </select>
-                    </label>
-
-                    <button
-                      id="programming-previous-page-button"
-                      type="button"
-                      class="secondary-button"
-                    >
-                      Anterior
-                    </button>
-                    <span id="programming-pagination-page-indicator">Página 1 de 1</span>
-                    <button
-                      id="programming-next-page-button"
-                      type="button"
-                      class="secondary-button"
-                    >
-                      Siguiente
-                    </button>
-                  </div>
                 </div>
               </section>
             </section>
@@ -10211,6 +10186,7 @@
                         list="programming-installation-options"
                         required
                       />
+                      <datalist id="programming-installation-options"></datalist>
                     </label>
                     <label>
                       Deporte
@@ -10248,10 +10224,6 @@
                       Actividad
                       <textarea id="programming-detail-activity" rows="4"></textarea>
                     </label>
-                    <label class="checkbox-item">
-                      <input id="programming-detail-archived" type="checkbox" />
-                      <span>Registro archivado</span>
-                    </label>
                   </div>
                 </fieldset>
               </div>
@@ -10264,13 +10236,6 @@
                 >
                   Eliminar
                 </button>
-                <button
-                  id="programming-detail-archive-button"
-                  type="button"
-                  class="secondary-button"
-                >
-                  Archivar
-                </button>
                 <button id="programming-detail-save-button" type="submit">
                   Guardar cambios
                 </button>
@@ -10278,109 +10243,6 @@
             </form>
           </aside>
         </section>
-
-        <section id="programming-unmatched-personnel-panel" class="detail-panel hidden">
-          <div class="detail-overlay" id="programming-unmatched-personnel-overlay"></div>
-          <aside class="detail-drawer">
-            <div class="detail-header">
-              <div>
-                <p class="eyebrow">Asignación masiva</p>
-                <h3>Personal sin asignación</h3>
-              </div>
-              <div class="detail-header-actions">
-                <button
-                  id="close-programming-unmatched-personnel-button"
-                  type="button"
-                  class="secondary-button"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-
-            <p class="muted-text">
-              Se revisan todos los registros cargados de programación, sin tener en cuenta los filtros de la lista.
-            </p>
-
-            <div class="programming-unmatched-summary">
-              <span id="programming-unmatched-personnel-count">0 nombres pendientes</span>
-            </div>
-
-            <div class="programming-unmatched-table">
-              <div class="programming-unmatched-table-header">
-                <span>Personal sin asignación</span>
-                <span>Acción</span>
-                <span>Propuesta automática</span>
-              </div>
-              <div id="programming-unmatched-personnel-list" class="programming-unmatched-list"></div>
-            </div>
-
-            <div class="form-actions full-width">
-              <button id="programming-apply-unmatched-personnel-button" type="button">
-                Aplicar cambios
-              </button>
-              <button
-                id="programming-refresh-unmatched-personnel-button"
-                type="button"
-                class="secondary-button"
-              >
-                Recalcular
-              </button>
-            </div>
-          </aside>
-        </section>
-
-        <section id="programming-unmatched-installation-panel" class="detail-panel hidden">
-          <div class="detail-overlay" id="programming-unmatched-installation-overlay"></div>
-          <aside class="detail-drawer">
-            <div class="detail-header">
-              <div>
-                <p class="eyebrow">Asignación masiva</p>
-                <h3>Instalaciones sin asignación</h3>
-              </div>
-              <div class="detail-header-actions">
-                <button
-                  id="close-programming-unmatched-installation-button"
-                  type="button"
-                  class="secondary-button"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-
-            <p class="muted-text">
-              Se revisan todas las instalaciones cargadas en programación, sin tener en cuenta los filtros de la lista.
-            </p>
-
-            <div class="programming-unmatched-summary">
-              <span id="programming-unmatched-installation-count">0 instalaciones pendientes</span>
-            </div>
-
-            <div class="programming-unmatched-table">
-              <div class="programming-unmatched-table-header">
-                <span>Instalación sin asignación</span>
-                <span>Acción</span>
-                <span>Propuesta automática</span>
-              </div>
-              <div id="programming-unmatched-installation-list" class="programming-unmatched-list"></div>
-            </div>
-
-            <div class="form-actions full-width">
-              <button id="programming-apply-unmatched-installation-button" type="button">
-                Aplicar cambios
-              </button>
-              <button
-                id="programming-refresh-unmatched-installation-button"
-                type="button"
-                class="secondary-button"
-              >
-                Recalcular
-              </button>
-            </div>
-          </aside>
-        </section>
-
 
         <section id="candidate-detail-panel" class="detail-panel hidden">
           <div class="detail-overlay" id="detail-overlay"></div>
@@ -10646,7 +10508,7 @@
     <script src="./facturacion.js?v=20261112-4" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./app.js?v=20261113-2" defer></script>
+    <script src="./app.js?v=20261113-13" defer></script>
     <script src="./programacion-carga.js?v=20261113-5" defer></script>
   </body>
 </html>
