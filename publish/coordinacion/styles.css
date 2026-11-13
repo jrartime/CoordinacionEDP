@@ -9151,3 +9151,8 @@ input[data-percent].pct-input--warn {
 
 .programming-report-preview-table td { white-space: normal; vertical-align: top; }
 .programming-report-preview-table td.programming-report-preview-nowrap { white-space: nowrap; }
+
+.programming-report-whatsapp-button { background: #16854a; border-color: #16854a; color: #fff; }
+.programming-report-whatsapp-button:hover { background: #126f3e; border-color: #126f3e; }
+
+.programming-report-section-actions { display: inline-flex; align-items: center; gap: 6px; }

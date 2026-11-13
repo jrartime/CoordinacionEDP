@@ -8493,7 +8493,7 @@ async function fetchProgrammingRowsForReport(dateFrom, dateTo) {
   const { data, error } = await fetchAllProgrammingRows(() => {
     let reportQuery = supabase
       .from(PROGRAMMING_TABLE_NAME)
-      .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order");
+      .select("id, personal, personal_id, instalacion, instalacion_id, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order");
     reportQuery = applyProgrammingTypeFilter(reportQuery)
       .gte("fecha", dateFrom)
       .lte("fecha", dateTo)
@@ -8794,6 +8794,67 @@ async function copyProgrammingReportPersonImage(index) {
   }
 }
 
+// Móvil de la persona en formato internacional para wa.me (España por defecto).
+function normalizeWhatsappPhone(...candidates) {
+  for (const candidate of candidates) {
+    let digits = String(candidate ?? "").replace(/\D/g, "");
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    if (digits.length === 9 && /^[67]/.test(digits)) return `34${digits}`;
+    if (digits.length === 11 && digits.startsWith("34") && /^[67]/.test(digits.slice(2))) return digits;
+  }
+  return "";
+}
+
+// WhatsApp no permite que una web pegue una imagen en un chat: se copia la imagen, se abre el chat
+// de la persona (por su móvil de la ficha) y solo hay que pegar con Ctrl+V.
+async function sendProgrammingReportPersonWhatsapp(index) {
+  const data = programmingReportPreviewData[Number(index)];
+  try {
+    if (!data) {
+      throw new Error("No se encontró la programación de esa persona.");
+    }
+    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") {
+      throw new Error("El navegador no permite copiar imagenes al portapapeles.");
+    }
+    // Primero la copia (con la página aún en primer plano) y después se abre WhatsApp: al abrir la
+    // pestaña el navegador quita el foco al documento y el portapapeles rechazaría la escritura.
+    const blob = await canvasToBlob(drawProgrammingPersonReportImage(data));
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+
+    let phone = "";
+    if (data.personalId) {
+      const supabase = await getSupabaseClient();
+      const { data: person } = await supabase
+        .from("personal")
+        .select("movil, telefono")
+        .eq("id", data.personalId)
+        .maybeSingle();
+      phone = normalizeWhatsappPhone(person?.movil, person?.telefono);
+    }
+
+    const url = phone ? `https://wa.me/${phone}` : "https://web.whatsapp.com/";
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    showPublicToastMessage(phone ? "Imagen copiada: pégala con Ctrl+V en el chat" : "Imagen copiada (sin móvil en la ficha)");
+    setStatus(
+      phone
+        ? `Imagen de ${data.person} copiada. Abre su WhatsApp (+${phone}): pega con Ctrl+V.`
+        : `Imagen de ${data.person} copiada, pero no tiene móvil en su ficha: elige el chat a mano y pega.`,
+      phone ? "success" : "error"
+    );
+  } catch (error) {
+    const message = error?.message || "No se pudo preparar el envío por WhatsApp.";
+    setStatus(message, "error");
+    // El estado general queda tapado por el panel: el aviso flotante sí se ve.
+    showPublicToastMessage(message);
+  }
+}
+
 function setProgrammingReportActionsEnabled(enabled) {
   [programmingReportPdfButton, programmingDownloadCsvButton, programmingDownloadImagesButton].forEach((button) => {
     if (button) button.disabled = !enabled;
@@ -8832,10 +8893,14 @@ async function openProgrammingReportPreview() {
         const person = data.person;
         return `<section class="records-person-report-section">
           <div class="records-person-report-section-head"><h3>${escapeHtml(person)} <span class="muted-text">· ${data.days.length} ${data.days.length === 1 ? "día" : "días"} · ${data.turnos} ${data.turnos === 1 ? "turno" : "turnos"}</span></h3>
+            <span class="programming-report-section-actions">
             <button type="button" class="compact-button tooltip-button icon-only-button" data-programming-report-copy="${index}"
               aria-label="Copiar imagen de ${escapeHtml(person)}" title="Copiar imagen de ${escapeHtml(person)}">
               <svg class="button-icon" aria-hidden="true"><use href="./icons.svg?v=20261016-1#icon-copy"></use></svg>
             </button>
+            <button type="button" class="compact-button programming-report-whatsapp-button" data-programming-report-whatsapp="${index}"
+              title="Copiar la imagen y abrir el WhatsApp de ${escapeHtml(person)}">WhatsApp</button>
+            </span>
           </div>
           <div class="records-person-report-table-wrap">
             <table class="records-person-report-table programming-person-report-table">
@@ -8957,6 +9022,7 @@ function buildProgrammingPersonReportFromRows(person, sourceRows, from, to) {
 
   return {
     person,
+    personalId: rows.find((row) => row.personalId)?.personalId ?? null,
     from,
     to,
     days,
@@ -38109,6 +38175,8 @@ async function init() {
   programmingReportPreviewContent?.addEventListener("click", (event) => {
     const copyButton = event.target.closest("[data-programming-report-copy]");
     if (copyButton) void copyProgrammingReportPersonImage(copyButton.dataset.programmingReportCopy);
+    const whatsappButton = event.target.closest("[data-programming-report-whatsapp]");
+    if (whatsappButton) void sendProgrammingReportPersonWhatsapp(whatsappButton.dataset.programmingReportWhatsapp);
   });
   programmingReportPreviewBackdrop?.addEventListener("click", closeProgrammingReportPreview);
   programmingPersonReportButton?.addEventListener("click", openProgrammingPersonReport);
