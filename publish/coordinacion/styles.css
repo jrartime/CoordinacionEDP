@@ -9263,3 +9263,58 @@ input[data-percent].pct-input--warn {
 }
 .doc-chip.has-file { color: #15803d; border-color: #15803d; background: rgba(21, 128, 61, 0.08); cursor: pointer; }
 @media (max-width: 700px) { .facturacion-docs { grid-template-columns: 1fr; } }
+
+/* Programación · asistente modal de carga */
+.programming-carga-dialog { width: min(980px, calc(100vw - 32px)); }
+.programming-carga-steps { display: flex; gap: 8px; list-style: none; margin: 0 0 14px; padding: 0; flex-wrap: wrap; }
+.programming-carga-steps li { display: flex; align-items: center; gap: 6px; padding: 4px 12px 4px 4px; border-radius: 999px; background: #f1f5f9; color: var(--muted); font-size: 0.85rem; }
+.programming-carga-steps li span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #cbd5e1; color: #fff; font-weight: 600; font-size: 0.8rem; }
+.programming-carga-steps li.is-current { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; font-weight: 600; }
+.programming-carga-steps li.is-current span { background: #2563eb; }
+.programming-carga-steps li.is-done span { background: #15803d; }
+.programming-carga-body { max-height: 62vh; overflow-y: auto; display: grid; gap: 12px; align-content: start; }
+.programming-carga-dropzone { padding: 28px 12px; }
+.programming-carga-period { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.programming-carga-table table { width: 100%; }
+.programming-carga-table td.num { text-align: right; }
+.programming-carga-table tr.is-pending td { background: rgba(245, 158, 11, 0.12); }
+.programming-carga-group { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; }
+.programming-carga-group header { display: flex; align-items: end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.programming-carga-group h4 { margin: 0; }
+.programming-carga-group header label { display: grid; gap: 2px; font-size: 0.8rem; }
+.programming-carga-slot { display: inline-flex; gap: 4px; margin: 0 6px 4px 0; }
+.programming-carga-slot select { min-width: 220px; }
+.programming-carga-day, .programming-carga-times { white-space: nowrap; }
+.programming-carga-skip { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; white-space: nowrap; }
+.programming-carga-footer { align-items: center; margin-top: 12px; }
+.programming-carga-spacer { flex: 1; }
+.programming-carga-suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-size: 0.8rem; color: var(--muted); }
+.programming-carga-suggest button { min-height: 26px; padding: 2px 8px; font-size: 0.8rem; }
+.programming-carga-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.programming-carga-table tr.is-weekend td { background: rgba(37, 99, 235, 0.06); }
+/* Combo de personal del asistente: mismas clases que el selector de personal de los filtros. */
+.pc-combo { display: inline-grid; vertical-align: top; }
+.pc-combo input { min-width: 230px; padding-right: 44px; }
+.filter-suggestions.pc-combo-list { position: fixed; right: auto; z-index: 2000; max-height: 260px; }
+.filter-suggestions.pc-combo-list.hidden { display: none; }
+.pc-combo-list .filter-suggestion-option { width: 100%; cursor: pointer; }
+.pc-combo-list .filter-suggestion-option.is-active { background: rgba(37, 99, 235, 0.14); font-weight: 600; }
+.pc-combo-empty { margin: 0; padding: 10px 12px; }
+
+/* Paso Fechas: tabla compacta (filas a mitad de alto, columnas estrechas). */
+.programming-carga-dates-wrap { overflow-x: visible; }
+.programming-carga-table table.programming-carga-dates { width: auto; }
+.programming-carga-dates th, .programming-carga-dates td { padding: 3px 10px; line-height: 1.2; }
+.programming-carga-dates th:nth-child(1), .programming-carga-dates td:nth-child(1) { width: 150px; }
+.programming-carga-dates th:nth-child(2), .programming-carga-dates td:nth-child(2) { width: 90px; }
+.programming-carga-dates th:nth-child(3), .programming-carga-dates td:nth-child(3),
+.programming-carga-dates th:nth-child(4), .programming-carga-dates td:nth-child(4) { width: 70px; text-align: right; }
+.programming-carga-dates th:nth-child(3), .programming-carga-dates th:nth-child(4) { white-space: normal; }
+.programming-carga-dates td label { display: flex; align-items: center; gap: 6px; margin: 0; }
+.programming-carga-table table.programming-carga-dates { min-width: 0; }
+.programming-carga-dates td label { min-height: 0; padding: 0; height: auto; }
+.programming-carga-dates td input[type="checkbox"], .programming-carga-skip input[type="checkbox"] { width: auto; min-width: 0; flex: none; margin: 0; }
+.programming-carga-dates td label, .programming-carga-skip { flex-direction: row; align-items: center; }
+
+/* Listas de sugerencias: opción resaltada con el teclado (suggest-keyboard.js). */
+.filter-suggestion-option.is-active { background: rgba(37, 99, 235, 0.14); font-weight: 600; }

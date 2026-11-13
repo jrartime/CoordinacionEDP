@@ -1657,18 +1657,32 @@ const programmingInstallationAddSelectedButton = document.querySelector(
 const programmingInstallationRemoveSelectedButton = document.querySelector(
   "#programming-installation-remove-selected-button"
 );
-const programmingBulkPersonalSelect = document.querySelector("#programming-bulk-personal");
-const programmingBulkAssignButton = document.querySelector("#programming-bulk-assign-button");
-const programmingBulkInstallationInput = document.querySelector("#programming-bulk-installation");
-const programmingBulkClearPersonalButton = document.querySelector(
-  "#programming-bulk-clear-personal-button"
-);
-const programmingBulkClearInstallationButton = document.querySelector(
-  "#programming-bulk-clear-installation-button"
-);
-const programmingBulkInstallationButton = document.querySelector(
-  "#programming-bulk-installation-button"
-);
+const PROGRAMMING_BULK_UNSET = "__unset__";
+const PROGRAMMING_BULK_EMPTY = "__empty__";
+// Campos que admite la asignación masiva. `rowKey` es la propiedad de la fila cargada y `column`
+// la columna de programacion_conserjes que se actualiza (personal e instalación por su id: el
+// trigger trg_programacion_conserjes_sync_nombres rellena el nombre en texto).
+const PROGRAMMING_BULK_FIELDS = {
+  fecha: { label: "Fecha", type: "date", column: "fecha", rowKey: "fecha", required: true },
+  personal_id: { label: "Personal", type: "select", column: "personal_id", rowKey: "personalId", allowEmpty: true },
+  instalacion_id: { label: "Instalación", type: "select", column: "instalacion_id", rowKey: "instalacionId" },
+  hora_inicio: { label: "Hora inicio", type: "time", column: "hora_inicio", rowKey: "inicio", required: true },
+  hora_fin: { label: "Hora fin", type: "time", column: "hora_fin", rowKey: "fin" },
+  hora_evento: { label: "Hora evento", type: "time", column: "hora_evento", rowKey: "hora" },
+  deporte: { label: "Deporte", type: "text", column: "deporte", rowKey: "deporte" },
+  actividad: { label: "Actividad", type: "text", column: "actividad", rowKey: "actividad" },
+};
+const programmingBulkFieldSelect = document.querySelector("#programming-bulk-field");
+const programmingBulkCurrentValueInput = document.querySelector("#programming-bulk-current-value");
+const programmingBulkCurrentSelect = document.querySelector("#programming-bulk-current-select");
+const programmingBulkNewValueInput = document.querySelector("#programming-bulk-new-value");
+const programmingBulkNewSelect = document.querySelector("#programming-bulk-new-select");
+const programmingBulkApplyButton = document.querySelector("#programming-bulk-apply-button");
+const programmingBulkClearFieldsButton = document.querySelector("#programming-bulk-clear-fields-button");
+const programmingBulkSelectButton = document.querySelector("#programming-bulk-select-button");
+const programmingBulkDeleteButton = document.querySelector("#programming-bulk-delete-button");
+const programmingBulkMatchCount = document.querySelector("#programming-bulk-match-count");
+const programmingBulkSelectionCount = document.querySelector("#programming-bulk-selection-count");
 const programmingOpenUnmatchedPersonnelButton = document.querySelector(
   "#programming-open-unmatched-personnel-button"
 );
@@ -1718,7 +1732,6 @@ const programmingRefreshUnmatchedInstallationButton = document.querySelector(
   "#programming-refresh-unmatched-installation-button"
 );
 const programmingInstallationOptionsList = document.querySelector("#programming-installation-options");
-const programmingBulkAssignCount = document.querySelector("#programming-bulk-assign-count");
 const programmingReportDateFromInput = document.querySelector("#programming-report-date-from");
 const programmingReportDateToInput = document.querySelector("#programming-report-date-to");
 const programmingReportPdfButton = document.querySelector("#programming-report-pdf-button");
@@ -1736,14 +1749,6 @@ const programmingCancelSelectiveArchiveButton = document.querySelector(
 const programmingSelectedArchiveCount = document.querySelector(
   "#programming-selected-archive-count"
 );
-const programmingEnableSelectiveDeleteButton = document.querySelector(
-  "#programming-enable-selective-delete-button"
-);
-const programmingDeleteSelectedButton = document.querySelector("#programming-delete-selected-button");
-const programmingCancelSelectiveDeleteButton = document.querySelector(
-  "#programming-cancel-selective-delete-button"
-);
-const programmingSelectedDeleteCount = document.querySelector("#programming-selected-delete-count");
 const programmingPreviewTableBody = document.querySelector("#programming-preview-table-body");
 const programmingSelectHeader = document.querySelector("#programming-select-header");
 const programmingSelectPageCheckbox = document.querySelector("#programming-select-page-checkbox");
@@ -2174,8 +2179,6 @@ const MOBILE_NAV_BREAKPOINT_QUERY = "(max-width: 720px)";
 let isMobileHomeVisible = false;
 let currentPanelTarget = getInitialPanelTarget();
 let currentPrivateTabTarget = getInitialPrivateTabTarget();
-let lastSuggestedBulkPersonal = "";
-let lastSuggestedBulkInstallation = "";
 let publicToastTimeout = null;
 
 function debounce(callback, wait = 250) {
@@ -7481,21 +7484,7 @@ function renderProgrammingPersonnelOptions(extraNames = []) {
       : PROGRAMMING_UNASSIGNED_PERSONAL;
   }
 
-  if (programmingBulkPersonalSelect) {
-    const currentValue = normalizeProgrammingPersonnelName(programmingBulkPersonalSelect.value);
-    const assignableNames = getProgrammingPersonnelNames().filter(
-      (name) => name !== PROGRAMMING_UNASSIGNED_PERSONAL
-    );
-    programmingBulkPersonalSelect.innerHTML = ['<option value="">Selecciona personal</option>']
-      .concat(
-        assignableNames.map(
-          (name) =>
-            `<option value="${escapeHtml(name)}">${escapeHtml(getProgrammingPersonnelOptionLabel(name))}</option>`
-        )
-      )
-      .join("");
-    programmingBulkPersonalSelect.value = assignableNames.includes(currentValue) ? currentValue : "";
-  }
+  syncProgrammingBulkUi({ resetValues: false });
 }
 
 function renderProgrammingPersonnelTable() {
@@ -7578,39 +7567,18 @@ async function loadProgrammingPersonnel() {
     return;
   }
 
+  // El personal disponible es el que el RLS deja ver al perfil (contratos asignados).
   const supabase = await getSupabaseClient();
-  const [catalogResult, personnelResultWithLink] = await Promise.all([
-    supabase
-      .from("personal")
-      .select("id, personal, dni, vinculacion_id")
-      .in("vinculacion_id", [1, 2])
-      .order("personal", { ascending: true }),
-    supabase
-      .from("programming_personnel")
-      .select("id, name, personal_id, dni, pin")
-      .order("name", { ascending: true }),
-  ]);
-  let personnelResult = personnelResultWithLink;
-
-  if (personnelResultWithLink.error) {
-    const details = formatSupabaseErrorDetails(personnelResultWithLink.error).toLowerCase();
-    const tableMissing =
-      details.includes("programming_personnel") && details.includes("does not exist");
-    if (tableMissing) {
-      personnelResult = personnelResultWithLink;
-    } else {
-    const fallbackResult = await supabase
-      .from("programming_personnel")
-      .select("id, name, pin")
-      .order("name", { ascending: true });
-    if (!fallbackResult.error) {
-      personnelResult = fallbackResult;
-    }
-    }
-  }
+  const catalogResult = await supabase
+    .from("personal")
+    .select("id, personal, dni, vinculacion_id")
+    .in("vinculacion_id", [1, 2])
+    .order("personal", { ascending: true })
+    .limit(5000);
 
   if (catalogResult.error) {
     programmingPersonnelCatalogRows = [];
+    currentProgrammingPersonnel = [];
     renderProgrammingPersonnelUi();
     setStatus(`No se pudo cargar el personal de plantilla: ${catalogResult.error.message}`, "error");
     return;
@@ -7619,34 +7587,12 @@ async function loadProgrammingPersonnel() {
   programmingPersonnelCatalogRows = (catalogResult.data || [])
     .map(normalizeProgrammingPersonnelCatalogRow)
     .filter((row) => row.id && row.personal);
-
-  if (personnelResult.error) {
-    currentProgrammingPersonnel = [];
-    renderProgrammingPersonnelUi();
-    if (isMissingProgrammingPersonnelTableError(personnelResult.error)) {
-      setStatus(
-        "Falta la tabla programming_personnel en Supabase. Ejecuta el SQL actualizado de supabase/schema.sql.",
-        "error"
-      );
-      return;
-    }
-
-    setStatus(`No se pudo cargar el listado de personal: ${personnelResult.error.message}`, "error");
-    return;
-  }
-
-  currentProgrammingPersonnel = (personnelResult.data || []).map((person) => {
-    const name = normalizeProgrammingPersonnelName(person.name);
-    const catalogMatch = programmingPersonnelCatalogRows.find(
-      (row) => normalizeProgrammingPersonnelName(row.personal) === name
-    );
-    return {
-      id: person.id,
-      personalId: Number(person.personal_id || catalogMatch?.id || 0),
-      name,
-      dni: normalizeProgrammingPersonnelDni(person.dni || catalogMatch?.dni),
-    };
-  });
+  currentProgrammingPersonnel = programmingPersonnelCatalogRows.map((row) => ({
+    id: row.id,
+    personalId: Number(row.id),
+    name: normalizeProgrammingPersonnelName(row.personal),
+    dni: normalizeProgrammingPersonnelDni(row.dni),
+  }));
   renderProgrammingPersonnelUi();
 }
 
@@ -8021,82 +7967,258 @@ function syncProgrammingDateScopedFilters() {
   renderProgrammingFilters(currentProgrammingRows);
 }
 
+function getProgrammingBulkConfig() {
+  return PROGRAMMING_BULK_FIELDS[programmingBulkFieldSelect?.value] || PROGRAMMING_BULK_FIELDS.fecha;
+}
+
+function normalizeProgrammingBulkValue(value, config) {
+  if (value === null || value === undefined || value === "" || value === PROGRAMMING_BULK_EMPTY) {
+    return "";
+  }
+  if (config.type === "date") {
+    return normalizeImportedDate(value) || "";
+  }
+  if (config.type === "time") {
+    return formatProgrammingTimeInputValue(value);
+  }
+  if (config.type === "text") {
+    return normalizeProgrammingText(value);
+  }
+  return String(value).trim();
+}
+
+function getProgrammingBulkControlValue(kind) {
+  const config = getProgrammingBulkConfig();
+  if (config.type === "select") {
+    return (kind === "new" ? programmingBulkNewSelect : programmingBulkCurrentSelect)?.value || "";
+  }
+  return (kind === "new" ? programmingBulkNewValueInput : programmingBulkCurrentValueInput)?.value || "";
+}
+
+// Valores de los desplegables. «Actual»: solo los que hay en la programación cargada.
+// «Nuevo»: todo el catálogo al que el perfil tiene acceso (personal / instalaciones activas).
+function getProgrammingBulkSelectOptions(config, kind) {
+  const options = new Map();
+  if (kind === "current") {
+    currentProgrammingRows.forEach((row) => {
+      const id = row[config.rowKey];
+      if (id) {
+        options.set(String(id), config.column === "personal_id" ? row.personal : row.instalacion);
+      }
+    });
+  } else if (config.column === "personal_id") {
+    programmingPersonnelCatalogRows.forEach((row) => options.set(String(row.id), row.personal));
+  } else {
+    programmingInstallationCatalogRows
+      .filter((row) => row.activo)
+      .forEach((row) => options.set(String(row.id), row.instalacion));
+  }
+  return [...options.entries()]
+    .map(([value, label]) => ({ value, label: label || value }))
+    .sort((left, right) => left.label.localeCompare(right.label, "es", { sensitivity: "base" }));
+}
+
+function renderProgrammingBulkSelect(select, config, kind) {
+  if (!select) {
+    return;
+  }
+  const previous = select.value;
+  const head = [{ value: PROGRAMMING_BULK_UNSET, label: "Selecciona valor" }];
+  if (kind === "current" || config.allowEmpty) {
+    head.push({ value: PROGRAMMING_BULK_EMPTY, label: "Vacío" });
+  }
+  const rendered = head.concat(getProgrammingBulkSelectOptions(config, kind));
+  select.innerHTML = rendered
+    .map((item) => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`)
+    .join("");
+  select.value = rendered.some((item) => item.value === previous) ? previous : PROGRAMMING_BULK_UNSET;
+}
+
+// `resetValues: false` refresca los catálogos tras recargar la tabla sin borrar lo ya escrito.
+function syncProgrammingBulkUi({ resetValues = true } = {}) {
+  if (!programmingBulkFieldSelect) {
+    return;
+  }
+  const config = getProgrammingBulkConfig();
+  const isSelect = config.type === "select";
+
+  programmingBulkCurrentValueInput?.classList.toggle("hidden", isSelect);
+  programmingBulkNewValueInput?.classList.toggle("hidden", isSelect);
+  programmingBulkCurrentSelect?.classList.toggle("hidden", !isSelect);
+  programmingBulkNewSelect?.classList.toggle("hidden", !isSelect);
+
+  if (isSelect) {
+    renderProgrammingBulkSelect(programmingBulkCurrentSelect, config, "current");
+    renderProgrammingBulkSelect(programmingBulkNewSelect, config, "new");
+  } else {
+    [programmingBulkCurrentValueInput, programmingBulkNewValueInput].forEach((input) => {
+      if (!input) {
+        return;
+      }
+      if (input.type !== config.type) {
+        input.type = config.type;
+      }
+      if (resetValues) {
+        input.value = "";
+      }
+    });
+  }
+
+  updateProgrammingBulkMatchCount();
+}
+
+function getProgrammingBulkMatchingRows() {
+  if (!programmingBulkFieldSelect) {
+    return [];
+  }
+  const config = getProgrammingBulkConfig();
+  const raw = getProgrammingBulkControlValue("current");
+  if (config.type === "select" && raw === PROGRAMMING_BULK_UNSET) {
+    return [];
+  }
+  const currentValue = normalizeProgrammingBulkValue(raw, config);
+  return filteredProgrammingRows.filter(
+    (row) => normalizeProgrammingBulkValue(row[config.rowKey], config) === currentValue
+  );
+}
+
+function updateProgrammingBulkMatchCount() {
+  if (programmingBulkMatchCount) {
+    const total = getProgrammingBulkMatchingRows().length;
+    programmingBulkMatchCount.textContent = `${total} coincidencia${total === 1 ? "" : "s"}`;
+  }
+  updateProgrammingBulkSelectionUi();
+}
+
+function updateProgrammingBulkSelectionUi() {
+  const active = programmingSelectionMode === "bulk";
+  const count = active ? selectedProgrammingDeleteIds.size : 0;
+  programmingBulkSelectionCount?.classList.toggle("hidden", !active);
+  if (programmingBulkSelectionCount) {
+    programmingBulkSelectionCount.textContent = `${count} seleccionado${count === 1 ? "" : "s"} de ${filteredProgrammingRows.length}`;
+  }
+  if (programmingBulkSelectButton) {
+    programmingBulkSelectButton.textContent = active ? "Limpiar selección" : "Seleccionar";
+  }
+  if (programmingBulkApplyButton) {
+    programmingBulkApplyButton.disabled = !active || !count;
+  }
+  if (programmingBulkDeleteButton) {
+    programmingBulkDeleteButton.disabled = !active || !count;
+  }
+}
+
 function syncProgrammingBulkAssignmentUi() {
-  if (programmingBulkAssignCount) {
-    programmingBulkAssignCount.textContent = `${filteredProgrammingRows.length} filtrado${
-      filteredProgrammingRows.length === 1 ? "" : "s"
-    }`;
-  }
+  updateProgrammingBulkMatchCount();
+}
 
-  if (programmingBulkAssignButton) {
-    const selectedName = normalizeProgrammingPersonnelName(programmingBulkPersonalSelect?.value);
-    programmingBulkAssignButton.disabled = !selectedName || filteredProgrammingRows.length === 0;
-  }
-
-  if (programmingBulkClearPersonalButton) {
-    programmingBulkClearPersonalButton.disabled = !programmingBulkPersonalSelect?.value;
-  }
-
-  if (programmingBulkInstallationButton) {
-    const installationName = normalizeProgrammingCell(programmingBulkInstallationInput?.value);
-    programmingBulkInstallationButton.disabled = !installationName || filteredProgrammingRows.length === 0;
-  }
-
-  if (programmingBulkClearInstallationButton) {
-    programmingBulkClearInstallationButton.disabled = !programmingBulkInstallationInput?.value;
+function toggleProgrammingBulkSelection() {
+  const wasActive = programmingSelectionMode === "bulk";
+  selectedProgrammingDeleteIds.clear();
+  setProgrammingSelectionMode(wasActive ? "" : "bulk");
+  if (!wasActive) {
+    setStatus("Marca con el tick los registros sobre los que quieres actuar.", "success");
   }
 }
 
-function clearProgrammingBulkPersonal() {
-  if (!programmingBulkPersonalSelect) {
-    return;
+function clearProgrammingBulkFields() {
+  if (programmingBulkFieldSelect) {
+    programmingBulkFieldSelect.value = "fecha";
   }
-
-  programmingBulkPersonalSelect.value = "";
-  lastSuggestedBulkPersonal = "";
-  syncProgrammingBulkAssignmentUi();
-  programmingBulkPersonalSelect.focus();
+  syncProgrammingBulkUi();
 }
 
-function clearProgrammingBulkInstallation() {
-  if (!programmingBulkInstallationInput) {
+// Al elegir un «Valor actual» se alinea el filtro visible equivalente con la operación.
+function applyProgrammingBulkCurrentValueToFilters() {
+  const config = getProgrammingBulkConfig();
+  const raw = getProgrammingBulkControlValue("current");
+  if (!raw || raw === PROGRAMMING_BULK_UNSET || raw === PROGRAMMING_BULK_EMPTY) {
     return;
   }
 
-  programmingBulkInstallationInput.value = "";
-  lastSuggestedBulkInstallation = "";
-  syncProgrammingBulkAssignmentUi();
-  programmingBulkInstallationInput.focus();
+  if (config.column === "fecha") {
+    programmingFilterDate.value = formatDisplayDate(raw);
+    programmingFilterDate.dispatchEvent(new Event("change", { bubbles: true }));
+  } else if (config.column === "personal_id") {
+    const name = programmingBulkCurrentSelect?.selectedOptions[0]?.textContent?.trim() || "";
+    setPersonalPickerSelection("programming-filter", name, name);
+    programmingFilterPersonal.dispatchEvent(new Event("change", { bubbles: true }));
+  } else if (config.column === "instalacion_id") {
+    programmingFilterInstallation.value = programmingBulkCurrentSelect?.selectedOptions[0]?.textContent?.trim() || "";
+    programmingFilterInstallation.dispatchEvent(new Event("change", { bubbles: true }));
+  } else if (config.column === "deporte") {
+    programmingFilterSport.value = raw;
+    programmingFilterSport.dispatchEvent(new Event("change", { bubbles: true }));
+  } else if (config.column === "actividad") {
+    programmingFilterActivity.value = raw;
+    programmingFilterActivity.dispatchEvent(new Event("input", { bubbles: true }));
+  }
 }
 
-function suggestBulkInstallationFromCurrentFilter() {
-  if (!programmingBulkInstallationInput || !programmingFilterInstallation) {
+async function applyProgrammingBulkAssignment() {
+  const config = getProgrammingBulkConfig();
+  const ids = [...selectedProgrammingDeleteIds].map((id) => Number(id)).filter((id) => Number.isFinite(id));
+  if (programmingSelectionMode !== "bulk" || !ids.length) {
+    setStatus("Selecciona al menos un registro de programación.", "error");
     return;
   }
 
-  const bulkPanel = programmingBulkInstallationInput.closest("details");
-  if (bulkPanel && !bulkPanel.open) {
+  const raw = getProgrammingBulkControlValue("new");
+  let payload;
+  let valueLabel;
+  if (config.type === "select") {
+    if (!raw || raw === PROGRAMMING_BULK_UNSET) {
+      setStatus(`Selecciona el nuevo valor de ${config.label.toLowerCase()}.`, "error");
+      return;
+    }
+    if (raw === PROGRAMMING_BULK_EMPTY) {
+      if (!config.allowEmpty) {
+        setStatus(`${config.label} no puede quedar vacío.`, "error");
+        return;
+      }
+      payload = { personal_id: null, personal: PROGRAMMING_UNASSIGNED_PERSONAL };
+      valueLabel = PROGRAMMING_UNASSIGNED_PERSONAL;
+    } else {
+      payload = { [config.column]: Number(raw) };
+      valueLabel = programmingBulkNewSelect?.selectedOptions[0]?.textContent?.trim() || raw;
+    }
+  } else {
+    const value = String(raw).trim();
+    if (!value && config.required) {
+      setStatus(`Indica el nuevo valor de ${config.label.toLowerCase()}.`, "error");
+      return;
+    }
+    payload = { [config.column]: value || null };
+    valueLabel = value || "vacío";
+  }
+
+  const confirmed = window.confirm(
+    `Vas a cambiar ${config.label.toLowerCase()} a "${valueLabel}" en ${ids.length} registro${
+      ids.length === 1 ? "" : "s"
+    } seleccionado${ids.length === 1 ? "" : "s"} de ${getProgrammingTypeLabel()}.`
+  );
+  if (!confirmed) {
     return;
   }
 
-  const selectedInstallation = programmingFilterInstallation.value;
-  if (!selectedInstallation) {
+  const session = await ensurePrivateSession({ silent: true });
+  if (!session) {
+    setStatus("Necesitas iniciar sesión para modificar la programación.", "error");
     return;
   }
 
-  const currentBulkValue = programmingBulkInstallationInput.value.trim();
-  if (currentBulkValue && currentBulkValue !== lastSuggestedBulkInstallation) {
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from(PROGRAMMING_TABLE_NAME).update(payload).in("id", ids);
+  if (error) {
+    setStatus(`No se pudo aplicar el cambio: ${error.message}`, "error");
     return;
   }
 
-  const closestInstallation = findClosestProgrammingInstallationName(selectedInstallation);
-  if (!closestInstallation) {
-    return;
-  }
-
-  programmingBulkInstallationInput.value = closestInstallation;
-  lastSuggestedBulkInstallation = closestInstallation;
-  syncProgrammingBulkAssignmentUi();
+  await loadProgrammingFromSupabase();
+  setStatus(
+    `${config.label} actualizado en ${ids.length} registro${ids.length === 1 ? "" : "s"}.`,
+    "success"
+  );
 }
 
 // Muestra la ✕ (filter-reset-button) de un formulario de filtros solo cuando su
@@ -8146,44 +8268,6 @@ function resetSingleProgrammingFilter(filterName) {
   }
 
   applyProgrammingFilters();
-
-  if (control === programmingFilterPersonal || control === programmingFilterDate) {
-    suggestBulkPersonalFromCurrentFilter();
-  }
-
-  if (control === programmingFilterInstallation || control === programmingFilterDate) {
-    suggestBulkInstallationFromCurrentFilter();
-  }
-}
-
-function suggestBulkPersonalFromCurrentFilter() {
-  if (!programmingBulkPersonalSelect || !programmingFilterPersonal) {
-    return;
-  }
-
-  const bulkPanel = programmingBulkPersonalSelect.closest("details");
-  if (bulkPanel && !bulkPanel.open) {
-    return;
-  }
-
-  const selectedPersonal = programmingFilterPersonal.value;
-  if (!selectedPersonal) {
-    return;
-  }
-
-  const currentBulkValue = programmingBulkPersonalSelect.value;
-  if (currentBulkValue && currentBulkValue !== lastSuggestedBulkPersonal) {
-    return;
-  }
-
-  const closestPersonal = findClosestProgrammingPersonnelName(selectedPersonal);
-  if (!closestPersonal) {
-    return;
-  }
-
-  programmingBulkPersonalSelect.value = closestPersonal;
-  lastSuggestedBulkPersonal = closestPersonal;
-  syncProgrammingBulkAssignmentUi();
 }
 
 function applyProgrammingFilters() {
@@ -8263,6 +8347,7 @@ function renderProgrammingPreview(rows, sourceName, options = {}) {
     !currentProgrammingCanUpload || rows.length === 0
   );
   renderProgrammingFilters(rows);
+  syncProgrammingBulkUi({ resetValues: false });
   applyProgrammingFilters();
 }
 
@@ -8340,6 +8425,8 @@ function refreshProgrammingPreviewPage() {
 function mapFindeSemanaRowsToProgramming(rows) {
   return (rows ?? []).map((row) => ({
     id: String(row.id ?? ""),
+    personalId: row.personal_id ?? null,
+    instalacionId: row.instalacion_id ?? null,
     personal: String(row.personal ?? "").trim(),
     instalacion: String(row.instalacion ?? "").trim(),
     fecha: formatDisplayDate(String(row.fecha ?? "").trim()),
@@ -8427,16 +8514,11 @@ function renderProgrammingInstallationOptions(extraNames = []) {
 }
 
 async function loadProgrammingInstallationCatalog(supabase) {
-  const [catalogResult, assignedResult] = await Promise.all([
-    supabase
-      .from("instalaciones")
-      .select("id, instalacion, activo")
-      .limit(10000),
-    supabase
-      .from("programming_installations")
-      .select("id, installation_id, name")
-      .order("name", { ascending: true }),
-  ]);
+  // Las instalaciones disponibles son las que el RLS deja ver al perfil (contratos asignados).
+  const catalogResult = await supabase
+    .from("instalaciones")
+    .select("id, instalacion, activo")
+    .limit(10000);
 
   if (catalogResult.error) {
     throw new Error(`No se pudieron cargar las instalaciones: ${catalogResult.error.message}`);
@@ -8446,32 +8528,9 @@ async function loadProgrammingInstallationCatalog(supabase) {
     .map(normalizeProgrammingInstallationCatalogRow)
     .filter((row) => row.id && row.instalacion);
 
-  const activeCatalogRows = programmingInstallationCatalogRows.filter((row) => row.activo);
-  const assignedTableMissing =
-    assignedResult.error &&
-    formatSupabaseErrorDetails(assignedResult.error).toLowerCase().includes("programming_installations");
-
-  if (assignedResult.error && !assignedTableMissing) {
-    throw new Error(`No se pudieron cargar las instalaciones asignadas: ${assignedResult.error.message}`);
-  }
-
-  currentProgrammingAssignedInstallations = assignedTableMissing
-    ? activeCatalogRows.map((row) => ({
-        id: row.id,
-        installationId: row.id,
-        name: row.instalacion,
-      }))
-    : (assignedResult.data ?? []).map((row) => {
-        const name = normalizeProgrammingCell(row.name);
-        const catalogMatch = programmingInstallationCatalogRows.find(
-          (item) => normalizeProgrammingText(item.instalacion) === normalizeProgrammingText(name)
-        );
-        return {
-          id: row.id,
-          installationId: Number(row.installation_id || catalogMatch?.id || 0),
-          name,
-        };
-      }).filter((row) => row.name);
+  currentProgrammingAssignedInstallations = programmingInstallationCatalogRows
+    .filter((row) => row.activo)
+    .map((row) => ({ id: row.id, installationId: row.id, name: row.instalacion }));
 
   currentProgrammingActiveInstallations = sortTextValues(
     currentProgrammingAssignedInstallations.map((row) => row.name).filter(Boolean)
@@ -8947,7 +9006,7 @@ async function loadProgrammingFromSupabase() {
       let query = supabase
         .from(PROGRAMMING_TABLE_NAME)
         .select(
-          "id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, archived_at, sort_order, tipo_programacion"
+          "id, personal, personal_id, instalacion, instalacion_id, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, archived_at, sort_order, tipo_programacion"
         );
       query = applyProgrammingTypeFilter(query)
         .order("fecha", { ascending: true })
@@ -8959,7 +9018,7 @@ async function loadProgrammingFromSupabase() {
       ({ data, error } = await fetchAllProgrammingRows(() => {
         let fallbackQuery = supabase
           .from(PROGRAMMING_TABLE_NAME)
-          .select("id, personal, instalacion, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order, tipo_programacion");
+          .select("id, personal, personal_id, instalacion, instalacion_id, fecha, hora_inicio, hora_fin, hora_evento, deporte, actividad, sort_order, tipo_programacion");
         fallbackQuery = applyProgrammingTypeFilter(fallbackQuery)
           .order("fecha", { ascending: true })
           .order("sort_order", { ascending: true });
@@ -9360,33 +9419,19 @@ function syncProgrammingSelectionUi() {
   const selectedVisibleCount = visibleIds.filter((id) =>
     selectedProgrammingDeleteIds.has(id)
   ).length;
-  const deleteModeEnabled = programmingSelectionMode === "delete";
   const archiveModeEnabled = programmingSelectionMode === "archive";
   const selectionModeEnabled = Boolean(programmingSelectionMode);
 
-  programmingSelectiveDeleteMode = deleteModeEnabled;
+  programmingSelectiveDeleteMode = programmingSelectionMode === "bulk";
   programmingSelectHeader?.classList.toggle("hidden", !selectionModeEnabled);
   programmingEnableSelectiveArchiveButton?.classList.toggle("hidden", archiveModeEnabled);
   programmingCancelSelectiveArchiveButton?.classList.toggle("hidden", !archiveModeEnabled);
-  programmingEnableSelectiveDeleteButton?.classList.toggle(
-    "hidden",
-    deleteModeEnabled
-  );
-  programmingCancelSelectiveDeleteButton?.classList.toggle(
-    "hidden",
-    !deleteModeEnabled
-  );
-
   if (programmingArchiveSelectedButton) {
     programmingArchiveSelectedButton.disabled = !archiveModeEnabled || selectedCount === 0;
   }
 
   if (programmingUnarchiveSelectedButton) {
     programmingUnarchiveSelectedButton.disabled = !archiveModeEnabled || selectedCount === 0;
-  }
-
-  if (programmingDeleteSelectedButton) {
-    programmingDeleteSelectedButton.disabled = !deleteModeEnabled || selectedCount === 0;
   }
 
   if (programmingSelectedArchiveCount) {
@@ -9396,13 +9441,6 @@ function syncProgrammingSelectionUi() {
     programmingSelectedArchiveCount.classList.toggle("hidden", !archiveModeEnabled);
   }
 
-  if (programmingSelectedDeleteCount) {
-    programmingSelectedDeleteCount.textContent = `${selectedCount} seleccionado${
-      selectedCount === 1 ? "" : "s"
-    }`;
-    programmingSelectedDeleteCount.classList.toggle("hidden", !deleteModeEnabled);
-  }
-
   if (programmingSelectPageCheckbox) {
     programmingSelectPageCheckbox.checked =
       Boolean(visibleIds.length) && selectedVisibleCount === visibleIds.length;
@@ -9410,6 +9448,8 @@ function syncProgrammingSelectionUi() {
       selectedVisibleCount > 0 && selectedVisibleCount < visibleIds.length;
     programmingSelectPageCheckbox.disabled = !selectionModeEnabled || !visibleIds.length;
   }
+
+  updateProgrammingBulkSelectionUi();
 }
 
 function syncProgrammingDeleteSelectionUi() {
@@ -9418,16 +9458,12 @@ function syncProgrammingDeleteSelectionUi() {
 
 function setProgrammingSelectionMode(mode) {
   programmingSelectionMode = mode;
-  programmingSelectiveDeleteMode = mode === "delete";
+  programmingSelectiveDeleteMode = mode === "bulk";
   if (!mode) {
     selectedProgrammingDeleteIds.clear();
   }
 
   refreshProgrammingPreviewPage();
-}
-
-function setProgrammingSelectiveDeleteMode(isEnabled) {
-  setProgrammingSelectionMode(isEnabled ? "delete" : "");
 }
 
 function toggleCurrentProgrammingPageSelection(isSelected) {
@@ -9557,72 +9593,6 @@ async function archiveSelectedProgrammingRecords(shouldArchive) {
     "success"
   );
   return true;
-}
-
-async function assignFilteredProgrammingPersonnel() {
-  const selectedName = normalizeProgrammingPersonnelName(programmingBulkPersonalSelect?.value);
-  if (!selectedName) {
-    setStatus("Selecciona personal para asignar.", "error");
-    return;
-  }
-
-  if (!filteredProgrammingRows.length) {
-    setStatus("No hay registros filtrados para asignar.", "error");
-    return;
-  }
-
-  const assignmentCount = filteredProgrammingRows.length;
-  const persistedIds = filteredProgrammingRows
-    .map((row) => Number(row.id))
-    .filter((id) => Number.isFinite(id));
-  const previewRows = filteredProgrammingRows.filter((row) => !row.id);
-  const confirmed = window.confirm(
-    `Vas a asignar "${selectedName}" a ${assignmentCount} registro${
-      assignmentCount === 1 ? "" : "s"
-    } filtrado${assignmentCount === 1 ? "" : "s"}.`
-  );
-  if (!confirmed) {
-    return;
-  }
-
-  if (persistedIds.length) {
-    const session = await ensurePrivateSession({ silent: true });
-    if (!session) {
-      setStatus("Necesitas iniciar sesión para asignar personal.", "error");
-      return;
-    }
-
-    const supabase = await getSupabaseClient();
-    const { error } = await supabase
-      .from(PROGRAMMING_TABLE_NAME)
-      .update({ personal: selectedName })
-      .in("id", persistedIds);
-
-    if (error) {
-      setStatus(`No se pudo asignar el personal: ${error.message}`, "error");
-      return;
-    }
-  }
-
-  previewRows.forEach((row) => {
-    row.personal = selectedName;
-  });
-
-  if (persistedIds.length) {
-    await loadProgrammingFromSupabase();
-  } else {
-    renderProgrammingPreview(currentProgrammingRows, currentProgrammingSourceName, {
-      canUpload: currentProgrammingCanUpload,
-    });
-  }
-  clearProgrammingBulkPersonal();
-
-  setStatus(
-    `Personal asignado correctamente a ${assignmentCount} registro${
-      assignmentCount === 1 ? "" : "s"
-    }.`,
-    "success"
-  );
 }
 
 function getProgrammingUnmatchedPersonnelProposals() {
@@ -10124,72 +10094,6 @@ async function acceptProgrammingUnmatchedInstallationProposal(sourceName) {
 
   renderProgrammingUnmatchedInstallationPanel();
   setStatus(`Instalación aplicada a ${proposal.rows.length} registro${proposal.rows.length === 1 ? "" : "s"}.`, "success");
-}
-
-async function changeFilteredProgrammingInstallation() {
-  const installationName = normalizeProgrammingCell(programmingBulkInstallationInput?.value);
-  if (!installationName) {
-    setStatus("Indica el nombre de instalación para aplicar.", "error");
-    return;
-  }
-
-  if (!filteredProgrammingRows.length) {
-    setStatus("No hay registros filtrados para cambiar la instalación.", "error");
-    return;
-  }
-
-  const assignmentCount = filteredProgrammingRows.length;
-  const persistedIds = filteredProgrammingRows
-    .map((row) => Number(row.id))
-    .filter((id) => Number.isFinite(id));
-  const previewRows = filteredProgrammingRows.filter((row) => !row.id);
-  const confirmed = window.confirm(
-    `Vas a cambiar la instalación a "${installationName}" en ${assignmentCount} registro${
-      assignmentCount === 1 ? "" : "s"
-    } filtrado${assignmentCount === 1 ? "" : "s"}.`
-  );
-  if (!confirmed) {
-    return;
-  }
-
-  if (persistedIds.length) {
-    const session = await ensurePrivateSession({ silent: true });
-    if (!session) {
-      setStatus("Necesitas iniciar sesión para cambiar instalaciones.", "error");
-      return;
-    }
-
-    const supabase = await getSupabaseClient();
-    const { error } = await supabase
-      .from(PROGRAMMING_TABLE_NAME)
-      .update({ instalacion: installationName })
-      .in("id", persistedIds);
-
-    if (error) {
-      setStatus(`No se pudo cambiar la instalación: ${error.message}`, "error");
-      return;
-    }
-  }
-
-  previewRows.forEach((row) => {
-    row.instalacion = installationName;
-  });
-
-  if (persistedIds.length) {
-    await loadProgrammingFromSupabase();
-  } else {
-    renderProgrammingPreview(currentProgrammingRows, currentProgrammingSourceName, {
-      canUpload: currentProgrammingCanUpload,
-    });
-  }
-  clearProgrammingBulkInstallation();
-
-  setStatus(
-    `Instalación actualizada correctamente en ${assignmentCount} registro${
-      assignmentCount === 1 ? "" : "s"
-    }.`,
-    "success"
-  );
 }
 
 async function prepareProgrammingCsv(file) {
@@ -37265,7 +37169,6 @@ async function init() {
     suggestionsId: "programming-filter-personal-suggestions",
     onChange: () => {
       applyProgrammingFilters();
-      suggestBulkPersonalFromCurrentFilter();
     },
   });
   gestionFiltersForm?.addEventListener("submit", (event) => {
@@ -38600,7 +38503,7 @@ async function init() {
     void loadProgrammingFromSupabase();
   });
   programmingImportButton?.addEventListener("click", () => {
-    openProgrammingImportPanel();
+    void window.CoordinacionProgramacionCarga?.open();
   });
   closeProgrammingImportButton?.addEventListener("click", closeProgrammingImportPanel);
   programmingImportCancelButton?.addEventListener("click", closeProgrammingImportPanel);
@@ -38667,16 +38570,6 @@ async function init() {
   programmingInstallationRemoveSelectedButton?.addEventListener("click", () => {
     void removeProgrammingInstallationBatch(getSelectedOptionValues(programmingInstallationSelectedSelect));
   });
-  programmingBulkPersonalSelect?.addEventListener("change", () => {
-    if (programmingBulkPersonalSelect.value !== lastSuggestedBulkPersonal) {
-      lastSuggestedBulkPersonal = "";
-    }
-    syncProgrammingBulkAssignmentUi();
-  });
-  programmingBulkClearPersonalButton?.addEventListener("click", clearProgrammingBulkPersonal);
-  programmingBulkAssignButton?.addEventListener("click", () => {
-    void assignFilteredProgrammingPersonnel();
-  });
   programmingOpenUnmatchedPersonnelButton?.addEventListener("click", () => {
     void openProgrammingUnmatchedPersonnelPanel();
   });
@@ -38741,26 +38634,21 @@ async function init() {
   programmingApplyUnmatchedInstallationButton?.addEventListener("click", () => {
     void applyProgrammingUnmatchedInstallationProposals();
   });
-  programmingBulkInstallationInput?.addEventListener("input", () => {
-    if (programmingBulkInstallationInput.value !== lastSuggestedBulkInstallation) {
-      lastSuggestedBulkInstallation = "";
-    }
-    syncProgrammingBulkAssignmentUi();
-  });
-  programmingBulkClearInstallationButton?.addEventListener(
-    "click",
-    clearProgrammingBulkInstallation
-  );
-  programmingBulkInstallationInput
-    ?.closest("details")
-    ?.addEventListener("toggle", (event) => {
-      if (event.currentTarget.open) {
-        suggestBulkPersonalFromCurrentFilter();
-        suggestBulkInstallationFromCurrentFilter();
-      }
+  programmingBulkSelectButton?.addEventListener("click", toggleProgrammingBulkSelection);
+  programmingBulkFieldSelect?.addEventListener("change", () => syncProgrammingBulkUi());
+  [programmingBulkCurrentSelect, programmingBulkCurrentValueInput].forEach((control) => {
+    control?.addEventListener("change", () => {
+      updateProgrammingBulkMatchCount();
+      applyProgrammingBulkCurrentValueToFilters();
     });
-  programmingBulkInstallationButton?.addEventListener("click", () => {
-    void changeFilteredProgrammingInstallation();
+    control?.addEventListener("input", updateProgrammingBulkMatchCount);
+  });
+  programmingBulkApplyButton?.addEventListener("click", () => {
+    void applyProgrammingBulkAssignment();
+  });
+  programmingBulkClearFieldsButton?.addEventListener("click", clearProgrammingBulkFields);
+  programmingBulkDeleteButton?.addEventListener("click", () => {
+    void deleteSelectedProgrammingRecords();
   });
   programmingEnableSelectiveArchiveButton?.addEventListener("click", () => {
     setProgrammingSelectionMode("archive");
@@ -38774,29 +38662,16 @@ async function init() {
   programmingUnarchiveSelectedButton?.addEventListener("click", () => {
     void archiveSelectedProgrammingRecords(false);
   });
-  programmingEnableSelectiveDeleteButton?.addEventListener("click", () => {
-    setProgrammingSelectiveDeleteMode(true);
-  });
-  programmingCancelSelectiveDeleteButton?.addEventListener("click", () => {
-    setProgrammingSelectiveDeleteMode(false);
-  });
-  programmingDeleteSelectedButton?.addEventListener("click", () => {
-    void deleteSelectedProgrammingRecords();
-  });
   programmingSelectPageCheckbox?.addEventListener("change", () => {
     toggleCurrentProgrammingPageSelection(programmingSelectPageCheckbox.checked);
   });
   programmingFilterDate?.addEventListener("change", () => {
     syncProgrammingDateScopedFilters();
     applyProgrammingFilters();
-    suggestBulkPersonalFromCurrentFilter();
-    suggestBulkInstallationFromCurrentFilter();
   });
   programmingFiltersForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     applyProgrammingFilters();
-    suggestBulkPersonalFromCurrentFilter();
-    suggestBulkInstallationFromCurrentFilter();
   });
   programmingFiltersForm?.addEventListener("input", debouncedProgrammingFilters);
   programmingFiltersForm?.addEventListener("change", (event) => {
@@ -38807,12 +38682,6 @@ async function init() {
       syncProgrammingDateScopedFilters();
     }
     applyProgrammingFilters();
-    if (event.target === programmingFilterPersonal) {
-      suggestBulkPersonalFromCurrentFilter();
-    }
-    if (event.target === programmingFilterInstallation) {
-      suggestBulkInstallationFromCurrentFilter();
-    }
   });
   programmingFiltersForm?.addEventListener("click", (event) => {
     const resetButton = event.target.closest("[data-reset-programming-filter]");

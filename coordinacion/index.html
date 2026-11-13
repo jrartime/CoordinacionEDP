@@ -5141,29 +5141,47 @@
                     >
                       Añadir vista previa
                     </button>
-                    <details class="programming-panel-zone">
-                      <summary>Asignación masiva</summary>
-                      <div class="programming-bulk-assignment-panel">
+                    <details id="programming-bulk-zone" class="programming-panel-zone">
+                      <summary>Asignación/borrado masivo</summary>
+                      <div class="activities-bulk-assignment-panel">
+                        <p class="bulk-action-help">
+                          Pulsa Seleccionar para mostrar los ticks y marca expresamente los registros.
+                          Aplicar y Borrar sólo actuarán sobre los registros seleccionados.
+                        </p>
+                        <button id="programming-bulk-select-button" type="button" class="secondary-button">
+                          Seleccionar
+                        </button>
                         <label>
-                          Personal
-                          <select id="programming-bulk-personal">
-                            <option value="">Selecciona personal</option>
+                          Campo
+                          <select id="programming-bulk-field">
+                            <option value="fecha">Fecha</option>
+                            <option value="personal_id">Personal</option>
+                            <option value="instalacion_id">Instalación</option>
+                            <option value="hora_inicio">Hora inicio</option>
+                            <option value="hora_fin">Hora fin</option>
+                            <option value="hora_evento">Hora evento</option>
+                            <option value="deporte">Deporte</option>
+                            <option value="actividad">Actividad</option>
                           </select>
                         </label>
-                        <button
-                          id="programming-bulk-clear-personal-button"
-                          type="button"
-                          class="secondary-button compact-button"
-                          aria-label="Limpiar personal"
-                          title="Limpiar personal"
-                        >
-                          ×
-                        </button>
-                        <button
-                          id="programming-bulk-assign-button"
-                          type="button"
-                        >
+                        <label>
+                          Valor actual
+                          <input id="programming-bulk-current-value" type="date" />
+                          <select id="programming-bulk-current-select" class="hidden"></select>
+                        </label>
+                        <label>
+                          Nuevo valor
+                          <input id="programming-bulk-new-value" type="date" />
+                          <select id="programming-bulk-new-select" class="hidden"></select>
+                        </label>
+                        <button id="programming-bulk-apply-button" type="button" disabled>
                           Aplicar
+                        </button>
+                        <button id="programming-bulk-clear-fields-button" type="button" class="secondary-button">
+                          Limpiar campos
+                        </button>
+                        <button id="programming-bulk-delete-button" type="button" class="danger-button" disabled>
+                          Borrar seleccionados
                         </button>
                         <button
                           id="programming-open-unmatched-personnel-button"
@@ -5172,31 +5190,6 @@
                         >
                           Revisar personal
                         </button>
-                        <label>
-                          Instalación
-                          <input
-                            id="programming-bulk-installation"
-                            type="text"
-                            list="programming-installation-options"
-                            placeholder="Nombre normalizado"
-                          />
-                        </label>
-                        <datalist id="programming-installation-options"></datalist>
-                        <button
-                          id="programming-bulk-clear-installation-button"
-                          type="button"
-                          class="secondary-button compact-button"
-                          aria-label="Limpiar instalación"
-                          title="Limpiar instalación"
-                        >
-                          ×
-                        </button>
-                        <button
-                          id="programming-bulk-installation-button"
-                          type="button"
-                        >
-                          Aplicar
-                        </button>
                         <button
                           id="programming-open-unmatched-installation-button"
                           type="button"
@@ -5204,8 +5197,11 @@
                         >
                           Revisar instalaciones
                         </button>
-                        <span id="programming-bulk-assign-count" class="control-selected-delete-count">
-                          0 filtrados
+                        <span id="programming-bulk-match-count" class="control-selected-delete-count">
+                          0 coincidencias
+                        </span>
+                        <span id="programming-bulk-selection-count" class="control-selected-delete-count hidden">
+                          0 seleccionados
                         </span>
                       </div>
                     </details>
@@ -5277,39 +5273,6 @@
                         <span
                           id="programming-selected-archive-count"
                           class="control-selected-delete-count hidden"
-                        >
-                          0 seleccionados
-                        </span>
-                      </div>
-                    </details>
-                    <details class="control-danger-zone programming-danger-zone">
-                      <summary>Opciones de borrado</summary>
-                      <div class="control-danger-actions">
-                        <button
-                          id="programming-enable-selective-delete-button"
-                          type="button"
-                          class="secondary-button"
-                        >
-                          Seleccionar registros
-                        </button>
-                        <button
-                          id="programming-delete-selected-button"
-                          type="button"
-                          class="danger-button"
-                          disabled
-                        >
-                          Borrar seleccionados
-                        </button>
-                        <button
-                          id="programming-cancel-selective-delete-button"
-                          type="button"
-                          class="secondary-button hidden"
-                        >
-                          Cancelar selección
-                        </button>
-                        <span
-                          id="programming-selected-delete-count"
-                          class="control-selected-delete-count"
                         >
                           0 seleccionados
                         </span>
@@ -10683,7 +10646,7 @@
     <script src="./facturacion.js?v=20261112-4" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./app.js?v=20261113-1" defer></script>
+    <script src="./app.js?v=20261113-2" defer></script>
     <script src="./programacion-carga.js?v=20261113-5" defer></script>
   </body>
 </html>
