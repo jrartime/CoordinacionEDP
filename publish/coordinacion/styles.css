@@ -2183,22 +2183,16 @@ button.records-ausencia-chip:hover {
   color: #ffffff;
 }
 
-.programming-personnel-panel,
-.programming-bulk-assignment-panel {
+.programming-personnel-panel {
   display: grid;
   gap: 8px;
   margin-top: 8px;
   min-width: 280px;
 }
 
-.programming-personnel-form,
-.programming-bulk-assignment-panel {
+.programming-personnel-form {
   grid-template-columns: minmax(160px, 1fr) minmax(90px, 120px) auto auto;
   align-items: end;
-}
-
-.programming-bulk-assignment-panel {
-  grid-template-columns: minmax(220px, 1fr) 36px auto auto auto;
 }
 
 .programming-personnel-form {
@@ -2206,91 +2200,19 @@ button.records-ausencia-chip:hover {
   gap: 6px;
 }
 
-.programming-bulk-assignment-panel {
-  display: grid;
-}
-
-#programming-bulk-personal {
-  min-width: 220px;
-}
-
-.programming-bulk-assignment-panel label:has(#programming-bulk-personal) {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-#programming-bulk-clear-personal-button {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-#programming-bulk-assign-button {
-  grid-column: 3;
-  grid-row: 1;
-}
-
-#programming-open-unmatched-personnel-button {
-  grid-column: 4;
-  grid-row: 1;
-}
-
-#programming-bulk-installation {
-  min-width: 220px;
-}
-
-.programming-bulk-assignment-panel label:has(#programming-bulk-installation) {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-#programming-bulk-clear-installation-button {
-  grid-column: 2;
-  grid-row: 2;
-}
-
-#programming-bulk-installation-button {
-  grid-column: 3;
-  grid-row: 2;
-}
-
-#programming-open-unmatched-installation-button {
-  grid-column: 4;
-  grid-row: 2;
-}
-
-#programming-bulk-assign-count {
-  grid-column: 5;
-  grid-row: 1 / span 2;
-  align-self: center;
-}
-
-.programming-personnel-form label,
-.programming-bulk-assignment-panel label {
+.programming-personnel-form label {
   font-size: 0.72rem;
 }
 
-.programming-personnel-form input,
-.programming-bulk-assignment-panel input,
-.programming-bulk-assignment-panel select {
+.programming-personnel-form input {
   padding: 7px 9px;
 }
 
-.programming-personnel-form button,
-.programming-bulk-assignment-panel button {
+.programming-personnel-form button {
   margin-top: 0;
   padding: 4px 10px;
   font-size: 0.8rem;
   min-height: 28px;
-}
-
-.programming-bulk-assignment-panel .compact-button {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  min-height: 28px;
-  padding: 0;
-  font-size: 0.9rem;
-  line-height: 1;
 }
 
 .contracts-bulk-assignment-panel,
@@ -2446,90 +2368,6 @@ button.records-ausencia-chip:hover {
 
 #events-records-generation-form select {
   width: 100%;
-}
-
-.programming-unmatched-summary {
-  margin: 12px 0;
-  color: var(--muted);
-  font-weight: 700;
-}
-
-.programming-unmatched-table {
-  display: grid;
-  gap: 8px;
-  margin: 14px 0;
-}
-
-.programming-unmatched-table-header,
-.programming-unmatched-row {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) 92px minmax(220px, 1.2fr) 36px;
-  align-items: center;
-  gap: 10px;
-}
-
-.programming-unmatched-table-header {
-  padding: 0 10px;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.programming-unmatched-list {
-  display: grid;
-  align-content: start;
-  gap: 8px;
-  max-height: 58vh;
-  overflow: auto;
-}
-
-.programming-unmatched-row {
-  min-height: 54px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.programming-unmatched-source,
-.programming-unmatched-proposal {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.programming-unmatched-source span,
-.programming-unmatched-proposal span {
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
-.programming-unmatched-proposal select {
-  width: 100%;
-  min-width: 0;
-}
-
-.programming-unmatched-accept-button {
-  min-height: 28px;
-  padding: 0 10px;
-}
-
-.programming-unmatched-delete-button {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  min-height: 28px;
-  padding: 0;
-}
-
-.programming-unmatched-row > span {
-  display: none;
-}
-
-.programming-unmatched-row.is-missing-proposal {
-  border-color: #fecaca;
-  background: #fef2f2;
 }
 
 .programming-personnel-list {
@@ -3801,7 +3639,13 @@ button.tag-chip.warm-button:hover {
 /* Programación (pestaña): fecha/instalación/deporte estrechos, personal y
    buscar actividad anchos. */
 .private-tab-panel #programming-filters-form.records-filters-compact {
-  grid-template-columns: 130px 160px minmax(160px, 1fr) 140px minmax(200px, 1fr) auto;
+  grid-template-columns: 134px 134px 160px minmax(160px, 1fr) 140px minmax(200px, 1fr);
+}
+
+@container (min-width: 1000px) {
+  .private-tab-panel #programming-filters-form.records-filters-compact {
+    grid-template-columns: 134px 134px 160px minmax(160px, 1fr) 140px minmax(200px, 1fr) !important;
+  }
 }
 
 /* Concilia integrado: mismas proporciones que sus equivalentes standalone
@@ -4090,7 +3934,9 @@ button.tag-chip.warm-button:hover {
   font-weight: 600;
 }
 
-#records-person-report-backdrop {
+#records-person-report-backdrop,
+#programming-person-report-backdrop,
+#programming-report-preview-backdrop {
   z-index: 80;
   background: rgba(244, 246, 249, 0.72);
 }
@@ -5299,6 +5145,7 @@ th {
 #contabilidad-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
 #banco-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
 #resultados-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
+#programming-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button,
 #conciliacion-filters-form .filter-control-row:has(> input[type="date"]) .filter-reset-button {
   right: 6px;
 }
@@ -5331,6 +5178,7 @@ th {
 #contabilidad-filters-form .filter-control-row:has(> input[type="date"]),
 #banco-filters-form .filter-control-row:has(> input[type="date"]),
 #resultados-filters-form .filter-control-row:has(> input[type="date"]),
+#programming-filters-form .filter-control-row:has(> input[type="date"]),
 #conciliacion-filters-form .filter-control-row:has(> input[type="date"]) {
   max-width: 134px;
 }
@@ -5352,6 +5200,7 @@ th {
 #contabilidad-filters-form input[type="date"],
 #banco-filters-form input[type="date"],
 #resultados-filters-form input[type="date"],
+#programming-filters-form input[type="date"],
 #conciliacion-filters-form input[type="date"] {
   padding-right: 32px;
 }
@@ -6992,46 +6841,12 @@ th {
     flex-direction: row;
   }
 
-  .programming-unmatched-table-header {
-    display: none;
-  }
-
-  .programming-unmatched-row {
-    grid-template-columns: 1fr auto auto;
-  }
-
-  .programming-unmatched-proposal {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-
-  .programming-bulk-assignment-panel {
-    grid-template-columns: 1fr auto;
-  }
-
   .contracts-bulk-assignment-panel,
   .activities-bulk-assignment-panel,
   .activities-records-generation-panel,
   #events-records-generation-form {
     grid-template-columns: 1fr;
     min-width: min(320px, calc(100vw - 48px));
-  }
-
-  .programming-bulk-assignment-panel label:has(#programming-bulk-personal),
-  .programming-bulk-assignment-panel label:has(#programming-bulk-installation),
-  #programming-bulk-clear-personal-button,
-  #programming-bulk-assign-button,
-  #programming-open-unmatched-personnel-button,
-  #programming-bulk-clear-installation-button,
-  #programming-bulk-installation-button,
-  #programming-open-unmatched-installation-button,
-  #programming-bulk-assign-count {
-    grid-column: auto;
-    grid-row: auto;
-  }
-
-  #programming-bulk-assign-count {
-    align-self: start;
   }
 
   .main-panel {
@@ -9318,3 +9133,21 @@ input[data-percent].pct-input--warn {
 
 /* Listas de sugerencias: opción resaltada con el teclado (suggest-keyboard.js). */
 .filter-suggestion-option.is-active { background: rgba(37, 99, 235, 0.14); font-weight: 600; }
+
+/* Informe individual de Programación: una fila por día e instalación, con el
+   horario unido (entrada–salida) y debajo el desglose de actividades. */
+.programming-person-report-table td { white-space: normal; vertical-align: top; }
+.programming-person-report-table td.programming-person-report-day { vertical-align: middle; border-right: 1px solid var(--line, #e5e7eb); white-space: nowrap; }
+.programming-person-report-table td.programming-person-report-time { white-space: nowrap; font-weight: 700; }
+.programming-person-report-activities { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; }
+.programming-person-report-activities .programming-person-report-activity-time { display: inline-block; min-width: 92px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Programación: sin paginación, la tabla desplaza dentro de su marco (como Registros) con la cabecera fija. */
+.programming-table.records-table { min-width: 1100px; }
+.programming-table.records-table thead th { position: sticky; top: 0; z-index: 3; background: var(--panel-strong, #f1f5f9); }
+
+.programming-results-toolbar .records-actions-column .results-actions { margin-left: 0; }
+.programming-results-toolbar .records-actions-column { margin-left: auto; }
+
+.programming-report-preview-table td { white-space: normal; vertical-align: top; }
+.programming-report-preview-table td.programming-report-preview-nowrap { white-space: nowrap; }
