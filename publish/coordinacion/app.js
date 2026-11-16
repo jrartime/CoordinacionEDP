@@ -31572,7 +31572,16 @@ const WHATSAPP_TEMPLATE_FIELDS = [
   { key: "nombre_completo", label: "Nombre completo de la persona" },
   { key: "saludo", label: "Saludo según la hora (Buenos días / Buenas tardes / Buenas noches)" },
   { key: "remitente", label: "Nombre de quien envía" },
+  { key: "bienvenido", label: "Bienvenido / Bienvenida (según el género; sin dato: bienvenido/a)" },
 ];
+
+// Género de la ficha: M/Mujer → femenino, H/Hombre → masculino; sin dato, forma neutra.
+function getWhatsappBienvenida(person) {
+  const genero = String(person?.genero ?? "").trim().toLowerCase();
+  if (genero.startsWith("m")) return "bienvenida";
+  if (genero.startsWith("h")) return "bienvenido";
+  return "bienvenido/a";
+}
 
 function getWhatsappGreeting() {
   const hour = new Date().getHours();
@@ -31598,6 +31607,7 @@ function fillWhatsappPlaceholders(text, person) {
   const full = getPersonalDisplayName(person);
   const first = String(person?.nombre || "").trim() || full.split(/\s+/)[0] || "";
   return String(text ?? "")
+    .replace(/\{\{\s*bienvenido\s*\}\}/gi, getWhatsappBienvenida(person))
     .replace(/\{\{\s*saludo\s*\}\}/gi, getWhatsappGreeting())
     .replace(/\{\{\s*remitente\s*\}\}/gi, personalWhatsappSenderName)
     .replace(/\{\{\s*nombre_completo\s*\}\}/gi, full)
