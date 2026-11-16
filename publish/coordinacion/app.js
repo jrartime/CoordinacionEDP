@@ -1729,6 +1729,7 @@ const personalDetailMeta = document.querySelector("#personal-detail-meta");
 const personalForm = document.querySelector("#personal-form");
 const personalDetailPanelEl = document.querySelector(".personal-detail-panel");
 const personalHistorialButton = document.querySelector("#personal-historial-button");
+const personalWhatsappButton = document.querySelector("#personal-whatsapp-button");
 const personalHistorialPanel = document.querySelector("#personal-historial-panel");
 const personalHistorialOverlay = document.querySelector("#personal-historial-overlay");
 const personalHistorialTitle = document.querySelector("#personal-historial-title");
@@ -12284,6 +12285,7 @@ function setPersonalDetailState({ empty, historial }) {
   personalDetailPanelEl?.classList.toggle("personal-detail-empty", empty);
   const canSeeHistorial = Boolean(historial) && window.CoordinacionHistorial?.canAccess?.() === true;
   personalHistorialButton?.classList.toggle("hidden", !canSeeHistorial);
+  personalWhatsappButton?.classList.toggle("hidden", !historial);
 }
 
 function selectPersonal(personalId) {
@@ -31546,6 +31548,343 @@ function closePersonalHistorialPanel() {
   personalHistorialToken += 1;
   personalHistorialPersonalId = null;
 }
+
+// --- Pestaña Personal: panel WhatsApp (texto libre o mensaje prediseñado) ---
+// Los mensajes prediseñados viven en coordinacion.whatsapp_plantillas (compartida con
+// portal-laboral). Se abre el chat de la persona con wa.me/<móvil>?text=<mensaje>: el
+// mensaje llega escrito y solo hay que pulsar enviar en WhatsApp.
+const personalWhatsappDialog = document.querySelector("#personal-whatsapp-dialog");
+const personalWhatsappTitle = document.querySelector("#personal-whatsapp-title");
+const personalWhatsappPhone = document.querySelector("#personal-whatsapp-phone");
+const personalWhatsappText = document.querySelector("#personal-whatsapp-text");
+const personalWhatsappTemplateSelect = document.querySelector("#personal-whatsapp-template");
+const personalWhatsappTemplatePreview = document.querySelector("#personal-whatsapp-template-preview");
+const personalWhatsappTemplateForm = document.querySelector("#personal-whatsapp-template-form");
+let personalWhatsappPerson = null;
+let personalWhatsappTemplates = [];
+let personalWhatsappEditingId = null; // null = alta nueva
+
+let personalWhatsappSenderName = "";
+
+// Campos que se pueden insertar en las plantillas ({{campo}}).
+const WHATSAPP_TEMPLATE_FIELDS = [
+  { key: "nombre", label: "Nombre de la persona" },
+  { key: "nombre_completo", label: "Nombre completo de la persona" },
+  { key: "saludo", label: "Saludo según la hora (Buenos días / Buenas tardes / Buenas noches)" },
+  { key: "remitente", label: "Nombre de quien envía" },
+];
+
+function getWhatsappGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 14) return "Buenos días";
+  if (hour < 21) return "Buenas tardes";
+  return "Buenas noches";
+}
+
+async function loadPersonalWhatsappSender() {
+  try {
+    const userId = currentSession?.user?.id;
+    if (!userId) return;
+    const supabase = await getSupabaseClient();
+    const { data } = await supabase.from("coordinacion_usuarios").select("nombre").eq("user_id", userId).maybeSingle();
+    personalWhatsappSenderName = String(data?.nombre || "").trim();
+  } catch (error) {
+    personalWhatsappSenderName = "";
+  }
+  refreshPersonalWhatsappTemplateState();
+}
+
+function fillWhatsappPlaceholders(text, person) {
+  const full = getPersonalDisplayName(person);
+  const first = String(person?.nombre || "").trim() || full.split(/\s+/)[0] || "";
+  return String(text ?? "")
+    .replace(/\{\{\s*saludo\s*\}\}/gi, getWhatsappGreeting())
+    .replace(/\{\{\s*remitente\s*\}\}/gi, personalWhatsappSenderName)
+    .replace(/\{\{\s*nombre_completo\s*\}\}/gi, full)
+    .replace(/\{\{\s*nombre\s*\}\}/gi, first);
+}
+
+function getSelectedWhatsappTemplate() {
+  const id = personalWhatsappTemplateSelect?.value;
+  return personalWhatsappTemplates.find((item) => String(item.id) === String(id)) || null;
+}
+
+function renderPersonalWhatsappTemplates(selectedId = null) {
+  if (!personalWhatsappTemplateSelect) return;
+  personalWhatsappTemplateSelect.innerHTML = personalWhatsappTemplates.length
+    ? personalWhatsappTemplates
+        .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.titulo)}</option>`)
+        .join("")
+    : '<option value="">(No hay mensajes prediseñados)</option>';
+  if (selectedId !== null) personalWhatsappTemplateSelect.value = String(selectedId);
+  refreshPersonalWhatsappTemplateState();
+}
+
+function refreshPersonalWhatsappTemplateState() {
+  const template = getSelectedWhatsappTemplate();
+  if (personalWhatsappTemplatePreview) {
+    personalWhatsappTemplatePreview.textContent = template
+      ? fillWhatsappPlaceholders(template.texto, personalWhatsappPerson)
+      : "";
+  }
+  ["send", "use", "edit", "delete"].forEach((suffix) => {
+    const button = document.querySelector(`#personal-whatsapp-template-${suffix}`);
+    if (button) button.disabled = !template;
+  });
+}
+
+async function loadPersonalWhatsappTemplates(selectedId = null) {
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("whatsapp_plantillas")
+      .select("id, titulo, texto, orden")
+      .order("orden", { ascending: true })
+      .order("titulo", { ascending: true });
+    if (error) throw error;
+    personalWhatsappTemplates = data || [];
+  } catch (error) {
+    personalWhatsappTemplates = [];
+    showPublicToastMessage(`No se pudieron cargar los mensajes prediseñados: ${error?.message || error}`);
+  }
+  renderPersonalWhatsappTemplates(selectedId);
+}
+
+function closePersonalWhatsappTemplateForm() {
+  personalWhatsappEditingId = null;
+  personalWhatsappTemplateForm?.classList.add("hidden");
+  personalWhatsappTemplateForm?.reset();
+}
+
+function openPersonalWhatsappTemplateForm(template) {
+  if (!personalWhatsappTemplateForm) return;
+  personalWhatsappEditingId = template ? template.id : null;
+  personalWhatsappTemplateForm.elements.titulo.value = template?.titulo ?? "";
+  personalWhatsappTemplateForm.elements.texto.value = template ? template.texto : personalWhatsappText?.value ?? "";
+  personalWhatsappTemplateForm.classList.remove("hidden");
+  personalWhatsappTemplateForm.elements.titulo.focus();
+}
+
+function openPersonalWhatsappPanel() {
+  const row = currentPersonalRows.find((item) => String(item.id) === String(currentSelectedPersonalId));
+  if (!row || !personalWhatsappDialog) return;
+  personalWhatsappPerson = row;
+  const phone = normalizeWhatsappPhone(row.movil, row.telefono);
+  if (personalWhatsappTitle) personalWhatsappTitle.textContent = `WhatsApp a ${getPersonalDisplayName(row)}`;
+  if (personalWhatsappPhone) {
+    personalWhatsappPhone.textContent = phone
+      ? `Móvil: +${phone}`
+      : "Esta persona no tiene un móvil válido en su ficha: no se puede enviar.";
+  }
+  if (personalWhatsappText) personalWhatsappText.value = "";
+  closePersonalWhatsappTemplateForm();
+  if (!personalWhatsappDialog.open) personalWhatsappDialog.showModal();
+  void loadPersonalWhatsappTemplates();
+  void loadPersonalWhatsappSender();
+  const historySearch = document.querySelector("#personal-whatsapp-history-search");
+  if (historySearch) historySearch.value = "";
+  void loadPersonalWhatsappHistory();
+}
+
+let personalWhatsappHistoryRows = [];
+
+function formatWhatsappHistoryDate(value) {
+  return new Date(value).toLocaleString("es-ES", {
+    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+// Lista de fechas y horas; cada una se expande al pulsar. El buscador filtra por texto,
+// plantilla, autor y fecha entre todos los mensajes cargados de la persona.
+function renderPersonalWhatsappHistory() {
+  const box = document.querySelector("#personal-whatsapp-history");
+  if (!box) return;
+  const query = String(document.querySelector("#personal-whatsapp-history-search")?.value || "")
+    .trim()
+    .toLowerCase();
+  const rows = personalWhatsappHistoryRows.filter((item) => {
+    if (!query) return true;
+    return [item.texto, item.plantilla_titulo, item.enviado_por_nombre, formatWhatsappHistoryDate(item.created_at)]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+  });
+  if (!rows.length) {
+    box.innerHTML = `<p class="muted-text">${
+      personalWhatsappHistoryRows.length ? "Ningún mensaje coincide con la búsqueda." : "Todavía no se le ha enviado ningún mensaje."
+    }</p>`;
+    return;
+  }
+  box.innerHTML = rows
+    .map((item) => {
+      const meta = [item.plantilla_titulo ? `«${item.plantilla_titulo}»` : "", item.enviado_por_nombre]
+        .filter(Boolean)
+        .join(" · ");
+      return `<details class="personal-whatsapp-history-item"${query ? " open" : ""}><summary>${escapeHtml(
+        formatWhatsappHistoryDate(item.created_at)
+      )}${meta ? ` <span class="muted-text">· ${escapeHtml(meta)}</span>` : ""}</summary><p>${escapeHtml(item.texto)}</p></details>`;
+    })
+    .join("");
+}
+
+async function loadPersonalWhatsappHistory() {
+  const box = document.querySelector("#personal-whatsapp-history");
+  const person = personalWhatsappPerson;
+  if (!box || !person) return;
+  box.innerHTML = '<p class="muted-text">Cargando…</p>';
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from("whatsapp_envios")
+      .select("id, texto, plantilla_titulo, enviado_por_nombre, created_at")
+      .eq("personal_id", person.id)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    if (person !== personalWhatsappPerson) return;
+    personalWhatsappHistoryRows = data || [];
+    renderPersonalWhatsappHistory();
+  } catch (error) {
+    box.innerHTML = `<p class="muted-text">No se pudo cargar el historial: ${escapeHtml(error?.message || String(error))}</p>`;
+  }
+}
+
+document.querySelector("#personal-whatsapp-history-search")?.addEventListener("input", renderPersonalWhatsappHistory);
+
+async function logPersonalWhatsappSent(person, phone, message, plantillaTitulo) {
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.from("whatsapp_envios").insert({
+      personal_id: person.id,
+      texto: message,
+      telefono: phone,
+      plantilla_titulo: plantillaTitulo || null,
+    });
+    if (error) throw error;
+  } catch (error) {
+    showPublicToastMessage(`El mensaje se abrió, pero no se pudo anotar en el historial: ${error?.message || error}`);
+    return;
+  }
+  if (person === personalWhatsappPerson) void loadPersonalWhatsappHistory();
+}
+
+// Abre el chat de la persona con el texto ya escrito y lo anota en el historial.
+function sendPersonalWhatsapp(text, plantillaTitulo = null) {
+  const message = String(text ?? "").trim();
+  if (!personalWhatsappPerson) return;
+  if (!message) {
+    showPublicToastMessage("Escribe o elige un mensaje antes de enviar.");
+    return;
+  }
+  const phone = normalizeWhatsappPhone(personalWhatsappPerson.movil, personalWhatsappPerson.telefono);
+  if (!phone) {
+    showPublicToastMessage("Esta persona no tiene un móvil válido en su ficha.");
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  link.target = "_blank";
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  showPublicToastMessage("Se abre WhatsApp con el mensaje escrito: pulsa enviar allí.");
+  void logPersonalWhatsappSent(personalWhatsappPerson, phone, message, plantillaTitulo);
+}
+
+async function savePersonalWhatsappTemplate(event) {
+  event.preventDefault();
+  const form = personalWhatsappTemplateForm;
+  const titulo = form.elements.titulo.value.trim();
+  const texto = form.elements.texto.value.trim();
+  if (!titulo || !texto) return;
+  try {
+    const supabase = await getSupabaseClient();
+    let savedId = personalWhatsappEditingId;
+    if (savedId) {
+      const { error } = await supabase.from("whatsapp_plantillas").update({ titulo, texto }).eq("id", savedId);
+      if (error) throw error;
+    } else {
+      const { data, error } = await supabase
+        .from("whatsapp_plantillas")
+        .insert({ titulo, texto })
+        .select("id")
+        .single();
+      if (error) throw error;
+      savedId = data.id;
+    }
+    closePersonalWhatsappTemplateForm();
+    await loadPersonalWhatsappTemplates(savedId);
+    showPublicToastMessage("Mensaje guardado.");
+  } catch (error) {
+    showPublicToastMessage(`No se pudo guardar el mensaje: ${error?.message || error}`);
+  }
+}
+
+async function deletePersonalWhatsappTemplate() {
+  const template = getSelectedWhatsappTemplate();
+  if (!template) return;
+  if (!window.confirm(`¿Eliminar el mensaje «${template.titulo}»? Dejará de estar disponible para todos.`)) return;
+  try {
+    const supabase = await getSupabaseClient();
+    const { error } = await supabase.from("whatsapp_plantillas").delete().eq("id", template.id);
+    if (error) throw error;
+    closePersonalWhatsappTemplateForm();
+    await loadPersonalWhatsappTemplates();
+    showPublicToastMessage("Mensaje eliminado.");
+  } catch (error) {
+    showPublicToastMessage(`No se pudo eliminar el mensaje: ${error?.message || error}`);
+  }
+}
+
+personalWhatsappButton?.addEventListener("click", openPersonalWhatsappPanel);
+document.querySelector("#personal-whatsapp-close")?.addEventListener("click", () => personalWhatsappDialog?.close());
+document.querySelector("#personal-whatsapp-send")?.addEventListener("click", () => {
+  sendPersonalWhatsapp(personalWhatsappText?.value);
+});
+document.querySelector("#personal-whatsapp-template-send")?.addEventListener("click", () => {
+  const template = getSelectedWhatsappTemplate();
+  if (template) sendPersonalWhatsapp(fillWhatsappPlaceholders(template.texto, personalWhatsappPerson), template.titulo);
+});
+document.querySelector("#personal-whatsapp-template-use")?.addEventListener("click", () => {
+  const template = getSelectedWhatsappTemplate();
+  if (template && personalWhatsappText) {
+    personalWhatsappText.value = fillWhatsappPlaceholders(template.texto, personalWhatsappPerson);
+    personalWhatsappText.focus();
+  }
+});
+document.querySelector("#personal-whatsapp-template-new")?.addEventListener("click", () => {
+  openPersonalWhatsappTemplateForm(null);
+});
+document.querySelector("#personal-whatsapp-template-edit")?.addEventListener("click", () => {
+  const template = getSelectedWhatsappTemplate();
+  if (template) openPersonalWhatsappTemplateForm(template);
+});
+document.querySelector("#personal-whatsapp-template-delete")?.addEventListener("click", () => {
+  void deletePersonalWhatsappTemplate();
+});
+document.querySelector("#personal-whatsapp-template-cancel")?.addEventListener("click", closePersonalWhatsappTemplateForm);
+personalWhatsappTemplateSelect?.addEventListener("change", refreshPersonalWhatsappTemplateState);
+const personalWhatsappFieldSelect = document.querySelector("#personal-whatsapp-template-field");
+if (personalWhatsappFieldSelect) {
+  personalWhatsappFieldSelect.innerHTML =
+    '<option value="">Insertar campo…</option>' +
+    WHATSAPP_TEMPLATE_FIELDS.map((f) => `<option value="${f.key}">${escapeHtml(f.label)}</option>`).join("");
+  personalWhatsappFieldSelect.addEventListener("change", () => {
+    const key = personalWhatsappFieldSelect.value;
+    personalWhatsappFieldSelect.value = "";
+    const area = personalWhatsappTemplateForm?.elements.texto;
+    if (!key || !area) return;
+    const token = `{{${key}}}`;
+    const start = area.selectionStart ?? area.value.length;
+    const end = area.selectionEnd ?? start;
+    area.value = area.value.slice(0, start) + token + area.value.slice(end);
+    area.focus();
+    area.setSelectionRange(start + token.length, start + token.length);
+  });
+}
+personalWhatsappTemplateForm?.addEventListener("submit", (event) => void savePersonalWhatsappTemplate(event));
 
 // La persona marcada en el listado, para el panel de reconocimientos médicos
 // (reconocimientos.js).
