@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261025-1" />
-    <link rel="stylesheet" href="./styles.css?v=20261116-1" />
+    <link rel="stylesheet" href="./styles.css?v=20261116-2" />
   </head>
   <body>
     <script>
@@ -4199,6 +4199,36 @@
                     <span>Solo con CV adjunto</span>
                   </label>
                 </form>
+
+                <details id="candidates-bulk-zone" class="programming-panel-zone">
+                  <summary>Asignación/borrado masivo</summary>
+                  <div class="activities-bulk-assignment-panel">
+                    <p class="bulk-action-help">
+                      Pulsa Seleccionar para mostrar los ticks y marca expresamente las candidaturas.
+                      Aplicar y Borrar sólo actuarán sobre las candidaturas seleccionadas.
+                    </p>
+                    <button id="candidates-bulk-select-button" type="button" class="secondary-button">
+                      Seleccionar
+                    </button>
+                    <label>
+                      Campo
+                      <select id="candidates-bulk-field"></select>
+                    </label>
+                    <label>
+                      Nuevo valor
+                      <select id="candidates-bulk-value"></select>
+                    </label>
+                    <button id="candidates-bulk-apply-button" type="button" disabled>
+                      Aplicar
+                    </button>
+                    <button id="candidates-bulk-delete-button" type="button" class="danger-button" disabled>
+                      Borrar seleccionadas
+                    </button>
+                    <span id="candidates-bulk-selection-count" class="control-selected-delete-count">
+                      0 seleccionadas
+                    </span>
+                  </div>
+                </details>
 
                 <div class="table-wrapper">
                   <table id="candidates-table">
@@ -10496,7 +10526,7 @@
     <script src="./facturacion.js?v=20261112-4" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./app.js?v=20261116-1" defer></script>
+    <script src="./app.js?v=20261116-2" defer></script>
     <script src="./programacion-carga.js?v=20261114-1" defer></script>
   </body>
 </html>

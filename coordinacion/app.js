@@ -3350,6 +3350,139 @@ function syncSelectionUi(visibleRows = []) {
       : "Activa la selección para elegir candidaturas";
   }
   candidatesSelectHeader?.classList.toggle("hidden", !candidatesSelectionMode);
+  syncCandidatesBulkUi();
+}
+
+function syncCandidatesBulkUi() {
+  const bulkSelectButton = document.querySelector("#candidates-bulk-select-button");
+  if (!bulkSelectButton) {
+    return;
+  }
+  const count = selectedCandidateIds.size;
+  bulkSelectButton.textContent = candidatesSelectionMode ? "Cancelar selección" : "Seleccionar";
+  document.querySelector("#candidates-bulk-selection-count").textContent = `${count} seleccionadas`;
+  document.querySelector("#candidates-bulk-delete-button").disabled = count === 0;
+  document.querySelector("#candidates-bulk-apply-button").disabled =
+    count === 0 || !document.querySelector("#candidates-bulk-value").value;
+}
+
+// --- Asignación/borrado masivo de candidaturas ---
+
+function getCandidateBulkFields() {
+  return [
+    { field: "candidate_status", label: "Estado", options: CANDIDATE_STATUS_OPTIONS.map((value) => [value]) },
+    ...CANDIDATE_CV_TRACKING,
+  ];
+}
+
+function renderCandidatesBulkValueOptions() {
+  const field = document.querySelector("#candidates-bulk-field").value;
+  const group = getCandidateBulkFields().find((item) => item.field === field);
+  const valueSelect = document.querySelector("#candidates-bulk-value");
+  const clearOption =
+    field === "candidate_status" ? "" : '<option value="__clear__">(Vaciar campo)</option>';
+  valueSelect.innerHTML =
+    '<option value="">Elige un valor</option>' +
+    clearOption +
+    (group?.options ?? [])
+      .map(([value, text]) => `<option value="${escapeHtml(value)}" title="${escapeHtml(text || "")}">${escapeHtml(value)}</option>`)
+      .join("");
+  syncCandidatesBulkUi();
+}
+
+function initCandidatesBulkPanel() {
+  const fieldSelect = document.querySelector("#candidates-bulk-field");
+  if (!fieldSelect) {
+    return;
+  }
+  fieldSelect.innerHTML = getCandidateBulkFields()
+    .map((group) => `<option value="${group.field}">${escapeHtml(group.label)}</option>`)
+    .join("");
+  renderCandidatesBulkValueOptions();
+  fieldSelect.addEventListener("change", renderCandidatesBulkValueOptions);
+  document.querySelector("#candidates-bulk-value").addEventListener("change", syncCandidatesBulkUi);
+  document.querySelector("#candidates-bulk-select-button").addEventListener("click", () => {
+    candidatesSelectionToggleButton?.click();
+  });
+  document.querySelector("#candidates-bulk-apply-button").addEventListener("click", () => {
+    void applyCandidatesBulkChange();
+  });
+  document.querySelector("#candidates-bulk-delete-button").addEventListener("click", () => {
+    void deleteSelectedCandidates();
+  });
+}
+
+async function applyCandidatesBulkChange() {
+  const ids = [...selectedCandidateIds];
+  const field = document.querySelector("#candidates-bulk-field").value;
+  const rawValue = document.querySelector("#candidates-bulk-value").value;
+  if (!ids.length || !rawValue) {
+    return;
+  }
+  const group = getCandidateBulkFields().find((item) => item.field === field);
+  const value = rawValue === "__clear__" ? null : rawValue;
+  const shown = value === null ? "vacío" : `«${value}»`;
+  if (
+    !window.confirm(
+      `Vas a poner ${group.label} = ${shown} en ${ids.length} candidatura(s) seleccionada(s).`
+    )
+  ) {
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from("candidates").update({ [field]: value }).in("id", ids);
+  if (error) {
+    setStatus(`No se pudo aplicar el cambio masivo: ${error.message}`, "error");
+    return;
+  }
+  currentCandidates.forEach((candidate) => {
+    if (selectedCandidateIds.has(candidate.id)) {
+      candidate[field] = value;
+    }
+  });
+  renderCandidates(getVisibleCandidates());
+  setStatus(`${group.label} actualizado en ${ids.length} candidatura(s).`, "success");
+}
+
+async function deleteSelectedCandidates() {
+  const targets = currentCandidates.filter((candidate) => selectedCandidateIds.has(candidate.id));
+  if (!targets.length) {
+    return;
+  }
+  if (
+    !window.confirm(
+      `Vas a borrar ${targets.length} candidatura(s) y sus currículos adjuntos. Esta acción no se puede deshacer.`
+    )
+  ) {
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const paths = targets.map((candidate) => candidate.attachment_path).filter(Boolean);
+  if (paths.length) {
+    const { error: storageError } = await supabase.storage.from(supabaseConfig.bucket).remove(paths);
+    if (storageError) {
+      setStatus(`No se pudieron borrar los CV adjuntos: ${storageError.message}`, "error");
+      return;
+    }
+  }
+  const { error } = await supabase
+    .from("candidates")
+    .delete()
+    .in("id", targets.map((candidate) => candidate.id));
+  if (error) {
+    setStatus(`No se pudieron borrar las candidaturas: ${error.message}`, "error");
+    return;
+  }
+
+  selectedCandidateIds.clear();
+  if (targets.some((candidate) => candidate.id === detailIdInput.value)) {
+    closeCandidateDetail({ force: true });
+  }
+  invalidateCandidateFilterOptions();
+  await fetchCandidates();
+  setStatus(`${targets.length} candidatura(s) borrada(s).`, "success");
 }
 
 function renderCandidateClampedCell(value) {
@@ -38407,6 +38540,7 @@ async function init() {
     "public_sport_specialties"
   );
   syncTagsUi();
+  initCandidatesBulkPanel();
   renderFilterOptions();
   renderProgrammingPersonnelUi();
   applyCandidateFilters();

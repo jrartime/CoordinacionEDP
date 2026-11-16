@@ -2212,6 +2212,20 @@ button.records-ausencia-chip:hover {
     auto;
 }
 
+#candidates-bulk-zone .activities-bulk-assignment-panel {
+  grid-template-columns:
+    auto
+    minmax(140px, 0.7fr)
+    minmax(220px, 1.3fr)
+    auto
+    auto
+    auto;
+}
+
+#candidates-bulk-zone .bulk-action-help {
+  grid-column: 1 / -1;
+}
+
 .contracts-bulk-assignment-panel label,
 .activities-bulk-assignment-panel label {
   font-size: 0.72rem;
