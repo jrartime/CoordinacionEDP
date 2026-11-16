@@ -4545,6 +4545,32 @@ button.tag-chip.warm-button:hover {
   background: #fffbeb;
 }
 
+.candidate-interes-button {
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: #92400e;
+}
+
+.candidate-interes-button.is-active {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.candidate-interes-chip {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .new-candidate-pill {
   display: inline-flex;
   align-items: center;

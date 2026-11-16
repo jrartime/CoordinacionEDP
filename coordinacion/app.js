@@ -858,6 +858,7 @@ const CANDIDATE_SELECT_COLUMNS = [
   "cv_disponibilidad",
   "cv_estado_general",
   "cv_notas",
+  "candidates_interes(user_id, user_nombre, created_at)",
 ].join(", ");
 
 const CANDIDATE_CV_TRACKING = [
@@ -3404,9 +3405,22 @@ function renderCandidates(rows) {
             truncateForTooltip(row.observations)
           )}</button>`
         : "";
-      const nameMarkup = isUnread
-        ? `<strong>${escapeHtml(row.full_name)}</strong><span class="new-candidate-pill">Nueva</span>`
-        : escapeHtml(row.full_name);
+      const myUserId = currentSession?.user?.id;
+      const interesMarks = getCandidateInteres(row);
+      const isMyInteres = interesMarks.some((mark) => mark.user_id === myUserId);
+      const otherInteres = interesMarks.filter((mark) => mark.user_id !== myUserId);
+      const interesChips = otherInteres
+        .map(
+          (mark) =>
+            `<span class="candidate-interes-chip" title="${escapeHtml(
+              `Marcada como interesante por ${mark.user_nombre || "otro usuario"}`
+            )}">&#9733; ${escapeHtml(mark.user_nombre || "?")}</span>`
+        )
+        .join("");
+      const nameMarkup =
+        (isUnread
+          ? `<strong>${escapeHtml(row.full_name)}</strong><span class="new-candidate-pill">Nueva</span>`
+          : escapeHtml(row.full_name)) + interesChips;
       const statusOptionsHtml = CANDIDATE_STATUS_OPTIONS.map(
         (option) =>
           `<option value="${escapeHtml(option)}" ${option === status ? "selected" : ""}>${escapeHtml(option)}</option>`
@@ -3437,6 +3451,13 @@ function renderCandidates(rows) {
                 ${isExpanded ? "&#9652;" : "&#9662;"}
               </button>
               <button type="button" class="secondary-button table-action" data-view-id="${escapeHtml(row.id)}">Ver</button>
+              <button
+                type="button"
+                class="secondary-button candidate-interes-button ${isMyInteres ? "is-active" : ""}"
+                data-candidate-interes-id="${escapeHtml(row.id)}"
+                aria-pressed="${String(isMyInteres)}"
+                title="${isMyInteres ? "Quitar mi marca de interés" : "Marcar como interesante (lo verán los demás)"}"
+              >${isMyInteres ? "&#9733;" : "&#9734;"}</button>
             </div>
           </td>
           <td>${renderCandidateClampedCell(row.registration_date || "")}</td>
@@ -4744,7 +4765,60 @@ function buildCandidateFilters() {
     dateFrom: filterDateFromInput.value,
     dateTo: filterDateToInput.value,
     hasCv: filterHasCvInput.checked,
+    interes: filtersForm?.elements?.interes?.value || "",
+    interesIds: null,
   };
+}
+
+// Filtro por marcas de interés: se resuelve antes en una consulta propia a las marcas.
+async function resolveCandidateInteresFilter(filters) {
+  if (!filters.interes) {
+    return filters;
+  }
+  const supabase = await getSupabaseClient();
+  const myId = currentSession?.user?.id;
+  let query = supabase.from("candidates_interes").select("candidate_id");
+  if (filters.interes === "mine") {
+    query = query.eq("user_id", myId);
+  } else if (filters.interes === "others") {
+    query = query.neq("user_id", myId);
+  }
+  const { data, error } = await query.limit(5000);
+  if (error) {
+    throw error;
+  }
+  filters.interesIds = [...new Set((data ?? []).map((row) => row.candidate_id))];
+  return filters;
+}
+
+function getCandidateInteres(candidate) {
+  return Array.isArray(candidate.candidates_interes) ? candidate.candidates_interes : [];
+}
+
+async function toggleCandidateInteres(candidateId) {
+  const candidate = getCandidateById(candidateId);
+  const myId = currentSession?.user?.id;
+  if (!candidate || !myId) {
+    return;
+  }
+  const supabase = await getSupabaseClient();
+  const marks = getCandidateInteres(candidate);
+  const mine = marks.some((mark) => mark.user_id === myId);
+  const { error } = mine
+    ? await supabase.from("candidates_interes").delete().eq("candidate_id", candidateId).eq("user_id", myId)
+    : await supabase.from("candidates_interes").insert({ candidate_id: candidateId, user_id: myId });
+  if (error) {
+    setStatus(`No se pudo actualizar la marca de interés: ${error.message}`, "error");
+    return;
+  }
+  // Releer solo las marcas de esta candidatura (trae el nombre que fija el trigger).
+  const { data } = await supabase
+    .from("candidates_interes")
+    .select("user_id, user_nombre, created_at")
+    .eq("candidate_id", candidateId)
+    .order("created_at", { ascending: true });
+  candidate.candidates_interes = data ?? [];
+  renderCandidates(getVisibleCandidates());
 }
 
 function applyCandidateFiltersToQuery(query, filters, options = {}) {
@@ -4785,6 +4859,13 @@ function applyCandidateFiltersToQuery(query, filters, options = {}) {
 
   if (filters.hasCv) {
     query = query.not("attachment_name", "is", null);
+  }
+
+  if (filters.interesIds) {
+    query = query.in(
+      "id",
+      filters.interesIds.length ? filters.interesIds : ["00000000-0000-0000-0000-000000000000"]
+    );
   }
 
   return query;
@@ -4858,7 +4939,7 @@ async function fetchAllFilteredCandidates() {
   }
 
   const supabase = await getSupabaseClient();
-  const filters = buildCandidateFilters();
+  const filters = await resolveCandidateInteresFilter(buildCandidateFilters());
   const chunkSize = 1000;
   const rows = [];
 
@@ -10876,7 +10957,13 @@ async function fetchCandidates() {
   }
 
   const supabase = await getSupabaseClient();
-  const filters = buildCandidateFilters();
+  let filters;
+  try {
+    filters = await resolveCandidateInteresFilter(buildCandidateFilters());
+  } catch (error) {
+    setStatus(`No se pudo aplicar el filtro de interés: ${error.message}`, "error");
+    return [];
+  }
   const from = (currentPage - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -33263,6 +33350,12 @@ async function handleTableClick(event) {
     }
 
     applyCandidateFilters();
+    return;
+  }
+
+  const interesId = event.target.closest("[data-candidate-interes-id]")?.dataset.candidateInteresId;
+  if (interesId) {
+    void toggleCandidateInteres(interesId);
     return;
   }
 
