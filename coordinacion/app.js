@@ -1657,7 +1657,7 @@ const PROGRAMMING_BULK_FIELDS = {
   hora_inicio: { label: "Hora inicio", type: "time", column: "hora_inicio", rowKey: "inicio", required: true },
   hora_fin: { label: "Hora fin", type: "time", column: "hora_fin", rowKey: "fin" },
   hora_evento: { label: "Hora evento", type: "time", column: "hora_evento", rowKey: "hora" },
-  deporte: { label: "Deporte", type: "text", column: "deporte", rowKey: "deporte" },
+  deporte: { label: "Deporte", type: "select", column: "deporte", rowKey: "deporte", allowEmpty: true, textValue: true },
   actividad: { label: "Actividad", type: "text", column: "actividad", rowKey: "actividad" },
 };
 const programmingBulkFieldSelect = document.querySelector("#programming-bulk-field");
@@ -7900,6 +7900,18 @@ function getProgrammingBulkControlValue(kind) {
 // «Nuevo»: todo el catálogo al que el perfil tiene acceso (personal / instalaciones activas).
 function getProgrammingBulkSelectOptions(config, kind) {
   const options = new Map();
+  if (config.textValue) {
+    // El valor es el propio texto (p. ej. el deporte): las opciones son las de los registros cargados.
+    currentProgrammingRows.forEach((row) => {
+      const value = String(row[config.rowKey] ?? "").trim();
+      if (value) {
+        options.set(value, value);
+      }
+    });
+    return [...options.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label, "es", { sensitivity: "base" }));
+  }
   if (kind === "current") {
     currentProgrammingRows.forEach((row) => {
       const id = row[config.rowKey];
@@ -8079,10 +8091,12 @@ async function applyProgrammingBulkAssignment() {
         setStatus(`${config.label} no puede quedar vacío.`, "error");
         return;
       }
-      payload = { personal_id: null, personal: PROGRAMMING_UNASSIGNED_PERSONAL };
-      valueLabel = PROGRAMMING_UNASSIGNED_PERSONAL;
+      payload = config.textValue
+        ? { [config.column]: null }
+        : { personal_id: null, personal: PROGRAMMING_UNASSIGNED_PERSONAL };
+      valueLabel = config.textValue ? "vacío" : PROGRAMMING_UNASSIGNED_PERSONAL;
     } else {
-      payload = { [config.column]: Number(raw) };
+      payload = { [config.column]: config.textValue ? raw : Number(raw) };
       valueLabel = programmingBulkNewSelect?.selectedOptions[0]?.textContent?.trim() || raw;
     }
   } else {
