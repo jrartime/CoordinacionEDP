@@ -31592,6 +31592,14 @@ function getWhatsappGreeting() {
 
 async function loadPersonalWhatsappSender() {
   try {
+    // El nombre de la firma es el «Display name» del usuario en Authentication.
+    const meta = currentSession?.user?.user_metadata || {};
+    const display = String(meta.display_name || meta.full_name || meta.name || "").trim();
+    if (display) {
+      personalWhatsappSenderName = display;
+      refreshPersonalWhatsappTemplateState();
+      return;
+    }
     const userId = currentSession?.user?.id;
     if (!userId) return;
     const supabase = await getSupabaseClient();
@@ -31770,6 +31778,7 @@ async function logPersonalWhatsappSent(person, phone, message, plantillaTitulo) 
       texto: message,
       telefono: phone,
       plantilla_titulo: plantillaTitulo || null,
+      enviado_por_nombre: personalWhatsappSenderName || null,
     });
     if (error) throw error;
   } catch (error) {
