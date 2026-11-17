@@ -28140,20 +28140,18 @@ const historialReportSignCity = document.querySelector("#historial-report-sign-c
 const historialReportPersonSummary = document.querySelector("#historial-report-person-summary");
 const historialReportCompanySummary = document.querySelector("#historial-report-company-summary");
 const historialReportActivitiesSummary = document.querySelector("#historial-report-activities-summary");
-const historialReportSelectAllActivitiesButton = document.querySelector("#historial-report-select-all-activities-button");
-const historialReportClearActivitiesButton = document.querySelector("#historial-report-clear-activities-button");
+const historialReportActivitiesAll = document.querySelector("#historial-report-activities-all");
 const historialReportPreviewButton = document.querySelector("#historial-report-preview-button");
 const historialReportPreviewDialog = document.querySelector("#historial-report-preview-dialog");
 const historialReportPreviewBody = document.querySelector("#historial-report-preview-body");
 let historialReportPreviewObjectUrl = null;
 const historialReportTemplateWarning = document.querySelector("#historial-report-template-warning");
-const historialReportActivitiesTableBody = document.querySelector("#historial-report-activities-table-body");
+const historialReportActivitiesTableBody = document.querySelector("#historial-report-activities-list");
 const historialReportDownloadButton = document.querySelector("#historial-report-download-button");
 const historialReportEmailText = document.querySelector("#historial-report-email-text");
 const historialReportAnnexCompanyList = document.querySelector("#historial-report-annex-company-list");
 const historialReportAnnexAll = document.querySelector("#historial-report-annex-all");
 const historialReportAnnexes = document.querySelector("#historial-report-annexes");
-const historialReportPreviewRd723Button = document.querySelector("#historial-report-preview-rd723-button");
 const historialReportAnnexFileInput = document.querySelector("#historial-report-annex-file-input");
 const historialReportAnnexAddButton = document.querySelector("#historial-report-annex-add-button");
 
@@ -28989,33 +28987,34 @@ function renderHistorialReportActivities(rows = []) {
   if (historialReportActivitiesSummary) {
     historialReportActivitiesSummary.textContent = `${selectedCount}/${rows.length} actividades incluidas`;
   }
+  if (historialReportActivitiesAll) {
+    historialReportActivitiesAll.checked = rows.length > 0 && selectedCount === rows.length;
+    historialReportActivitiesAll.indeterminate = selectedCount > 0 && selectedCount < rows.length;
+    historialReportActivitiesAll.disabled = !rows.length;
+  }
   if (!historialReportActivitiesTableBody) return;
   if (!rows.length) {
     historialReportActivitiesTableBody.innerHTML =
-      '<tr><td colspan="5" class="empty-state">No hay actividades solapadas con el historial laboral.</td></tr>';
+      '<p class="muted-text">No hay actividades solapadas con el historial laboral.</p>';
     return;
   }
-  historialReportActivitiesTableBody.innerHTML = rows
-    .map(
-      (row) => {
-        const activityId = getHistorialReportActivityKey(row);
-        const checked = selectedIds.has(activityId) ? "checked" : "";
-        return `<tr>
-        <td>
-          <input type="checkbox" data-historial-report-activity-id="${escapeHtml(activityId)}" ${checked} aria-label="Incluir actividad" />
-        </td>
-        <td>${escapeHtml(row.puesto || "")}</td>
-        <td>${escapeHtml(row.instalacion || "")}</td>
-        <td>${escapeHtml(getHistorialActivityScheduleSummary(row))}</td>
-        <td>${escapeHtml(getHistorialReportActivityWeeklyHours(row))}</td>
-      </tr>`;
-      }
-    )
+  const filas = rows
+    .map((row) => {
+      const activityId = getHistorialReportActivityKey(row);
+      const checked = selectedIds.has(activityId) ? "checked" : "";
+      const detalle = [row.puesto, row.instalacion, getHistorialActivityScheduleSummary(row)].filter(Boolean).join(" · ");
+      const horas = getHistorialReportActivityWeeklyHours(row);
+      return `<div class="historial-report-annex-row">
+        <label class="checkbox-item historial-report-annex-name">
+          <input type="checkbox" data-historial-report-activity-id="${escapeHtml(activityId)}" ${checked} />
+          <span>${escapeHtml(detalle)}${horas ? ` <small class="muted-text">(${escapeHtml(horas)} h/sem)</small>` : ""}</span>
+        </label>
+      </div>`;
+    })
     .join("");
   const total = getHistorialActivitiesWeeklyTotal(rows.filter((row) => selectedIds.has(getHistorialReportActivityKey(row))));
-  if (total) {
-    historialReportActivitiesTableBody.innerHTML += `<tr><td colspan="4"><strong>Total semanal (sin duplicar solapes)</strong></td><td class="historial-report-total-cell"><strong>${escapeHtml(total)}</strong></td></tr>`;
-  }
+  historialReportActivitiesTableBody.innerHTML =
+    filas + (total ? `<p><strong>Total semanal (sin duplicar solapes): ${escapeHtml(total)}</strong></p>` : "");
 }
 
 function setHistorialReportActivitiesSelection(selectedIds) {
@@ -37404,29 +37403,6 @@ async function init() {
     renderHistorialReportAnnexes();
     void window.CoordinacionRd723Anexo?.open({ ...historialReportDraft.historialRow }, buildHistorialReportRd723Options());
   });
-  // Vista previa del anexo RD 723 (con los anexos marcados, en su orden), junto a la del informe.
-  historialReportPreviewRd723Button?.addEventListener("click", async () => {
-    if (!historialReportDraft?.historialRow) {
-      setStatus("Prepara primero el informe desde un periodo de historial laboral.", "error");
-      return;
-    }
-    try {
-      historialReportPreviewRd723Button.setAttribute("disabled", "true");
-      setStatus("Preparando la vista previa del anexo RD 723…");
-      historialReportDraft.selectedAnnexKeys.add(HISTORIAL_REPORT_ANNEX_RD);
-      renderHistorialReportAnnexes();
-      const blob = await ensamblarHistorialReportPdf();
-      if (historialReportPreviewObjectUrl) URL.revokeObjectURL(historialReportPreviewObjectUrl);
-      historialReportPreviewObjectUrl = URL.createObjectURL(blob);
-      historialReportPreviewBody.innerHTML = `<iframe src="${historialReportPreviewObjectUrl}" title="Vista previa del anexo RD 723"></iframe>`;
-      if (!historialReportPreviewDialog.open) historialReportPreviewDialog.showModal();
-      setStatus("");
-    } catch (error) {
-      setStatus(`No se pudo preparar la vista previa del anexo RD 723: ${formatSupabaseErrorDetails(error)}`, "error");
-    } finally {
-      historialReportPreviewRd723Button.removeAttribute("disabled");
-    }
-  });
   historialReportCloseButton?.addEventListener("click", closeHistorialReportPanel);
   historialReportOverlay?.addEventListener("click", closeHistorialReportPanel);
   historialReportStartDate?.addEventListener("change", () => {
@@ -37451,12 +37427,11 @@ async function init() {
     }
     setHistorialReportActivitiesSelection(selectedIds);
   });
-  historialReportSelectAllActivitiesButton?.addEventListener("click", () => {
-    const ids = (historialReportDraft?.activities || []).map(getHistorialReportActivityKey).filter(Boolean);
+  historialReportActivitiesAll?.addEventListener("change", () => {
+    const ids = historialReportActivitiesAll.checked
+      ? (historialReportDraft?.activities || []).map(getHistorialReportActivityKey).filter(Boolean)
+      : [];
     setHistorialReportActivitiesSelection(ids);
-  });
-  historialReportClearActivitiesButton?.addEventListener("click", () => {
-    setHistorialReportActivitiesSelection([]);
   });
   historialReportAnnexAll?.addEventListener("change", () => {
     if (!historialReportDraft) return;

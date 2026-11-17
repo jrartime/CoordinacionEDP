@@ -2741,39 +2741,19 @@
                     <span id="historial-report-activities-summary">0 actividades</span>
                   </div>
                   <div class="personal-import-actions historial-report-selection-actions">
-                    <button id="historial-report-select-all-activities-button" type="button" class="secondary-button">
-                      Incluir todas
-                    </button>
-                    <button id="historial-report-clear-activities-button" type="button" class="secondary-button">
-                      Quitar todas
-                    </button>
-                    <button id="historial-report-preview-button" type="button" class="secondary-button">
-                      Vista previa
-                    </button>
-                    <button id="historial-report-preview-rd723-button" type="button" class="secondary-button">
-                      Vista previa RD 723
-                    </button>
                     <span id="historial-report-template-warning" class="control-selected-delete-count"></span>
                   </div>
 
-                  <div class="table-scroll personal-import-table-wrap">
-                    <table class="records-table personal-import-table historial-report-activities-table">
-                      <thead>
-                        <tr>
-                          <th>Incluir</th>
-                          <th>Puesto</th>
-                          <th>Instalación</th>
-                          <th>Horario</th>
-                          <th>Horas</th>
-                        </tr>
-                      </thead>
-                      <tbody id="historial-report-activities-table-body">
-                        <tr>
-                          <td colspan="5" class="empty-state">Selecciona un periodo para revisar actividades.</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                  <fieldset id="historial-report-activities" class="historial-report-annexes">
+                    <legend>Actividades del periodo</legend>
+                    <label class="checkbox-item">
+                      <input id="historial-report-activities-all" type="checkbox" />
+                      <span>Marcar todas</span>
+                    </label>
+                    <div id="historial-report-activities-list" class="historial-report-annex-list">
+                      <p class="muted-text">Selecciona un periodo para revisar actividades.</p>
+                    </div>
+                  </fieldset>
 
                   <fieldset id="historial-report-annexes" class="historial-report-annexes">
                     <legend>Anexos al PDF</legend>
@@ -2817,6 +2797,9 @@
                   <div class="detail-actions">
                     <button id="historial-report-anexo-button" type="button" class="secondary-button">
                       Anexo RD 723
+                    </button>
+                    <button id="historial-report-preview-button" type="button" class="secondary-button">
+                      Vista previa
                     </button>
                     <button id="historial-report-download-button" type="button">
                       Descargar PDF
@@ -10624,7 +10607,7 @@
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
     <script src="./word-a-pdf.js?v=20261117-1" defer></script>
     <script src="./rd723-anexo.js?v=20261117-9" defer></script>
-    <script src="./app.js?v=20261117-6" defer></script>
+    <script src="./app.js?v=20261117-7" defer></script>
     <script src="./programacion-carga.js?v=20261114-1" defer></script>
   </body>
 </html>
