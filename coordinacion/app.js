@@ -29952,6 +29952,7 @@ async function exportHistorialLaboralReportPdf({ preview = false, soloBytes = fa
         : "Informe laboral generado.") + clipboardNote,
       missingConfig ? "warning" : "success"
     );
+    return true;
   } catch (error) {
     setStatus(`No se pudo generar el PDF: ${error?.message ?? "error desconocido"}`, "error");
   } finally {
@@ -37494,8 +37495,11 @@ async function init() {
     historialReportAnnexes.classList.remove("is-dragging");
     void addHistorialReportAnnexFiles(event.dataTransfer.files);
   });
-  historialReportDownloadButton?.addEventListener("click", () => {
-    void exportHistorialLaboralReportPdf();
+  // «Descargar PDF» vive en el panel de vista previa: descarga lo marcado, copia al portapapeles el
+  // texto, el nombre y el correo y, si todo ha ido bien, cierra la vista previa para ver el resultado.
+  historialReportDownloadButton?.addEventListener("click", async () => {
+    const descargado = await exportHistorialLaboralReportPdf();
+    if (descargado && historialReportPreviewDialog?.open) historialReportPreviewDialog.close();
   });
   historialReportPreviewButton?.addEventListener("click", () => {
     void exportHistorialLaboralReportPdf({ preview: true });

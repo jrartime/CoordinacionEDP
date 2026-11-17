@@ -2801,13 +2801,6 @@
                     <button id="historial-report-preview-button" type="button" class="secondary-button">
                       Vista previa
                     </button>
-                    <button id="historial-report-download-button" type="button">
-                      Descargar PDF
-                    </button>
-                    <p class="historial-report-clipboard-hint muted-text">
-                      Al descargar se copian al portapapeles el texto, el nombre y el correo: el correo queda
-                      listo para pegar directamente y el resto en el historial (Win+V) para Adobe Acrobat.
-                    </p>
                   </div>
                 </aside>
               </section>
@@ -10586,6 +10579,11 @@
           </div>
           <div id="historial-report-preview-body" class="cv-preview-body"></div>
           <div class="cv-preview-dialog-footer">
+            <span class="muted-text historial-report-clipboard-hint">
+              Al descargar se copian al portapapeles el texto, el nombre y el correo: el correo queda listo para
+              pegar directamente y el resto en el historial (Win+V) para Adobe Acrobat.
+            </span>
+            <button id="historial-report-download-button" type="button">Descargar PDF</button>
             <button type="button" class="secondary-button" data-close-historial-report-preview>Cerrar</button>
           </div>
         </dialog>
@@ -10607,7 +10605,7 @@
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
     <script src="./word-a-pdf.js?v=20261117-1" defer></script>
     <script src="./rd723-anexo.js?v=20261117-10" defer></script>
-    <script src="./app.js?v=20261117-7" defer></script>
+    <script src="./app.js?v=20261117-8" defer></script>
     <script src="./programacion-carga.js?v=20261114-1" defer></script>
   </body>
 </html>

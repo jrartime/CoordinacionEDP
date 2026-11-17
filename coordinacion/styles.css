@@ -5538,8 +5538,15 @@ th {
   width: min(1120px, 96vw);
 }
 
+/* Plantilla, fecha del documento, fecha de comienzo y ciudad de firma: cuatro campos al 25 %, en una fila. */
 #historial-report-panel .records-detail-form .detail-field-row.cols-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  #historial-report-panel .records-detail-form .detail-field-row.cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 #historial-report-panel .records-detail-form .detail-field-row.cols-2 > label {
@@ -9267,4 +9274,10 @@ input[data-percent].pct-input--warn {
 }
 .historial-anexo-contrato {
   margin: 0.6rem 0;
+}
+
+/* Vista previa del informe: la nota del portapapeles a la izquierda y los botones a la derecha */
+.cv-preview-dialog-footer .historial-report-clipboard-hint {
+  margin-right: auto;
+  align-self: center;
 }
