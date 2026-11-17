@@ -28145,7 +28145,9 @@ const historialReportActivitiesTableBody = document.querySelector("#historial-re
 const historialReportDownloadButton = document.querySelector("#historial-report-download-button");
 const historialReportEmailText = document.querySelector("#historial-report-email-text");
 const historialReportAnnexCompanyList = document.querySelector("#historial-report-annex-company-list");
-const historialReportAnnexExtraList = document.querySelector("#historial-report-annex-extra-list");
+const historialReportAnnexAll = document.querySelector("#historial-report-annex-all");
+const historialReportAnnexes = document.querySelector("#historial-report-annexes");
+const historialReportPreviewRd723Button = document.querySelector("#historial-report-preview-rd723-button");
 const historialReportAnnexFileInput = document.querySelector("#historial-report-annex-file-input");
 const historialReportAnnexAddButton = document.querySelector("#historial-report-annex-add-button");
 
@@ -29316,36 +29318,122 @@ async function copyHistorialReportClipboardSequence(parts) {
   return copied;
 }
 
-// Anexos del informe: documentos de empresa (empresas_documentos con PDF
-// subido, marcados por defecto según su tick "se adjunta") y PDF sueltos
-// elegidos del equipo. Orden final: informe, PDF del equipo, docs de empresa.
+// Anexos del informe y del anexo RD 723: documentos de empresa (empresas_documentos con PDF
+// subido) y archivos elegidos o arrastrados (PDF, o Word convertido a PDF). Van en una sola
+// lista ordenable, todos desmarcados por defecto salvo lo que se añade a mano. El marcador
+// «Anexo RD 723» indica dónde va ese documento cuando se genera: lo que quede por encima se
+// coloca antes de él. En el informe el marcador se ignora (el informe va siempre primero).
+const HISTORIAL_REPORT_ANNEX_RD = "rd723";
+
+function getHistorialReportAnnexItems() {
+  const draft = historialReportDraft;
+  if (!draft) return [];
+  const items = [];
+  draft.annexOrder.forEach((key) => {
+    if (key === HISTORIAL_REPORT_ANNEX_RD) {
+      items.push({ key, kind: "rd723", label: "Anexo RD 723", detail: "" });
+    } else if (key.startsWith("doc:")) {
+      const row = draft.companyDocs.find((doc) => `doc:${doc.id}` === key);
+      if (row) {
+        items.push({
+          key,
+          kind: "doc",
+          row,
+          label: EMPRESA_DOCUMENTO_TIPOS.find((t) => t.value === row.tipo)?.label || row.tipo,
+          detail: row.nombre_archivo || "",
+          checked: draft.selectedAnnexKeys.has(key),
+        });
+      }
+    } else if (key.startsWith("extra:")) {
+      const file = draft.extraFiles.get(key);
+      if (file) {
+        items.push({
+          key,
+          kind: "extra",
+          file,
+          label: file.name,
+          detail: formatEmpresaDocumentoSize(file.size),
+          checked: draft.selectedAnnexKeys.has(key),
+        });
+      }
+    }
+  });
+  return items;
+}
+
 function renderHistorialReportAnnexes() {
-  if (historialReportAnnexCompanyList) {
-    const docs = historialReportDraft?.companyDocs || [];
-    historialReportAnnexCompanyList.innerHTML = docs.length
-      ? docs
-          .map((row) => {
-            const label = EMPRESA_DOCUMENTO_TIPOS.find((t) => t.value === row.tipo)?.label || row.tipo;
-            const checked = historialReportDraft.selectedCompanyDocIds.has(row.id) ? "checked" : "";
-            return `<label class="checkbox-item">
-              <input type="checkbox" data-historial-annex-company="${row.id}" ${checked} />
-              <span>${escapeHtml(label)} <small class="muted-text">(${escapeHtml(row.nombre_archivo || "")})</small></span>
-            </label>`;
-          })
-          .join("")
-      : `<p class="muted-text">La empresa no tiene documentos PDF subidos.</p>`;
+  if (!historialReportAnnexCompanyList) return;
+  const items = getHistorialReportAnnexItems();
+  const marcables = items.filter((item) => item.kind !== "rd723");
+  if (historialReportAnnexAll) {
+    const marcados = marcables.filter((item) => item.checked).length;
+    historialReportAnnexAll.checked = marcables.length > 0 && marcados === marcables.length;
+    historialReportAnnexAll.indeterminate = marcados > 0 && marcados < marcables.length;
+    historialReportAnnexAll.disabled = !marcables.length;
   }
-  if (historialReportAnnexExtraList) {
-    const extras = historialReportDraft?.extraPdfs || [];
-    historialReportAnnexExtraList.innerHTML = extras
-      .map(
-        (file, index) => `<div class="historial-report-annex-extra">
-          <span>${escapeHtml(file.name)} <small class="muted-text">(${formatEmpresaDocumentoSize(file.size)})</small></span>
-          <button type="button" class="secondary-button" data-historial-annex-remove="${index}">Quitar</button>
-        </div>`
-      )
-      .join("");
+  if (!items.length) {
+    historialReportAnnexCompanyList.innerHTML = "";
+    return;
   }
+  const filas = items
+    .map((item, index) => {
+      const herramientas = `<span class="historial-report-annex-tools">
+        <button type="button" class="secondary-button" data-historial-annex-up="${escapeHtml(item.key)}" ${index === 0 ? "disabled" : ""} aria-label="Subir" title="Subir">↑</button>
+        <button type="button" class="secondary-button" data-historial-annex-down="${escapeHtml(item.key)}" ${index === items.length - 1 ? "disabled" : ""} aria-label="Bajar" title="Bajar">↓</button>
+        ${
+          item.kind === "extra"
+            ? `<button type="button" class="secondary-button" data-historial-annex-remove="${escapeHtml(item.key)}">Quitar</button>`
+            : ""
+        }
+      </span>`;
+      if (item.kind === "rd723") {
+        return `<div class="historial-report-annex-row is-rd"><span>Anexo RD 723 <small class="muted-text">(posición dentro de ese documento)</small></span>${herramientas}</div>`;
+      }
+      return `<div class="historial-report-annex-row">
+        <label class="checkbox-item">
+          <input type="checkbox" data-historial-annex-check="${escapeHtml(item.key)}" ${item.checked ? "checked" : ""} />
+          <span>${escapeHtml(item.label)} <small class="muted-text">(${escapeHtml(item.detail)})</small></span>
+        </label>${herramientas}</div>`;
+    })
+    .join("");
+  const aviso = marcables.length
+    ? ""
+    : `<p class="muted-text">La empresa no tiene documentos PDF subidos. Arrastra aquí los que quieras anexar.</p>`;
+  historialReportAnnexCompanyList.innerHTML = filas + aviso;
+}
+
+// Añade archivos al final de la lista: los PDF tal cual y los .docx convertidos a PDF.
+async function addHistorialReportAnnexFiles(files) {
+  for (const file of Array.from(files || [])) {
+    if (!historialReportDraft) return;
+    try {
+      let pdf = file;
+      if (!(file.type === "application/pdf" || /\.pdf$/i.test(file.name))) {
+        const conversor = window.CoordinacionWordPdf;
+        if (conversor && (conversor.esWord(file) || conversor.esWordAntiguo(file))) {
+          setStatus(`Convirtiendo «${file.name}» a PDF…`);
+          // eslint-disable-next-line no-await-in-loop
+          pdf = await conversor.convertir(file);
+          setStatus(
+            `«${file.name}» convertido a PDF de forma simplificada (sin imágenes ni maquetación compleja): revísalo en la vista previa.`,
+            "warning"
+          );
+        } else {
+          setStatus(`«${file.name}» no es un PDF ni un documento de Word y no se ha anexado.`, "error");
+          continue;
+        }
+      }
+      if (!historialReportDraft) return;
+      historialReportDraft.extraSeq += 1;
+      const key = `extra:${historialReportDraft.extraSeq}`;
+      historialReportDraft.extraFiles.set(key, pdf);
+      historialReportDraft.annexOrder.push(key);
+      historialReportDraft.selectedAnnexKeys.add(key);
+    } catch (error) {
+      setStatus(error?.message || String(error), "error");
+    }
+  }
+  renderHistorialReportAnnexes();
 }
 
 async function fetchHistorialReportCompanyDocs(supabase, empresaId) {
@@ -29360,13 +29448,13 @@ async function fetchHistorialReportCompanyDocs(supabase, empresaId) {
   return (data || []).sort((a, b) => order.indexOf(a.tipo) - order.indexOf(b.tipo));
 }
 
-// Une informe + PDF del equipo + documentos de empresa en un único PDF.
-async function mergeHistorialReportAnnexes(reportBytes) {
-  const extras = historialReportDraft?.extraPdfs || [];
-  const companyDocs = (historialReportDraft?.companyDocs || []).filter((row) =>
-    historialReportDraft.selectedCompanyDocIds.has(row.id)
-  );
-  if (!extras.length && !companyDocs.length) return null;
+// Une el documento principal (informe o anexo RD 723) con los anexos marcados, en el orden de
+// la lista. En el informe va primero y el marcador «Anexo RD 723» se ignora; en el anexo RD 723
+// el documento va en la posición del marcador. Sin anexos marcados devuelve null.
+async function mergeHistorialReportAnnexes(mainBytes, principal = "informe") {
+  const items = getHistorialReportAnnexItems().filter((item) => item.kind === "rd723" || item.checked);
+  const anexos = items.filter((item) => item.kind !== "rd723");
+  if (!anexos.length) return null;
   const { PDFDocument } = await getPdfLibClient();
   const merged = await PDFDocument.create();
   const append = async (bytes, label) => {
@@ -29379,22 +29467,37 @@ async function mergeHistorialReportAnnexes(reportBytes) {
     const pages = await merged.copyPages(source, source.getPageIndices());
     pages.forEach((page) => merged.addPage(page));
   };
-  await append(reportBytes, "informe");
-  for (const file of extras) {
-    // eslint-disable-next-line no-await-in-loop
-    await append(await file.arrayBuffer(), file.name);
-  }
-  if (companyDocs.length) {
-    const supabase = await getSupabaseClient();
-    for (const row of companyDocs) {
+  const secuencia = principal === "rd723" ? items : [{ kind: "principal" }, ...anexos];
+  const supabase = anexos.some((item) => item.kind === "doc") ? await getSupabaseClient() : null;
+  for (const item of secuencia) {
+    if (item.kind === "principal" || item.kind === "rd723") {
       // eslint-disable-next-line no-await-in-loop
-      const { data, error } = await supabase.storage.from(supabaseConfig.bucket).download(row.ruta_storage);
-      if (error) throw new Error(`No se pudo descargar «${row.nombre_archivo}»: ${error.message}`);
+      await append(mainBytes, principal === "rd723" ? "anexo RD 723" : "informe");
+    } else if (item.kind === "extra") {
       // eslint-disable-next-line no-await-in-loop
-      await append(await data.arrayBuffer(), row.nombre_archivo || row.tipo);
+      await append(await item.file.arrayBuffer(), item.file.name);
+    } else {
+      // eslint-disable-next-line no-await-in-loop
+      const { data, error } = await supabase.storage.from(supabaseConfig.bucket).download(item.row.ruta_storage);
+      if (error) throw new Error(`No se pudo descargar «${item.row.nombre_archivo}»: ${error.message}`);
+      // eslint-disable-next-line no-await-in-loop
+      await append(await data.arrayBuffer(), item.row.nombre_archivo || item.row.tipo);
     }
   }
   return new Blob([await merged.save()], { type: "application/pdf" });
+}
+
+// Opciones con las que el panel de informe prepara el anexo RD 723 (rd723-anexo.js).
+function buildHistorialReportRd723Options() {
+  return {
+    fechaDocumento: historialReportDocumentDate?.value || "",
+    ciudad: historialReportSignCity?.value || "",
+    documentos: () =>
+      getHistorialReportAnnexItems()
+        .filter((item) => item.kind === "doc")
+        .map((item) => ({ ...item.row, se_adjunta: item.checked })),
+    ensamblar: (bytes) => mergeHistorialReportAnnexes(bytes, "rd723"),
+  };
 }
 
 function closeHistorialReportPanel() {
@@ -29444,8 +29547,11 @@ async function openHistorialReportPanel() {
       activities,
       selectedActivityIds: new Set(activities.map(getHistorialReportActivityKey).filter(Boolean)),
       companyDocs,
-      selectedCompanyDocIds: new Set(companyDocs.filter((row) => row.se_adjunta).map((row) => row.id)),
-      extraPdfs: [],
+      // Anexos: desmarcados por defecto; el marcador del anexo RD 723 va el primero.
+      selectedAnnexKeys: new Set(),
+      extraFiles: new Map(),
+      extraSeq: 0,
+      annexOrder: [HISTORIAL_REPORT_ANNEX_RD, ...companyDocs.map((row) => `doc:${row.id}`)],
     };
     renderHistorialReportAnnexes();
     renderHistorialReportGenerateTemplateSelect(template?.id || "");
@@ -29703,7 +29809,7 @@ async function exportHistorialLaboralReportPdf({ preview = false } = {}) {
     }
 
     // Con anexos, el PDF final es la unión; sin ellos se conserva el flujo original.
-    const mergedBlob = await mergeHistorialReportAnnexes(doc.output("arraybuffer"));
+    const mergedBlob = await mergeHistorialReportAnnexes(doc.output("arraybuffer"), "informe");
 
     if (preview) {
       if (historialReportPreviewObjectUrl) URL.revokeObjectURL(historialReportPreviewObjectUrl);
@@ -37213,24 +37319,31 @@ async function init() {
       setStatus("Prepara primero el informe desde un periodo de historial laboral.", "error");
       return;
     }
-    void window.CoordinacionRd723Anexo?.open(
-      { ...historialReportDraft.historialRow },
-      {
-        fechaDocumento: historialReportDocumentDate?.value || "",
-        ciudad: historialReportSignCity?.value || "",
-        documentos: () =>
-          (historialReportDraft?.companyDocs || []).map((row) => ({
-            ...row,
-            se_adjunta: historialReportDraft.selectedCompanyDocIds.has(row.id),
-          })),
-        descargar: async (ruta) => {
-          const supabase = await getSupabaseClient();
-          const { data, error } = await supabase.storage.from(supabaseConfig.bucket).download(ruta);
-          if (error) throw error;
-          return data.arrayBuffer();
-        },
-      }
-    );
+    void window.CoordinacionRd723Anexo?.open({ ...historialReportDraft.historialRow }, buildHistorialReportRd723Options());
+  });
+  // Vista previa del anexo RD 723 (con los anexos marcados, en su orden), junto a la del informe.
+  historialReportPreviewRd723Button?.addEventListener("click", async () => {
+    if (!historialReportDraft?.historialRow) {
+      setStatus("Prepara primero el informe desde un periodo de historial laboral.", "error");
+      return;
+    }
+    try {
+      historialReportPreviewRd723Button.setAttribute("disabled", "true");
+      setStatus("Preparando la vista previa del anexo RD 723…");
+      const blob = await window.CoordinacionRd723Anexo.generarBlob(
+        { ...historialReportDraft.historialRow },
+        buildHistorialReportRd723Options()
+      );
+      if (historialReportPreviewObjectUrl) URL.revokeObjectURL(historialReportPreviewObjectUrl);
+      historialReportPreviewObjectUrl = URL.createObjectURL(blob);
+      historialReportPreviewBody.innerHTML = `<iframe src="${historialReportPreviewObjectUrl}" title="Vista previa del anexo RD 723"></iframe>`;
+      if (!historialReportPreviewDialog.open) historialReportPreviewDialog.showModal();
+      setStatus("");
+    } catch (error) {
+      setStatus(`No se pudo preparar la vista previa del anexo RD 723: ${formatSupabaseErrorDetails(error)}`, "error");
+    } finally {
+      historialReportPreviewRd723Button.removeAttribute("disabled");
+    }
   });
   historialReportCloseButton?.addEventListener("click", closeHistorialReportPanel);
   historialReportOverlay?.addEventListener("click", closeHistorialReportPanel);
@@ -37262,31 +37375,68 @@ async function init() {
   historialReportClearActivitiesButton?.addEventListener("click", () => {
     setHistorialReportActivitiesSelection([]);
   });
+  historialReportAnnexAll?.addEventListener("change", () => {
+    if (!historialReportDraft) return;
+    const marcar = historialReportAnnexAll.checked;
+    getHistorialReportAnnexItems()
+      .filter((item) => item.kind !== "rd723")
+      .forEach((item) => {
+        if (marcar) historialReportDraft.selectedAnnexKeys.add(item.key);
+        else historialReportDraft.selectedAnnexKeys.delete(item.key);
+      });
+    renderHistorialReportAnnexes();
+  });
   historialReportAnnexCompanyList?.addEventListener("change", (event) => {
     const input = event.target;
-    if (!(input instanceof HTMLInputElement) || !input.dataset.historialAnnexCompany || !historialReportDraft) return;
-    const id = Number(input.dataset.historialAnnexCompany);
-    if (input.checked) historialReportDraft.selectedCompanyDocIds.add(id);
-    else historialReportDraft.selectedCompanyDocIds.delete(id);
+    if (!(input instanceof HTMLInputElement) || !input.dataset.historialAnnexCheck || !historialReportDraft) return;
+    const key = input.dataset.historialAnnexCheck;
+    if (input.checked) historialReportDraft.selectedAnnexKeys.add(key);
+    else historialReportDraft.selectedAnnexKeys.delete(key);
+    renderHistorialReportAnnexes();
+  });
+  historialReportAnnexCompanyList?.addEventListener("click", (event) => {
+    if (!historialReportDraft) return;
+    const orden = historialReportDraft.annexOrder;
+    const subir = event.target.closest("[data-historial-annex-up]");
+    const bajar = event.target.closest("[data-historial-annex-down]");
+    const quitar = event.target.closest("[data-historial-annex-remove]");
+    const mover = (key, delta) => {
+      const indice = orden.indexOf(key);
+      const destino = indice + delta;
+      if (indice < 0 || destino < 0 || destino >= orden.length) return;
+      [orden[indice], orden[destino]] = [orden[destino], orden[indice]];
+    };
+    if (subir) mover(subir.dataset.historialAnnexUp, -1);
+    else if (bajar) mover(bajar.dataset.historialAnnexDown, 1);
+    else if (quitar) {
+      const key = quitar.dataset.historialAnnexRemove;
+      historialReportDraft.annexOrder = orden.filter((item) => item !== key);
+      historialReportDraft.extraFiles.delete(key);
+      historialReportDraft.selectedAnnexKeys.delete(key);
+    } else return;
+    renderHistorialReportAnnexes();
   });
   historialReportAnnexAddButton?.addEventListener("click", () => historialReportAnnexFileInput?.click());
   historialReportAnnexFileInput?.addEventListener("change", () => {
-    if (!historialReportDraft) return;
-    Array.from(historialReportAnnexFileInput.files || []).forEach((file) => {
-      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
-        historialReportDraft.extraPdfs.push(file);
-      } else {
-        setStatus(`«${file.name}» no es un PDF y no se ha anexado.`, "error");
-      }
-    });
+    const archivos = Array.from(historialReportAnnexFileInput.files || []);
     historialReportAnnexFileInput.value = "";
-    renderHistorialReportAnnexes();
+    void addHistorialReportAnnexFiles(archivos);
   });
-  historialReportAnnexExtraList?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-historial-annex-remove]");
-    if (!button || !historialReportDraft) return;
-    historialReportDraft.extraPdfs.splice(Number(button.dataset.historialAnnexRemove), 1);
-    renderHistorialReportAnnexes();
+  // Arrastrar y soltar PDF o Word sobre el bloque de anexos.
+  historialReportAnnexes?.addEventListener("dragover", (event) => {
+    if (!event.dataTransfer?.types?.includes("Files")) return;
+    event.preventDefault();
+    historialReportAnnexes.classList.add("is-dragging");
+  });
+  historialReportAnnexes?.addEventListener("dragleave", (event) => {
+    if (event.relatedTarget && historialReportAnnexes.contains(event.relatedTarget)) return;
+    historialReportAnnexes.classList.remove("is-dragging");
+  });
+  historialReportAnnexes?.addEventListener("drop", (event) => {
+    if (!event.dataTransfer?.files?.length) return;
+    event.preventDefault();
+    historialReportAnnexes.classList.remove("is-dragging");
+    void addHistorialReportAnnexFiles(event.dataTransfer.files);
   });
   historialReportDownloadButton?.addEventListener("click", () => {
     void exportHistorialLaboralReportPdf();

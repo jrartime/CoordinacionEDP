@@ -9226,3 +9226,31 @@ input[data-percent].pct-input--warn {
 .programming-report-whatsapp-button:hover { background: #126f3e; border-color: #126f3e; }
 
 .programming-report-section-actions { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Anexos del informe: lista ordenable, arrastrar y soltar */
+.historial-report-annex-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+.historial-report-annex-row.is-rd {
+  background: #eef3fb;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-weight: 600;
+}
+.historial-report-annex-tools {
+  display: flex;
+  gap: 0.25rem;
+  flex: none;
+}
+.historial-report-annex-tools .secondary-button {
+  padding: 0.1rem 0.5rem;
+}
+.historial-report-annexes.is-dragging {
+  outline: 2px dashed #4a7bd0;
+  outline-offset: 2px;
+  background: #f2f6fd;
+}

@@ -2750,6 +2750,9 @@
                     <button id="historial-report-preview-button" type="button" class="secondary-button">
                       Vista previa
                     </button>
+                    <button id="historial-report-preview-rd723-button" type="button" class="secondary-button">
+                      Vista previa RD 723
+                    </button>
                     <span id="historial-report-template-warning" class="control-selected-delete-count"></span>
                   </div>
 
@@ -2772,19 +2775,30 @@
                     </table>
                   </div>
 
-                  <fieldset class="historial-report-annexes">
+                  <fieldset id="historial-report-annexes" class="historial-report-annexes">
                     <legend>Anexos al PDF</legend>
                     <p class="muted-text">
-                      Orden final: informe, PDF anexados desde tu equipo y, por último, documentos de empresa.
+                      Se unen al informe y también al anexo RD 723, en el orden de la lista. «Anexo RD 723» marca
+                      dónde va ese documento: lo que quede por encima se coloca antes de él. Arrastra aquí PDF o
+                      documentos de Word (.docx, se convierten a PDF).
                     </p>
+                    <label class="checkbox-item">
+                      <input id="historial-report-annex-all" type="checkbox" />
+                      <span>Marcar todos</span>
+                    </label>
                     <div id="historial-report-annex-company-list" class="historial-report-annex-list"></div>
                     <div class="personal-import-actions">
-                      <input id="historial-report-annex-file-input" type="file" accept="application/pdf" multiple class="hidden" />
+                      <input
+                        id="historial-report-annex-file-input"
+                        type="file"
+                        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        multiple
+                        class="hidden"
+                      />
                       <button id="historial-report-annex-add-button" type="button" class="secondary-button">
-                        Anexar PDF…
+                        Anexar PDF o Word…
                       </button>
                     </div>
-                    <div id="historial-report-annex-extra-list" class="historial-report-annex-list"></div>
                   </fieldset>
 
                   <div class="detail-form records-detail-form">
@@ -10590,8 +10604,9 @@
     <script src="./facturacion.js?v=20261116-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./rd723-anexo.js?v=20261117-5" defer></script>
-    <script src="./app.js?v=20261117-3" defer></script>
+    <script src="./word-a-pdf.js?v=20261117-1" defer></script>
+    <script src="./rd723-anexo.js?v=20261117-6" defer></script>
+    <script src="./app.js?v=20261117-4" defer></script>
     <script src="./programacion-carga.js?v=20261114-1" defer></script>
   </body>
 </html>

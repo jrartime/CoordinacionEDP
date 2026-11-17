@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-17.5";
+  const VERSION_TEXTO = "2026-11-17.6";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -524,7 +524,7 @@
         punto(
           `${DOCUMENTOS_EMPRESA[tipo]}: existe${
             doc.se_adjunta
-              ? " y se adjunta a continuación de este anexo"
+              ? " y se adjunta a este anexo"
               : " y se ha facilitado a la persona trabajadora en la documentación inicial"
           }.`
         );
@@ -1026,30 +1026,13 @@
       .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    const adjuntos = (state.datos.documentos || []).filter((d) => d.se_adjunta && d.ruta_storage);
-    if (!adjuntos.length || typeof state.opciones?.descargar !== "function") {
+    const bytes = doc.output("arraybuffer");
+    const unido = typeof state.opciones?.ensamblar === "function" ? await state.opciones.ensamblar(bytes) : null;
+    if (!unido) {
       doc.save(`${nombre}.pdf`);
       return nombre;
     }
-    // Plan de igualdad y protocolos marcados: se anexan a continuación del anexo.
-    const { PDFDocument } = await import("https://esm.sh/pdf-lib@1.17.1");
-    const unido = await PDFDocument.create();
-    const anadir = async (bytes, etiqueta) => {
-      let origen;
-      try {
-        origen = await PDFDocument.load(bytes);
-      } catch (_e) {
-        throw new Error(`No se pudo leer el PDF «${etiqueta}» (¿está protegido o dañado?).`);
-      }
-      (await unido.copyPages(origen, origen.getPageIndices())).forEach((pagina) => unido.addPage(pagina));
-    };
-    await anadir(doc.output("arraybuffer"), "anexo");
-    for (const adjunto of adjuntos) {
-      // eslint-disable-next-line no-await-in-loop
-      await anadir(await state.opciones.descargar(adjunto.ruta_storage), adjunto.nombre_archivo || adjunto.tipo);
-    }
-    const blob = new Blob([await unido.save()], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(unido);
     const enlace = document.createElement("a");
     enlace.href = url;
     enlace.download = `${nombre}.pdf`;
@@ -1058,6 +1041,21 @@
     enlace.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
     return nombre;
+  }
+
+  // PDF del anexo con los datos guardados (sin abrir el panel): para la vista previa del panel de
+  // informe. Devuelve un Blob con el anexo y los anexos marcados, en su orden.
+  async function generarBlob(historial, opciones = {}) {
+    const datos = await cargarDatos(historial);
+    datos.tipo = "alta";
+    datos.fecha_documento = opciones.fechaDocumento || hoyIso();
+    datos.ciudad = opciones.ciudad || datos.empresa.ciudad_firma || "Oviedo";
+    if (typeof opciones.documentos === "function") datos.documentos = opciones.documentos();
+    const anexo = buildAnexo(datos);
+    const { jsPDF } = await import("https://esm.sh/jspdf@2.5.1");
+    const bytes = renderAnexoPdf(jsPDF, datos, anexo).output("arraybuffer");
+    const unido = typeof opciones.ensamblar === "function" ? await opciones.ensamblar(bytes) : null;
+    return unido || new Blob([bytes], { type: "application/pdf" });
   }
 
   function cerrar() {
@@ -1242,7 +1240,7 @@
   }
 
   if (typeof window !== "undefined") {
-    window.CoordinacionRd723Anexo = { open, buildAnexo, renderAnexoPdf, VERSION_TEXTO };
+    window.CoordinacionRd723Anexo = { open, generarBlob, buildAnexo, renderAnexoPdf, VERSION_TEXTO };
   }
   if (typeof module !== "undefined" && module.exports) {
     module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad };
