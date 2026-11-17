@@ -520,6 +520,7 @@
     from: 1,
     to: 12,
     gran: "mes",
+    basis: "periodo", // "periodo" = meses del periodo facturado; "fecha" = mes de la fecha de la factura
     amount: "base_imponible",
     excludeVoid: true,
     selected: new Set(),
@@ -539,7 +540,7 @@
       return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
     };
     const dayMs = 86400000;
-    let start = parse(row.periodo_desde);
+    let start = cmp.basis === "fecha" ? null : parse(row.periodo_desde);
     let end = parse(row.periodo_hasta) ?? start;
     if (start === null) {
       start = parse(row.fecha);
@@ -567,7 +568,7 @@
     return Array.from(years).sort();
   }
 
-  // (La comparativa cuenta cada factura en los meses de su periodo facturado, no en el de su fecha.)
+  // (Por defecto la comparativa cuenta cada factura en los meses de su periodo facturado; con basis = "fecha", en el mes de su fecha.)
   function cmpContractsWithInvoices() {
     const ids = new Set(state.invoices.map((row) => String(row.contrato_id)));
     return state.contracts
@@ -659,6 +660,7 @@
     el.cmpFrom.innerHTML = monthOptions(cmp.from);
     el.cmpTo.innerHTML = monthOptions(cmp.to);
     el.cmpGran.value = cmp.gran;
+    el.cmpBasis.value = cmp.basis;
     el.cmpAmount.value = cmp.amount;
     el.cmpVoid.checked = cmp.excludeVoid;
 
@@ -832,6 +834,7 @@
       rerender();
     });
     el.cmpGran.addEventListener("change", () => { cmp.gran = el.cmpGran.value; rerender(); });
+    el.cmpBasis.addEventListener("change", () => { cmp.basis = el.cmpBasis.value; rerender(); });
     el.cmpAmount.addEventListener("change", () => { cmp.amount = el.cmpAmount.value; rerender(); });
     el.cmpVoid.addEventListener("change", () => { cmp.excludeVoid = el.cmpVoid.checked; rerender(); });
     el.cmpSearch.addEventListener("input", () => { cmp.search = el.cmpSearch.value; rerender(); });
@@ -3542,6 +3545,7 @@
       cmpFrom: q("#facturacion-cmp-from"),
       cmpTo: q("#facturacion-cmp-to"),
       cmpGran: q("#facturacion-cmp-gran"),
+      cmpBasis: q("#facturacion-cmp-basis"),
       cmpAmount: q("#facturacion-cmp-amount"),
       cmpVoid: q("#facturacion-cmp-void"),
       cmpSearch: q("#facturacion-cmp-search"),

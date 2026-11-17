@@ -6639,7 +6639,7 @@
 
             <section data-facturacion-panel="comparativa" class="facturacion-view hidden">
               <div class="facturacion-section-title">
-                <div><p class="eyebrow">Evolución</p><h3>Comparativa de facturación</h3><p class="muted" style="margin:2px 0 0;font-size:0.8rem">Cada factura cuenta en los meses de su periodo facturado (no en el de su fecha); si abarca varios meses, el importe se reparte por días.</p></div>
+                <div><p class="eyebrow">Evolución</p><h3>Comparativa de facturación</h3><p class="muted" style="margin:2px 0 0;font-size:0.8rem">Según «Comparar por», cada factura cuenta en los meses de su periodo facturado (si abarca varios, el importe se reparte por días) o en el mes de su fecha.</p></div>
                 <button id="facturacion-cmp-excel" type="button">Exportar Excel</button>
               </div>
               <div class="facturacion-cmp-filters card">
@@ -6652,6 +6652,12 @@
                     <option value="mes">Mensual</option>
                     <option value="trimestre">Trimestral</option>
                     <option value="anual">Anual</option>
+                  </select>
+                </label>
+                <label>Comparar por
+                  <select id="facturacion-cmp-basis">
+                    <option value="periodo">Periodo de la factura</option>
+                    <option value="fecha">Fecha de la factura</option>
                   </select>
                 </label>
                 <label>Importe
@@ -10578,7 +10584,7 @@
     <script src="./list-scroll-keeper.js?v=20260930-1" defer></script>
     <script src="./suggest-keyboard.js?v=20261113-1" defer></script>
     <script src="./concilia-integrated.js?v=20261025-2" defer></script>
-    <script src="./facturacion.js?v=20261112-4" defer></script>
+    <script src="./facturacion.js?v=20261116-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
     <script src="./app.js?v=20261116-8" defer></script>
