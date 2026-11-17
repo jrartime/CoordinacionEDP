@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-17.9";
+  const VERSION_TEXTO = "2026-11-17.10";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -28,6 +28,14 @@
     protocolo_lgtbi: "Protocolo / medidas LGTBI",
     plan_desconexion_digital: "Plan de desconexión digital",
   };
+
+  // Tipos de causa de un contrato temporal (art. 15 del Estatuto).
+  const CAUSA_TIPOS = [
+    ["", "Sin indicar"],
+    ["sustitucion", "Sustitución de una persona trabajadora"],
+    ["circunstancias_produccion", "Circunstancias de la producción"],
+    ["otra", "Otra causa (se describe abajo)"],
+  ];
 
   const CAMPOS_MANUALES = [
     ["periodo_actividad_estimado", "Periodo(s) estimado(s) de actividad", "textarea"],
@@ -153,6 +161,27 @@
     );
   }
 
+  // Tipo de causa que se deduce del contrato: las interinidades sustituyen a alguien y los eventuales
+  // (402, 502) son por circunstancias de la producción.
+  function causaTipoPredefinido(datos) {
+    const h = datos.historial || {};
+    if (esInterinidad(h) || datos.sustituida) return "sustitucion";
+    if (["402", "502"].includes(String(h.contrato_laboral_clave || "").trim())) return "circunstancias_produccion";
+    return "";
+  }
+
+  // El texto lleva un hueco entre corchetes para que la persona describa la circunstancia concreta.
+  function textoCausaCircunstancias(datos) {
+    const h = datos.historial || {};
+    const duracion =
+      h.fecha_alta && h.fecha_baja ? ` (del ${fechaCorta(h.fecha_alta)} al ${fechaCorta(h.fecha_baja)})` : "";
+    return (
+      "Contrato de duración determinada por circunstancias de la producción (artículo 15.2 del Estatuto de los Trabajadores): " +
+      "[describe la circunstancia concreta: incremento ocasional e imprevisible de la actividad o situación ocasional y previsible de duración reducida]. " +
+      `La duración prevista es la de esa circunstancia${duracion}.`
+    );
+  }
+
   // Horas complementarias cuando la persona está a tiempo parcial. El máximo y el preaviso salen
   // de la ficha del convenio (V Instalaciones: 50 %, 3 días por escrito; Ocio no las regula y
   // aplica el Estatuto). Sin dato en el convenio: 30 % y 3 días, salvo situaciones de necesidad.
@@ -266,7 +295,9 @@
         : Number(convenio.horas_complementarias_pct);
       pre.horas_complementarias_preaviso = convenio?.horas_complementarias_preaviso || HORAS_COMPLEMENTARIAS_ESTATUTO.preaviso;
     }
-    const causa = textoCausaSustitucion(datos);
+    const tipoCausa = datos.manual?.causa_contratacion_tipo || causaTipoPredefinido(datos);
+    const causa =
+      tipoCausa === "sustitucion" ? textoCausaSustitucion(datos) : tipoCausa === "circunstancias_produccion" ? textoCausaCircunstancias(datos) : "";
     if (causa) pre.causa_contratacion_texto = causa;
     return pre;
   }
@@ -334,6 +365,7 @@
     const pre = calcularPredefinidos(datos);
     const temporal = esTemporal(h);
     const interinidad = esInterinidad(h);
+    const tipoCausa = manual.causa_contratacion_tipo || causaTipoPredefinido(datos);
 
     // Devuelve el valor o el marcador de pendiente (y lo anota).
     const dato = (valor, etiqueta) => {
@@ -435,11 +467,13 @@
         parrafo(
           `Causa habilitante, circunstancias que la justifican y conexión con la duración prevista: ${dato(
             causa,
-            interinidad
-              ? "Causa de la contratación temporal: persona a la que sustituye (interinidad)"
+            interinidad || tipoCausa === "sustitucion"
+              ? "Causa de la contratación temporal: persona a la que sustituye (sustitución)"
               : "Causa habilitante de la contratación temporal y su conexión con la duración"
           )}`
         );
+        // Un hueco entre corchetes sin rellenar sigue siendo un dato pendiente.
+        if (causa && /\[[^\]]+\]/.test(causa)) pendientes.push("Causa de la contratación temporal: describe la circunstancia concreta");
       }
     }
 
@@ -1159,13 +1193,14 @@
   // ---- Persona a la que se sustituye (contratos temporales)
   function pintarSustitucion() {
     const h = state.datos.historial;
-    const aplica = esTemporal(h) || esInterinidad(h) || Boolean(state.datos.sustituida);
+    const tipo = el.causaTipo.value;
+    const aplica = esTemporal(h) || esInterinidad(h) || Boolean(state.datos.sustituida) || Boolean(tipo);
     el.sustitucionBloque.classList.toggle("hidden", !aplica);
+    el.sustituyeBloque.classList.toggle("hidden", tipo !== "sustitucion");
     const s = state.datos.sustituida;
     if (!s) {
-      el.sustituyeInfo.textContent = esInterinidad(h)
-        ? "Contrato de interinidad: indica a quién sustituye para completar el centro de trabajo y la causa."
-        : "";
+      el.sustituyeInfo.textContent =
+        tipo === "sustitucion" ? "Indica a quién sustituye para completar el centro de trabajo y la causa." : "";
       return;
     }
     const partes = [];
@@ -1244,6 +1279,8 @@
         pre !== undefined && pre !== null && (tipo === "number" ? Number(valor.replace(",", ".")) === Number(pre) : valor === String(pre));
       manual[clave] = valor === "" || igualAlPredefinido ? null : tipo === "number" ? Number(valor.replace(",", ".")) : valor;
     });
+    const tipoElegido = el.causaTipo ? el.causaTipo.value : "";
+    manual.causa_contratacion_tipo = tipoElegido && tipoElegido !== causaTipoPredefinido(state.datos) ? tipoElegido : null;
     return manual;
   }
 
@@ -1339,6 +1376,7 @@
         const campo = el.form.elements[clave];
         if (campo) campo.value = manual[clave] ?? "";
       });
+      el.causaTipo.value = state.datos.manual?.causa_contratacion_tipo || causaTipoPredefinido(state.datos);
       state.sustituyeId = state.datos.sustituida?.id ?? state.datos.manual?.sustituye_personal_id ?? null;
       state.sustituyeMapa = {};
       el.sustituye.value = state.datos.sustituida
@@ -1400,16 +1438,29 @@
               <input id="historial-anexo-ciudad" type="text" />
             </label>
             <div id="historial-anexo-sustitucion" class="full-width hidden">
+              <h4>Contratación temporal</h4>
               <label>
-                Sustituye a (persona sustituida)
-                <input id="historial-anexo-sustituye" type="text" list="historial-anexo-sustituye-lista" autocomplete="off" placeholder="Escribe el nombre y elige de la lista" />
-                <datalist id="historial-anexo-sustituye-lista"></datalist>
+                Tipo de causa
+                <select id="historial-anexo-causa-tipo">
+                  ${CAUSA_TIPOS.map(([v, t]) => `<option value="${v}">${escapeHtml(t)}</option>`).join("")}
+                </select>
               </label>
-              <p id="historial-anexo-sustituye-info" class="muted-text"></p>
+              <div id="historial-anexo-sustituye-bloque" class="hidden">
+                <label>
+                  Sustituye a (persona sustituida)
+                  <input id="historial-anexo-sustituye" type="text" list="historial-anexo-sustituye-lista" autocomplete="off" placeholder="Escribe el nombre y elige de la lista" />
+                  <datalist id="historial-anexo-sustituye-lista"></datalist>
+                </label>
+                <p id="historial-anexo-sustituye-info" class="muted-text"></p>
+              </div>
+              <label class="full-width">
+                Causa habilitante, circunstancias y conexión con la duración
+                <textarea name="causa_contratacion_texto" rows="4"></textarea>
+              </label>
             </div>
             <h4 class="full-width">Datos de este periodo</h4>
             <p class="muted-text full-width">Los datos predefinidos (convenio, ficha de personal y periodos del contrato) ya aparecen rellenos. Puedes cambiarlos para este periodo; si los dejas igual, siguen al convenio.</p>
-            ${CAMPOS_MANUALES.map(([clave, etiqueta, tipo]) =>
+            ${CAMPOS_MANUALES.filter(([clave]) => clave !== "causa_contratacion_texto").map(([clave, etiqueta, tipo]) =>
               tipo === "textarea"
                 ? `<label class="full-width">${escapeHtml(etiqueta)}<textarea name="${clave}" rows="2"></textarea></label>`
                 : `<label>${escapeHtml(etiqueta)}<input name="${clave}" type="${tipo === "number" ? "number" : "text"}"${tipo === "number" ? ' step="any"' : ""} /></label>`
@@ -1451,12 +1502,21 @@
       sustituye: q("#historial-anexo-sustituye"),
       sustituyeLista: q("#historial-anexo-sustituye-lista"),
       sustituyeInfo: q("#historial-anexo-sustituye-info"),
+      causaTipo: q("#historial-anexo-causa-tipo"),
+      sustituyeBloque: q("#historial-anexo-sustituye-bloque"),
     });
     q("#historial-anexo-close-button").addEventListener("click", cerrar);
     q("#historial-anexo-overlay").addEventListener("click", cerrar);
     el.form.addEventListener("input", () => state.datos && recalcular());
     el.form.addEventListener("submit", (e) => e.preventDefault());
     el.sustituye.addEventListener("input", alEscribirSustituye);
+    // Al cambiar el tipo de causa, la causa se redacta de nuevo (salvo lo que se haya escrito a mano).
+    el.causaTipo.addEventListener("change", () => {
+      state.datos.manual = leerFormulario();
+      sincronizarPredefinidos();
+      recalcular();
+      pintarSustitucion();
+    });
     el.periodosLista.addEventListener("input", (e) => {
       const campo = e.target.closest("input[data-campo]");
       if (!campo) return;
@@ -1603,6 +1663,6 @@
     window.CoordinacionRd723Anexo = { open, generarBytes, buildAnexo, renderAnexoPdf, VERSION_TEXTO };
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad, calcularPredefinidos, textoCausaSustitucion };
+    module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad, calcularPredefinidos, textoCausaSustitucion, textoCausaCircunstancias, causaTipoPredefinido };
   }
 })();
