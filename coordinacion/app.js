@@ -28096,6 +28096,7 @@ const historialDetailCancelButton = document.querySelector("#historial-detail-ca
 const historialDetailDeleteButton = document.querySelector("#historial-detail-delete-button");
 const historialDetailDuplicateButton = document.querySelector("#historial-detail-duplicate-button");
 let historialDetailReportButton = document.querySelector("#historial-detail-report-button");
+const historialDetailAnexoButton = document.querySelector("#historial-detail-anexo-button");
 const historialBulkZone = document.querySelector("#historial-bulk-zone");
 const historialBulkFieldSelect = document.querySelector("#historial-bulk-field");
 const historialBulkCurrentValueInput = document.querySelector("#historial-bulk-current-value");
@@ -31069,6 +31070,7 @@ async function openHistorialDetail(historialId) {
   if (historialDetailDuplicateButton) historialDetailDuplicateButton.classList.remove("hidden");
   if (historialDetailDeleteButton) historialDetailDeleteButton.classList.remove("hidden");
   if (historialDetailReportButton) historialDetailReportButton.classList.remove("hidden");
+  if (historialDetailAnexoButton) historialDetailAnexoButton.classList.remove("hidden");
   renderHistorialDetailForm(row);
   clearHistorialValidationError();
   markFormPristine(historialDetailForm);
@@ -31094,6 +31096,7 @@ async function openHistorialNew(seedRow = null, { copy = Boolean(seedRow) } = {}
   if (historialDetailDuplicateButton) historialDetailDuplicateButton.classList.add("hidden");
   if (historialDetailDeleteButton) historialDetailDeleteButton.classList.add("hidden");
   if (historialDetailReportButton) historialDetailReportButton.classList.add("hidden");
+  if (historialDetailAnexoButton) historialDetailAnexoButton.classList.add("hidden");
   renderHistorialDetailForm(historialDetailSnapshot);
   clearHistorialValidationError();
   markFormPristine(historialDetailForm);
@@ -37200,6 +37203,19 @@ async function init() {
   historialReportTemplateNewButton?.addEventListener("click", startNewHistorialReportTemplate);
   historialDetailReportButton?.addEventListener("click", () => {
     void openHistorialReportPanel();
+  });
+  // Anexo informativo RD 723/2026 (rd723-anexo.js): documento aparte del informe.
+  historialDetailAnexoButton?.addEventListener("click", async () => {
+    if (!historialDetailSnapshot?.id) {
+      setStatus("Abre un periodo de historial laboral antes de generar el anexo.", "error");
+      return;
+    }
+    // Igual que el informe: se genera con lo que hay en el formulario, guardándolo antes.
+    if (historialDetailMode === "edit" && hasUnsavedFormChanges(historialDetailForm)) {
+      await saveHistorialDetail();
+      if (hasUnsavedFormChanges(historialDetailForm) || !historialDetailSnapshot?.id) return;
+    }
+    void window.CoordinacionRd723Anexo?.open({ ...historialDetailSnapshot });
   });
   historialReportCloseButton?.addEventListener("click", closeHistorialReportPanel);
   historialReportOverlay?.addEventListener("click", closeHistorialReportPanel);
