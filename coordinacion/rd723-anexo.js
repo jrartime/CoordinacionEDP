@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-17.8";
+  const VERSION_TEXTO = "2026-11-17.9";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -39,6 +39,7 @@
     ["llamamiento_medio", "Medio habitual de llamamiento", "text"],
     ["llamamiento_contacto", "Datos de contacto de la persona (ficha de personal)", "text"],
     ["formacion_obligatoria_texto", "Formación obligatoria o prevista para el puesto", "textarea"],
+    ["causa_contratacion_texto", "Causa de la contratación temporal y su conexión con la duración", "textarea"],
     ["notas", "Notas internas (no salen en el PDF)", "textarea"],
   ];
 
@@ -115,6 +116,41 @@
       ].join(" ")
     );
     return /discontinu|\bfd\b/.test(texto);
+  }
+
+  // Contrato de duración determinada (o con fecha de baja, si no es fijo discontinuo).
+  function esTemporal(historial) {
+    return (
+      /determinada|temporal/.test(normalizar(historial.contrato_laboral_duracion)) ||
+      (!esFijoDiscontinuo(historial) && Boolean(historial.fecha_baja))
+    );
+  }
+
+  // Interinidad: la causa es la persona a la que se sustituye (claves 410, 418, 510 y 518).
+  const CLAVES_INTERINIDAD = ["410", "418", "510", "518"];
+
+  function esInterinidad(historial) {
+    return CLAVES_INTERINIDAD.includes(String(historial.contrato_laboral_clave || "").trim());
+  }
+
+  // Causa del contrato de sustitución, redactada con la persona sustituida y el motivo de su ausencia.
+  function textoCausaSustitucion(datos) {
+    const sustituida = datos.sustituida;
+    if (!sustituida?.nombre) return "";
+    const h = datos.historial || {};
+    let motivo = "";
+    if (sustituida.ausencia?.tipo) {
+      const a = sustituida.ausencia;
+      motivo = `, por ${a.clase === "baja" ? "baja médica (" + String(a.tipo).toLowerCase() + ")" : String(a.tipo).toLowerCase()}${
+        a.fecha_inicio ? " desde el " + fechaCorta(a.fecha_inicio) : ""
+      }`;
+    }
+    return (
+      `Contrato de duración determinada por sustitución de ${sustituida.nombre}, que tiene derecho a reserva de puesto de trabajo${motivo}. ` +
+      `La duración está ligada a la ausencia de la persona sustituida: el contrato finaliza cuando se reincorpore${
+        h.fecha_baja ? " o, como máximo, el " + fechaLarga(h.fecha_baja) : ""
+      }.`
+    );
   }
 
   // Horas complementarias cuando la persona está a tiempo parcial. El máximo y el preaviso salen
@@ -230,6 +266,8 @@
         : Number(convenio.horas_complementarias_pct);
       pre.horas_complementarias_preaviso = convenio?.horas_complementarias_preaviso || HORAS_COMPLEMENTARIAS_ESTATUTO.preaviso;
     }
+    const causa = textoCausaSustitucion(datos);
+    if (causa) pre.causa_contratacion_texto = causa;
     return pre;
   }
 
@@ -293,6 +331,9 @@
     const esParcial =
       (jornadaSemanal > 0 && maxSemanalContrato > 0 && jornadaSemanal < maxSemanalContrato) ||
       /parcial/.test(normalizar(h.contrato_laboral_jornada));
+    const pre = calcularPredefinidos(datos);
+    const temporal = esTemporal(h);
+    const interinidad = esInterinidad(h);
 
     // Devuelve el valor o el marcador de pendiente (y lo anota).
     const dato = (valor, etiqueta) => {
@@ -331,7 +372,9 @@
       } de ${nombreConvenio}.`
     );
     if (categoria?.nivel) parrafo(`Categorías y funciones que recoge el convenio para este grupo: ${categoria.nivel}`);
-    const centros = datos.centros || [];
+    const centrosPropios = datos.centros || [];
+    const deSustituida = !centrosPropios.length && (datos.sustituida?.centros || []).length > 0;
+    const centros = centrosPropios.length ? centrosPropios : datos.sustituida?.centros || [];
     if (centros.length === 1) {
       parrafo(`Centro de trabajo habitual: ${centros[0]}.`);
     } else if (centros.length > 1) {
@@ -339,6 +382,7 @@
     } else {
       parrafo(`Centro o centros de trabajo: ${dato("", "Centro(s) de trabajo (no hay actividades asignadas en el periodo)")}.`);
     }
+    if (deSustituida) parrafo(`Son los centros de trabajo de ${datos.sustituida.nombre}, la persona a la que sustituye.`);
     if (empresa.direccion_pie) parrafo(`Domicilio de la empresa: ${empresa.direccion_pie}.`);
     parrafo("Cualquier movilidad se sujetará a la legislación y al convenio colectivo aplicables.");
 
@@ -381,11 +425,21 @@
         `Fecha de comienzo de la relación laboral: ${dato(fechaLarga(h.fecha_alta), "Fecha de inicio")}. ${
           h.fecha_baja
             ? "Fecha de finalización prevista: " + fechaLarga(h.fecha_baja) + "."
-            : "No consta fecha de finalización: la relación es de duración indefinida."
+            : temporal
+              ? "No consta fecha de finalización: la duración depende de la causa que justifica el contrato."
+              : "No consta fecha de finalización: la relación es de duración indefinida."
         }`
       );
-      if (h.fecha_baja) {
-        parrafo(`Causa habilitante y circunstancias que la justifican: ${dato("", "Causa habilitante de la contratación temporal y su conexión con la duración")}`);
+      if (temporal) {
+        const causa = manual.causa_contratacion_texto || pre.causa_contratacion_texto;
+        parrafo(
+          `Causa habilitante, circunstancias que la justifican y conexión con la duración prevista: ${dato(
+            causa,
+            interinidad
+              ? "Causa de la contratación temporal: persona a la que sustituye (interinidad)"
+              : "Causa habilitante de la contratación temporal y su conexión con la duración"
+          )}`
+        );
       }
     }
 
@@ -782,7 +836,7 @@
   // Acceso a datos y panel (solo en el navegador)
   // ---------------------------------------------------------------------------
 
-  const state = { initialized: false, datos: null, historial: null, anexo: null, periodos: {}, periodosOriginales: {}, opciones: {} };
+  const state = { initialized: false, datos: null, historial: null, anexo: null, periodos: {}, periodosOriginales: {}, opciones: {}, sustituyeId: null, sustituyeMapa: {} };
   const el = {};
 
   function q(selector) {
@@ -832,6 +886,49 @@
     return [fila.dias_semana, rango].filter(Boolean).join(" ");
   }
 
+  // La persona sustituida: su nombre, los centros donde trabaja en el periodo y el motivo de su
+  // ausencia (la baja médica o el permiso que coincida con el periodo).
+  async function cargarSustituida(supabase, historial, personalId) {
+    if (!personalId) return null;
+    const inicio = historial.fecha_alta || hoyIso();
+    const fin = historial.fecha_baja || "9999-12-31";
+    const { data: persona } = await supabase.from("personal").select("id, personal, dni").eq("id", personalId).maybeSingle();
+    if (!persona) return null;
+    let consulta = supabase
+      .from("actividades_detalle")
+      .select("instalacion")
+      .eq("personal_id", personalId)
+      .or(`fecha_fin.is.null,fecha_fin.gte.${inicio}`)
+      .lte("fecha_inicio", fin)
+      .limit(200);
+    if (historial.empresa_id != null) consulta = consulta.eq("empresa_id", historial.empresa_id);
+    const actividades = await consulta;
+    const centros = Array.from(new Set((actividades.data || []).map((a) => String(a.instalacion || "").trim()).filter(Boolean)));
+    let ausencia = null;
+    const bajas = await supabase
+      .from("personal_bajas_detalle")
+      .select("tipo, fecha_inicio, fecha_fin")
+      .eq("personal_id", personalId)
+      .lte("fecha_inicio", fin)
+      .or(`fecha_fin.is.null,fecha_fin.gte.${inicio}`)
+      .order("fecha_inicio", { ascending: false })
+      .limit(1);
+    if (!bajas.error && bajas.data?.length) {
+      ausencia = { clase: "baja", ...bajas.data[0] };
+    } else {
+      const permisos = await supabase
+        .from("personal_permisos_detalle")
+        .select("tipo, fecha_inicio, fecha_fin")
+        .eq("personal_id", personalId)
+        .lte("fecha_inicio", fin)
+        .or(`fecha_fin.is.null,fecha_fin.gte.${inicio}`)
+        .order("fecha_inicio", { ascending: false })
+        .limit(1);
+      if (!permisos.error && permisos.data?.length) ausencia = { clase: "permiso", ...permisos.data[0] };
+    }
+    return { id: persona.id, nombre: persona.personal, dni: persona.dni, centros, ausencia };
+  }
+
   async function cargarDatos(historial) {
     const supabase = await getClient();
     const inicio = historial.fecha_alta || hoyIso();
@@ -863,6 +960,9 @@
     ]);
     if (manualRes.error) throw manualRes.error;
     const actividades = actividadesRes.error ? [] : actividadesRes.data || [];
+    const sustituida = manualRes.data?.sustituye_personal_id
+      ? await cargarSustituida(supabase, historial, manualRes.data.sustituye_personal_id)
+      : null;
 
     const categoria = await porId(supabase, "convenios_categorias", puesto?.convenio_id);
     const convenio = categoria?.convenio_id ? await porId(supabase, "convenios", categoria.convenio_id) : null;
@@ -940,6 +1040,7 @@
       horario_texto: historial.horarios || horarios,
       documentos,
       manual: manualRes.data || {},
+      sustituida,
       contratos,
       periodosContrato,
       periodos: periodosContrato,
@@ -954,7 +1055,14 @@
       ["Convenio", anexo.nombreConvenio],
       ["Grupo", datos.categoria?.grupo_nivel || "—"],
       ["Tarifa vigente", datos.tarifa ? `${euros(datos.tarifa.salario_anual)} anuales desde ${fechaCorta(datos.tarifa.vigente_desde)}` : "—"],
-      ["Centros", datos.centros.length ? datos.centros.join("; ") : "—"],
+      [
+        "Centros",
+        datos.centros.length
+          ? datos.centros.join("; ")
+          : datos.sustituida?.centros?.length
+            ? `${datos.sustituida.centros.join("; ")} (de la persona sustituida)`
+            : "—",
+      ],
       ["Modalidad", datos.historial.contrato_laboral_descripcion || datos.historial.tipo_contratacion || "—"],
     ]
       .map(([k, v]) => `<span><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</span>`)
@@ -1048,6 +1156,78 @@
     state.predef = nuevo;
   }
 
+  // ---- Persona a la que se sustituye (contratos temporales)
+  function pintarSustitucion() {
+    const h = state.datos.historial;
+    const aplica = esTemporal(h) || esInterinidad(h) || Boolean(state.datos.sustituida);
+    el.sustitucionBloque.classList.toggle("hidden", !aplica);
+    const s = state.datos.sustituida;
+    if (!s) {
+      el.sustituyeInfo.textContent = esInterinidad(h)
+        ? "Contrato de interinidad: indica a quién sustituye para completar el centro de trabajo y la causa."
+        : "";
+      return;
+    }
+    const partes = [];
+    partes.push(s.ausencia ? `Ausencia: ${s.ausencia.tipo} desde el ${fechaCorta(s.ausencia.fecha_inicio)}` : "No consta baja ni permiso que coincida con el periodo");
+    partes.push(s.centros.length ? `Centros: ${s.centros.join("; ")}` : "Sin actividades en el periodo");
+    el.sustituyeInfo.textContent = partes.join(" · ");
+  }
+
+  async function elegirSustituida(personalId) {
+    try {
+      const supabase = await getClient();
+      state.sustituyeId = personalId || null;
+      state.datos.sustituida = personalId ? await cargarSustituida(supabase, state.historial, personalId) : null;
+      if (state.datos.sustituida) {
+        const dni = state.datos.sustituida.dni ? ` · ${state.datos.sustituida.dni}` : "";
+        el.sustituye.value = `${state.datos.sustituida.nombre}${dni}`;
+      } else if (personalId) {
+        state.sustituyeId = null;
+      }
+      sincronizarPredefinidos();
+      recalcular();
+      pintarSustitucion();
+    } catch (error) {
+      setStatus(`No se pudo cargar la persona sustituida: ${error?.message || error}`, "error");
+    }
+  }
+
+  let temporizadorSustituye = null;
+
+  async function buscarPersonas(texto) {
+    const supabase = await getClient();
+    const { data, error } = await supabase
+      .from("personal")
+      .select("id, personal, dni")
+      .ilike("personal", `%${texto.replace(/[%_,]/g, " ")}%`)
+      .order("personal", { ascending: true })
+      .limit(15);
+    if (error) return;
+    state.sustituyeMapa = {};
+    el.sustituyeLista.innerHTML = (data || [])
+      .map((p) => {
+        const valor = `${p.personal}${p.dni ? " · " + p.dni : ""}`;
+        state.sustituyeMapa[valor] = p.id;
+        return `<option value="${escapeHtml(valor)}"></option>`;
+      })
+      .join("");
+  }
+
+  function alEscribirSustituye() {
+    const valor = el.sustituye.value.trim();
+    if (state.sustituyeMapa[valor]) {
+      void elegirSustituida(state.sustituyeMapa[valor]);
+      return;
+    }
+    if (!valor) {
+      if (state.sustituyeId) void elegirSustituida(null);
+      return;
+    }
+    clearTimeout(temporizadorSustituye);
+    if (valor.length >= 2) temporizadorSustituye = setTimeout(() => void buscarPersonas(valor), 250);
+  }
+
   function alCambiarPeriodos() {
     state.datos.periodos = aplanarPeriodos();
     sincronizarPredefinidos();
@@ -1081,7 +1261,7 @@
   async function guardarManual() {
     const supabase = await getClient();
     const manual = leerFormulario();
-    const fila = { historial_id: state.historial.id, ...manual };
+    const fila = { historial_id: state.historial.id, ...manual, sustituye_personal_id: state.sustituyeId ?? null };
     const { error } = await supabase.from("historiales_laborales_rd723").upsert(fila, { onConflict: "historial_id" });
     if (error) throw error;
     return manual;
@@ -1159,8 +1339,14 @@
         const campo = el.form.elements[clave];
         if (campo) campo.value = manual[clave] ?? "";
       });
+      state.sustituyeId = state.datos.sustituida?.id ?? state.datos.manual?.sustituye_personal_id ?? null;
+      state.sustituyeMapa = {};
+      el.sustituye.value = state.datos.sustituida
+        ? `${state.datos.sustituida.nombre}${state.datos.sustituida.dni ? " · " + state.datos.sustituida.dni : ""}`
+        : "";
       sincronizarPredefinidos();
       recalcular();
+      pintarSustitucion();
       el.content.classList.remove("hidden");
       setStatus("");
     } catch (error) {
@@ -1213,6 +1399,14 @@
               Ciudad
               <input id="historial-anexo-ciudad" type="text" />
             </label>
+            <div id="historial-anexo-sustitucion" class="full-width hidden">
+              <label>
+                Sustituye a (persona sustituida)
+                <input id="historial-anexo-sustituye" type="text" list="historial-anexo-sustituye-lista" autocomplete="off" placeholder="Escribe el nombre y elige de la lista" />
+                <datalist id="historial-anexo-sustituye-lista"></datalist>
+              </label>
+              <p id="historial-anexo-sustituye-info" class="muted-text"></p>
+            </div>
             <h4 class="full-width">Datos de este periodo</h4>
             <p class="muted-text full-width">Los datos predefinidos (convenio, ficha de personal y periodos del contrato) ya aparecen rellenos. Puedes cambiarlos para este periodo; si los dejas igual, siguen al convenio.</p>
             ${CAMPOS_MANUALES.map(([clave, etiqueta, tipo]) =>
@@ -1253,11 +1447,16 @@
       tipo: q("#historial-anexo-tipo"),
       fecha: q("#historial-anexo-fecha"),
       ciudad: q("#historial-anexo-ciudad"),
+      sustitucionBloque: q("#historial-anexo-sustitucion"),
+      sustituye: q("#historial-anexo-sustituye"),
+      sustituyeLista: q("#historial-anexo-sustituye-lista"),
+      sustituyeInfo: q("#historial-anexo-sustituye-info"),
     });
     q("#historial-anexo-close-button").addEventListener("click", cerrar);
     q("#historial-anexo-overlay").addEventListener("click", cerrar);
     el.form.addEventListener("input", () => state.datos && recalcular());
     el.form.addEventListener("submit", (e) => e.preventDefault());
+    el.sustituye.addEventListener("input", alEscribirSustituye);
     el.periodosLista.addEventListener("input", (e) => {
       const campo = e.target.closest("input[data-campo]");
       if (!campo) return;
@@ -1404,6 +1603,6 @@
     window.CoordinacionRd723Anexo = { open, generarBytes, buildAnexo, renderAnexoPdf, VERSION_TEXTO };
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad, calcularPredefinidos };
+    module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad, calcularPredefinidos, textoCausaSustitucion };
   }
 })();
