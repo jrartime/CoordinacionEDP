@@ -9231,9 +9231,12 @@ input[data-percent].pct-input--warn {
 .historial-report-annex-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem;
   padding: 0.2rem 0;
+}
+.historial-report-annex-name {
+  flex: 1;
+  min-width: 0;
 }
 .historial-report-annex-row.is-rd {
   background: #eef3fb;
@@ -9253,4 +9256,15 @@ input[data-percent].pct-input--warn {
   outline: 2px dashed #4a7bd0;
   outline-offset: 2px;
   background: #f2f6fd;
+}
+
+/* Periodos de actividad (anexo RD 723 y panel de contratos) */
+.historial-anexo-periodo {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.3rem 0;
+}
+.historial-anexo-contrato {
+  margin: 0.6rem 0;
 }

@@ -1819,6 +1819,7 @@ const contractInstallationSelectedSelect = document.querySelector("#contract-ins
 const contractInstallationAddButton = document.querySelector("#contract-installation-add-button");
 const contractInstallationRemoveButton = document.querySelector("#contract-installation-remove-button");
 const contractRatesSection = document.querySelector("#contract-rates-section");
+const contractActivityPeriodsSection = document.querySelector("#contract-activity-periods-section");
 const contractRatesBody = document.querySelector("#contract-rates-body");
 const contractRateNewButton = document.querySelector("#contract-rate-new-button");
 const contractRateDialog = document.querySelector("#contract-rate-dialog");
@@ -13610,6 +13611,8 @@ function renderContractAssignmentOptions() {
   const hasContract = Boolean(currentEditingContractId);
   contractPersonalSection?.classList.toggle("hidden", !hasContract);
   contractInstallationsSection?.classList.toggle("hidden", !hasContract);
+  contractActivityPeriodsSection?.classList.toggle("hidden", !hasContract);
+  if (hasContract) void window.CoordinacionPeriodosContrato?.mostrar(currentEditingContractId);
 
   if (!hasContract) {
     return;
@@ -14010,6 +14013,9 @@ function openContractDetailPanel(contractId = "") {
   contractPersonalSection?.classList.toggle("hidden", !contract);
   contractInstallationsSection?.classList.toggle("hidden", !contract);
   contractRatesSection?.classList.toggle("hidden", !contract);
+  contractActivityPeriodsSection?.classList.toggle("hidden", !contract);
+  // Se recarga siempre al abrir: los periodos también se pueden editar desde el anexo RD 723.
+  if (contract) void window.CoordinacionPeriodosContrato?.mostrar(contract.id, { forzar: true });
   renderContractAssignmentOptions();
   markFormPristine(contractDetailForm);
   contractDetailPanel?.classList.remove("hidden");
@@ -29377,23 +29383,23 @@ function renderHistorialReportAnnexes() {
   }
   const filas = items
     .map((item, index) => {
-      const herramientas = `<span class="historial-report-annex-tools">
+      // Botones de orden a la izquierda de cada fila; «Quitar» (solo en los añadidos a mano) a la derecha.
+      const orden = `<span class="historial-report-annex-tools">
         <button type="button" class="secondary-button" data-historial-annex-up="${escapeHtml(item.key)}" ${index === 0 ? "disabled" : ""} aria-label="Subir" title="Subir">↑</button>
         <button type="button" class="secondary-button" data-historial-annex-down="${escapeHtml(item.key)}" ${index === items.length - 1 ? "disabled" : ""} aria-label="Bajar" title="Bajar">↓</button>
-        ${
-          item.kind === "extra"
-            ? `<button type="button" class="secondary-button" data-historial-annex-remove="${escapeHtml(item.key)}">Quitar</button>`
-            : ""
-        }
       </span>`;
       if (item.kind === "rd723") {
-        return `<div class="historial-report-annex-row is-rd"><span>Anexo RD 723 <small class="muted-text">(posición dentro de ese documento)</small></span>${herramientas}</div>`;
+        return `<div class="historial-report-annex-row is-rd">${orden}<span class="historial-report-annex-name">Anexo RD 723 <small class="muted-text">(posición dentro de ese documento)</small></span></div>`;
       }
-      return `<div class="historial-report-annex-row">
-        <label class="checkbox-item">
+      const quitar =
+        item.kind === "extra"
+          ? `<button type="button" class="secondary-button" data-historial-annex-remove="${escapeHtml(item.key)}">Quitar</button>`
+          : "";
+      return `<div class="historial-report-annex-row">${orden}
+        <label class="checkbox-item historial-report-annex-name">
           <input type="checkbox" data-historial-annex-check="${escapeHtml(item.key)}" ${item.checked ? "checked" : ""} />
           <span>${escapeHtml(item.label)} <small class="muted-text">(${escapeHtml(item.detail)})</small></span>
-        </label>${herramientas}</div>`;
+        </label>${quitar}</div>`;
     })
     .join("");
   const aviso = marcables.length

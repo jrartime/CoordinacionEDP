@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-17.6";
+  const VERSION_TEXTO = "2026-11-17.7";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -34,10 +34,10 @@
     ["periodo_inactividad_estimado", "Periodo(s) estimado(s) de inactividad", "textarea"],
     ["duracion_estimada_periodo_actividad", "Duración estimada del periodo de actividad", "text"],
     ["jornada_anual_estimada_horas", "Jornada anual estimada (horas)", "number"],
-    ["horas_complementarias_pct", "Horas complementarias: % máximo (vacío = el del convenio)", "number"],
-    ["horas_complementarias_preaviso", "Horas complementarias: preaviso (vacío = el del convenio)", "text"],
-    ["llamamiento_medio", "Medio de llamamiento (vacío = por escrito, correo electrónico)", "text"],
-    ["llamamiento_contacto", "Datos de contacto (vacío = los de su ficha de personal)", "text"],
+    ["horas_complementarias_pct", "Horas complementarias: % máximo de la jornada semanal", "number"],
+    ["horas_complementarias_preaviso", "Horas complementarias: preaviso", "text"],
+    ["llamamiento_medio", "Medio habitual de llamamiento", "text"],
+    ["llamamiento_contacto", "Datos de contacto de la persona (ficha de personal)", "text"],
     ["formacion_obligatoria_texto", "Formación obligatoria o prevista para el puesto", "textarea"],
     ["notas", "Notas internas (no salen en el PDF)", "textarea"],
   ];
@@ -194,6 +194,70 @@
     const semanas = semanasDeActividad(periodos, historial.fecha_alta);
     if (!semanas) return null;
     return { horas: Math.round(semanal * semanas), semanas: Math.round(semanas * 10) / 10 };
+  }
+
+  // Valores que el anexo propone si no se escribe otra cosa: salen del convenio, de la ficha de
+  // personal y de los periodos del contrato. Aparecen ya en los campos del panel, y si se dejan
+  // tal cual no se guardan (siguen al convenio); si se cambian, el cambio vale para este periodo.
+  function calcularPredefinidos(datos) {
+    const h = datos.historial || {};
+    const convenio = datos.convenio || null;
+    const persona = datos.persona || {};
+    const fd = esFijoDiscontinuo(h);
+    const maxSemanal = Number(h.jornada_maxima) || Number(convenio?.jornada_maxima_semanal_horas) || 0;
+    const jornada = Number(h.jornada) || 0;
+    const esParcial = (jornada > 0 && maxSemanal > 0 && jornada < maxSemanal) || /parcial/.test(normalizar(h.contrato_laboral_jornada));
+    const pre = {};
+    if (fd) {
+      const actividad = textoPeriodos(datos.periodos);
+      const inactividad = textoInactividad(datos.periodos);
+      if (actividad) pre.periodo_actividad_estimado = actividad;
+      if (inactividad) pre.periodo_inactividad_estimado = inactividad;
+      pre.llamamiento_medio = "por escrito, mediante correo electrónico";
+      const contacto = [
+        persona.email ? `correo electrónico ${persona.email}` : "",
+        persona.movil || persona.telefono ? `teléfono ${persona.movil || persona.telefono}` : "",
+      ]
+        .filter(Boolean)
+        .join("; ");
+      if (contacto) pre.llamamiento_contacto = contacto;
+    }
+    const anual = jornadaAnualEstimada(h, fd, datos.periodos);
+    if (anual) pre.jornada_anual_estimada_horas = anual.horas;
+    if (esParcial) {
+      pre.horas_complementarias_pct = esVacio(convenio?.horas_complementarias_pct)
+        ? HORAS_COMPLEMENTARIAS_ESTATUTO.pct
+        : Number(convenio.horas_complementarias_pct);
+      pre.horas_complementarias_preaviso = convenio?.horas_complementarias_preaviso || HORAS_COMPLEMENTARIAS_ESTATUTO.preaviso;
+    }
+    return pre;
+  }
+
+  // Une, borra y actualiza los tramos de actividad de un contrato para dejarlos como `filas`.
+  async function sincronizarPeriodos(supabase, contratoId, filas, idsOriginales) {
+    const actuales = filas.filter((p) => p.fecha_inicio && p.fecha_fin);
+    const invalido = actuales.find((p) => p.fecha_fin < p.fecha_inicio);
+    if (invalido) throw new Error("Un periodo termina antes de empezar.");
+    const idsActuales = new Set(actuales.filter((p) => p.id).map((p) => p.id));
+    const borrar = (idsOriginales || []).filter((id) => !idsActuales.has(id));
+    if (borrar.length) {
+      const { error } = await supabase.from("contratos_periodos_actividad").delete().in("id", borrar);
+      if (error) throw error;
+    }
+    for (const p of actuales.filter((x) => x.id)) {
+      const { error } = await supabase
+        .from("contratos_periodos_actividad")
+        .update({ fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_fin })
+        .eq("id", p.id);
+      if (error) throw error;
+    }
+    const nuevos = actuales
+      .filter((x) => !x.id)
+      .map((x) => ({ contrato_id: contratoId, fecha_inicio: x.fecha_inicio, fecha_fin: x.fecha_fin }));
+    if (nuevos.length) {
+      const { error } = await supabase.from("contratos_periodos_actividad").insert(nuevos);
+      if (error) throw error;
+    }
   }
 
   const UNIDAD_COMPLEMENTO = { mensual: "mensuales", diario: "por día trabajado", por_hora: "por hora" };
@@ -944,26 +1008,8 @@
   async function guardarPeriodos() {
     const supabase = await getClient();
     for (const contrato of state.datos.contratos) {
-      const actuales = (state.periodos[contrato.id] || []).filter((p) => p.fecha_inicio && p.fecha_fin);
-      const originales = state.periodosOriginales[contrato.id] || [];
-      const idsActuales = new Set(actuales.filter((p) => p.id).map((p) => p.id));
-      const borrar = originales.filter((id) => !idsActuales.has(id));
-      if (borrar.length) {
-        const { error } = await supabase.from("contratos_periodos_actividad").delete().in("id", borrar);
-        if (error) throw error;
-      }
-      for (const p of actuales.filter((x) => x.id)) {
-        const { error } = await supabase
-          .from("contratos_periodos_actividad")
-          .update({ fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_fin })
-          .eq("id", p.id);
-        if (error) throw error;
-      }
-      const nuevos = actuales.filter((x) => !x.id).map((x) => ({ contrato_id: contrato.id, fecha_inicio: x.fecha_inicio, fecha_fin: x.fecha_fin }));
-      if (nuevos.length) {
-        const { error } = await supabase.from("contratos_periodos_actividad").insert(nuevos);
-        if (error) throw error;
-      }
+      // eslint-disable-next-line no-await-in-loop
+      await sincronizarPeriodos(supabase, contrato.id, state.periodos[contrato.id] || [], state.periodosOriginales[contrato.id]);
     }
     // Recarga los ids reales de lo guardado.
     const ids = state.datos.contratos.map((c) => c.id);
@@ -986,12 +1032,37 @@
     });
   }
 
+  // Rellena con lo predefinido los campos vacíos o que aún tenían el valor predefinido anterior
+  // (al cambiar los periodos se actualizan solos; lo escrito a mano no se pisa).
+  function sincronizarPredefinidos() {
+    const nuevo = calcularPredefinidos(state.datos);
+    const anterior = state.predef || {};
+    CAMPOS_MANUALES.forEach(([clave]) => {
+      const campo = el.form.elements[clave];
+      if (!campo) return;
+      const actual = String(campo.value).trim();
+      const ant = anterior[clave] === undefined || anterior[clave] === null ? "" : String(anterior[clave]);
+      const nue = nuevo[clave] === undefined || nuevo[clave] === null ? "" : String(nuevo[clave]);
+      if (actual === "" || actual === ant) campo.value = nue;
+    });
+    state.predef = nuevo;
+  }
+
+  function alCambiarPeriodos() {
+    state.datos.periodos = aplanarPeriodos();
+    sincronizarPredefinidos();
+    recalcular();
+  }
+
   function leerFormulario() {
     const manual = {};
     CAMPOS_MANUALES.forEach(([clave, , tipo]) => {
       const campo = el.form.elements[clave];
       const valor = campo ? String(campo.value).trim() : "";
-      manual[clave] = valor === "" ? null : tipo === "number" ? Number(valor.replace(",", ".")) : valor;
+      const pre = state.predef?.[clave];
+      const igualAlPredefinido =
+        pre !== undefined && pre !== null && (tipo === "number" ? Number(valor.replace(",", ".")) === Number(pre) : valor === String(pre));
+      manual[clave] = valor === "" || igualAlPredefinido ? null : tipo === "number" ? Number(valor.replace(",", ".")) : valor;
     });
     return manual;
   }
@@ -1075,16 +1146,19 @@
     try {
       state.historial = historial;
       state.datos = await cargarDatos(historial);
-      const manual = state.datos.manual || {};
-      CAMPOS_MANUALES.forEach(([clave]) => {
-        const campo = el.form.elements[clave];
-        if (campo) campo.value = manual[clave] ?? "";
-      });
       el.fecha.value = state.opciones.fechaDocumento || hoyIso();
       el.ciudad.value = state.opciones.ciudad || state.datos.empresa.ciudad_firma || "Oviedo";
       el.tipo.value = "alta";
       cargarPeriodosEnEstado(state.datos.periodosContrato);
       pintarPeriodos();
+      state.datos.periodos = aplanarPeriodos();
+      state.predef = {};
+      const manual = state.datos.manual || {};
+      CAMPOS_MANUALES.forEach(([clave]) => {
+        const campo = el.form.elements[clave];
+        if (campo) campo.value = manual[clave] ?? "";
+      });
+      sincronizarPredefinidos();
       recalcular();
       el.content.classList.remove("hidden");
       setStatus("");
@@ -1139,6 +1213,7 @@
               <input id="historial-anexo-ciudad" type="text" />
             </label>
             <h4 class="full-width">Datos de este periodo</h4>
+            <p class="muted-text full-width">Los datos predefinidos (convenio, ficha de personal y periodos del contrato) ya aparecen rellenos. Puedes cambiarlos para este periodo; si los dejas igual, siguen al convenio.</p>
             ${CAMPOS_MANUALES.map(([clave, etiqueta, tipo]) =>
               tipo === "textarea"
                 ? `<label class="full-width">${escapeHtml(etiqueta)}<textarea name="${clave}" rows="2"></textarea></label>`
@@ -1188,7 +1263,7 @@
       const contrato = campo.closest("[data-contrato]").dataset.contrato;
       const indice = Number(campo.closest("[data-indice]").dataset.indice);
       state.periodos[contrato][indice][campo.dataset.campo] = campo.value;
-      recalcular();
+      alCambiarPeriodos();
     });
     el.periodosLista.addEventListener("click", (e) => {
       const contenedor = e.target.closest("[data-contrato]");
@@ -1201,7 +1276,7 @@
         const indice = Number(e.target.closest("[data-indice]").dataset.indice);
         state.periodos[contrato].splice(indice, 1);
         pintarPeriodos();
-        recalcular();
+        alCambiarPeriodos();
       }
     });
     q("#historial-anexo-periodos-save-button").addEventListener("click", async () => {
@@ -1209,7 +1284,7 @@
         setStatus("Guardando periodos…");
         await guardarPeriodos();
         pintarPeriodos();
-        recalcular();
+        alCambiarPeriodos();
         setStatus("Periodos de actividad guardados.", "ok");
       } catch (error) {
         setStatus(`No se pudieron guardar los periodos: ${error?.message || error}`, "error");
@@ -1239,10 +1314,95 @@
     state.initialized = true;
   }
 
+  // ---- Periodos de actividad en el panel de Contratos (sección #contract-activity-periods-section)
+  const pc = { id: null, filas: [], originales: [], iniciado: false };
+
+  function estadoContrato(mensaje, tono = "") {
+    const nodo = q("#contract-activity-periods-status");
+    if (!nodo) return;
+    nodo.textContent = mensaje || "";
+    nodo.dataset.tone = tono;
+  }
+
+  function pintarContrato() {
+    const lista = q("#contract-activity-periods-list");
+    if (!lista) return;
+    lista.innerHTML = pc.filas.length
+      ? pc.filas
+          .map(
+            (p, i) => `<div class="historial-anexo-periodo" data-indice="${i}">
+              <input type="date" data-campo="fecha_inicio" value="${escapeHtml(p.fecha_inicio || "")}" aria-label="Inicio del periodo de actividad" />
+              <input type="date" data-campo="fecha_fin" value="${escapeHtml(p.fecha_fin || "")}" aria-label="Fin del periodo de actividad" />
+              <button type="button" class="secondary-button" data-quitar aria-label="Quitar periodo">✕</button>
+            </div>`
+          )
+          .join("")
+      : '<p class="muted-text">Este contrato no tiene periodos de actividad.</p>';
+  }
+
+  function iniciarContrato() {
+    if (pc.iniciado) return;
+    const seccion = q("#contract-activity-periods-section");
+    if (!seccion) return;
+    pc.iniciado = true;
+    seccion.addEventListener("input", (e) => {
+      const campo = e.target.closest("input[data-campo]");
+      if (!campo) return;
+      pc.filas[Number(campo.closest("[data-indice]").dataset.indice)][campo.dataset.campo] = campo.value;
+    });
+    seccion.addEventListener("click", (e) => {
+      if (e.target.closest("#contract-activity-periods-add-button")) {
+        pc.filas.push({ fecha_inicio: "", fecha_fin: "" });
+        pintarContrato();
+      } else if (e.target.closest("[data-quitar]")) {
+        pc.filas.splice(Number(e.target.closest("[data-indice]").dataset.indice), 1);
+        pintarContrato();
+      }
+    });
+    q("#contract-activity-periods-save-button")?.addEventListener("click", async () => {
+      try {
+        estadoContrato("Guardando periodos…");
+        const supabase = await getClient();
+        await sincronizarPeriodos(supabase, Number(pc.id), pc.filas, pc.originales);
+        await mostrarPeriodosContrato(pc.id, { forzar: true });
+        estadoContrato("Periodos de actividad guardados.", "ok");
+      } catch (error) {
+        estadoContrato(`No se pudieron guardar los periodos: ${error?.message || error}`, "error");
+      }
+    });
+  }
+
+  async function mostrarPeriodosContrato(contratoId, { forzar = false } = {}) {
+    iniciarContrato();
+    if (!contratoId || !pc.iniciado) return;
+    if (!forzar && String(pc.id) === String(contratoId)) return;
+    pc.id = contratoId;
+    pc.filas = [];
+    pc.originales = [];
+    pintarContrato();
+    try {
+      const supabase = await getClient();
+      const { data, error } = await supabase
+        .from("contratos_periodos_actividad")
+        .select("id, fecha_inicio, fecha_fin")
+        .eq("contrato_id", Number(contratoId))
+        .order("fecha_inicio", { ascending: true });
+      if (error) throw error;
+      if (String(pc.id) !== String(contratoId)) return;
+      pc.filas = (data || []).map((f) => ({ id: f.id, fecha_inicio: f.fecha_inicio, fecha_fin: f.fecha_fin }));
+      pc.originales = pc.filas.map((f) => f.id);
+      pintarContrato();
+      estadoContrato("");
+    } catch (error) {
+      estadoContrato(`No se pudieron cargar los periodos: ${error?.message || error}`, "error");
+    }
+  }
+
   if (typeof window !== "undefined") {
+    window.CoordinacionPeriodosContrato = { mostrar: mostrarPeriodosContrato };
     window.CoordinacionRd723Anexo = { open, generarBlob, buildAnexo, renderAnexoPdf, VERSION_TEXTO };
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad };
+    module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad, calcularPredefinidos };
   }
 })();
