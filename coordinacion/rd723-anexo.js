@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-17.2";
+  const VERSION_TEXTO = "2026-11-17.3";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -34,10 +34,10 @@
     ["periodo_inactividad_estimado", "Periodo(s) estimado(s) de inactividad", "textarea"],
     ["duracion_estimada_periodo_actividad", "Duración estimada del periodo de actividad", "text"],
     ["jornada_anual_estimada_horas", "Jornada anual estimada (horas)", "number"],
-    ["horas_complementarias_pct", "Horas complementarias: % máximo pactado", "number"],
-    ["horas_complementarias_preaviso", "Horas complementarias: preaviso", "text"],
-    ["llamamiento_medio", "Medio habitual de llamamiento", "text"],
-    ["llamamiento_contacto", "Datos de contacto designados por la persona", "text"],
+    ["horas_complementarias_pct", "Horas complementarias: % máximo (vacío = 50)", "number"],
+    ["horas_complementarias_preaviso", "Horas complementarias: preaviso (vacío = 3 días, salvo necesidad)", "text"],
+    ["llamamiento_medio", "Medio de llamamiento (vacío = por escrito, correo electrónico)", "text"],
+    ["llamamiento_contacto", "Datos de contacto (vacío = los de su ficha de personal)", "text"],
     ["formacion_obligatoria_texto", "Formación obligatoria o prevista para el puesto", "textarea"],
     ["notas", "Notas internas (no salen en el PDF)", "textarea"],
   ];
@@ -67,10 +67,17 @@
     });
   }
 
+  // Separador de miles siempre (es-ES no lo pone en 4 cifras: 1073,09 -> 1.073,09).
+  function conMiles(texto) {
+    return texto.replace(/^(-?\d+)/, (entero) => entero.replace(/\B(?=(\d{3})+(?!\d))/g, "."));
+  }
+
   function numero(valor, decimales = 2) {
     const n = Number(valor);
     if (!Number.isFinite(n)) return "";
-    return n.toLocaleString("es-ES", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
+    return conMiles(
+      n.toLocaleString("es-ES", { minimumFractionDigits: decimales, maximumFractionDigits: decimales, useGrouping: false })
+    );
   }
 
   function horas(valor) {
@@ -328,8 +335,19 @@
           convenio?.preaviso_llamamiento_dias ? "al menos " + convenio.preaviso_llamamiento_dias + " días" : dato("", "Preaviso de llamamiento del convenio")
         }`
       );
-      punto(`Medio habitual de llamamiento: ${dato(manual.llamamiento_medio, "Medio habitual de llamamiento")}`);
-      punto(`Datos de contacto designados por la persona trabajadora: ${dato(manual.llamamiento_contacto, "Datos de contacto para el llamamiento")}`);
+      punto(`Medio habitual de llamamiento: ${manual.llamamiento_medio || "por escrito, mediante correo electrónico"}`);
+      const contactoPersona = [
+        persona.email ? `correo electrónico ${persona.email}` : "",
+        persona.movil || persona.telefono ? `teléfono ${persona.movil || persona.telefono}` : "",
+      ]
+        .filter(Boolean)
+        .join("; ");
+      punto(
+        `Datos de contacto de la persona trabajadora (constan en su ficha de personal): ${dato(
+          manual.llamamiento_contacto || contactoPersona,
+          "Datos de contacto de la persona (correo o teléfono en la tabla de personal)"
+        )}`
+      );
     }
 
     // ----- 5. Jornada, horario y descansos
@@ -409,8 +427,12 @@
         );
       }
       if (tarifa.pagas_anuales) {
-        const porPaga = (anual * proporcion) / Number(tarifa.pagas_anuales);
-        punto(`El convenio fija ${horas(tarifa.pagas_anuales)} pagas anuales; referencia por paga: ${euros(porPaga)}`);
+        const extras = Math.max(0, Number(tarifa.pagas_anuales) - 12);
+        punto(
+          `El convenio fija ${horas(tarifa.pagas_anuales)} pagas anuales. ${
+            extras ? "Las " + horas(extras) + " pagas extraordinarias se prorratean y se abonan" : "Se abonan"
+          } en las doce mensualidades: referencia mensual con la prorrata incluida, ${euros((anual * proporcion) / 12)}`
+        );
       }
       if (Number(tarifa.complemento_dedicacion) > 0) punto(`Complemento de dedicación: ${euros(tarifa.complemento_dedicacion)} mensuales`);
       if (Number(tarifa.plus_transporte) > 0) punto(`Plus de transporte: ${euros(tarifa.plus_transporte)} (importe fijado en la tarifa del convenio)`);
@@ -419,7 +441,7 @@
     } else {
       parrafo(`Salario base y complementos: ${dato("", "Tarifa de convenio vigente para la categoría del puesto")}`);
     }
-    punto(`Pagas extraordinarias y eventual prorrateo: ${dato("", "Pagas extraordinarias y prorrateo (dato de empresa)")}`);
+    punto("Pagas extraordinarias: todas se prorratean, es decir, se abonan repartidas en las doce mensualidades.");
     const complementosPersona = (datos.complementos_persona || []).map(textoComplementoPersona);
     const marcasPeriodo = [
       h.tiene_complemento_movilidad && "movilidad",
@@ -495,7 +517,11 @@
     Object.keys(DOCUMENTOS_EMPRESA).forEach((tipo) => {
       const doc = docs.find((d) => d.tipo === tipo && d.ruta_storage);
       if (doc) {
-        punto(`${DOCUMENTOS_EMPRESA[tipo]}: existe${doc.se_adjunta ? " (se adjunta a este anexo)" : ""}.`);
+        punto(
+          `${DOCUMENTOS_EMPRESA[tipo]}: existe${
+            doc.se_adjunta ? " y se adjunta a continuación de este anexo" : "; puede consultarse en el lugar indicado más abajo"
+          }.`
+        );
       } else {
         punto(`${DOCUMENTOS_EMPRESA[tipo]}: no consta.`);
         pendientes.push(`${DOCUMENTOS_EMPRESA[tipo]} (no hay documento adjunto en la empresa)`);
@@ -686,7 +712,7 @@
   // Acceso a datos y panel (solo en el navegador)
   // ---------------------------------------------------------------------------
 
-  const state = { initialized: false, datos: null, historial: null, anexo: null, periodos: {}, periodosOriginales: {} };
+  const state = { initialized: false, datos: null, historial: null, anexo: null, periodos: {}, periodosOriginales: {}, opciones: {} };
   const el = {};
 
   function q(selector) {
@@ -826,7 +852,14 @@
     }
 
     return {
-      persona: { nombre: persona?.personal || historial.personal || "", dni: persona?.dni || historial.dni || "", genero: persona?.genero || "" },
+      persona: {
+        nombre: persona?.personal || historial.personal || "",
+        dni: persona?.dni || historial.dni || "",
+        genero: persona?.genero || "",
+        email: persona?.email || "",
+        movil: persona?.movil || "",
+        telefono: persona?.telefono || "",
+      },
       empresa: empresa || {},
       historial,
       categoria,
@@ -959,6 +992,7 @@
 
   function recalcular() {
     state.datos.manual = leerFormulario();
+    if (typeof state.opciones?.documentos === "function") state.datos.documentos = state.opciones.documentos();
     state.datos.periodos = aplanarPeriodos();
     state.datos.tipo = el.tipo.value;
     state.datos.fecha_documento = el.fecha.value || hoyIso();
@@ -986,7 +1020,37 @@
       .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    doc.save(`${nombre}.pdf`);
+    const adjuntos = (state.datos.documentos || []).filter((d) => d.se_adjunta && d.ruta_storage);
+    if (!adjuntos.length || typeof state.opciones?.descargar !== "function") {
+      doc.save(`${nombre}.pdf`);
+      return nombre;
+    }
+    // Plan de igualdad y protocolos marcados: se anexan a continuación del anexo.
+    const { PDFDocument } = await import("https://esm.sh/pdf-lib@1.17.1");
+    const unido = await PDFDocument.create();
+    const anadir = async (bytes, etiqueta) => {
+      let origen;
+      try {
+        origen = await PDFDocument.load(bytes);
+      } catch (_e) {
+        throw new Error(`No se pudo leer el PDF «${etiqueta}» (¿está protegido o dañado?).`);
+      }
+      (await unido.copyPages(origen, origen.getPageIndices())).forEach((pagina) => unido.addPage(pagina));
+    };
+    await anadir(doc.output("arraybuffer"), "anexo");
+    for (const adjunto of adjuntos) {
+      // eslint-disable-next-line no-await-in-loop
+      await anadir(await state.opciones.descargar(adjunto.ruta_storage), adjunto.nombre_archivo || adjunto.tipo);
+    }
+    const blob = new Blob([await unido.save()], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement("a");
+    enlace.href = url;
+    enlace.download = `${nombre}.pdf`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
     return nombre;
   }
 
@@ -994,8 +1058,9 @@
     el.panel.classList.add("hidden");
   }
 
-  async function open(historial) {
+  async function open(historial, opciones = {}) {
     init();
+    state.opciones = opciones || {};
     if (!historial?.id) {
       window.alert("Abre un periodo de historial laboral antes de generar el anexo.");
       return;
@@ -1011,8 +1076,8 @@
         const campo = el.form.elements[clave];
         if (campo) campo.value = manual[clave] ?? "";
       });
-      el.fecha.value = hoyIso();
-      el.ciudad.value = state.datos.empresa.ciudad_firma || "Oviedo";
+      el.fecha.value = state.opciones.fechaDocumento || hoyIso();
+      el.ciudad.value = state.opciones.ciudad || state.datos.empresa.ciudad_firma || "Oviedo";
       el.tipo.value = "alta";
       cargarPeriodosEnEstado(state.datos.periodosContrato);
       pintarPeriodos();

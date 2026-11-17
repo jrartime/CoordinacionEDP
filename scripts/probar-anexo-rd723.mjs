@@ -26,7 +26,7 @@ const datos = {
   tipo: "alta",
   fecha_documento: "2026-11-17",
   ciudad: "Oviedo",
-  persona: { nombre: "Persona de Prueba", dni: "00000000T", genero: "M" },
+  persona: { nombre: "Persona de Prueba", dni: "00000000T", genero: "M", email: "persona@example.com", movil: "600000000" },
   empresa: {
     razon_social: "EDUCACIÓN DEPORTIVA DEL PRINCIPADO, S.L.",
     cif: "B00000000",
@@ -78,7 +78,7 @@ const datos = {
   horario_texto: "Lunes a viernes 08:45-14:15",
   documentos: [
     { tipo: "plan_igualdad", se_adjunta: true, nombre_archivo: "plan.pdf", ruta_storage: "x" },
-    { tipo: "protocolo_acoso", se_adjunta: true, nombre_archivo: "acoso.pdf", ruta_storage: "x" },
+    { tipo: "protocolo_acoso", se_adjunta: false, nombre_archivo: "acoso.pdf", ruta_storage: "x" },
   ],
   manual: {},
   // Tramos de actividad del contrato de servicio (ejemplo: curso escolar) y un complemento propio.
