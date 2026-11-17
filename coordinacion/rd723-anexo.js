@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-17.7";
+  const VERSION_TEXTO = "2026-11-17.8";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -1099,24 +1099,27 @@
       .trim();
     const bytes = doc.output("arraybuffer");
     const unido = typeof state.opciones?.ensamblar === "function" ? await state.opciones.ensamblar(bytes) : null;
+    const nombreFinal = (typeof state.opciones?.nombreArchivo === "function" && state.opciones.nombreArchivo()) || nombre;
+    // Antes de guardar el archivo: la descarga quita el foco y sin foco el portapapeles no escribe.
+    const nota = typeof state.opciones?.alDescargar === "function" ? await state.opciones.alDescargar() : "";
     if (!unido) {
-      doc.save(`${nombre}.pdf`);
-      return nombre;
+      doc.save(`${nombreFinal}.pdf`);
+      return { nombre: nombreFinal, nota };
     }
     const url = URL.createObjectURL(unido);
     const enlace = document.createElement("a");
     enlace.href = url;
-    enlace.download = `${nombre}.pdf`;
+    enlace.download = `${nombreFinal}.pdf`;
     document.body.appendChild(enlace);
     enlace.click();
     enlace.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    return nombre;
+    return { nombre: nombreFinal, nota };
   }
 
-  // PDF del anexo con los datos guardados (sin abrir el panel): para la vista previa del panel de
-  // informe. Devuelve un Blob con el anexo y los anexos marcados, en su orden.
-  async function generarBlob(historial, opciones = {}) {
+  // PDF del anexo con los datos guardados (sin abrir el panel): lo usa el panel de informe para la
+  // vista previa y para unirlo a la plantilla y a los anexos. Devuelve los bytes del PDF.
+  async function generarBytes(historial, opciones = {}) {
     const datos = await cargarDatos(historial);
     datos.tipo = "alta";
     datos.fecha_documento = opciones.fechaDocumento || hoyIso();
@@ -1124,9 +1127,7 @@
     if (typeof opciones.documentos === "function") datos.documentos = opciones.documentos();
     const anexo = buildAnexo(datos);
     const { jsPDF } = await import("https://esm.sh/jspdf@2.5.1");
-    const bytes = renderAnexoPdf(jsPDF, datos, anexo).output("arraybuffer");
-    const unido = typeof opciones.ensamblar === "function" ? await opciones.ensamblar(bytes) : null;
-    return unido || new Blob([bytes], { type: "application/pdf" });
+    return renderAnexoPdf(jsPDF, datos, anexo).output("arraybuffer");
   }
 
   function cerrar() {
@@ -1302,8 +1303,8 @@
     q("#historial-anexo-pdf-button").addEventListener("click", async () => {
       try {
         setStatus("Generando PDF…");
-        const nombre = await generarPdf();
-        setStatus(`PDF generado: ${nombre}.pdf`, "ok");
+        const resultado = await generarPdf();
+        setStatus(`PDF generado: ${resultado.nombre}.pdf${resultado.nota}`, "ok");
       } catch (error) {
         setStatus(`No se pudo generar el PDF: ${error?.message || error}`, "error");
       }
@@ -1400,7 +1401,7 @@
 
   if (typeof window !== "undefined") {
     window.CoordinacionPeriodosContrato = { mostrar: mostrarPeriodosContrato };
-    window.CoordinacionRd723Anexo = { open, generarBlob, buildAnexo, renderAnexoPdf, VERSION_TEXTO };
+    window.CoordinacionRd723Anexo = { open, generarBytes, buildAnexo, renderAnexoPdf, VERSION_TEXTO };
   }
   if (typeof module !== "undefined" && module.exports) {
     module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad, calcularPredefinidos };
