@@ -28151,6 +28151,7 @@ const historialReportDownloadButton = document.querySelector("#historial-report-
 const historialReportEmailText = document.querySelector("#historial-report-email-text");
 const historialReportAnnexCompanyList = document.querySelector("#historial-report-annex-company-list");
 const historialReportAnnexAll = document.querySelector("#historial-report-annex-all");
+const historialReportStatus = document.querySelector("#historial-report-status");
 const historialReportAnnexes = document.querySelector("#historial-report-annexes");
 const historialReportAnnexFileInput = document.querySelector("#historial-report-annex-file-input");
 const historialReportAnnexAddButton = document.querySelector("#historial-report-annex-add-button");
@@ -29323,6 +29324,17 @@ async function copyHistorialReportClipboardSequence(parts) {
   return copied;
 }
 
+// El panel de informe cubre toda la pantalla y tapa el mensaje de estado general, así que sus avisos
+// (errores, notas del portapapeles, conversiones) se muestran en una línea propia dentro del panel.
+// Se escribe además en el mensaje general por si el panel se cierra enseguida.
+function setHistorialReportStatus(message, tone = "default") {
+  if (historialReportStatus) {
+    historialReportStatus.textContent = message || "";
+    historialReportStatus.className = "panel-status-message" + (tone !== "default" ? ` ${tone}` : "");
+  }
+  setStatus(message, tone);
+}
+
 // Anexos del informe y del anexo RD 723: documentos de empresa (empresas_documentos con PDF
 // subido) y archivos elegidos o arrastrados (PDF, o Word convertido a PDF). Van en una sola
 // lista ordenable, todos desmarcados por defecto salvo lo que se añade a mano. El marcador
@@ -29429,15 +29441,15 @@ async function addHistorialReportAnnexFiles(files) {
       if (!(file.type === "application/pdf" || /\.pdf$/i.test(file.name))) {
         const conversor = window.CoordinacionWordPdf;
         if (conversor && (conversor.esWord(file) || conversor.esWordAntiguo(file))) {
-          setStatus(`Convirtiendo «${file.name}» a PDF…`);
+          setHistorialReportStatus(`Convirtiendo «${file.name}» a PDF…`);
           // eslint-disable-next-line no-await-in-loop
           pdf = await conversor.convertir(file);
-          setStatus(
+          setHistorialReportStatus(
             `«${file.name}» convertido a PDF de forma simplificada (sin imágenes ni maquetación compleja): revísalo en la vista previa.`,
             "warning"
           );
         } else {
-          setStatus(`«${file.name}» no es un PDF ni un documento de Word y no se ha anexado.`, "error");
+          setHistorialReportStatus(`«${file.name}» no es un PDF ni un documento de Word y no se ha anexado.`, "error");
           continue;
         }
       }
@@ -29448,7 +29460,7 @@ async function addHistorialReportAnnexFiles(files) {
       historialReportDraft.annexOrder.push(key);
       historialReportDraft.selectedAnnexKeys.add(key);
     } catch (error) {
-      setStatus(error?.message || String(error), "error");
+      setHistorialReportStatus(error?.message || String(error), "error");
     }
   }
   renderHistorialReportAnnexes();
@@ -29577,6 +29589,10 @@ function buildHistorialReportRd723Options() {
 
 function closeHistorialReportPanel() {
   historialReportDraft = null;
+  if (historialReportStatus) {
+    historialReportStatus.textContent = "";
+    historialReportStatus.className = "panel-status-message";
+  }
   renderHistorialReportAnnexes();
   historialReportEmailTextDirty = false;
   if (historialReportTemplateWarning) {
@@ -29588,7 +29604,7 @@ function closeHistorialReportPanel() {
 
 async function openHistorialReportPanel() {
   if (!historialDetailSnapshot?.id) {
-    setStatus("Abre un periodo de historial laboral antes de generar el informe.", "error");
+    setHistorialReportStatus("Abre un periodo de historial laboral antes de generar el informe.", "error");
     return;
   }
   // Guardado automático: el informe se genera con lo que hay en el formulario.
@@ -29644,7 +29660,7 @@ async function openHistorialReportPanel() {
     validateHistorialReportTemplateType();
     historialReportPanel?.classList.remove("hidden");
   } catch (error) {
-    setStatus(`No se pudo preparar el informe: ${formatSupabaseErrorDetails(error)}`, "error");
+    setHistorialReportStatus(`No se pudo preparar el informe: ${formatSupabaseErrorDetails(error)}`, "error");
   }
 }
 
@@ -29665,7 +29681,7 @@ async function refreshHistorialReportDraftActivities() {
     renderHistorialReportActivities(historialReportDraft.activities);
     validateHistorialReportTemplateType();
   } catch (error) {
-    setStatus(`No se pudieron actualizar las actividades del informe: ${formatSupabaseErrorDetails(error)}`, "error");
+    setHistorialReportStatus(`No se pudieron actualizar las actividades del informe: ${formatSupabaseErrorDetails(error)}`, "error");
   }
 }
 
@@ -29697,13 +29713,17 @@ async function loadImageAsDataUrl(url) {
 }
 
 async function exportHistorialLaboralReportPdf({ preview = false, soloBytes = false } = {}) {
+  if (!soloBytes && historialReportStatus) {
+    historialReportStatus.textContent = "";
+    historialReportStatus.className = "panel-status-message";
+  }
   if (!historialReportDraft?.historialRow) {
-    setStatus("Prepara primero el informe desde un periodo de historial laboral.", "error");
+    setHistorialReportStatus("Prepara primero el informe desde un periodo de historial laboral.", "error");
     return;
   }
   const template = getHistorialReportTemplateById(historialReportGenerateTemplateSelect?.value || "");
   if (!template) {
-    setStatus("Selecciona una plantilla para generar el informe.", "error");
+    setHistorialReportStatus("Selecciona una plantilla para generar el informe.", "error");
     return;
   }
   validateHistorialReportTemplateType({ notify: true });
@@ -29946,7 +29966,7 @@ async function exportHistorialLaboralReportPdf({ preview = false, soloBytes = fa
         ? " (correo, nombre y texto copiados al portapapeles)"
         : " (copiados nombre y texto al portapapeles; esta persona no tiene correo)";
     }
-    setStatus(
+    setHistorialReportStatus(
       (missingConfig
         ? "Informe generado. Revisa la configuracion documental de empresa: falta firmante o logo."
         : "Informe laboral generado.") + clipboardNote,
@@ -29954,7 +29974,7 @@ async function exportHistorialLaboralReportPdf({ preview = false, soloBytes = fa
     );
     return true;
   } catch (error) {
-    setStatus(`No se pudo generar el PDF: ${error?.message ?? "error desconocido"}`, "error");
+    setHistorialReportStatus(`No se pudo generar el PDF: ${error?.message ?? "error desconocido"}`, "error");
   } finally {
     historialReportDownloadButton?.removeAttribute("disabled");
     historialReportPreviewButton?.removeAttribute("disabled");
@@ -37396,7 +37416,7 @@ async function init() {
   // protocolos) se anexan a continuación del anexo.
   historialReportAnexoButton?.addEventListener("click", () => {
     if (!historialReportDraft?.historialRow) {
-      setStatus("Prepara primero el informe desde un periodo de historial laboral.", "error");
+      setHistorialReportStatus("Prepara primero el informe desde un periodo de historial laboral.", "error");
       return;
     }
     // Preparar el anexo es querer incluirlo: se marca en la lista.

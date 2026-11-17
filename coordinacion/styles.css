@@ -5271,6 +5271,12 @@ th {
   color: var(--error);
 }
 
+.panel-status-message.warning {
+  border-color: #f3d58a;
+  background: #fff8e1;
+  color: #7a5200;
+}
+
 .toast-message {
   position: fixed;
   right: 24px;
