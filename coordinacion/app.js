@@ -494,7 +494,8 @@ const SETTINGS_CATALOGS = {
     columns:
       "id,nombre,codigo,boe_numero,boe_fecha,fecha_publicacion,vigente_hasta,articulo_prorroga," +
       "jornada_maxima_anual_horas,jornada_maxima_semanal_horas,periodo_prueba_texto,vacaciones_dias,vacaciones_notas," +
-      "preaviso_llamamiento_dias,preaviso_llamamiento_articulo,preaviso_cese_dias,preaviso_cese_notas,notas,activo",
+      "preaviso_llamamiento_dias,preaviso_llamamiento_articulo,preaviso_cese_dias,preaviso_cese_notas," +
+      "horas_complementarias_pct,horas_complementarias_preaviso,notas,activo",
     fields: [
       { key: "id", label: "ID", type: "number", required: true, readonlyOnEdit: true },
       { key: "nombre", label: "Nombre del convenio", type: "text", required: true },
@@ -514,6 +515,8 @@ const SETTINGS_CATALOGS = {
       { key: "preaviso_llamamiento_articulo", label: "Llamamiento: artículo", type: "text" },
       { key: "preaviso_cese_dias", label: "Preaviso de cese voluntario (días)", type: "number", step: "1" },
       { key: "preaviso_cese_notas", label: "Cese voluntario (detalle / por grupo)", type: "textarea" },
+      { key: "horas_complementarias_pct", label: "Horas complementarias: máximo (% de la jornada semanal)", type: "number", step: "0.01" },
+      { key: "horas_complementarias_preaviso", label: "Horas complementarias: preaviso", type: "text" },
       { key: "notas", label: "Notas", type: "textarea" },
     ],
     listFields: ["nombre", "codigo", "vigente_hasta", "activo"],

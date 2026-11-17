@@ -70,6 +70,8 @@ const datos = {
     preaviso_llamamiento_dias: 15,
     preaviso_llamamiento_articulo: "artículo 25",
     preaviso_cese_dias: 15,
+    horas_complementarias_pct: 30,
+    horas_complementarias_preaviso: "3 días (mínimo del artículo 12.5 del Estatuto de los Trabajadores)",
     preaviso_cese_notas: "Para los grupos III a VI, 15 días conforme al IV Convenio, salvo norma más favorable o supuesto específico aplicable.",
   },
   convenio_es_ocio: true,

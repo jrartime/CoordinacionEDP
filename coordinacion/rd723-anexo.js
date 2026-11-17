@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-17.3";
+  const VERSION_TEXTO = "2026-11-17.4";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -34,8 +34,8 @@
     ["periodo_inactividad_estimado", "Periodo(s) estimado(s) de inactividad", "textarea"],
     ["duracion_estimada_periodo_actividad", "Duración estimada del periodo de actividad", "text"],
     ["jornada_anual_estimada_horas", "Jornada anual estimada (horas)", "number"],
-    ["horas_complementarias_pct", "Horas complementarias: % máximo (vacío = 50)", "number"],
-    ["horas_complementarias_preaviso", "Horas complementarias: preaviso (vacío = 3 días, salvo necesidad)", "text"],
+    ["horas_complementarias_pct", "Horas complementarias: % máximo (vacío = el del convenio)", "number"],
+    ["horas_complementarias_preaviso", "Horas complementarias: preaviso (vacío = el del convenio)", "text"],
     ["llamamiento_medio", "Medio de llamamiento (vacío = por escrito, correo electrónico)", "text"],
     ["llamamiento_contacto", "Datos de contacto (vacío = los de su ficha de personal)", "text"],
     ["formacion_obligatoria_texto", "Formación obligatoria o prevista para el puesto", "textarea"],
@@ -117,9 +117,13 @@
     return /discontinu|\bfd\b/.test(texto);
   }
 
-  // Horas complementarias cuando la persona está a tiempo parcial: máximo sobre la jornada
-  // semanal y preaviso (dato de la empresa, 17/11/2026). Se pueden cambiar por periodo.
-  const HORAS_COMPLEMENTARIAS_DEFECTO = { pct: 50, preaviso: "3 días, salvo situaciones de necesidad" };
+  // Horas complementarias cuando la persona está a tiempo parcial. El máximo y el preaviso salen
+  // de la ficha del convenio (V Instalaciones: 50 %, 3 días por escrito; Ocio no las regula y
+  // aplica el Estatuto). Sin dato en el convenio, el Estatuto (art. 12.5): 30 % y 3 días como
+  // mínimo. Solo se pueden pactar con una jornada de al menos 10 horas semanales. Se pueden
+  // cambiar por periodo.
+  const HORAS_COMPLEMENTARIAS_ESTATUTO = { pct: 30, preaviso: "3 días (mínimo del artículo 12.5 del Estatuto de los Trabajadores)" };
+  const JORNADA_MINIMA_HORAS_COMPLEMENTARIAS = 10;
 
   const BASES_COMPLEMENTO = { salario_base: "salario base", pluses: "pluses", complementos: "otros complementos" };
 
@@ -393,14 +397,20 @@
     parrafo(
       "En los contratos a tiempo parcial, cualquier pacto de horas complementarias se formalizará por escrito en documento específico, conforme al artículo 12 del Estatuto de los Trabajadores y al convenio colectivo aplicable. El régimen de horas extraordinarias será el previsto legal y convencionalmente."
     );
-    if (esParcial) {
-      const pct = esVacio(manual.horas_complementarias_pct) ? HORAS_COMPLEMENTARIAS_DEFECTO.pct : Number(manual.horas_complementarias_pct);
-      const preaviso = manual.horas_complementarias_preaviso || HORAS_COMPLEMENTARIAS_DEFECTO.preaviso;
+    if (esParcial && jornadaSemanal > 0 && jornadaSemanal < JORNADA_MINIMA_HORAS_COMPLEMENTARIAS) {
+      punto(
+        `Con una jornada inferior a ${JORNADA_MINIMA_HORAS_COMPLEMENTARIAS} horas semanales no se puede pactar la realización de horas complementarias.`
+      );
+    } else if (esParcial) {
+      const pctConvenio = esVacio(convenio?.horas_complementarias_pct) ? HORAS_COMPLEMENTARIAS_ESTATUTO.pct : Number(convenio.horas_complementarias_pct);
+      const pct = esVacio(manual.horas_complementarias_pct) ? pctConvenio : Number(manual.horas_complementarias_pct);
+      const preaviso =
+        manual.horas_complementarias_preaviso || convenio?.horas_complementarias_preaviso || HORAS_COMPLEMENTARIAS_ESTATUTO.preaviso;
       punto(`Las horas complementarias no podrán exceder del ${horas(pct)} % de la jornada semanal contratada.`);
       punto(`Preaviso para su realización: ${preaviso}.`);
       if (datos.convenio_es_ocio && pct > 30) {
         avisos.push(
-          "Horas complementarias: el IV Convenio de Ocio no fija un porcentaje propio y el Estatuto (art. 12.5) limita el máximo al 30 % de las horas ordinarias, salvo que el convenio establezca otro (hasta el 60 %). El 50 % procede del V Convenio de Instalaciones; conviene confirmarlo para Ocio."
+          "Horas complementarias: el IV Convenio de Ocio no las regula y el Estatuto (art. 12.5) limita el máximo al 30 % de las horas ordinarias; solo un convenio puede subirlo (hasta el 60 %). Revisa el porcentaje de este periodo."
         );
       }
     } else {
@@ -519,7 +529,9 @@
       if (doc) {
         punto(
           `${DOCUMENTOS_EMPRESA[tipo]}: existe${
-            doc.se_adjunta ? " y se adjunta a continuación de este anexo" : "; puede consultarse en el lugar indicado más abajo"
+            doc.se_adjunta
+              ? " y se adjunta a continuación de este anexo"
+              : " y se ha facilitado a la persona trabajadora en la documentación inicial"
           }.`
         );
       } else {
