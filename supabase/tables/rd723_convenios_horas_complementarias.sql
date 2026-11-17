@@ -28,3 +28,15 @@ update coordinacion.convenios
 set horas_complementarias_pct = 30,
     horas_complementarias_preaviso = '3 días (mínimo del artículo 12.5 del Estatuto de los Trabajadores)'
 where codigo = '99100055012011' and horas_complementarias_pct is null;
+
+-- Ajuste 17/11/2026 (a petición de la empresa): el preaviso admite excepción por situaciones de
+-- necesidad. Solo cambia los textos que se sembraron arriba.
+update coordinacion.convenios
+set horas_complementarias_preaviso = '3 días, por escrito (artículo 23 del convenio), salvo situaciones de necesidad'
+where codigo = '99015105012005'
+  and horas_complementarias_preaviso = '3 días, por escrito (artículo 23 del convenio)';
+
+update coordinacion.convenios
+set horas_complementarias_preaviso = '3 días, salvo situaciones de necesidad'
+where codigo = '99100055012011'
+  and horas_complementarias_preaviso = '3 días (mínimo del artículo 12.5 del Estatuto de los Trabajadores)';

@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-17.4";
+  const VERSION_TEXTO = "2026-11-17.5";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -119,11 +119,9 @@
 
   // Horas complementarias cuando la persona está a tiempo parcial. El máximo y el preaviso salen
   // de la ficha del convenio (V Instalaciones: 50 %, 3 días por escrito; Ocio no las regula y
-  // aplica el Estatuto). Sin dato en el convenio, el Estatuto (art. 12.5): 30 % y 3 días como
-  // mínimo. Solo se pueden pactar con una jornada de al menos 10 horas semanales. Se pueden
-  // cambiar por periodo.
-  const HORAS_COMPLEMENTARIAS_ESTATUTO = { pct: 30, preaviso: "3 días (mínimo del artículo 12.5 del Estatuto de los Trabajadores)" };
-  const JORNADA_MINIMA_HORAS_COMPLEMENTARIAS = 10;
+  // aplica el Estatuto). Sin dato en el convenio: 30 % y 3 días, salvo situaciones de necesidad.
+  // Se pueden cambiar por periodo.
+  const HORAS_COMPLEMENTARIAS_ESTATUTO = { pct: 30, preaviso: "3 días, salvo situaciones de necesidad" };
 
   const BASES_COMPLEMENTO = { salario_base: "salario base", pluses: "pluses", complementos: "otros complementos" };
 
@@ -397,11 +395,7 @@
     parrafo(
       "En los contratos a tiempo parcial, cualquier pacto de horas complementarias se formalizará por escrito en documento específico, conforme al artículo 12 del Estatuto de los Trabajadores y al convenio colectivo aplicable. El régimen de horas extraordinarias será el previsto legal y convencionalmente."
     );
-    if (esParcial && jornadaSemanal > 0 && jornadaSemanal < JORNADA_MINIMA_HORAS_COMPLEMENTARIAS) {
-      punto(
-        `Con una jornada inferior a ${JORNADA_MINIMA_HORAS_COMPLEMENTARIAS} horas semanales no se puede pactar la realización de horas complementarias.`
-      );
-    } else if (esParcial) {
+    if (esParcial) {
       const pctConvenio = esVacio(convenio?.horas_complementarias_pct) ? HORAS_COMPLEMENTARIAS_ESTATUTO.pct : Number(convenio.horas_complementarias_pct);
       const pct = esVacio(manual.horas_complementarias_pct) ? pctConvenio : Number(manual.horas_complementarias_pct);
       const preaviso =
