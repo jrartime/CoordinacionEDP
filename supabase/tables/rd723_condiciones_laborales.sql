@@ -1,3 +1,7 @@
+-- NOTA 17/11/2026: este fichero es el modelo ORIGINAL (esquema `public` antiguo). Lo vigente en
+-- `coordinacion` (Portal Laboral) se replanteó en `rd723_anexo_entregas.sql`: se quitó
+-- `contratos_rd723`, las columnas de entrega de `historiales_laborales_rd723` (`medio_entrega`,
+-- `fecha_entrega`, `entregado`) y se creó `historiales_laborales_anexos_rd723`.
 -- ============================================================================
 -- RD 723/2026 (condiciones laborales transparentes y previsibles): modelo de
 -- datos para poder generar el anexo informativo obligatorio por contrato,
