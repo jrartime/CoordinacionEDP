@@ -31308,10 +31308,27 @@ function validateHistorialFechaBajaMotivo() {
   return true;
 }
 
+// Un periodo nuevo siempre lleva tipo de contratación. En edición no se exige para no
+// bloquear periodos antiguos que nunca lo tuvieron.
+function validateHistorialTipoContratacion() {
+  if (historialDetailMode !== "new") {
+    return true;
+  }
+  const tipoControl = historialDetailForm?.elements?.tipo_contratacion_id;
+  if (!(tipoControl?.value || "")) {
+    showHistorialValidationError("hay que indicar el tipo de contratación de un periodo nuevo.", tipoControl);
+    return false;
+  }
+  return true;
+}
+
 async function saveHistorialDetail(event) {
   event?.preventDefault();
 
   if (!validateHistorialFechaBajaMotivo()) {
+    return;
+  }
+  if (!validateHistorialTipoContratacion()) {
     return;
   }
 
@@ -38018,7 +38035,7 @@ async function init() {
     if (["fecha_alta", "fecha_baja", "jornada", "jornada_maxima"].includes(event.target?.name)) {
       syncHistorialDetailCalculatedFields();
     }
-    if (["fecha_baja", "motivo_baja_id"].includes(event.target?.name)) {
+    if (["fecha_baja", "motivo_baja_id", "tipo_contratacion_id"].includes(event.target?.name)) {
       clearHistorialValidationError();
     }
   });
