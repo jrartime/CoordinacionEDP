@@ -34,6 +34,7 @@ const datos = {
     firmante_nombre: "Nombre del firmante",
     firmante_cargo: "Administrador",
     direccion_pie: "Calle Ejemplo 1, 33000 Oviedo",
+    lugar_consulta_documentos: "En la sede de la empresa",
     mutua_nombre: "UMIVALE",
     mutua_numero: "3",
     usa_sistemas_algoritmicos: false,
@@ -46,6 +47,8 @@ const datos = {
     jornada_maxima: 38.5,
     puesto: "Monitor/a de ocio educativo y tiempo libre",
     tipo_contratacion: "Fijo discontinuo",
+    contrato_laboral_clave: "300",
+    contrato_laboral_jornada: "Fijo discontinuo",
     contrato_laboral_descripcion: "Contrato indefinido fijo-discontinuo a tiempo parcial",
   },
   categoria: {
@@ -78,6 +81,15 @@ const datos = {
     { tipo: "protocolo_acoso", se_adjunta: true, nombre_archivo: "acoso.pdf", ruta_storage: "x" },
   ],
   manual: {},
+  // Tramos de actividad del contrato de servicio (ejemplo: curso escolar) y un complemento propio.
+  periodos: [
+    { contrato_id: 1, fecha_inicio: "2026-09-15", fecha_fin: "2026-12-22" },
+    { contrato_id: 1, fecha_inicio: "2027-01-08", fecha_fin: "2027-06-22" },
+  ],
+  complementos_persona: [
+    { nombre: "Plus de responsabilidad", tipo: "fijo", unidad: "mensual", importe: 50 },
+    { nombre: "Plus nocturno", tipo: "fijo", unidad: "por_hora", importe: 1.5 },
+  ],
 };
 
 const anexo = modulo.buildAnexo(datos);

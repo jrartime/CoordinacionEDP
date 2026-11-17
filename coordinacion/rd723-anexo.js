@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-17.1";
+  const VERSION_TEXTO = "2026-11-17.2";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -94,11 +94,109 @@
       .toLowerCase();
   }
 
+  // Claves de contrato laboral (historiales_laborales_contratos) de tipo fijo discontinuo.
+  const CLAVES_FIJO_DISCONTINUO = ["300", "309", "330", "350", "389"];
+
   function esFijoDiscontinuo(historial) {
+    if (CLAVES_FIJO_DISCONTINUO.includes(String(historial.contrato_laboral_clave || "").trim())) return true;
     const texto = normalizar(
-      [historial.tipo_contratacion, historial.contrato_laboral_clave, historial.contrato_laboral_descripcion, historial.movimiento].join(" ")
+      [
+        historial.contrato_laboral_jornada,
+        historial.tipo_contratacion,
+        historial.contrato_laboral_descripcion,
+        historial.movimiento,
+      ].join(" ")
     );
     return /discontinu|\bfd\b/.test(texto);
+  }
+
+  // Horas complementarias cuando la persona está a tiempo parcial: máximo sobre la jornada
+  // semanal y preaviso (dato de la empresa, 17/11/2026). Se pueden cambiar por periodo.
+  const HORAS_COMPLEMENTARIAS_DEFECTO = { pct: 50, preaviso: "3 días, salvo situaciones de necesidad" };
+
+  const BASES_COMPLEMENTO = { salario_base: "salario base", pluses: "pluses", complementos: "otros complementos" };
+
+  // ---- Periodos de actividad (tramos de fechas ISO, extremos incluidos)
+  function aMs(iso) {
+    const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN;
+  }
+
+  function aIso(ms) {
+    const d = new Date(ms);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  }
+
+  const DIA_MS = 86400000;
+
+  // Ordena y une los tramos que se tocan o solapan (varios contratos pueden repetir fechas).
+  function unirPeriodos(periodos) {
+    const validos = (periodos || [])
+      .map((p) => ({ ini: aMs(p.fecha_inicio), fin: aMs(p.fecha_fin) }))
+      .filter((p) => Number.isFinite(p.ini) && Number.isFinite(p.fin) && p.fin >= p.ini)
+      .sort((a, b) => a.ini - b.ini);
+    const unidos = [];
+    validos.forEach((p) => {
+      const ultimo = unidos[unidos.length - 1];
+      if (ultimo && p.ini <= ultimo.fin + DIA_MS) ultimo.fin = Math.max(ultimo.fin, p.fin);
+      else unidos.push({ ...p });
+    });
+    return unidos;
+  }
+
+  function textoPeriodos(periodos) {
+    return unirPeriodos(periodos)
+      .map((p) => `del ${fechaCorta(aIso(p.ini))} al ${fechaCorta(aIso(p.fin))}`)
+      .join("; ");
+  }
+
+  // La inactividad es lo que queda entre dos tramos de actividad.
+  function textoInactividad(periodos) {
+    const unidos = unirPeriodos(periodos);
+    if (!unidos.length) return "";
+    if (unidos.length === 1) return "el tiempo no comprendido en el periodo de actividad";
+    const huecos = [];
+    for (let i = 1; i < unidos.length; i += 1) {
+      huecos.push(`del ${fechaCorta(aIso(unidos[i - 1].fin + DIA_MS))} al ${fechaCorta(aIso(unidos[i].ini - DIA_MS))}`);
+    }
+    return huecos.join("; ");
+  }
+
+  // Semanas de actividad dentro de los 12 meses que empiezan en la fecha de alta.
+  function semanasDeActividad(periodos, desdeIso) {
+    const inicio = aMs(desdeIso);
+    if (!Number.isFinite(inicio)) return 0;
+    const fin = inicio + 364 * DIA_MS;
+    let dias = 0;
+    unirPeriodos(periodos).forEach((p) => {
+      const a = Math.max(p.ini, inicio);
+      const b = Math.min(p.fin, fin);
+      if (b >= a) dias += Math.round((b - a) / DIA_MS) + 1;
+    });
+    return dias / 7;
+  }
+
+  // Jornada anual estimada: jornada semanal por 52 semanas o, si es fijo discontinuo, por las
+  // semanas del periodo de actividad. Devuelve null si falta algún dato.
+  function jornadaAnualEstimada(historial, fd, periodos) {
+    const semanal = Number(historial.jornada);
+    if (!Number.isFinite(semanal) || semanal <= 0) return null;
+    if (!fd) return { horas: Math.round(semanal * 52), semanas: 52 };
+    const semanas = semanasDeActividad(periodos, historial.fecha_alta);
+    if (!semanas) return null;
+    return { horas: Math.round(semanal * semanas), semanas: Math.round(semanas * 10) / 10 };
+  }
+
+  const UNIDAD_COMPLEMENTO = { mensual: "mensuales", diario: "por día trabajado", por_hora: "por hora" };
+
+  function textoComplementoPersona(c) {
+    const nombre = c.nombre || "Complemento";
+    if (c.tipo === "porcentaje") {
+      const bases = (c.bases_aplicables || []).map((b) => BASES_COMPLEMENTO[b] || b).join(", ");
+      return `${nombre}: ${horas(c.porcentaje)} %${bases ? " sobre " + bases : ""}`;
+    }
+    if (c.tipo === "variable") return `${nombre}: importe variable pactado con la persona`;
+    return `${nombre}: ${euros(c.importe)}${c.unidad ? " " + (UNIDAD_COMPLEMENTO[c.unidad] || c.unidad) : ""}`;
   }
 
   // ---------------------------------------------------------------------------
@@ -107,6 +205,7 @@
 
   function buildAnexo(datos) {
     const pendientes = [];
+    const avisos = [];
     const bloques = [];
     const h = datos.historial || {};
     const persona = datos.persona || {};
@@ -116,6 +215,11 @@
     const tarifa = datos.tarifa || null;
     const manual = datos.manual || {};
     const fd = esFijoDiscontinuo(h);
+    const maxSemanalContrato = Number(h.jornada_maxima) || Number(convenio?.jornada_maxima_semanal_horas) || 0;
+    const jornadaSemanal = Number(h.jornada) || 0;
+    const esParcial =
+      (jornadaSemanal > 0 && maxSemanalContrato > 0 && jornadaSemanal < maxSemanalContrato) ||
+      /parcial/.test(normalizar(h.contrato_laboral_jornada));
 
     // Devuelve el valor o el marcador de pendiente (y lo anota).
     const dato = (valor, etiqueta) => {
@@ -191,8 +295,10 @@
       parrafo(
         "La relación tiene carácter indefinido fijo-discontinuo por responder a una actividad intermitente o cíclica vinculada a los servicios contratados. La finalización de un periodo de actividad no implica por sí misma la extinción del contrato."
       );
-      punto(`Periodo(s) estimado(s) de actividad: ${dato(manual.periodo_actividad_estimado, "Periodos estimados de actividad")}`);
-      punto(`Periodo(s) estimado(s) de inactividad: ${dato(manual.periodo_inactividad_estimado, "Periodos estimados de inactividad")}`);
+      const textoActividad = manual.periodo_actividad_estimado || textoPeriodos(datos.periodos);
+      const textoInactividadFd = manual.periodo_inactividad_estimado || textoInactividad(datos.periodos);
+      punto(`Periodo(s) estimado(s) de actividad: ${dato(textoActividad, "Periodos de actividad (añádelos en el panel o en el contrato)")}`);
+      punto(`Periodo(s) estimado(s) de inactividad: ${dato(textoInactividadFd, "Periodos de inactividad (se deducen de los de actividad)")}`);
       if (manual.duracion_estimada_periodo_actividad) {
         punto(`Duración estimada del periodo de actividad: ${manual.duracion_estimada_periodo_actividad}`);
       }
@@ -230,11 +336,18 @@
     titulo("5. Jornada, horario y descansos");
     punto(`Jornada ordinaria contratada: ${h.jornada ? horas(h.jornada) + " horas semanales" : dato("", "Jornada semanal")}`);
     punto(`Horario inicialmente previsto: ${dato(datos.horario_texto || h.horarios, "Horario")}`);
-    punto(
-      `Jornada anual contractual o estimada: ${
-        manual.jornada_anual_estimada_horas ? horas(manual.jornada_anual_estimada_horas) + " horas" : dato("", "Jornada anual estimada")
-      }`
-    );
+    const anualCalculada = jornadaAnualEstimada(h, fd, datos.periodos);
+    if (manual.jornada_anual_estimada_horas) {
+      punto(`Jornada anual contractual o estimada: ${horas(manual.jornada_anual_estimada_horas)} horas`);
+    } else if (anualCalculada) {
+      punto(
+        `Jornada anual estimada: ${horas(anualCalculada.horas)} horas (jornada semanal por ${horas(anualCalculada.semanas)} semanas${
+          fd ? " de actividad" : ""
+        })`
+      );
+    } else {
+      punto(`Jornada anual contractual o estimada: ${dato("", "Jornada anual estimada (falta la jornada semanal o los periodos de actividad)")}`);
+    }
     if (convenio?.jornada_maxima_anual_horas || convenio?.jornada_maxima_semanal_horas) {
       punto(
         `Jornada máxima de referencia a tiempo completo conforme al convenio: ${
@@ -262,11 +375,18 @@
     parrafo(
       "En los contratos a tiempo parcial, cualquier pacto de horas complementarias se formalizará por escrito en documento específico, conforme al artículo 12 del Estatuto de los Trabajadores y al convenio colectivo aplicable. El régimen de horas extraordinarias será el previsto legal y convencionalmente."
     );
-    if (!esVacio(manual.horas_complementarias_pct)) {
-      punto(`Porcentaje máximo pactado: ${horas(manual.horas_complementarias_pct)} % de las horas ordinarias contratadas`);
-      if (manual.horas_complementarias_preaviso) punto(`Preaviso aplicable: ${manual.horas_complementarias_preaviso}`);
+    if (esParcial) {
+      const pct = esVacio(manual.horas_complementarias_pct) ? HORAS_COMPLEMENTARIAS_DEFECTO.pct : Number(manual.horas_complementarias_pct);
+      const preaviso = manual.horas_complementarias_preaviso || HORAS_COMPLEMENTARIAS_DEFECTO.preaviso;
+      punto(`Las horas complementarias no podrán exceder del ${horas(pct)} % de la jornada semanal contratada.`);
+      punto(`Preaviso para su realización: ${preaviso}.`);
+      if (datos.convenio_es_ocio && pct > 30) {
+        avisos.push(
+          "Horas complementarias: el IV Convenio de Ocio no fija un porcentaje propio y el Estatuto (art. 12.5) limita el máximo al 30 % de las horas ordinarias, salvo que el convenio establezca otro (hasta el 60 %). El 50 % procede del V Convenio de Instalaciones; conviene confirmarlo para Ocio."
+        );
+      }
     } else {
-      punto("No se ha pactado la realización de horas complementarias.");
+      punto("Jornada a tiempo completo: no procede el pacto de horas complementarias.");
     }
 
     // ----- 8. Retribución
@@ -300,9 +420,34 @@
       parrafo(`Salario base y complementos: ${dato("", "Tarifa de convenio vigente para la categoría del puesto")}`);
     }
     punto(`Pagas extraordinarias y eventual prorrateo: ${dato("", "Pagas extraordinarias y prorrateo (dato de empresa)")}`);
-    punto(`Complementos salariales adicionales, si existen: ${dato("", "Complementos salariales adicionales de la persona")}`);
-    punto(`Conceptos salariales variables, método de cálculo y criterios: ${dato("", "Conceptos variables y su cálculo")}`);
-    punto(`Periodicidad y método de pago: ${dato("", "Periodicidad y método de pago")}`);
+    const complementosPersona = (datos.complementos_persona || []).map(textoComplementoPersona);
+    const marcasPeriodo = [
+      h.tiene_complemento_movilidad && "movilidad",
+      h.tiene_complemento_dedicacion && "dedicación",
+      h.tiene_plus_transporte && "plus de transporte",
+      h.tiene_nocturnidad && "nocturnidad",
+      h.tiene_antiguedad && "antigüedad",
+    ].filter(Boolean);
+    if (complementosPersona.length || marcasPeriodo.length || h.complemento) {
+      punto("Complementos salariales adicionales de la persona:");
+      complementosPersona.forEach((c) => bloques.push({ t: "li", texto: c, nivel: 2 }));
+      if (marcasPeriodo.length) {
+        bloques.push({ t: "li", texto: `Indicados en el periodo: ${marcasPeriodo.join(", ")} (cuantía conforme a la tarifa del convenio)`, nivel: 2 });
+      }
+      if (h.complemento) bloques.push({ t: "li", texto: String(h.complemento), nivel: 2 });
+    } else {
+      punto("Complementos salariales adicionales: los que establece el convenio, indicados arriba; la persona no tiene otros.");
+    }
+    const hayVariables =
+      Number(tarifa?.plus_hora_nocturna) > 0 ||
+      Number(tarifa?.hora_complementaria) > 0 ||
+      (datos.complementos_persona || []).some((c) => c.tipo === "variable" || c.unidad === "por_hora");
+    punto(
+      hayVariables
+        ? "Conceptos salariales variables: nocturnidad, horas complementarias y complementos por hora. Se abonan en función de las horas efectivamente realizadas en cada periodo de nómina, a las tarifas indicadas."
+        : "Conceptos salariales variables: no hay."
+    );
+    punto("Periodicidad y método de pago: mensual, mediante transferencia bancaria.");
     parrafo("La referencia salarial no se expresa únicamente como «según convenio»: las cuantías indicadas son las de la tarifa vigente.");
 
     // ----- 9. Periodo de prueba
@@ -413,7 +558,7 @@
     );
     bloques.push({ t: "entrega" });
 
-    return { bloques, pendientes: Array.from(new Set(pendientes)), nombreConvenio };
+    return { bloques, pendientes: Array.from(new Set(pendientes)), avisos, nombreConvenio };
   }
 
   // ---------------------------------------------------------------------------
@@ -490,7 +635,7 @@
       } else if (b.t === "p") {
         texto(b.texto);
       } else if (b.t === "li") {
-        texto(`•  ${b.texto}`, { sangria: 4 });
+        texto(`${b.nivel === 2 ? "–" : "•"}  ${b.texto}`, { sangria: b.nivel === 2 ? 10 : 4 });
       } else if (b.t === "entrega") {
         y += 2;
         hueco(60);
@@ -541,7 +686,7 @@
   // Acceso a datos y panel (solo en el navegador)
   // ---------------------------------------------------------------------------
 
-  const state = { initialized: false, datos: null, historial: null, anexo: null };
+  const state = { initialized: false, datos: null, historial: null, anexo: null, periodos: {}, periodosOriginales: {} };
   const el = {};
 
   function q(selector) {
@@ -640,6 +785,46 @@
     const centros = Array.from(new Set(actividades.map((a) => String(a.instalacion || "").trim()).filter(Boolean)));
     const horarios = Array.from(new Set(actividades.map(resumenHorarioActividad).filter(Boolean))).join("; ");
 
+    // Contratos de servicio en los que trabaja la persona (los de sus actividades) y sus tramos
+    // de actividad, que es donde se guardan los periodos de los fijos discontinuos.
+    const contratos = [];
+    actividades.forEach((a) => {
+      if (a.contrato_id != null && !contratos.some((c) => c.id === a.contrato_id)) {
+        contratos.push({ id: a.contrato_id, nombre: a.contrato || `Contrato ${a.contrato_id}` });
+      }
+    });
+    let periodosContrato = [];
+    if (contratos.length) {
+      const { data, error } = await supabase
+        .from("contratos_periodos_actividad")
+        .select("id, contrato_id, fecha_inicio, fecha_fin")
+        .in("contrato_id", contratos.map((c) => c.id))
+        .order("fecha_inicio", { ascending: true });
+      if (!error) periodosContrato = data || [];
+    }
+
+    // Complementos propios de la persona vigentes en la fecha de inicio.
+    let complementosPersona = [];
+    {
+      const { data, error } = await supabase
+        .from("personal_complementos")
+        .select("*")
+        .eq("personal_id", historial.personal_id)
+        .lte("fecha_desde", inicio)
+        .or(`fecha_hasta.is.null,fecha_hasta.gte.${inicio}`);
+      if (!error && data?.length) {
+        const ids = Array.from(new Set(data.map((c) => c.complemento_id).filter((v) => v != null)));
+        const nombres = {};
+        if (ids.length) {
+          const cat = await supabase.from("nomina_conceptos_catalogo").select("id, nombre").in("id", ids);
+          (cat.data || []).forEach((c) => {
+            nombres[c.id] = c.nombre;
+          });
+        }
+        complementosPersona = data.map((c) => ({ ...c, nombre: nombres[c.complemento_id] || "Complemento" }));
+      }
+    }
+
     return {
       persona: { nombre: persona?.personal || historial.personal || "", dni: persona?.dni || historial.dni || "", genero: persona?.genero || "" },
       empresa: empresa || {},
@@ -652,6 +837,10 @@
       horario_texto: historial.horarios || horarios,
       documentos,
       manual: manualRes.data || {},
+      contratos,
+      periodosContrato,
+      periodos: periodosContrato,
+      complementos_persona: complementosPersona,
     };
   }
 
@@ -671,6 +860,91 @@
       ? `<strong>Pendiente de completar (${anexo.pendientes.length}):</strong><ul>${anexo.pendientes.map((p) => `<li>${escapeHtml(p)}</li>`).join("")}</ul>`
       : "<strong>No falta ningún dato.</strong>";
     el.pendientes.dataset.estado = anexo.pendientes.length ? "pendiente" : "completo";
+    el.avisos.innerHTML = anexo.avisos?.length
+      ? `<strong>A revisar:</strong><ul>${anexo.avisos.map((a) => `<li>${escapeHtml(a)}</li>`).join("")}</ul>`
+      : "";
+    el.avisos.classList.toggle("hidden", !anexo.avisos?.length);
+  }
+
+  // ---- Periodos de actividad del contrato (solo fijos discontinuos)
+  function aplanarPeriodos() {
+    const filas = [];
+    Object.entries(state.periodos).forEach(([contratoId, lista]) => {
+      lista.forEach((p) => {
+        if (p.fecha_inicio && p.fecha_fin) filas.push({ contrato_id: Number(contratoId), fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_fin });
+      });
+    });
+    return filas;
+  }
+
+  function pintarPeriodos() {
+    const { datos } = state;
+    const mostrar = esFijoDiscontinuo(datos.historial) && datos.contratos.length > 0;
+    el.periodosBloque.classList.toggle("hidden", !mostrar);
+    if (!mostrar) return;
+    el.periodosLista.innerHTML = datos.contratos
+      .map((c) => {
+        const filas = state.periodos[c.id] || [];
+        return `<div class="historial-anexo-contrato" data-contrato="${c.id}">
+          <p><strong>${escapeHtml(c.nombre)}</strong></p>
+          ${filas
+            .map(
+              (p, i) => `<div class="historial-anexo-periodo" data-indice="${i}">
+                <input type="date" data-campo="fecha_inicio" value="${escapeHtml(p.fecha_inicio || "")}" aria-label="Inicio del periodo de actividad" />
+                <input type="date" data-campo="fecha_fin" value="${escapeHtml(p.fecha_fin || "")}" aria-label="Fin del periodo de actividad" />
+                <button type="button" class="secondary-button" data-quitar aria-label="Quitar periodo">✕</button>
+              </div>`
+            )
+            .join("")}
+          <button type="button" class="secondary-button" data-anadir>+ Añadir periodo</button>
+        </div>`;
+      })
+      .join("");
+  }
+
+  async function guardarPeriodos() {
+    const supabase = await getClient();
+    for (const contrato of state.datos.contratos) {
+      const actuales = (state.periodos[contrato.id] || []).filter((p) => p.fecha_inicio && p.fecha_fin);
+      const originales = state.periodosOriginales[contrato.id] || [];
+      const idsActuales = new Set(actuales.filter((p) => p.id).map((p) => p.id));
+      const borrar = originales.filter((id) => !idsActuales.has(id));
+      if (borrar.length) {
+        const { error } = await supabase.from("contratos_periodos_actividad").delete().in("id", borrar);
+        if (error) throw error;
+      }
+      for (const p of actuales.filter((x) => x.id)) {
+        const { error } = await supabase
+          .from("contratos_periodos_actividad")
+          .update({ fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_fin })
+          .eq("id", p.id);
+        if (error) throw error;
+      }
+      const nuevos = actuales.filter((x) => !x.id).map((x) => ({ contrato_id: contrato.id, fecha_inicio: x.fecha_inicio, fecha_fin: x.fecha_fin }));
+      if (nuevos.length) {
+        const { error } = await supabase.from("contratos_periodos_actividad").insert(nuevos);
+        if (error) throw error;
+      }
+    }
+    // Recarga los ids reales de lo guardado.
+    const ids = state.datos.contratos.map((c) => c.id);
+    const { data, error } = await supabase
+      .from("contratos_periodos_actividad")
+      .select("id, contrato_id, fecha_inicio, fecha_fin")
+      .in("contrato_id", ids)
+      .order("fecha_inicio", { ascending: true });
+    if (error) throw error;
+    cargarPeriodosEnEstado(data || []);
+  }
+
+  function cargarPeriodosEnEstado(filas) {
+    state.periodos = {};
+    state.periodosOriginales = {};
+    state.datos.contratos.forEach((c) => {
+      const propios = filas.filter((f) => f.contrato_id === c.id);
+      state.periodos[c.id] = propios.map((f) => ({ id: f.id, fecha_inicio: f.fecha_inicio, fecha_fin: f.fecha_fin }));
+      state.periodosOriginales[c.id] = propios.map((f) => f.id);
+    });
   }
 
   function leerFormulario() {
@@ -685,6 +959,7 @@
 
   function recalcular() {
     state.datos.manual = leerFormulario();
+    state.datos.periodos = aplanarPeriodos();
     state.datos.tipo = el.tipo.value;
     state.datos.fecha_documento = el.fecha.value || hoyIso();
     state.datos.ciudad = el.ciudad.value.trim() || state.datos.empresa.ciudad_firma || "Oviedo";
@@ -739,6 +1014,8 @@
       el.fecha.value = hoyIso();
       el.ciudad.value = state.datos.empresa.ciudad_firma || "Oviedo";
       el.tipo.value = "alta";
+      cargarPeriodosEnEstado(state.datos.periodosContrato);
+      pintarPeriodos();
       recalcular();
       el.content.classList.remove("hidden");
       setStatus("");
@@ -768,6 +1045,15 @@
         <div id="historial-anexo-content" class="hidden">
           <div id="historial-anexo-resumen" class="results-summary"></div>
           <div id="historial-anexo-pendientes" class="historial-anexo-pendientes"></div>
+          <div id="historial-anexo-avisos" class="historial-anexo-avisos hidden"></div>
+          <div id="historial-anexo-periodos" class="hidden">
+            <h4>Periodos de actividad del contrato</h4>
+            <p class="muted-text">Se guardan en el contrato de servicio y valen para todo su personal fijo-discontinuo. La inactividad se deduce de ellos.</p>
+            <div id="historial-anexo-periodos-lista"></div>
+            <div class="toolbar-actions">
+              <button id="historial-anexo-periodos-save-button" type="button" class="secondary-button">Guardar periodos</button>
+            </div>
+          </div>
           <form id="historial-anexo-form" class="form-grid">
             <label>
               Tipo de entrega
@@ -802,7 +1088,10 @@
       "#historial-anexo-pendientes{margin:.5rem 0 1rem;padding:.6rem .8rem;border-radius:6px;font-size:.9rem}" +
       "#historial-anexo-pendientes[data-estado=pendiente]{background:#fff4d6;border:1px solid #e3b341}" +
       "#historial-anexo-pendientes[data-estado=completo]{background:#e6f4ea;border:1px solid #6bb27c}" +
-      "#historial-anexo-pendientes ul{margin:.3rem 0 0 1.1rem;padding:0}";
+      "#historial-anexo-pendientes ul,#historial-anexo-avisos ul{margin:.3rem 0 0 1.1rem;padding:0}" +
+      "#historial-anexo-avisos{margin:.5rem 0 1rem;padding:.6rem .8rem;border-radius:6px;font-size:.9rem;background:#e8f1fb;border:1px solid #79a6d9}" +
+      ".historial-anexo-periodo{display:flex;gap:.5rem;align-items:center;margin:.3rem 0}" +
+      ".historial-anexo-contrato{margin:.6rem 0}";
     document.head.appendChild(style);
 
     Object.assign(el, {
@@ -812,6 +1101,9 @@
       title: q("#historial-anexo-title"),
       resumen: q("#historial-anexo-resumen"),
       pendientes: q("#historial-anexo-pendientes"),
+      avisos: q("#historial-anexo-avisos"),
+      periodosBloque: q("#historial-anexo-periodos"),
+      periodosLista: q("#historial-anexo-periodos-lista"),
       form: q("#historial-anexo-form"),
       tipo: q("#historial-anexo-tipo"),
       fecha: q("#historial-anexo-fecha"),
@@ -821,6 +1113,39 @@
     q("#historial-anexo-overlay").addEventListener("click", cerrar);
     el.form.addEventListener("input", () => state.datos && recalcular());
     el.form.addEventListener("submit", (e) => e.preventDefault());
+    el.periodosLista.addEventListener("input", (e) => {
+      const campo = e.target.closest("input[data-campo]");
+      if (!campo) return;
+      const contrato = campo.closest("[data-contrato]").dataset.contrato;
+      const indice = Number(campo.closest("[data-indice]").dataset.indice);
+      state.periodos[contrato][indice][campo.dataset.campo] = campo.value;
+      recalcular();
+    });
+    el.periodosLista.addEventListener("click", (e) => {
+      const contenedor = e.target.closest("[data-contrato]");
+      if (!contenedor) return;
+      const contrato = contenedor.dataset.contrato;
+      if (e.target.closest("[data-anadir]")) {
+        state.periodos[contrato].push({ fecha_inicio: "", fecha_fin: "" });
+        pintarPeriodos();
+      } else if (e.target.closest("[data-quitar]")) {
+        const indice = Number(e.target.closest("[data-indice]").dataset.indice);
+        state.periodos[contrato].splice(indice, 1);
+        pintarPeriodos();
+        recalcular();
+      }
+    });
+    q("#historial-anexo-periodos-save-button").addEventListener("click", async () => {
+      try {
+        setStatus("Guardando periodos…");
+        await guardarPeriodos();
+        pintarPeriodos();
+        recalcular();
+        setStatus("Periodos de actividad guardados.", "ok");
+      } catch (error) {
+        setStatus(`No se pudieron guardar los periodos: ${error?.message || error}`, "error");
+      }
+    });
     q("#historial-anexo-save-button").addEventListener("click", async () => {
       try {
         setStatus("Guardando…");
@@ -849,6 +1174,6 @@
     window.CoordinacionRd723Anexo = { open, buildAnexo, renderAnexoPdf, VERSION_TEXTO };
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO };
+    module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad };
   }
 })();
