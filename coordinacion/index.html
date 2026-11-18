@@ -5585,6 +5585,15 @@
               >
                 &#129658; Reconocimientos
               </button>
+              <button
+                id="personal-delitos-button"
+                type="button"
+                class="secondary-button hidden"
+                title="Certificado de delitos de naturaleza sexual (solo administraci&oacute;n)"
+                aria-label="Certificado de delitos sexuales"
+              >
+                &#128737;&#65039; Delitos sexuales
+              </button>
               <button id="personal-new-button" type="button">Nueva persona</button>
               <button id="personal-refresh-button" type="button" class="secondary-button">
                 Actualizar
@@ -5824,6 +5833,126 @@
                     </tr>
                   </thead>
                   <tbody id="personal-reconocimientos-listado-body"></tbody>
+                </table>
+              </div>
+            </aside>
+          </section>
+
+          <section id="personal-delitos-panel" class="detail-panel hidden">
+            <div id="personal-delitos-overlay" class="detail-overlay"></div>
+            <aside class="detail-drawer formacion-table-drawer">
+              <div class="detail-header">
+                <div>
+                  <p class="eyebrow">Certificado de delitos de naturaleza sexual</p>
+                  <h3>Estado de los certificados</h3>
+                </div>
+                <div class="detail-header-actions">
+                  <button id="personal-delitos-close-button" type="button" class="secondary-button">Cerrar</button>
+                </div>
+              </div>
+              <p class="muted-text">
+                Obligatorio para todo el personal de la empresa &middot; vale un a&ntilde;o desde la entrega.
+              </p>
+              <p id="personal-delitos-status" class="panel-status-message"></p>
+              <div id="personal-delitos-filters" class="formacion-dea-filters"></div>
+              <div class="toolbar-actions">
+                <input id="personal-delitos-search" type="search" placeholder="Buscar por nombre, DNI, email o m&oacute;vil" />
+                <button id="personal-delitos-tabla-button" type="button" class="secondary-button">Tabla para copiar</button>
+              </div>
+              <p id="personal-delitos-summary" class="muted-text"></p>
+              <div class="table-scroll">
+                <table class="records-table personal-delitos-table">
+                  <thead>
+                    <tr>
+                      <th>Persona</th>
+                      <th>DNI</th>
+                      <th>Estado</th>
+                      <th>Caduca</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="personal-delitos-body"></tbody>
+                </table>
+              </div>
+
+            </aside>
+          </section>
+
+          <div id="personal-delitos-persona-modal" class="delitos-modal hidden" role="dialog" aria-modal="true" aria-label="Certificado de la persona">
+            <div id="personal-delitos-persona-overlay" class="delitos-modal-overlay"></div>
+            <div class="delitos-modal-card">
+              <div class="detail-header">
+                <div>
+                  <p class="eyebrow">Certificado de delitos sexuales</p>
+                </div>
+                <div class="detail-header-actions">
+                  <button id="personal-delitos-persona-close" type="button" class="secondary-button">Cerrar</button>
+                </div>
+              </div>
+              <div id="personal-delitos-persona-content">
+                <h4 id="personal-delitos-persona-title"></h4>
+                <p id="personal-delitos-persona-estado"></p>
+                <form id="personal-delitos-form" class="form-grid">
+                  <h4 class="full-width">Registrar certificado nuevo</h4>
+                  <label>
+                    Fecha de entrega del certificado
+                    <input id="personal-delitos-fecha" type="date" min="2000-01-01" required />
+                  </label>
+                  <div class="toolbar-actions full-width">
+                    <button id="personal-delitos-save" type="submit">Registrar certificado</button>
+                  </div>
+                </form>
+                <p id="personal-delitos-form-status" class="panel-status-message"></p>
+                <h4>Historial (<span id="personal-delitos-count">0</span>)</h4>
+                <div class="table-scroll">
+                  <table class="records-table personal-delitos-table">
+                    <thead>
+                      <tr>
+                        <th>Entregado</th>
+                        <th>Caducaba / caduca</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="personal-delitos-historial"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <section id="personal-delitos-tabla-panel" class="detail-panel hidden">
+            <div id="personal-delitos-tabla-overlay" class="detail-overlay"></div>
+            <aside class="detail-drawer formacion-table-drawer">
+              <div class="detail-header">
+                <div>
+                  <p class="eyebrow">Certificado de delitos sexuales</p>
+                  <h3 id="personal-delitos-tabla-title">Tabla de certificados</h3>
+                </div>
+                <div class="detail-header-actions">
+                  <button id="personal-delitos-tabla-close" type="button" class="secondary-button">Cerrar</button>
+                </div>
+              </div>
+              <div class="toolbar-actions">
+                <button id="personal-delitos-copy" type="button">Copiar tabla</button>
+                <label>
+                  <input id="personal-delitos-cabecera" type="checkbox" checked />
+                  Incluir cabecera
+                </label>
+                <span id="personal-delitos-tabla-count" class="muted-text"></span>
+              </div>
+              <p id="personal-delitos-tabla-aviso" class="panel-status-message"></p>
+              <div class="table-scroll">
+                <table class="records-table">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>DNI</th>
+                      <th>Email</th>
+                      <th>M&oacute;vil</th>
+                      <th>Estado del certificado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="personal-delitos-tabla-body"></tbody>
                 </table>
               </div>
             </aside>
@@ -10587,6 +10716,7 @@
     <script src="./facturacion.js?v=20261116-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
+    <script src="./delitos-sexuales.js?v=20261118-5" defer></script>
     <script src="./app.js?v=20261117-1" defer></script>
     <script src="./programacion-carga.js?v=20261114-1" defer></script>
   </body>
