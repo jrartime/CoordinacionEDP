@@ -769,6 +769,18 @@ const PERSONAL_FIELDS = [
   { key: "uniforme", label: "Uniforme", type: "boolean", group: "documentacion" },
   { key: "med_emerg", label: "Med. emerg", type: "boolean", group: "documentacion" },
   { key: "ens", label: "ENS", type: "boolean", group: "documentacion" },
+  {
+    key: "autoriza_certificado_delitos",
+    label: "Autoriza descargar su certificado de delitos sexuales",
+    type: "select",
+    valueType: "text",
+    emptyLabel: "Pendiente",
+    options: [
+      { value: "si", label: "Sí" },
+      { value: "no", label: "No" },
+    ],
+    group: "documentacion",
+  },
   { key: "ss", label: "SS", type: "text", confidential: true, group: "economico" },
   { key: "cuenta_corriente", label: "Cuenta corriente", type: "text", confidential: true, group: "economico" },
   { key: "prorrateo_pagas", label: "Prorrateo pagas", type: "boolean", confidential: true, group: "economico" },
@@ -11751,7 +11763,7 @@ function renderPersonalFieldControl(field) {
       <label>
         ${escapeHtml(field.label)}
         <select name="${escapeHtml(field.key)}" disabled${required}>
-          <option value="">Sin vinculacion</option>
+          <option value="">${escapeHtml(field.emptyLabel || "Sin vinculacion")}</option>
           ${options}
         </select>
       </label>
@@ -11822,6 +11834,12 @@ function renderPersonalFormFields() {
             `
           )
           .join("");
+        // Los campos de esta sección que no son casillas (p. ej. la autorización del certificado
+        // de delitos sexuales) van debajo de las casillas.
+        const extraControls = PERSONAL_FIELDS
+          .filter((item) => item.group === "documentacion" && !PERSONAL_DOCUMENTATION_FIELD_KEYS.has(item.key))
+          .map((item) => renderPersonalFieldControl(item))
+          .join("");
         const wrapperClass = groupDef.narrow
           ? "personal-form-section personal-form-section-narrow personal-checks-fieldset"
           : "full-width personal-form-section personal-checks-fieldset";
@@ -11832,6 +11850,7 @@ function renderPersonalFormFields() {
             <div class="${gridClass}">
               ${checkboxes}
             </div>
+            ${extraControls ? `<div class="personal-docs-extra">${extraControls}</div>` : ""}
           </fieldset>
         `;
         return groupDef.key === PERSONAL_CARPETA_DOCS_ANCHOR_GROUP_KEY
@@ -11915,6 +11934,8 @@ function renderPersonalDetailHeader(row) {
     personalDetailAvatar.textContent = "";
     personalDetailAvatar.className = "personal-detail-avatar";
     personalDetailMeta.innerHTML = "";
+    window.CoordinacionDelitosSexuales?.mostrarEtiquetas?.(null);
+    window.CoordinacionReconocimientos?.mostrarEtiqueta?.(null);
     return;
   }
 
@@ -11934,6 +11955,10 @@ function renderPersonalDetailHeader(row) {
     items.push(`<span class="personal-detail-meta-item">Sin empresa</span>`);
   }
   personalDetailMeta.innerHTML = items.join("");
+  // Etiquetas del certificado de delitos sexuales (solo administración; delitos-sexuales.js).
+  window.CoordinacionDelitosSexuales?.mostrarEtiquetas?.(row);
+  // Etiqueta del reconocimiento médico de este año (reconocimientos.js).
+  window.CoordinacionReconocimientos?.mostrarEtiqueta?.(row);
 }
 
 function setPersonalFormEditing(isEditing) {
@@ -12742,7 +12767,7 @@ function collectPersonalPayload() {
       return;
     }
     if (field.type === "select") {
-      payload[field.key] = Number.parseInt(rawValue, 10);
+      payload[field.key] = field.valueType === "text" ? rawValue : Number.parseInt(rawValue, 10);
       return;
     }
     if (field.type === "numeric") {

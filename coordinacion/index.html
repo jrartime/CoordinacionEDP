@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261118-2" />
-    <link rel="stylesheet" href="./styles.css?v=20261116-8" />
+    <link rel="stylesheet" href="./styles.css?v=20261118-5" />
   </head>
   <body>
     <script>
@@ -5566,7 +5566,7 @@
               <p class="eyebrow">Coordinaci&oacute;n</p>
               <h3>Personal</h3>
             </div>
-            <div class="toolbar-actions">
+            <div class="toolbar-actions personal-top-actions">
               <input
                 id="personal-import-excel-input"
                 class="hidden"
@@ -5984,31 +5984,33 @@
 
             <section class="personal-detail-panel personal-detail-empty">
               <div class="section-heading-row compact-heading-row personal-detail-heading">
-                <div class="personal-detail-identity">
-                  <span id="personal-detail-avatar" class="personal-detail-avatar" aria-hidden="true"></span>
-                  <div>
-                    <p class="eyebrow">Ficha</p>
-                    <div class="personal-detail-title-row">
-                      <h3 id="personal-form-title">Selecciona una persona</h3>
-                      <div class="personal-detail-title-actions">
-                        <button id="personal-historial-button" type="button" class="secondary-button hidden" title="Historial laboral de esta persona">
-                          Historial laboral
-                        </button>
-                        <button id="personal-whatsapp-button" type="button" class="secondary-button personal-whatsapp-button hidden" title="Enviar un WhatsApp a esta persona">
-                          WhatsApp
-                        </button>
-                      </div>
-                    </div>
-                    <div id="personal-detail-meta" class="personal-detail-meta"></div>
-                  </div>
-                </div>
-                <div class="toolbar-actions">
+                <div class="personal-detail-actionbar">
+                  <button id="personal-historial-button" type="button" class="secondary-button hidden" title="Historial laboral de esta persona">
+                    Historial laboral
+                  </button>
+                  <button id="personal-whatsapp-button" type="button" class="secondary-button personal-whatsapp-button hidden" title="Enviar un WhatsApp a esta persona">
+                    WhatsApp
+                  </button>
                   <button id="personal-cancel-button" type="button" class="secondary-button hidden">
                     Descartar cambios
                   </button>
                   <button id="personal-save-button" type="submit" form="personal-form" class="hidden">
                     Guardar persona
                   </button>
+                </div>
+                <div class="personal-detail-identity">
+                  <span id="personal-detail-avatar" class="personal-detail-avatar" aria-hidden="true"></span>
+                  <div>
+                    <p class="eyebrow">Ficha</p>
+                    <div class="personal-detail-title-row">
+                      <h3 id="personal-form-title">Selecciona una persona</h3>
+                    </div>
+                    <div class="personal-detail-meta personal-detail-certificado">
+                      <span id="personal-detail-cert-estado" class="personal-detail-badge-slot"></span>
+                      <span id="personal-detail-rec-estado" class="personal-detail-badge-slot"></span>
+                    </div>
+                    <div id="personal-detail-meta" class="personal-detail-meta"></div>
+                  </div>
                 </div>
               </div>
 
@@ -10717,9 +10719,9 @@
     <script src="./concilia-integrated.js?v=20261118-2" defer></script>
     <script src="./facturacion.js?v=20261116-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
-    <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./delitos-sexuales.js?v=20261118-5" defer></script>
-    <script src="./app.js?v=20261117-1" defer></script>
+    <script src="./reconocimientos.js?v=20261118-1" defer></script>
+    <script src="./delitos-sexuales.js?v=20261118-7" defer></script>
+    <script src="./app.js?v=20261118-5" defer></script>
     <script src="./programacion-carga.js?v=20261114-1" defer></script>
   </body>
 </html>

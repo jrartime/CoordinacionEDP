@@ -296,6 +296,7 @@
     await loadPerson(state.personalId);
     setStatus("Reconocimiento guardado.", "success");
     render();
+    refrescarEtiqueta();
   }
 
   async function remove(id) {
@@ -316,6 +317,7 @@
     await loadPerson(state.personalId);
     setStatus("Reconocimiento eliminado.", "success");
     render();
+    refrescarEtiqueta();
   }
 
 
@@ -744,7 +746,59 @@
     resetForm();
   }
 
-  window.CoordinacionReconocimientos = { init, open };
+  // Etiqueta bajo el nombre en la ficha de Personal: el reconocimiento médico de este año
+  // (autoriza o no, y la fecha). Al pulsarla se abre el panel de reconocimientos de la persona.
+  let etiquetaPersonaId = null;
+
+  async function mostrarEtiqueta(row) {
+    const slot = q("#personal-detail-rec-estado");
+    if (!slot) return;
+    etiquetaPersonaId = row ? Number(row.id) : null;
+    if (!row) {
+      slot.innerHTML = "";
+      return;
+    }
+    const id = Number(row.id);
+    try {
+      const supabase = await getClient();
+      const result = await supabase
+        .from("personal_reconocimiento_medico")
+        .select("id, anio, autoriza, fecha")
+        .eq("personal_id", id)
+        .eq("anio", currentYear());
+      if (result.error) throw result.error;
+      if (etiquetaPersonaId !== id) return;
+      const registro = (result.data || []).sort((a, b) => b.id - a.id)[0] || null;
+      let texto;
+      let tono = "";
+      if (!registro) {
+        texto = `Reconocimiento ${currentYear()}: sin registro`;
+      } else if (registro.autoriza === true) {
+        texto = registro.fecha ? `Reconocimiento: autoriza · ${formatDate(registro.fecha)}` : "Reconocimiento: autoriza · sin fecha";
+        tono = " personal-cert-badge-ok";
+      } else if (registro.autoriza === false) {
+        texto = "Reconocimiento: no autoriza";
+        tono = " personal-cert-badge-error";
+      } else {
+        texto = "Reconocimiento: sin respuesta";
+        tono = " personal-cert-badge-warning";
+      }
+      slot.innerHTML = `<button type="button" class="personal-cert-badge${tono}" data-rec-etiqueta="${id}" title="Reconocimientos médicos de esta persona">🩺 ${escapeHtml(texto)}</button>`;
+    } catch (_error) {
+      if (etiquetaPersonaId === id) slot.innerHTML = "";
+    }
+  }
+
+  document.addEventListener("click", (event) => {
+    const boton = event.target.closest?.("[data-rec-etiqueta]");
+    if (boton) void open(boton.dataset.recEtiqueta);
+  });
+  // Tras guardar o borrar en el panel, la etiqueta de la ficha se actualiza.
+  const refrescarEtiqueta = () => {
+    if (etiquetaPersonaId) void mostrarEtiqueta({ id: etiquetaPersonaId });
+  };
+
+  window.CoordinacionReconocimientos = { init, open, mostrarEtiqueta, refrescarEtiqueta };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {

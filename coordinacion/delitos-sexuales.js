@@ -28,6 +28,8 @@
     filtro: "pendientes",
     texto: "",
     personaId: null,
+    registrosCargados: false,
+    filaEtiquetas: null,
     editando: null, // { id, fecha }
     confirmarBorradoId: null,
     listado: [],
@@ -126,6 +128,7 @@
     const admin = esAdmin(s);
     el.openButton?.classList.toggle("hidden", !admin);
     if (!admin && el.panel) el.panel.classList.add("hidden");
+    void mostrarEtiquetas(state.filaEtiquetas);
   }
 
   // Las funciones están en el esquema public; el cliente de Coordinación apunta a coordinacion.
@@ -169,6 +172,7 @@
       if (personal.error) throw personal.error;
       state.personal = personal.data || [];
       state.registros = Array.isArray(registros) ? registros : [];
+      state.registrosCargados = true;
       state.cargado = true;
       setStatus("");
     } catch (error) {
@@ -177,6 +181,54 @@
       state.cargando = false;
     }
     render();
+    void mostrarEtiquetas(state.filaEtiquetas);
+  }
+
+  // ------------------------------------------------------------------ etiquetas de la ficha
+
+  const CLASE_ESTADO = {
+    "no-tiene": "personal-cert-badge-error",
+    caducado: "personal-cert-badge-error",
+    proximo: "personal-cert-badge-warning",
+    vigente: "personal-cert-badge-ok",
+  };
+
+  // Etiqueta bajo el nombre en la ficha de Personal: estado del certificado (pulsar abre la
+  // ventana para renovarlo). Solo para administración.
+  async function mostrarEtiquetas(row) {
+    const contenedor = q("#personal-detail-cert-estado");
+    if (!contenedor) return;
+    state.filaEtiquetas = row || null;
+    if (!row || !el.openButton || el.openButton.classList.contains("hidden")) {
+      contenedor.innerHTML = "";
+      return;
+    }
+    const id = Number(row.id);
+    if (!state.registrosCargados) {
+      try {
+        const registros = await rpc("delitos_sexuales_listado");
+        state.registros = Array.isArray(registros) ? registros : [];
+        state.registrosCargados = true;
+      } catch (_error) {
+        contenedor.innerHTML = "";
+        return;
+      }
+    }
+    // Se pudo seleccionar a otra persona mientras se cargaba.
+    if (!state.filaEtiquetas || Number(state.filaEtiquetas.id) !== id) return;
+    const cert = estadoCertificado(registrosDe(id));
+    const texto = cert.caducidad
+      ? `Certificado ${cert.estado === "caducado" ? "caducó" : "caduca"} ${fechaCorta(cert.caducidad)}`
+      : TEXTO_ESTADO["no-tiene"];
+    contenedor.innerHTML = `
+      <button type="button" class="personal-cert-badge ${CLASE_ESTADO[cert.estado]}" data-del-etiqueta-renovar="${id}" title="Renovar el certificado de delitos sexuales">🛡 ${escapeHtml(texto)}</button>`;
+  }
+
+  // Abre la ventana de la persona (renovar certificado) sin abrir el panel general.
+  async function abrirPersonaSuelta(id) {
+    state.personaId = Number(id);
+    if (!state.cargado) await cargar(true);
+    abrirPersona(state.personaId);
   }
 
   function setStatus(message, tone = "") {
@@ -463,6 +515,10 @@
 
   function bind() {
     el.openButton.addEventListener("click", () => void abrir());
+    q("#personal-detail-cert-estado")?.addEventListener("click", (event) => {
+      const boton = event.target.closest("[data-del-etiqueta-renovar]");
+      if (boton) void abrirPersonaSuelta(boton.dataset.delEtiquetaRenovar);
+    });
     el.closeButton.addEventListener("click", cerrar);
     el.personaClose.addEventListener("click", cerrarPersona);
     el.personaOverlay.addEventListener("click", cerrarPersona);
@@ -568,7 +624,7 @@
       .catch(() => {});
   }
 
-  window.CoordinacionDelitosSexuales = { init, open: abrir };
+  window.CoordinacionDelitosSexuales = { init, open: abrir, mostrarEtiquetas };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {
