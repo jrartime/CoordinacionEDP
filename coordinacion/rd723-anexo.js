@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-18.1";
+  const VERSION_TEXTO = "2026-11-18.2";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -224,6 +224,22 @@
       .join("; ");
   }
 
+  function textoDuracion(dias) {
+    const semanas = Math.round((dias / 7) * 10) / 10;
+    const sem = String(semanas).replace(".", ",");
+    return `${sem} ${semanas === 1 ? "semana" : "semanas"} (${dias} ${dias === 1 ? "día" : "días"})`;
+  }
+
+  // Duración de cada tramo de actividad y, si hay varios, el total.
+  function textoDuracionPeriodos(periodos) {
+    const unidos = unirPeriodos(periodos);
+    if (!unidos.length) return "";
+    const dias = unidos.map((p) => Math.round((p.fin - p.ini) / DIA_MS) + 1);
+    if (unidos.length === 1) return textoDuracion(dias[0]);
+    const total = dias.reduce((a, b) => a + b, 0);
+    return `${dias.map(textoDuracion).join(" + ")}; en total ${textoDuracion(total)}`;
+  }
+
   // La inactividad es lo que queda entre dos tramos de actividad.
   function textoInactividad(periodos) {
     const unidos = unirPeriodos(periodos);
@@ -278,6 +294,8 @@
       const inactividad = textoInactividad(datos.periodos);
       if (actividad) pre.periodo_actividad_estimado = actividad;
       if (inactividad) pre.periodo_inactividad_estimado = inactividad;
+      const duracion = textoDuracionPeriodos(datos.periodos);
+      if (duracion) pre.duracion_estimada_periodo_actividad = duracion;
       pre.llamamiento_medio = "por escrito, mediante correo electrónico";
       const contacto = [
         persona.email ? `correo electrónico ${persona.email}` : "",
@@ -450,9 +468,8 @@
       const textoInactividadFd = manual.periodo_inactividad_estimado || textoInactividad(datos.periodos);
       punto(`Periodo(s) estimado(s) de actividad: ${dato(textoActividad, "Periodos de actividad (añádelos en el panel o en el contrato)")}`);
       punto(`Periodo(s) estimado(s) de inactividad: ${dato(textoInactividadFd, "Periodos de inactividad (se deducen de los de actividad)")}`);
-      if (manual.duracion_estimada_periodo_actividad) {
-        punto(`Duración estimada del periodo de actividad: ${manual.duracion_estimada_periodo_actividad}`);
-      }
+      const duracionActividad = manual.duracion_estimada_periodo_actividad || textoDuracionPeriodos(datos.periodos);
+      if (duracionActividad) punto(`Duración estimada del periodo de actividad: ${duracionActividad}`);
       parrafo("Las fechas concretas se determinarán mediante el llamamiento correspondiente.");
     } else {
       parrafo(
@@ -1699,6 +1716,6 @@
     window.CoordinacionRd723Anexo = { open, generarBytes, buildAnexo, renderAnexoPdf, VERSION_TEXTO };
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad, calcularPredefinidos, textoCausaSustitucion, textoCausaCircunstancias, causaTipoPredefinido };
+    module.exports = { buildAnexo, renderAnexoPdf, VERSION_TEXTO, jornadaAnualEstimada, textoPeriodos, textoInactividad, textoDuracionPeriodos, calcularPredefinidos, textoCausaSustitucion, textoCausaCircunstancias, causaTipoPredefinido };
   }
 })();
