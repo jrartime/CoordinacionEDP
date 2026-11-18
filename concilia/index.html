@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Concilia EDP</title>
-    <link rel="stylesheet" href="./styles.css?v=20261025-2" />
+    <link rel="stylesheet" href="./styles.css?v=20261118-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -1180,12 +1180,109 @@
               <p id="lectivo-mobile-context"></p>
             </div>
 
-            <p id="lectivo-summary" class="summary-chip">Selecciona un centro para pasar lista.</p>
+            <div class="results-toolbar section-summary-toolbar">
+              <p id="lectivo-summary" class="summary-chip">Selecciona un centro para pasar lista.</p>
+              <div class="header-actions">
+                <button id="open-lectivo-report-button" class="secondary-button" type="button">
+                  Informes
+                </button>
+              </div>
+            </div>
 
             <ul class="lectivo-student-list" id="lectivo-student-list">
               <li class="empty-state">Selecciona un centro para pasar lista.</li>
             </ul>
           </div>
+
+          <div id="lectivo-report-backdrop" class="panel-backdrop hidden"></div>
+          <aside
+            id="lectivo-report-panel"
+            class="summary-panel hidden"
+            aria-labelledby="lectivo-report-title"
+          >
+            <div class="side-panel-header">
+              <div class="section-heading">
+                <p class="eyebrow">Informe</p>
+                <h2 id="lectivo-report-title">Asistencia lectivo por centro y semana</h2>
+              </div>
+              <div class="header-actions">
+                <button
+                  id="lectivo-report-pdf-button"
+                  class="warm-button compact-button"
+                  type="button"
+                >
+                  PDF
+                </button>
+                <button
+                  id="lectivo-report-excel-button"
+                  class="warm-button compact-button"
+                  type="button"
+                >
+                  Excel
+                </button>
+                <button
+                  id="close-lectivo-report-button"
+                  class="secondary-button compact-button"
+                  type="button"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+            <form id="lectivo-report-filters-form" class="filters-grid records-filters-compact">
+              <label class="filter-field">
+                Centros
+                <select id="lectivo-report-centro-select" multiple size="8"></select>
+              </label>
+              <label class="filter-field">
+                Desde
+                <input id="lectivo-report-desde" type="date" />
+              </label>
+              <label class="filter-field">
+                Hasta
+                <input id="lectivo-report-hasta" type="date" />
+              </label>
+              <div class="filter-actions">
+                <button id="lectivo-report-generate-button" class="secondary-button" type="button">
+                  Generar
+                </button>
+              </div>
+            </form>
+            <p class="muted-text">Sin centros seleccionados se incluyen todos. Ctrl/Cmd + clic para elegir varios.</p>
+
+            <div class="results-toolbar section-summary-toolbar">
+              <div class="results-summary">
+                <p id="lectivo-report-summary" class="summary-chip">Cargando informe...</p>
+              </div>
+            </div>
+
+            <div class="table-wrap weekly-table-wrap">
+              <table class="weekly-summary-table attendance-report-table">
+                <thead>
+                  <tr>
+                    <th>Centro</th>
+                    <th>Semana</th>
+                    <th>L</th>
+                    <th>M</th>
+                    <th>X</th>
+                    <th>J</th>
+                    <th>V</th>
+                    <th>S</th>
+                    <th>D</th>
+                    <th>Alumnos</th>
+                  </tr>
+                </thead>
+                <tbody id="lectivo-report-table-body">
+                  <tr>
+                    <td colspan="10" class="empty-state">Cargando informe...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div id="lectivo-report-detail" class="lectivo-report-detail"></div>
+          </aside>
 
           <div id="attendance-report-backdrop" class="panel-backdrop hidden"></div>
           <aside
@@ -1339,6 +1436,6 @@
     <script src="./config.js"></script>
     <script src="../shared/supabase-client.js"></script>
     <script src="../shared/auth.js"></script>
-    <script src="./app.js?v=20261025-1"></script>
+    <script src="./app.js?v=20261118-1"></script>
   </body>
 </html>
