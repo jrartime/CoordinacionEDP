@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-18.2";
+  const VERSION_TEXTO = "2026-11-18.3";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -842,7 +842,9 @@
       } else if (b.t === "entrega") {
         y += 2;
         hueco(60);
-        texto("Medio de entrega:  [   ] Papel    [   ] Electrónico            Fecha de entrega: ____ / ____ / ________", { despues: 8 });
+        const hoy = new Date();
+        const fechaEntrega = `${String(hoy.getDate()).padStart(2, "0")} / ${String(hoy.getMonth() + 1).padStart(2, "0")} / ${hoy.getFullYear()}`;
+        texto(`Medio de entrega:  [   ] Papel    [ X ] Electrónico            Fecha de entrega: ${fechaEntrega}`, { despues: 8 });
         const centroIzq = margen + anchoUtil * 0.25;
         const centroDer = margen + anchoUtil * 0.75;
         doc.setFont("helvetica", "normal");
