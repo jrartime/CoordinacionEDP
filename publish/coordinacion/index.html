@@ -2741,50 +2741,45 @@
                     <span id="historial-report-activities-summary">0 actividades</span>
                   </div>
                   <div class="personal-import-actions historial-report-selection-actions">
-                    <button id="historial-report-select-all-activities-button" type="button" class="secondary-button">
-                      Incluir todas
-                    </button>
-                    <button id="historial-report-clear-activities-button" type="button" class="secondary-button">
-                      Quitar todas
-                    </button>
-                    <button id="historial-report-preview-button" type="button" class="secondary-button">
-                      Vista previa
-                    </button>
                     <span id="historial-report-template-warning" class="control-selected-delete-count"></span>
                   </div>
 
-                  <div class="table-scroll personal-import-table-wrap">
-                    <table class="records-table personal-import-table historial-report-activities-table">
-                      <thead>
-                        <tr>
-                          <th>Incluir</th>
-                          <th>Puesto</th>
-                          <th>Instalación</th>
-                          <th>Horario</th>
-                          <th>Horas</th>
-                        </tr>
-                      </thead>
-                      <tbody id="historial-report-activities-table-body">
-                        <tr>
-                          <td colspan="5" class="empty-state">Selecciona un periodo para revisar actividades.</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                  <fieldset id="historial-report-activities" class="historial-report-annexes">
+                    <legend>Actividades del periodo</legend>
+                    <label class="checkbox-item">
+                      <input id="historial-report-activities-all" type="checkbox" />
+                      <span>Marcar todas</span>
+                    </label>
+                    <div id="historial-report-activities-list" class="historial-report-annex-list">
+                      <p class="muted-text">Selecciona un periodo para revisar actividades.</p>
+                    </div>
+                  </fieldset>
 
-                  <fieldset class="historial-report-annexes">
+                  <fieldset id="historial-report-annexes" class="historial-report-annexes">
                     <legend>Anexos al PDF</legend>
                     <p class="muted-text">
-                      Orden final: informe, PDF anexados desde tu equipo y, por último, documentos de empresa.
+                      Lo marcado se une en un solo PDF, en el orden de la lista: la plantilla del informe, el anexo
+                      RD 723 y los anexos. Vale igual para «Descargar PDF» y para el PDF del anexo RD 723, y en
+                      ambos casos se copian al portapapeles el texto, el nombre y el correo. Arrastra aquí PDF o
+                      documentos de Word (.docx, se convierten a PDF).
                     </p>
+                    <label class="checkbox-item">
+                      <input id="historial-report-annex-all" type="checkbox" />
+                      <span>Marcar todos</span>
+                    </label>
                     <div id="historial-report-annex-company-list" class="historial-report-annex-list"></div>
                     <div class="personal-import-actions">
-                      <input id="historial-report-annex-file-input" type="file" accept="application/pdf" multiple class="hidden" />
+                      <input
+                        id="historial-report-annex-file-input"
+                        type="file"
+                        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        multiple
+                        class="hidden"
+                      />
                       <button id="historial-report-annex-add-button" type="button" class="secondary-button">
-                        Anexar PDF…
+                        Anexar PDF o Word…
                       </button>
                     </div>
-                    <div id="historial-report-annex-extra-list" class="historial-report-annex-list"></div>
                   </fieldset>
 
                   <div class="detail-form records-detail-form">
@@ -2800,13 +2795,13 @@
                   </div>
 
                   <div class="detail-actions">
-                    <button id="historial-report-download-button" type="button">
-                      Descargar PDF
+                    <p id="historial-report-status" class="panel-status-message" role="status" aria-live="polite"></p>
+                    <button id="historial-report-anexo-button" type="button" class="secondary-button">
+                      Anexo RD 723
                     </button>
-                    <p class="historial-report-clipboard-hint muted-text">
-                      Al descargar se copian al portapapeles el texto, el nombre y el correo: el correo queda
-                      listo para pegar directamente y el resto en el historial (Win+V) para Adobe Acrobat.
-                    </p>
+                    <button id="historial-report-preview-button" type="button" class="secondary-button">
+                      Vista previa
+                    </button>
                   </div>
                 </aside>
               </section>
@@ -9880,6 +9875,23 @@
               </div>
             </section>
 
+            <section id="contract-activity-periods-section" class="settings-section contract-services-section hidden">
+              <h4>Periodos de actividad</h4>
+              <p class="muted-text">
+                Para el personal fijo-discontinuo de este contrato. La inactividad se deduce de los huecos entre
+                periodos. El anexo RD 723 los usa para indicar los periodos de actividad e inactividad y para
+                calcular la jornada anual estimada.
+              </p>
+              <div id="contract-activity-periods-list"></div>
+              <div class="toolbar-actions">
+                <button id="contract-activity-periods-add-button" type="button" class="secondary-button">
+                  + Añadir periodo
+                </button>
+                <button id="contract-activity-periods-save-button" type="button">Guardar periodos</button>
+              </div>
+              <p id="contract-activity-periods-status" class="panel-status-message"></p>
+            </section>
+
             <section id="contract-rates-section" class="settings-section contract-services-section">
               <div class="section-heading-row">
                 <h4>Funciones y tarifas</h4>
@@ -10568,6 +10580,11 @@
           </div>
           <div id="historial-report-preview-body" class="cv-preview-body"></div>
           <div class="cv-preview-dialog-footer">
+            <span class="muted-text historial-report-clipboard-hint">
+              Al descargar se copian al portapapeles el texto, el nombre y el correo: el correo queda listo para
+              pegar directamente y el resto en el historial (Win+V) para Adobe Acrobat.
+            </span>
+            <button id="historial-report-download-button" type="button">Descargar PDF</button>
             <button type="button" class="secondary-button" data-close-historial-report-preview>Cerrar</button>
           </div>
         </dialog>
@@ -10587,7 +10604,9 @@
     <script src="./facturacion.js?v=20261116-1" defer></script>
     <script src="./formacion.js?v=20261020-3" defer></script>
     <script src="./reconocimientos.js?v=20261020-13" defer></script>
-    <script src="./app.js?v=20261117-1" defer></script>
+    <script src="./word-a-pdf.js?v=20261117-1" defer></script>
+    <script src="./rd723-anexo.js?v=20261117-10" defer></script>
+    <script src="./app.js?v=20261117-12" defer></script>
     <script src="./programacion-carga.js?v=20261114-1" defer></script>
   </body>
 </html>
