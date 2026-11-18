@@ -12,7 +12,7 @@
   // El constructor del documento (buildAnexo / renderAnexoPdf) no toca la base de datos ni el
   // DOM, para poder probarlo con datos de ejemplo (ver scripts/probar-anexo-rd723.mjs).
 
-  const VERSION_TEXTO = "2026-11-17.10";
+  const VERSION_TEXTO = "2026-11-18.1";
 
   const TIPOS = [
     ["alta", "Alta o nueva contratación"],
@@ -303,28 +303,30 @@
   }
 
   // Une, borra y actualiza los tramos de actividad de un contrato para dejarlos como `filas`.
-  async function sincronizarPeriodos(supabase, contratoId, filas, idsOriginales) {
+  async function sincronizarPeriodos(supabase, contratoId, filas, idsOriginales, destino = null) {
+    // destino null = tramos del contrato; {tabla, extra} = tramos propios de la persona.
+    const tabla = destino?.tabla || "contratos_periodos_actividad";
     const actuales = filas.filter((p) => p.fecha_inicio && p.fecha_fin);
     const invalido = actuales.find((p) => p.fecha_fin < p.fecha_inicio);
     if (invalido) throw new Error("Un periodo termina antes de empezar.");
     const idsActuales = new Set(actuales.filter((p) => p.id).map((p) => p.id));
     const borrar = (idsOriginales || []).filter((id) => !idsActuales.has(id));
     if (borrar.length) {
-      const { error } = await supabase.from("contratos_periodos_actividad").delete().in("id", borrar);
+      const { error } = await supabase.from(tabla).delete().in("id", borrar);
       if (error) throw error;
     }
     for (const p of actuales.filter((x) => x.id)) {
       const { error } = await supabase
-        .from("contratos_periodos_actividad")
+        .from(tabla)
         .update({ fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_fin })
         .eq("id", p.id);
       if (error) throw error;
     }
     const nuevos = actuales
       .filter((x) => !x.id)
-      .map((x) => ({ contrato_id: contratoId, fecha_inicio: x.fecha_inicio, fecha_fin: x.fecha_fin }));
+      .map((x) => ({ ...(destino ? destino.extra : { contrato_id: contratoId }), fecha_inicio: x.fecha_inicio, fecha_fin: x.fecha_fin }));
     if (nuevos.length) {
-      const { error } = await supabase.from("contratos_periodos_actividad").insert(nuevos);
+      const { error } = await supabase.from(tabla).insert(nuevos);
       if (error) throw error;
     }
   }
@@ -1032,6 +1034,16 @@
         .order("fecha_inicio", { ascending: true });
       if (!error) periodosContrato = data || [];
     }
+    // Periodos propios de la persona en este periodo del historial: si existen, sustituyen a los del contrato.
+    let periodosPersona = [];
+    {
+      const { data, error } = await supabase
+        .from("historiales_laborales_periodos_actividad")
+        .select("id, fecha_inicio, fecha_fin")
+        .eq("historial_id", historial.id)
+        .order("fecha_inicio", { ascending: true });
+      if (!error) periodosPersona = data || [];
+    }
 
     // Complementos propios de la persona vigentes en la fecha de inicio.
     let complementosPersona = [];
@@ -1077,7 +1089,8 @@
       sustituida,
       contratos,
       periodosContrato,
-      periodos: periodosContrato,
+      periodosPersona,
+      periodos: periodosPersona.length ? periodosPersona : periodosContrato,
       complementos_persona: complementosPersona,
     };
   }
@@ -1111,10 +1124,16 @@
     el.avisos.classList.toggle("hidden", !anexo.avisos?.length);
   }
 
-  // ---- Periodos de actividad del contrato (solo fijos discontinuos)
+  // ---- Periodos de actividad: propios de la persona y de los contratos (solo fijos discontinuos)
+  const PERSONA = "p";
+
   function aplanarPeriodos() {
+    // Los periodos propios de la persona (clave "p") sustituyen a los de los contratos.
+    const propios = (state.periodos[PERSONA] || []).filter((p) => p.fecha_inicio && p.fecha_fin);
+    if (propios.length) return propios.map((p) => ({ fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_fin }));
     const filas = [];
     Object.entries(state.periodos).forEach(([contratoId, lista]) => {
+      if (contratoId === PERSONA) return;
       lista.forEach((p) => {
         if (p.fecha_inicio && p.fecha_fin) filas.push({ contrato_id: Number(contratoId), fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_fin });
       });
@@ -1124,10 +1143,11 @@
 
   function pintarPeriodos() {
     const { datos } = state;
-    const mostrar = esFijoDiscontinuo(datos.historial) && datos.contratos.length > 0;
+    const mostrar = esFijoDiscontinuo(datos.historial);
     el.periodosBloque.classList.toggle("hidden", !mostrar);
     if (!mostrar) return;
-    el.periodosLista.innerHTML = datos.contratos
+    const bloques = [{ id: PERSONA, nombre: "Propios de esta persona (si hay, sustituyen a los del contrato)" }, ...datos.contratos];
+    el.periodosLista.innerHTML = bloques
       .map((c) => {
         const filas = state.periodos[c.id] || [];
         return `<div class="historial-anexo-contrato" data-contrato="${c.id}">
@@ -1153,20 +1173,36 @@
       // eslint-disable-next-line no-await-in-loop
       await sincronizarPeriodos(supabase, contrato.id, state.periodos[contrato.id] || [], state.periodosOriginales[contrato.id]);
     }
+    await sincronizarPeriodos(supabase, null, state.periodos[PERSONA] || [], state.periodosOriginales[PERSONA], {
+      tabla: "historiales_laborales_periodos_actividad",
+      extra: { historial_id: state.datos.historial.id, personal_id: state.datos.historial.personal_id },
+    });
     // Recarga los ids reales de lo guardado.
     const ids = state.datos.contratos.map((c) => c.id);
-    const { data, error } = await supabase
-      .from("contratos_periodos_actividad")
-      .select("id, contrato_id, fecha_inicio, fecha_fin")
-      .in("contrato_id", ids)
+    let filas = [];
+    if (ids.length) {
+      const { data, error } = await supabase
+        .from("contratos_periodos_actividad")
+        .select("id, contrato_id, fecha_inicio, fecha_fin")
+        .in("contrato_id", ids)
+        .order("fecha_inicio", { ascending: true });
+      if (error) throw error;
+      filas = data || [];
+    }
+    const propios = await supabase
+      .from("historiales_laborales_periodos_actividad")
+      .select("id, fecha_inicio, fecha_fin")
+      .eq("historial_id", state.datos.historial.id)
       .order("fecha_inicio", { ascending: true });
-    if (error) throw error;
-    cargarPeriodosEnEstado(data || []);
+    if (propios.error) throw propios.error;
+    cargarPeriodosEnEstado(filas, propios.data || []);
   }
 
-  function cargarPeriodosEnEstado(filas) {
+  function cargarPeriodosEnEstado(filas, filasPersona = []) {
     state.periodos = {};
     state.periodosOriginales = {};
+    state.periodos[PERSONA] = filasPersona.map((f) => ({ id: f.id, fecha_inicio: f.fecha_inicio, fecha_fin: f.fecha_fin }));
+    state.periodosOriginales[PERSONA] = filasPersona.map((f) => f.id);
     state.datos.contratos.forEach((c) => {
       const propios = filas.filter((f) => f.contrato_id === c.id);
       state.periodos[c.id] = propios.map((f) => ({ id: f.id, fecha_inicio: f.fecha_inicio, fecha_fin: f.fecha_fin }));
@@ -1367,7 +1403,7 @@
       el.fecha.value = state.opciones.fechaDocumento || hoyIso();
       el.ciudad.value = state.opciones.ciudad || state.datos.empresa.ciudad_firma || "Oviedo";
       el.tipo.value = "alta";
-      cargarPeriodosEnEstado(state.datos.periodosContrato);
+      cargarPeriodosEnEstado(state.datos.periodosContrato, state.datos.periodosPersona);
       pintarPeriodos();
       state.datos.periodos = aplanarPeriodos();
       state.predef = {};
@@ -1415,8 +1451,8 @@
           <div id="historial-anexo-pendientes" class="historial-anexo-pendientes"></div>
           <div id="historial-anexo-avisos" class="historial-anexo-avisos hidden"></div>
           <div id="historial-anexo-periodos" class="hidden">
-            <h4>Periodos de actividad del contrato</h4>
-            <p class="muted-text">Se guardan en el contrato de servicio y valen para todo su personal fijo-discontinuo. La inactividad se deduce de ellos.</p>
+            <h4>Periodos de actividad</h4>
+            <p class="muted-text">Los del contrato de servicio valen para todo su personal fijo-discontinuo. Los propios de esta persona se guardan en este periodo del historial y, si los hay, sustituyen a los del contrato. La inactividad se deduce de ellos.</p>
             <div id="historial-anexo-periodos-lista"></div>
             <div class="toolbar-actions">
               <button id="historial-anexo-periodos-save-button" type="button" class="secondary-button">Guardar periodos</button>
