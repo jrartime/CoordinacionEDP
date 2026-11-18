@@ -9288,11 +9288,14 @@ input[data-percent].pct-input--warn {
   align-self: center;
 }
 
-/* El aviso del panel de informe queda pegado al borde inferior visible aunque el panel se desplace. */
+/* El aviso del panel de informe va dentro de la barra de botones (que ya queda fija abajo), en su propia línea. */
+#historial-report-panel .detail-actions {
+  flex-wrap: wrap;
+}
+
 #historial-report-status {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
+  flex: 1 0 100%;
+  margin: 0;
 }
 
 #historial-report-status:empty {
