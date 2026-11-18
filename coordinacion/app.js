@@ -29054,7 +29054,7 @@ function getHistorialReportTypeLabel(type) {
     llamamiento: "llamamiento",
     variacion: "variación",
     subrogacion: "subrogación",
-    nueva_contratacion: "nueva contratación",
+    nueva_contratacion: "contrato",
     otro: "otro",
   }[type] || type || "";
 }
