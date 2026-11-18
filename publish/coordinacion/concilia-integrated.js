@@ -163,6 +163,7 @@
   const lectivoReportHasta = document.querySelector("#lectivo-report-hasta");
   const lectivoReportGenerateButton = document.querySelector("#lectivo-report-generate-button");
   const lectivoReportSummary = document.querySelector("#lectivo-report-summary");
+  const lectivoReportDetail = document.querySelector("#lectivo-report-detail");
   const lectivoReportTableBody = document.querySelector("#lectivo-report-table-body");
   const lectivoReportPdfButton = document.querySelector("#lectivo-report-pdf-button");
   const lectivoReportExcelButton = document.querySelector("#lectivo-report-excel-button");
@@ -8487,7 +8488,9 @@
     for (let pageFrom = 0; ; pageFrom += pageSize) {
       let query = supabase
         .from("concilia_lectivo_asistencias")
-        .select("centro_id, lectivo_usuario_id, fecha, dia_semana, instalaciones(instalacion)")
+        .select(
+          "centro_id, lectivo_usuario_id, fecha, dia_semana, instalaciones(instalacion), concilia_lectivo_usuarios(nombre, apellidos)"
+        )
         .eq("presente", true)
         .gte("fecha", desde)
         .lte("fecha", hasta)
@@ -8529,6 +8532,7 @@
           mondayKey,
           alumnos: new Set(),
           counts: Object.fromEntries(LECTIVO_REPORT_DAY_COLUMNS.map((day) => [day.key, 0])),
+          names: Object.fromEntries(LECTIVO_REPORT_DAY_COLUMNS.map((day) => [day.key, new Map()])),
         });
       }
 
@@ -8536,6 +8540,11 @@
       group.alumnos.add(row.lectivo_usuario_id);
       if (Object.prototype.hasOwnProperty.call(group.counts, row.dia_semana)) {
         group.counts[row.dia_semana] += 1;
+        const usuario = row.concilia_lectivo_usuarios;
+        const fullName =
+          [usuario?.nombre, usuario?.apellidos].filter(Boolean).join(" ").trim() ||
+          `Alumno ${row.lectivo_usuario_id}`;
+        group.names[row.dia_semana].set(row.lectivo_usuario_id, fullName);
       }
     });
 
@@ -8546,6 +8555,12 @@
         mondayKey: group.mondayKey,
         alumnos: group.alumnos.size,
         counts: group.counts,
+        names: Object.fromEntries(
+          LECTIVO_REPORT_DAY_COLUMNS.map((day) => [
+            day.key,
+            [...group.names[day.key].values()].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" })),
+          ])
+        ),
       }))
       .sort((left, right) => {
         const centerCompare = left.centro.localeCompare(right.centro, "es", { sensitivity: "base" });
@@ -8570,7 +8585,39 @@
     return totals;
   }
 
+  function renderLectivoReportDetail(reportRows) {
+    if (!lectivoReportDetail) {
+      return;
+    }
+    if (!reportRows.length) {
+      lectivoReportDetail.innerHTML = "";
+      return;
+    }
+
+    lectivoReportDetail.innerHTML =
+      "<h3>Desglose de asistentes por día</h3>" +
+      reportRows
+        .map((row) => {
+          const days = LECTIVO_REPORT_DAY_COLUMNS.filter((day) => row.names[day.key].length)
+            .map(
+              (day) => `
+                <div class="lectivo-report-detail-day">
+                  <strong>${escapeHtml(day.label)} (${row.names[day.key].length})</strong>
+                  <ul>${row.names[day.key].map((name) => `<li>${escapeHtml(name)}</li>`).join("")}</ul>
+                </div>`
+            )
+            .join("");
+          return `
+            <section class="lectivo-report-detail-group">
+              <h4>${escapeHtml(row.centro)} · ${escapeHtml(row.semanaLabel)}</h4>
+              <div class="lectivo-report-detail-days">${days}</div>
+            </section>`;
+        })
+        .join("");
+  }
+
   function renderLectivoReportTable(reportRows) {
+    renderLectivoReportDetail(reportRows);
     if (!lectivoReportTableBody) {
       return;
     }
@@ -8636,6 +8683,7 @@
       }
     } catch (error) {
       lectivoReportRows = [];
+      renderLectivoReportDetail([]);
       if (lectivoReportSummary) {
         lectivoReportSummary.textContent = "No se pudo generar el informe.";
       }
@@ -8743,6 +8791,64 @@
       doc.setFont("helvetica", "bold");
       doc.text("Totales", margin + 1, y, { maxWidth: centerWidth - 2 });
       drawNumericCells([...LECTIVO_REPORT_DAY_COLUMNS.map((day) => totals.counts[day.key]), totals.alumnos]);
+      y += rowHeight;
+
+      // Desglose de asistentes por día, debajo de la tabla: una columna vertical por día y semana
+      const lineHeight = 3.6;
+      const usableWidth = pageWidth - margin * 2;
+      const colWidth = usableWidth / LECTIVO_REPORT_DAY_COLUMNS.length;
+      const newPageIfNeeded = (needed) => {
+        if (y + needed > pageHeight - margin) {
+          doc.addPage();
+          y = margin;
+        }
+      };
+      y += 2;
+      newPageIfNeeded(10);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("Desglose de asistentes por día", margin, y);
+      y += 6;
+      lectivoReportRows.forEach((row) => {
+        doc.setFontSize(6.8);
+        doc.setFont("helvetica", "normal");
+        const columns = LECTIVO_REPORT_DAY_COLUMNS.filter((day) => row.names[day.key].length).map((day) => ({
+          day,
+          lines: row.names[day.key].map((name) => doc.splitTextToSize(`• ${name}`, colWidth - 3)),
+        }));
+        const bodyHeight = Math.max(
+          0,
+          ...columns.map((col) => col.lines.reduce((sum, item) => sum + item.length, 0) * lineHeight)
+        );
+        // Mantener juntos el título y la lista de la semana cuando caben en una página
+        const blockHeight = 7 + lineHeight + bodyHeight;
+        newPageIfNeeded(Math.min(blockHeight, pageHeight - margin * 2));
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.text(`${row.centro} · ${row.semanaLabel}`, margin, y);
+        y += 5;
+        columns.forEach((col, index) => {
+          const x = margin + colWidth * LECTIVO_REPORT_DAY_COLUMNS.indexOf(col.day);
+          let cy = y;
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7.5);
+          doc.text(`${col.day.label} (${col.lines.length})`, x, cy);
+          cy += lineHeight + 0.6;
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(6.8);
+          col.lines.forEach((nameLines) => {
+            if (cy + nameLines.length * lineHeight > pageHeight - margin) {
+              doc.addPage();
+              cy = margin;
+            }
+            doc.text(nameLines, x, cy);
+            cy += nameLines.length * lineHeight;
+          });
+          col.endY = cy;
+        });
+        // Si alguna columna saltó de página, continuar tras la más larga de la página actual
+        y = Math.max(y + lineHeight + 0.6, ...columns.map((col) => col.endY ?? y)) + 5;
+      });
 
       const today = new Date().toISOString().slice(0, 10);
       doc.save(`informe-asistencia-lectivo-${today}.pdf`);
@@ -8776,6 +8882,20 @@
     const captionRow = `<tr><td colspan="${headerCells.length}">${escapeHtml(
       describeLectivoReportFilters()
     )}</td></tr>`;
+    const detailRows =
+      `<tr><td colspan="${headerCells.length}"></td></tr>` +
+      `<tr><th colspan="${headerCells.length}">Desglose de asistentes por día</th></tr>` +
+      `<tr><th>Centro</th><th>Semana</th><th>Día</th><th colspan="${headerCells.length - 3}">Asistentes</th></tr>` +
+      lectivoReportRows
+        .flatMap((row) =>
+          LECTIVO_REPORT_DAY_COLUMNS.filter((day) => row.names[day.key].length).map(
+            (day) =>
+              `<tr>${renderCell(row.centro)}${renderCell(row.semanaLabel)}${renderCell(day.label)}<td colspan="${
+                headerCells.length - 3
+              }">${escapeHtml(row.names[day.key].join("; "))}</td></tr>`
+          )
+        )
+        .join("");
 
     const workbook = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -8789,7 +8909,7 @@
           </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
         </head>
         <body>
-          <table>${captionRow}${headerRow}${bodyRows}${totalsRow}</table>
+          <table>${captionRow}${headerRow}${bodyRows}${totalsRow}${detailRows}</table>
         </body>
       </html>
     `;

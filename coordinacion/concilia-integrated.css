@@ -2332,3 +2332,15 @@ code {
   padding: 0;
   background: #f7f9fc;
 }
+
+/* Informe asistencia lectivo: desglose de asistentes por día */
+.lectivo-report-detail { margin-top: 16px; }
+.lectivo-report-detail h3 { margin: 0 0 8px; font-size: 1rem; }
+.lectivo-report-detail-group { margin-bottom: 14px; }
+.lectivo-report-detail-group h4 { margin: 0 0 6px; font-size: 0.9rem; }
+.lectivo-report-detail-days { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.lectivo-report-detail-day { min-width: 150px; font-size: 0.85rem; }
+.lectivo-report-detail-day ul { margin: 4px 0 0; padding-left: 16px; }
+
+/* Los hijos del panel flex no deben encogerse: la tabla del informe desaparecía al crecer el desglose */
+.summary-panel > * { flex-shrink: 0; }
