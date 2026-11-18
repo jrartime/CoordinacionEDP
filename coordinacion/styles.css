@@ -9287,3 +9287,14 @@ input[data-percent].pct-input--warn {
   margin-right: auto;
   align-self: center;
 }
+
+/* El aviso del panel de informe queda pegado al borde inferior visible aunque el panel se desplace. */
+#historial-report-status {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}
+
+#historial-report-status:empty {
+  display: none;
+}

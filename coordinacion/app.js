@@ -29331,6 +29331,8 @@ function setHistorialReportStatus(message, tone = "default") {
   if (historialReportStatus) {
     historialReportStatus.textContent = message || "";
     historialReportStatus.className = "panel-status-message" + (tone !== "default" ? ` ${tone}` : "");
+    // El panel se desplaza: se lleva el aviso a la vista para que no quede fuera de pantalla.
+    if (message) historialReportStatus.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
   setStatus(message, tone);
 }
