@@ -9001,13 +9001,25 @@ async function sendProgrammingReportPersonWhatsapp(index) {
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 
     let phone = "";
-    if (data.personalId) {
+    {
       const supabase = await getSupabaseClient();
-      const { data: person } = await supabase
-        .from("personal")
-        .select("movil, telefono")
-        .eq("id", data.personalId)
-        .maybeSingle();
+      let person = null;
+      if (data.personalId) {
+        ({ data: person } = await supabase
+          .from("personal")
+          .select("movil, telefono")
+          .eq("id", data.personalId)
+          .maybeSingle());
+      } else if (data.person) {
+        // Filas de programación aún sin personal_id (p. ej. recién cargadas): se busca por nombre
+        // exacto y solo se acepta si hay una única coincidencia.
+        const { data: matches } = await supabase
+          .from("personal")
+          .select("movil, telefono")
+          .ilike("personal", String(data.person).replace(/[\\%_]/g, "\\$&"))
+          .limit(2);
+        if (matches?.length === 1) person = matches[0];
+      }
       phone = normalizeWhatsappPhone(person?.movil, person?.telefono);
     }
 
@@ -9670,6 +9682,14 @@ async function saveProgrammingDetail(event) {
   if (!session) {
     setStatus("Necesitas iniciar sesión para editar registros de programación.", "error");
     return;
+  }
+
+  // El nombre solo es texto: se enlaza también con la ficha (personal_id) para que funciones como el
+  // WhatsApp del informe encuentren a la persona, y para que un cambio de nombre no deje el id viejo.
+  {
+    const normalizedName = normalizeProgrammingPersonnelName(payload.personal);
+    const matches = currentProgrammingPersonnel.filter((person) => person.name === normalizedName);
+    payload.personal_id = matches.length === 1 ? Number(matches[0].personalId) : null;
   }
 
   const supabase = await getSupabaseClient();
