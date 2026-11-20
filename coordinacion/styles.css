@@ -5272,6 +5272,12 @@ th {
   color: var(--error);
 }
 
+.panel-status-message.warning {
+  border-color: #f3d58a;
+  background: #fff8e1;
+  color: #7a5200;
+}
+
 .toast-message {
   position: fixed;
   right: 24px;
@@ -5539,8 +5545,15 @@ th {
   width: min(1120px, 96vw);
 }
 
+/* Plantilla, fecha del documento, fecha de comienzo y ciudad de firma: cuatro campos al 25 %, en una fila. */
 #historial-report-panel .records-detail-form .detail-field-row.cols-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  #historial-report-panel .records-detail-form .detail-field-row.cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 #historial-report-panel .records-detail-form .detail-field-row.cols-2 > label {
@@ -9365,4 +9378,66 @@ button.personal-cert-badge:hover {
 .personal-top-actions .button-icon {
   width: 13px;
   height: 13px;
+}
+
+/* Anexos del informe: lista ordenable, arrastrar y soltar */
+.historial-report-annex-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+.historial-report-annex-name {
+  flex: 1;
+  min-width: 0;
+}
+.historial-report-annex-row.is-rd {
+  background: #eef3fb;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-weight: 600;
+}
+.historial-report-annex-tools {
+  display: flex;
+  gap: 0.25rem;
+  flex: none;
+}
+.historial-report-annex-tools .secondary-button {
+  padding: 0.1rem 0.5rem;
+}
+.historial-report-annexes.is-dragging {
+  outline: 2px dashed #4a7bd0;
+  outline-offset: 2px;
+  background: #f2f6fd;
+}
+
+/* Periodos de actividad (anexo RD 723 y panel de contratos) */
+.historial-anexo-periodo {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.3rem 0;
+}
+.historial-anexo-contrato {
+  margin: 0.6rem 0;
+}
+
+/* Vista previa del informe: la nota del portapapeles a la izquierda y los botones a la derecha */
+.cv-preview-dialog-footer .historial-report-clipboard-hint {
+  margin-right: auto;
+  align-self: center;
+}
+
+/* El aviso del panel de informe va dentro de la barra de botones (que ya queda fija abajo), en su propia línea. */
+#historial-report-panel .detail-actions {
+  flex-wrap: wrap;
+}
+
+#historial-report-status {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
+#historial-report-status:empty {
+  display: none;
 }

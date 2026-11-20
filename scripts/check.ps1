@@ -25,6 +25,8 @@ Invoke-Step "JavaScript syntax" {
     "coordinacion/formacion.js",
     "coordinacion/reconocimientos.js",
     "coordinacion/delitos-sexuales.js",
+    "coordinacion/rd723-anexo.js",
+    "coordinacion/word-a-pdf.js",
     "coordinacion/concilia-integrated.js",
     "curriculos/app.js",
     "programacion/app.js",
