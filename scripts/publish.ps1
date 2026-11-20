@@ -16,7 +16,7 @@ $sites = @(
   @{
     Name = "coordinacion"
     Source = Join-Path $root "coordinacion"
-    Files = @("index.html", "app.js", "facturacion.js", "formacion.js", "reconocimientos.js", "delitos-sexuales.js", "list-scroll-keeper.js", "suggest-keyboard.js", "programacion-carga.js", "styles.css", "concilia-integrated.js", "concilia-integrated.css", "config.js", ".htaccess", "icons.svg", "EDP.jpg", "manifest.json", "sw.js")
+    Files = @("index.html", "app.js", "facturacion.js", "formacion.js", "reconocimientos.js", "delitos-sexuales.js", "rd723-anexo.js", "word-a-pdf.js", "list-scroll-keeper.js", "suggest-keyboard.js", "programacion-carga.js", "styles.css", "concilia-integrated.js", "concilia-integrated.css", "config.js", ".htaccess", "icons.svg", "EDP.jpg", "manifest.json", "sw.js")
     Directories = @("icons")
   },
   @{
