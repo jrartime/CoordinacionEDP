@@ -234,3 +234,13 @@ python -m http.server 8080
 - **Módulos JS** — solo en `coordinacion/modules/`; el resto de apps usan un único `app.js`.
 - **`shared/`** — nunca se modifica desde `publish/`; siempre se edita en la raíz y se republica.
 - **Scripts Python** — requieren Python 3; convierten CSVs externos al formato de importación de Supabase.
+
+## Botones
+
+Norma desde 2026-11-18: todos los botones de acción de la zona privada son compactos (letra de
+0.76rem, relleno 4px 10px, sin altura mínima, iconos de 13px). Lo aplica un único bloque al final de
+`coordinacion/styles.css` («Botones de acción compactos»), así que cualquier botón nuevo con clase
+`secondary-button`, `warm-button`, `danger-button` o `compact-button`, o `type="submit"`, o sin clase,
+sale ya compacto, también los que se generan desde JavaScript. No hay que dar tamaño a mano. Quedan
+fuera a propósito las pestañas y subpestañas, los chips, las cabeceras ordenables y los botones de
+solo icono; si un botón nuevo es de ese tipo, añade su clase a la lista `:not(...)` de ese bloque.

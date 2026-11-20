@@ -9441,3 +9441,117 @@ button.personal-cert-badge:hover {
 #historial-report-status:empty {
   display: none;
 }
+
+/* Botones de acción compactos en toda la zona privada (norma desde 2026-11-18): letra de 0.76rem,
+   relleno 4px 10px y sin altura mínima. No se tocan las pestañas, los subpestañas, las cabeceras
+   ordenables, los chips ni los botones de solo icono (esos ya tienen su propio tamaño). */
+#private-view :is(
+  button.secondary-button,
+  button.warm-button,
+  button.danger-button,
+  button.compact-button,
+  button[type="submit"],
+  button.programming-report-whatsapp-button,
+  button:not([class]):not([data-facturacion-view])
+):not(
+  .private-tab-button,
+  .module-tab-button,
+  .settings-subtab-button,
+  .control-view-toggle-button,
+  .sort-button,
+  .personal-picker-toggle,
+  .personal-picker-clear,
+  .mobile-home-action-button,
+  .mobile-menu-toggle,
+  .mobile-nav-close-button,
+  .tooltip-button,
+  .icon-only-button,
+  .row-action
+) {
+  min-height: 0;
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  line-height: 1.2;
+}
+
+#private-view :is(
+  button.secondary-button,
+  button.warm-button,
+  button.danger-button,
+  button.compact-button,
+  button[type="submit"],
+  button.programming-report-whatsapp-button,
+  button:not([class]):not([data-facturacion-view])
+) .button-icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* Contadores: todos con el formato de los de Candidaturas (píldora gris con el título pequeño
+   arriba y el valor debajo). Cubre los de Facturación (resumen, comparativa, preparación, control),
+   los de la ficha de Control y las métricas de la vista previa de importación. */
+#private-view :is(
+  .facturacion-kpis,
+  .facturacion-generation-summary,
+  .control-person-kpis,
+  .control-person-detail-kpis,
+  .preview-metrics-grid
+) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+#private-view :is(
+  .facturacion-kpis article,
+  .facturacion-generation-summary article,
+  .control-person-kpi-card,
+  .metric
+) {
+  flex: 0 1 auto;
+  min-width: 126px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f9fafb;
+  box-shadow: none;
+}
+
+#private-view .control-person-kpi-card-accent {
+  background: #ecfdf3;
+  border-color: #b8e6c9;
+}
+
+#private-view :is(
+  .facturacion-kpis article > span,
+  .facturacion-generation-summary article > span,
+  .control-person-kpi-label,
+  .metric > span
+) {
+  display: block;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.1;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+#private-view :is(
+  .facturacion-kpis article > strong,
+  .facturacion-generation-summary article > strong,
+  .control-person-kpi-card > strong,
+  .metric > strong
+) {
+  display: block;
+  margin-top: 1px;
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+/* Los contadores de Candidaturas (summary-chip) también en paneles y diálogos fuera de una pestaña. */
+#private-view .summary-chip {
+  min-width: 126px;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
