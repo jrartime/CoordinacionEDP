@@ -9555,3 +9555,17 @@ button.personal-cert-badge:hover {
   padding: 6px 10px;
   border-radius: 999px;
 }
+
+.records-historial-dialog {
+  width: min(1600px, calc(100vw - 32px));
+}
+
+.records-historial-dialog .records-table {
+  min-width: 0;
+  width: 100%;
+}
+
+.records-historial-dialog .records-table th,
+.records-historial-dialog .records-table td {
+  white-space: nowrap;
+}
