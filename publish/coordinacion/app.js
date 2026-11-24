@@ -16582,17 +16582,127 @@ async function updateRecordsAusenciasSummary() {
       ? [{ clase: "", texto: `+${resto.length} más`, titulo: resto.map((item) => item.texto).join("\n"), inicio: resto[0].inicio }]
       : []),
     { clase: "is-calendario", texto: "📅 Calendario", titulo: "Ver todas sus bajas y permisos en un calendario", inicio: "" },
+    { clase: "is-calendario", texto: "📋 Historial laboral", titulo: "Ver el historial laboral de esta persona", accion: "historial" },
   ];
   recordsAusenciasSummary.innerHTML = todos
     .map(
       (chip) =>
-        `<button type="button" class="records-ausencia-chip ${chip.clase}" data-ausencia-focus="${escapeHtml(
-          chip.inicio || ""
-        )}" title="${escapeHtml(chip.titulo || chip.texto)}">${escapeHtml(chip.texto)}</button>`
+        `<button type="button" class="records-ausencia-chip ${chip.clase}" ${
+          chip.accion === "historial"
+            ? 'data-records-historial="1"'
+            : `data-ausencia-focus="${escapeHtml(chip.inicio || "")}"`
+        } title="${escapeHtml(chip.titulo || chip.texto)}">${escapeHtml(chip.texto)}</button>`
     )
     .join("");
   recordsAusenciasSummary.classList.remove("hidden");
 }
+
+// --- Historial laboral de la persona filtrada en Registros (ventana modal) ---
+const recordsHistorialDialog = document.querySelector("#records-historial-dialog");
+const recordsHistorialTitle = document.querySelector("#records-historial-title");
+const recordsHistorialBody = document.querySelector("#records-historial-body");
+let recordsHistorialRequestToken = 0;
+let recordsHistorialPersonalId = null;
+let recordsHistorialRows = [];
+let recordsHistorialReabrir = false;
+
+async function openRecordsHistorialDialog() {
+  const filters = getRecordsFilterValues();
+  if (!filters.personalId || !recordsHistorialDialog || !recordsHistorialBody) return;
+  const nombre =
+    document.querySelector("#records-filter-personal-input")?.value?.trim() || `Persona ${filters.personalId}`;
+  const token = ++recordsHistorialRequestToken;
+  if (recordsHistorialTitle) recordsHistorialTitle.textContent = `Historial laboral · ${nombre}`;
+  recordsHistorialBody.innerHTML = '<p class="empty-state">Cargando historial laboral...</p>';
+  if (!recordsHistorialDialog.open) recordsHistorialDialog.showModal();
+  try {
+    const supabase = await getSupabaseClient();
+    const { data, error } = await supabase
+      .from(HISTORIAL_DETAIL_VIEW)
+      .select(HISTORIAL_DETAIL_SELECT)
+      .eq("personal_id", Number(filters.personalId))
+      .order("fecha_alta", { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    if (token !== recordsHistorialRequestToken) return;
+    const rows = data ?? [];
+    recordsHistorialPersonalId = Number(filters.personalId);
+    recordsHistorialRows = rows;
+    const puedeEditar = Boolean(window.CoordinacionHistorial?.canAccess?.());
+    if (!rows.length) {
+      recordsHistorialBody.innerHTML = '<p class="empty-state">Esta persona no tiene periodos en el historial laboral.</p>';
+      return;
+    }
+    const si = (valor) => (valor ? "Sí" : "");
+    const filasHtml = rows
+      .map((row) => {
+        const celdas = [
+          row.tipo_contratacion,
+          formatDisplayDate(row.fecha_alta),
+          formatDisplayDate(row.fecha_baja),
+          row.dias_periodo,
+          formatHistorialJornada(row),
+          row.empresa,
+          row.puesto || row.puesto_texto,
+          row.contrato_laboral_clave,
+          row.motivo_baja,
+          si(row.enviado),
+          si(row.gestionado),
+          si(row.tramitado),
+          si(row.activo),
+        ];
+        const accion = puedeEditar
+          ? `<td class="records-row-actions"><button type="button" class="compact-button" data-records-historial-edit="${escapeHtml(
+              row.id
+            )}" title="Editar periodo" aria-label="Editar periodo">&#9998;</button></td>`
+          : "";
+        return `<tr>${celdas.map((valor) => `<td>${escapeHtml(String(valor ?? ""))}</td>`).join("")}${accion}</tr>`;
+      })
+      .join("");
+    recordsHistorialBody.innerHTML =
+      `<p class="summary-chip">${rows.length} ${rows.length === 1 ? "periodo" : "periodos"}</p>` +
+      '<div class="table-scroll"><table class="records-table"><thead><tr>' +
+      [
+        "Tipo contratación", "Fecha alta", "Fecha baja", "Días", "Jornada", "Empresa", "Puesto",
+        "Contrato", "Motivo baja", "Enviado", "Gestionado", "Tramitado", "Activo",
+      ]
+        .map((titulo) => `<th>${titulo}</th>`)
+        .join("") +
+      (puedeEditar ? '<th aria-label="Acciones"></th>' : "") +
+      `</tr></thead><tbody>${filasHtml}</tbody></table></div>`;
+  } catch (error) {
+    if (token !== recordsHistorialRequestToken) return;
+    console.warn("No se pudo cargar el historial laboral de la persona:", error);
+    recordsHistorialBody.innerHTML = '<p class="empty-state">No se pudo cargar el historial laboral.</p>';
+  }
+}
+
+// El <dialog> modal tapa cualquier panel lateral: para editar se cierra, se abre el
+// panel de periodo (el mismo de la pestaña Historial laboral) y el modal se reabre,
+// recargado, cuando ese panel se cierra.
+recordsHistorialBody?.addEventListener("click", (event) => {
+  const boton = event.target.closest("[data-records-historial-edit]");
+  if (!boton || !window.CoordinacionHistorial) return;
+  window.CoordinacionHistorial.registerRows(recordsHistorialRows);
+  recordsHistorialReabrir = true;
+  recordsHistorialDialog?.close();
+  void window.CoordinacionHistorial.openDetail(boton.dataset.recordsHistorialEdit);
+});
+const recordsHistorialDetailPanel = document.querySelector("#historial-detail-panel");
+if (recordsHistorialDetailPanel) {
+  new MutationObserver(() => {
+    if (!recordsHistorialReabrir || !recordsHistorialDetailPanel.classList.contains("hidden")) return;
+    recordsHistorialReabrir = false;
+    if (recordsHistorialPersonalId && String(getRecordsFilterValues().personalId) === String(recordsHistorialPersonalId)) {
+      void openRecordsHistorialDialog();
+    }
+  }).observe(recordsHistorialDetailPanel, { attributes: true, attributeFilter: ["class"] });
+}
+
+document.querySelector("#records-historial-close")?.addEventListener("click", () => recordsHistorialDialog?.close());
+recordsHistorialDialog?.addEventListener("click", (event) => {
+  if (event.target === recordsHistorialDialog) recordsHistorialDialog.close();
+});
 
 // --- Almanaque de bajas y permisos ---
 const recordsAusenciasPanel = document.querySelector("#records-ausencias-panel");
@@ -37266,6 +37376,10 @@ async function init() {
   });
   // Almanaque de bajas y permisos (Registros): etiquetas, cierre, año y lista.
   recordsAusenciasSummary?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-records-historial]")) {
+      void openRecordsHistorialDialog();
+      return;
+    }
     const chip = event.target.closest("[data-ausencia-focus]");
     if (chip) void openRecordsAusenciasPanel(chip.dataset.ausenciaFocus || "");
   });
