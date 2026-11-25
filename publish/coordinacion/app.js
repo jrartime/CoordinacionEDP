@@ -35825,11 +35825,16 @@ function syncEventsRecordsUi() {
       ? "Cancelar selección"
       : "Seleccionar eventos";
   }
+  // La ayuda va como etiqueta al pasar el ratón (title del botón); el contador solo se ve
+  // con la selección activa.
   if (eventsSelectionCountLabel) {
     eventsSelectionCountLabel.textContent = eventsRecordsSelectionMode
       ? `${marcados} seleccionados de ${visibles}`
-      : "Activa la selección para elegir eventos del informe";
+      : "";
+    eventsSelectionCountLabel.classList.toggle("hidden", !eventsRecordsSelectionMode);
   }
+  // Pasar a Registros crea datos de nómina: solo admin, como la generación de registros.
+  document.querySelector("#events-to-records-button")?.classList.toggle("hidden", !currentUserIsAccessAdmin);
   eventsRecordsSelectHeader?.classList.toggle("hidden", !eventsRecordsSelectionMode);
   if (eventsRecordsSelectAllCheckbox) {
     eventsRecordsSelectAllCheckbox.checked = visibles > 0 && marcados === visibles;
@@ -37101,6 +37106,9 @@ async function init() {
     void exportEventPersonnelReportToPdf();
   });
   eventPersonnelReportImageButton?.addEventListener("click", showEventPersonnelReportImage);
+  document.querySelector("#events-to-records-button")?.addEventListener("click", () => {
+    void window.CoordinacionPasarRegistros?.open("eventos");
+  });
   eventsSummaryReportPdfButton?.addEventListener("click", () => {
     void exportEventsSummaryReportToPdf();
   });
@@ -39111,7 +39119,7 @@ async function init() {
   programmingReportPreviewBackdrop?.addEventListener("click", closeProgrammingReportPreview);
   programmingPersonReportButton?.addEventListener("click", openProgrammingPersonReport);
   document.querySelector("#programming-to-records-button")?.addEventListener("click", () => {
-    void window.CoordinacionProgramacionRegistros?.open();
+    void window.CoordinacionPasarRegistros?.open("programacion");
   });
   programmingPersonReportCloseButton?.addEventListener("click", closeProgrammingPersonReport);
   programmingPersonReportBackdrop?.addEventListener("click", closeProgrammingPersonReport);
