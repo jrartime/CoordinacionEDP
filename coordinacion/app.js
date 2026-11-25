@@ -22922,6 +22922,12 @@ const gestionNominaCache = new Map();
 // Periodos de historial marcados para la nómina. Ver renderGestionNomina.
 let gestionNominaSelectedIds = new Set();
 let gestionNominaTotalCount = 0;
+// Nombre de la persona de la nómina, para titular la tarjeta del total.
+let gestionNominaPersonalNombre = "";
+
+function getGestionNominaTotalTitle() {
+  return `Total de ${gestionNominaPersonalNombre || "la persona"} (todos los periodos)`;
+}
 
 // Token para descartar respuestas obsoletas si el usuario cambia el filtro
 // mientras hay una carga en vuelo.
@@ -23818,7 +23824,7 @@ function onGestionNominaSelectionChange() {
   if (title) {
     title.textContent =
       marcados === gestionNominaTotalCount
-        ? "Total de la persona (todos los periodos)"
+        ? getGestionNominaTotalTitle()
         : `Nómina de ${marcados} periodo${marcados !== 1 ? "s" : ""} de ${gestionNominaTotalCount}`;
   }
   if (periodo) {
@@ -23860,6 +23866,7 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
   // Todos marcados de salida: el total arranca siendo el de siempre.
   gestionNominaSelectedIds = new Set(applicable.map((row) => String(row.id)));
   gestionNominaTotalCount = applicable.length;
+  gestionNominaPersonalNombre = String(applicable.find((row) => row.personal)?.personal ?? "").trim();
 
   // Aviso de permisos que suspenden el contrato (maternidad/paternidad,
   // excedencia). Va primero: si aplica, es lo más importante que hay que ver
@@ -23899,7 +23906,7 @@ function renderGestionNomina(rows, personalId, desde, hasta) {
     <div class="gestion-nomina-card gestion-nomina-card-total" data-gestion-nomina-card="total">
       <button type="button" class="gestion-nomina-toggle" data-gestion-nomina-total="${escapeHtml(personalId)}" aria-expanded="false">
         <span class="gestion-nomina-caret">▾</span>
-        <span class="gestion-nomina-card-title">Total de la persona (todos los periodos)</span>
+        <span class="gestion-nomina-card-title">${escapeHtml(getGestionNominaTotalTitle())}</span>
         <span class="gestion-nomina-card-periodo">nómina completa</span>
       </button>
       <div class="gestion-nomina-detail hidden" data-gestion-nomina-detail="total"></div>
