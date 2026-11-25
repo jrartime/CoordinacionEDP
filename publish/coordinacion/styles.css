@@ -9165,6 +9165,22 @@ input[data-percent].pct-input--warn {
 
 /* Programación · asistente modal de carga */
 .programming-carga-dialog { width: min(980px, calc(100vw - 32px)); }
+/* Pasar programación a Registros: una fila por jornada con contrato y puesto. */
+.programming-registros-dialog { width: min(1240px, calc(100vw - 32px)); }
+.programming-registros-bulk:empty { display: none; }
+.programming-registros-bulk { display: flex; gap: 12px; margin-bottom: 8px; }
+.programming-registros-bulk label { display: grid; gap: 2px; font-size: 0.8rem; }
+.programming-registros-table th, .programming-registros-table td { padding: 3px 8px; vertical-align: middle; }
+.programming-registros-table td input[type="checkbox"], .programming-registros-table th input[type="checkbox"] { width: auto; min-width: 0; margin: 0; }
+.programming-registros-table input[type="time"] { width: 96px; min-height: 0; padding: 2px 4px; }
+.programming-registros-table select { min-width: 170px; max-width: 240px; min-height: 0; padding: 2px 4px; }
+.programming-registros-table td.num { white-space: nowrap; }
+.programming-registros-table tr.is-off td { opacity: 0.5; }
+.programming-registros-table .weekday-marker { margin-right: 4px; font-weight: 700; }
+.programming-registros-count { font-size: 0.85rem; color: var(--muted); }
+.programming-registros-table .programming-carga-suggest { max-width: 240px; gap: 3px; margin-top: 3px; font-size: 0.68rem; line-height: 1.2; }
+.programming-registros-table .programming-carga-suggest button { min-height: 0; padding: 0 6px; font-size: 0.68rem; line-height: 1.5; border-radius: 999px; }
+.programming-registros-badge { display: block; width: fit-content; margin-top: 2px; padding: 0 6px; border-radius: 999px; background: rgba(21, 128, 61, 0.12); color: #15803d; font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
 .programming-carga-steps { display: flex; gap: 8px; list-style: none; margin: 0 0 14px; padding: 0; flex-wrap: wrap; }
 .programming-carga-steps li { display: flex; align-items: center; gap: 6px; padding: 4px 12px 4px 4px; border-radius: 999px; background: #f1f5f9; color: var(--muted); font-size: 0.85rem; }
 .programming-carga-steps li span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #cbd5e1; color: #fff; font-weight: 600; font-size: 0.8rem; }

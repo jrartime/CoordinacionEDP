@@ -39110,6 +39110,9 @@ async function init() {
   });
   programmingReportPreviewBackdrop?.addEventListener("click", closeProgrammingReportPreview);
   programmingPersonReportButton?.addEventListener("click", openProgrammingPersonReport);
+  document.querySelector("#programming-to-records-button")?.addEventListener("click", () => {
+    void window.CoordinacionProgramacionRegistros?.open();
+  });
   programmingPersonReportCloseButton?.addEventListener("click", closeProgrammingPersonReport);
   programmingPersonReportBackdrop?.addEventListener("click", closeProgrammingPersonReport);
   programmingPersonReportCopyButton?.addEventListener("click", () => {
