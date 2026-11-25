@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://esm.sh" />
     <link rel="preconnect" href="https://epbtoarkinvgcaewbtvs.supabase.co" />
     <link rel="stylesheet" href="./concilia-integrated.css?v=20261118-2" />
-    <link rel="stylesheet" href="./styles.css?v=20261125-4" />
+    <link rel="stylesheet" href="./styles.css?v=20261125-6" />
   </head>
   <body>
     <script>
@@ -4799,14 +4799,25 @@
                     >
                       Ver PNG
                     </button>
-                    <button id="events-select-summary-button" type="button" class="secondary-button">
+                    <button
+                      id="events-select-summary-button"
+                      type="button"
+                      class="secondary-button"
+                      title="Activa la selección para elegir eventos del informe y de Pasar a Registros"
+                    >
                       Seleccionar eventos
                     </button>
-                    <span id="events-summary-selection-count" class="control-selected-delete-count">
-                      Activa la selección para elegir eventos del informe
-                    </span>
+                    <span id="events-summary-selection-count" class="control-selected-delete-count hidden"></span>
                     <button id="events-summary-report-pdf-button" class="secondary-button" type="button">
                       Informe resumen PDF
+                    </button>
+                    <button
+                      id="events-to-records-button"
+                      type="button"
+                      class="secondary-button hidden"
+                      title="Pasar a Registros el personal de los eventos marcados (o de todos los filtrados)"
+                    >
+                      Pasar a Registros
                     </button>
                   </div>
                 </div>
@@ -10756,8 +10767,8 @@
     <script src="./delitos-sexuales.js?v=20261118-7" defer></script>
     <script src="./word-a-pdf.js?v=20261117-1" defer></script>
     <script src="./rd723-anexo.js?v=20261118-3" defer></script>
-    <script src="./app.js?v=20261125-2" defer></script>
+    <script src="./app.js?v=20261125-3" defer></script>
     <script src="./programacion-carga.js?v=20261114-1" defer></script>
-    <script src="./programacion-registros.js?v=20261125-4" defer></script>
+    <script src="./pasar-registros.js?v=20261125-9" defer></script>
   </body>
 </html>

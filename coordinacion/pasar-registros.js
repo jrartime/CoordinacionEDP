@@ -1,44 +1,65 @@
-/* Programación · pasar a Registros.
+/* Pasar a Registros · modal compartido por Programación y Eventos deportivos.
  *
- * Modal con la programación filtrada convertida en jornadas: una fila por persona, día e
+ * Origen «programacion»: la programación filtrada convertida en jornadas, una fila por persona, día e
  * instalación con la hora de entrada y de salida del día, siguiendo el mismo criterio que el
  * Informe individual (los tramos que enlazan, con un hueco menor de 30 min, se unen en uno;
  * si queda más de un tramo, cada uno es una fila). Ej.: Alba Queipo, 07/11, Florida Arena,
  * 08:30–21:00.
  *
  * De cada fila se elige el contrato entre los posibles para esa persona e instalación
- * (contrato_personal ∩ contrato_instalaciones, vigentes ese día) y el puesto según el
- * contrato (los puestos de las actividades del contrato; se propone el de la actividad de
- * esa misma persona e instalación si la hay).
+ * (contrato_personal ∩ contrato_instalaciones, vigentes ese día) y el puesto entre los de los
+ * historiales laborales vigentes de la persona ese día (en las dos pestañas): con uno solo se
+ * propone; con varios, el de la actividad de esa persona en el contrato si coincide.
  *
- * Cada jornada marcada crea un registro con tipo de hora REG y situación NORM. La empresa sale
+ * Origen «eventos»: una fila por persona asignada a cada paso del cronograma de los eventos
+ * marcados (o de todos los filtrados si no hay ninguno marcado, como el Informe resumen), con
+ * su horario propio si difiere del paso. El contrato del evento sale propuesto; el tipo de
+ * hora se elige por fila (MONT por defecto) y la función propuesta es Oficial de 1ª, como en la
+ * zona «Generación de registros». Enlaza `registros.evento_asignacion_id`.
+ *
+ * Cada jornada marcada crea un registro con situación NORM (tipo de hora REG en Programación). La empresa sale
  * del historial laboral vigente ese día (sin ella el registro no entraría en la nómina: esas
- * jornadas se omiten avisando). Función y modalidad se toman de la actividad de esa persona en
- * esa instalación/contrato/puesto; si no la hay, de la función más usada con ese puesto en el
- * contrato, o de la única función activa del contrato.
+ * jornadas se omiten avisando). La función va en su propia columna, editable por fila. Se
+ * propone (con su modalidad) desde la actividad de esa persona en esa instalación/contrato/
+ * puesto; si no la hay, la más usada con ese puesto en el contrato, o la única función activa
+ * del contrato. En Eventos se propone Oficial de 1ª. Las opciones son las funciones con tarifa
+ * en el contrato; «Sin función» se permite, avisando en la confirmación.
  *
- * No duplica: una jornada que se solapa con un registro que la persona ya tiene ese día se
- * muestra como «Ya en Registros» y sale desmarcada.
+ * No duplica: una jornada que se solapa con un registro que la persona ya tiene ese día (o, en
+ * Eventos, cuya asignación ya generó registro) se muestra como «Ya en Registros» y sale
+ * desmarcada; se puede marcar a mano y la confirmación avisa.
  *
  * Reutiliza de app.js (scripts clásicos, mismo ámbito global): filteredProgrammingRows,
- * getSupabaseClient, normalizeImportedDate, formatDisplayDate, escapeHtml,
- * getControlWeekdayInfo, setStatus.
+ * getEventsForSummaryReport, currentEventScheduleRows, currentEventSchedulePersonnelRows,
+ * getEventPersonnelName, getEventInstallationName, getSupabaseClient, normalizeImportedDate,
+ * formatDisplayDate, formatHourValue, escapeHtml, getControlWeekdayInfo, setStatus.
  */
 (function () {
   const MERGE_GAP_MINUTES = 30;
   const TIPO_HORA_REG = 1;
+  const TIPO_HORA_MONT = 3;
   const SITUACION_NORM = 1;
+  const FUNCION_OFICIAL_1A = 20;
+  // Tipos de hora que tienen sentido para horas trabajadas (sin PNR ni bolsa de horas).
+  const TIPOS_HORA = [
+    { id: 1, label: "REG" },
+    { id: 2, label: "HCOMP" },
+    { id: 3, label: "MONT" },
+    { id: 4, label: "FTRAB" },
+  ];
+  const tipoHoraLabel = (id) => TIPOS_HORA.find((t) => t.id === Number(id))?.label || "REG";
 
   const state = {
+    source: null, // SOURCES[...]
     rows: [], // jornadas
     unlinked: 0, // filas de programación sin personal_id / instalacion_id
     contratos: new Map(), // id -> { id, contrato }
     personalContratos: [], // { personal_id, contrato_id, fecha_inicio, fecha_fin }
     instalacionContratos: [], // { instalacion_id, contrato_id, fecha_inicio, fecha_fin }
     puestos: new Map(), // id -> nombre
-    contratoPuestos: new Map(), // contrato_id -> Set(puesto_id)
     actividades: [], // { id, contrato_id, personal_id, instalacion_id, puesto_id, funcion_id, modalidad_id, ... }
     contratoFunciones: [], // { contrato_id, funcion_id, modalidad_id }
+    funciones: new Map(), // id -> nombre
     existentes: [], // registros ya creados de esas personas en el intervalo
     loading: false,
     busy: false,
@@ -129,6 +150,7 @@
           entrada: fmtMinutes(start),
           salida: fmtMinutes(end),
           turnos: group.rows.length,
+          tipoHoraId: String(TIPO_HORA_REG),
           selected: true,
           contratoId: "",
           puestoId: "",
@@ -144,6 +166,107 @@
     );
     return { jornadas, unlinked };
   }
+
+  /* ---------- jornadas a partir de los eventos deportivos ---------- */
+
+  function buildEventJornadas() {
+    const events = typeof getEventsForSummaryReport === "function" ? getEventsForSummaryReport() : [];
+    const pasos = typeof currentEventScheduleRows !== "undefined" ? currentEventScheduleRows : [];
+    const asignaciones = typeof currentEventSchedulePersonnelRows !== "undefined" ? currentEventSchedulePersonnelRows : [];
+    const jornadas = [];
+    let unlinked = 0;
+    events.forEach((evento) => {
+      pasos
+        .filter((paso) => Number(paso.evento_id) === Number(evento.id))
+        .forEach((paso) => {
+          asignaciones
+            .filter((a) => Number(a.cronograma_id) === Number(paso.id))
+            .forEach((a) => {
+              const fecha = normalizeImportedDate(paso.fecha) || paso.fecha || "";
+              if (!a.personal_id || !evento.instalacion_id || !fecha) {
+                unlinked += 1;
+                return;
+              }
+              // Si la persona tiene horario propio en el paso manda el suyo.
+              const entrada = formatHourValue(a.hora_inicio || paso.hora_inicio).slice(0, 5);
+              const salida = formatHourValue(a.hora_fin || paso.hora_fin).slice(0, 5);
+              jornadas.push({
+                key: `ev-${a.id}`,
+                asignacionId: a.id,
+                personalId: Number(a.personal_id),
+                persona: getEventPersonnelName(a.personal_id) || `Persona ${a.personal_id}`,
+                instalacionId: Number(evento.instalacion_id),
+                instalacion: getEventInstallationName(evento.instalacion_id) || "",
+                fecha,
+                entrada,
+                salida,
+                evento: evento.nombre || "",
+                paso: paso.actividad || "",
+                contratoEvento: evento.contrato_id ? Number(evento.contrato_id) : null,
+                observacion: a.observaciones || paso.actividad || null,
+                tipoHoraId: String(TIPO_HORA_MONT),
+                selected: true,
+                contratoId: "",
+                puestoId: "",
+              });
+            });
+        });
+    });
+    jornadas.sort(
+      (a, b) =>
+        a.fecha.localeCompare(b.fecha) ||
+        a.evento.localeCompare(b.evento, "es") ||
+        a.entrada.localeCompare(b.entrada) ||
+        a.persona.localeCompare(b.persona, "es")
+    );
+    return { jornadas, unlinked };
+  }
+
+  /* ---------- orígenes ---------- */
+
+  const SOURCES = {
+    programacion: {
+      title: "Pasar programación a Registros",
+      empty: "No hay programación con personal e instalación enlazados en los filtros actuales.",
+      build: buildJornadas,
+      showEvento: false,
+      tipoHoraEditable: false,
+      funcionFija: null,
+      observacion: () => "Desde Programación",
+      intro(rows, unlinked) {
+        const personas = new Set(rows.map((r) => r.personalId)).size;
+        const aviso = unlinked
+          ? ` · ${unlinked} ${unlinked === 1 ? "turno queda fuera" : "turnos quedan fuera"} por no tener personal o instalación enlazados.`
+          : "";
+        return (
+          `Programación filtrada: ${rows.length} ${rows.length === 1 ? "jornada" : "jornadas"} de ` +
+          `${personas} ${personas === 1 ? "persona" : "personas"}. Entrada y salida diarias según el Informe individual ` +
+          `(los tramos con menos de 30 min de hueco se unen).${aviso}`
+        );
+      },
+    },
+    eventos: {
+      title: "Pasar eventos a Registros",
+      empty: "Los eventos marcados (o filtrados) no tienen personal asignado en su cronograma.",
+      build: buildEventJornadas,
+      showEvento: true,
+      tipoHoraEditable: true,
+      funcionFija: FUNCION_OFICIAL_1A,
+      observacion: (row) => row.observacion,
+      intro(rows, unlinked) {
+        const eventos = new Set(rows.map((r) => r.evento)).size;
+        const personas = new Set(rows.map((r) => r.personalId)).size;
+        const aviso = unlinked
+          ? ` · ${unlinked} ${unlinked === 1 ? "asignación queda fuera" : "asignaciones quedan fuera"} por no tener persona, instalación o fecha.`
+          : "";
+        return (
+          `${eventos} ${eventos === 1 ? "evento" : "eventos"} (los marcados o, si no hay ninguno, los filtrados): ` +
+          `${rows.length} ${rows.length === 1 ? "asignación" : "asignaciones"} de ${personas} ${personas === 1 ? "persona" : "personas"}. ` +
+          `Horario de cada persona en su paso; función Oficial de 1ª.${aviso}`
+        );
+      },
+    },
+  };
 
   /* ---------- catálogos: contratos posibles y puestos del contrato ---------- */
 
@@ -172,19 +295,43 @@
     state.personalContratos = cp.data || [];
     state.instalacionContratos = ci.data || [];
 
+    // Los comunes a persona e instalación, más el contrato propio de cada evento.
     const contratoIds = [
-      ...new Set(state.personalContratos.map((x) => x.contrato_id)),
-    ].filter((id) => state.instalacionContratos.some((x) => x.contrato_id === id));
+      ...new Set([
+        ...state.personalContratos
+          .map((x) => x.contrato_id)
+          .filter((id) => state.instalacionContratos.some((x) => x.contrato_id === id)),
+        ...state.rows.map((r) => r.contratoEvento).filter(Boolean),
+      ]),
+    ];
 
     state.existentes = await loadExistentes(supabase, personalIds);
 
+    const puestos = await supabase.from("puestos").select("id, puesto").order("puesto", { ascending: true }).limit(500);
+    if (puestos.error) throw new Error(`No se pudieron cargar los puestos: ${puestos.error.message}`);
+    state.puestos = new Map((puestos.data || []).map((p) => [p.id, p.puesto || `Puesto ${p.id}`]));
+
+    const funcionesCatalogo = await supabase.from("funciones").select("id, funcion").order("funcion", { ascending: true }).limit(500);
+    if (funcionesCatalogo.error) throw new Error(`No se pudieron cargar las funciones: ${funcionesCatalogo.error.message}`);
+    state.funciones = new Map((funcionesCatalogo.data || []).map((f) => [f.id, f.funcion || `Función ${f.id}`]));
+
+    // Los puestos salen del historial laboral vigente de la persona ese día.
+    const fechas = state.rows.map((r) => r.fecha).sort();
+    const historiales = await supabase
+      .from("historiales_laborales")
+      .select("personal_id, puesto_id, fecha_alta, fecha_baja")
+      .in("personal_id", personalIds)
+      .lte("fecha_alta", fechas[fechas.length - 1])
+      .or(`fecha_baja.is.null,fecha_baja.gte.${fechas[0]}`);
+    if (historiales.error) throw new Error(`No se pudo cargar el historial laboral: ${historiales.error.message}`);
+    state.historiales = historiales.data || [];
+
     state.contratos = new Map();
-    state.contratoPuestos = new Map();
     state.actividades = [];
     state.contratoFunciones = [];
     if (!contratoIds.length) return;
 
-    const [contratos, actividades, puestos, funciones] = await Promise.all([
+    const [contratos, actividades, funciones] = await Promise.all([
       supabase.from("contratos").select("id, contrato, activo").in("id", contratoIds),
       supabase
         .from("actividades")
@@ -192,7 +339,6 @@
         .in("contrato_id", contratoIds)
         .not("puesto_id", "is", null)
         .limit(10000),
-      supabase.from("puestos").select("id, puesto").order("puesto", { ascending: true }).limit(500),
       supabase
         .from("contratos_funciones")
         .select("contrato_id, funcion_id, modalidad_id, activo")
@@ -200,19 +346,13 @@
     ]);
     if (contratos.error) throw new Error(`No se pudieron cargar los contratos: ${contratos.error.message}`);
     if (actividades.error) throw new Error(`No se pudieron cargar las actividades: ${actividades.error.message}`);
-    if (puestos.error) throw new Error(`No se pudieron cargar los puestos: ${puestos.error.message}`);
     if (funciones.error) throw new Error(`No se pudieron cargar las funciones del contrato: ${funciones.error.message}`);
     state.contratoFunciones = (funciones.data || []).filter((f) => f.activo !== false && f.funcion_id);
 
     (contratos.data || [])
       .filter((c) => c.activo !== false)
       .forEach((c) => state.contratos.set(c.id, { id: c.id, contrato: c.contrato || `Contrato ${c.id}` }));
-    state.puestos = new Map((puestos.data || []).map((p) => [p.id, p.puesto || `Puesto ${p.id}`]));
     state.actividades = actividades.data || [];
-    state.actividades.forEach((a) => {
-      if (!state.contratoPuestos.has(a.contrato_id)) state.contratoPuestos.set(a.contrato_id, new Set());
-      state.contratoPuestos.get(a.contrato_id).add(a.puesto_id);
-    });
   }
 
   function contratosPosibles(row) {
@@ -221,36 +361,49 @@
         .filter((x) => x.personal_id === row.personalId && vigente(x, row.fecha))
         .map((x) => x.contrato_id)
     );
-    return state.instalacionContratos
+    const comunes = state.instalacionContratos
       .filter((x) => x.instalacion_id === row.instalacionId && vigente(x, row.fecha) && dePersona.has(x.contrato_id))
       .map((x) => state.contratos.get(x.contrato_id))
       .filter(Boolean)
-      .filter((c, i, list) => list.findIndex((o) => o.id === c.id) === i)
       .sort((a, b) => a.contrato.localeCompare(b.contrato, "es"));
+    // El contrato del evento va primero aunque la persona no esté asignada a él.
+    const delEvento = row.contratoEvento ? state.contratos.get(row.contratoEvento) : null;
+    return [delEvento, ...comunes].filter(Boolean).filter((c, i, list) => list.findIndex((o) => o.id === c.id) === i);
   }
 
-  // Sin actividades en el contrato no hay de dónde acotar: se ofrecen todos los puestos.
-  function puestosPosibles(contratoId) {
-    const ids = state.contratoPuestos.get(Number(contratoId));
-    const list = ids?.size ? [...ids] : [...state.puestos.keys()];
-    return list
+  // Eventos: los puestos de los historiales laborales vigentes de la persona ese día.
+  // Programación: los de las actividades del contrato; sin actividades, todos.
+  // Puestos posibles: los de los historiales laborales vigentes de la persona ese día.
+  function puestosPosibles(row) {
+    const ids = new Set(
+      state.historiales
+        .filter(
+          (h) =>
+            Number(h.personal_id) === row.personalId &&
+            h.puesto_id &&
+            h.fecha_alta <= row.fecha &&
+            (!h.fecha_baja || h.fecha_baja >= row.fecha)
+        )
+        .map((h) => Number(h.puesto_id))
+    );
+    return [...ids]
       .map((id) => ({ id, puesto: state.puestos.get(id) || `Puesto ${id}` }))
       .sort((a, b) => a.puesto.localeCompare(b.puesto, "es"));
   }
 
-  // Puesto propuesto: el de la actividad de esa persona en esa instalación y contrato;
-  // si no, el de esa persona en el contrato; si el contrato solo tiene uno, ese.
+  // Puesto propuesto: si solo hay un historial vigente, su puesto. Si hay varios, el de la
+  // actividad de esa persona en esa instalación y contrato (o en el contrato) cuando
+  // coincide con uno de ellos.
   function puestoPropuesto(row) {
+    const posibles = puestosPosibles(row);
+    if (posibles.length === 1) return String(posibles[0].id);
+    const validos = new Set(posibles.map((p) => p.id));
     const contratoId = Number(row.contratoId);
-    const delContrato = state.actividades.filter((a) => a.contrato_id === contratoId);
-    const exacta = delContrato.find(
-      (a) => a.personal_id === row.personalId && a.instalacion_id === row.instalacionId
+    const candidatas = state.actividades.filter(
+      (a) => a.contrato_id === contratoId && a.personal_id === row.personalId && validos.has(a.puesto_id)
     );
-    if (exacta) return String(exacta.puesto_id);
-    const persona = delContrato.find((a) => a.personal_id === row.personalId);
-    if (persona) return String(persona.puesto_id);
-    const posibles = puestosPosibles(contratoId);
-    return posibles.length === 1 ? String(posibles[0].id) : "";
+    const actividad = candidatas.find((a) => a.instalacion_id === row.instalacionId) || candidatas[0];
+    return actividad ? String(actividad.puesto_id) : "";
   }
 
   /* ---------- registros ya existentes (para no duplicar) ---------- */
@@ -262,7 +415,7 @@
     for (let from = 0; ; from += pageSize) {
       const { data, error } = await supabase
         .from("registros")
-        .select("id, personal_id, fecha, hora_inicio, hora_fin, instalacion_id")
+        .select("id, personal_id, fecha, hora_inicio, hora_fin, instalacion_id, evento_asignacion_id")
         .in("personal_id", personalIds)
         .gte("fecha", fechas[0])
         .lte("fecha", fechas[fechas.length - 1])
@@ -287,6 +440,10 @@
   // Registro de la persona ese día cuyo horario se pisa con la jornada (los bordes que se
   // tocan no cuentan). Sin horario en el registro existente se toma como coincidente.
   function existenteDe(row) {
+    if (row.asignacionId) {
+      const generado = state.existentes.find((r) => String(r.evento_asignacion_id) === String(row.asignacionId));
+      if (generado) return generado;
+    }
     const span = spanOf(row.entrada, row.salida);
     return state.existentes.find((r) => {
       if (Number(r.personal_id) !== row.personalId || r.fecha !== row.fecha) return false;
@@ -302,6 +459,9 @@
     a.activo !== false && (!a.fecha_inicio || a.fecha_inicio <= fecha) && (!a.fecha_fin || a.fecha_fin >= fecha);
 
   function resolverFuncion(row) {
+    if (state.source.funcionFija) {
+      return { funcionId: state.source.funcionFija, modalidadId: null, actividadId: null };
+    }
     const contratoId = Number(row.contratoId);
     const puestoId = Number(row.puestoId);
     const delContrato = state.actividades.filter((a) => a.contrato_id === contratoId && a.funcion_id);
@@ -343,10 +503,60 @@
       row.existente = existenteDe(row) || null;
       if (row.existente) row.selected = false;
       const contratos = contratosPosibles(row);
+      if (!row.contratoId && row.contratoEvento && state.contratos.has(row.contratoEvento)) {
+        row.contratoId = String(row.contratoEvento);
+      }
       if (!row.contratoId && contratos.length === 1) row.contratoId = String(contratos[0].id);
-      if (row.contratoId && !row.puestoId) row.puestoId = puestoPropuesto(row);
+      if (!row.puestoId) row.puestoId = puestoPropuesto(row);
+      syncFuncion(row);
     });
   }
+
+  // Función propuesta según contrato y puesto (ver resolverFuncion). Si se eligió a mano
+  // no se toca al cambiar contrato o puesto.
+  function syncFuncion(row) {
+    if (row.funcionManual) return;
+    const r = row.contratoId || state.source.funcionFija ? resolverFuncion(row) : { funcionId: null, modalidadId: null, actividadId: null };
+    row.funcionId = r.funcionId ? String(r.funcionId) : "";
+    row.modalidadId = r.modalidadId ?? null;
+    row.actividadId = r.actividadId ?? null;
+  }
+
+  // Elegida a mano: modalidad y actividad solo se conservan si coinciden con la propuesta;
+  // si no, la modalidad sale de la tarifa del contrato para esa función.
+  function setFuncionManual(row, value) {
+    row.funcionManual = true;
+    row.funcionId = value;
+    const r = row.contratoId ? resolverFuncion(row) : { funcionId: null };
+    if (value && String(r.funcionId) === value) {
+      row.modalidadId = r.modalidadId ?? null;
+      row.actividadId = r.actividadId ?? null;
+      return;
+    }
+    const tarifa = state.contratoFunciones.find(
+      (f) => f.contrato_id === Number(row.contratoId) && String(f.funcion_id) === value
+    );
+    row.modalidadId = tarifa?.modalidad_id ?? null;
+    row.actividadId = null;
+  }
+
+  // Funciones del contrato (tarifas activas) más la propuesta, por si no está entre ellas.
+  function funcionesPosibles(row) {
+    const ids = new Set(
+      state.contratoFunciones.filter((f) => f.contrato_id === Number(row.contratoId)).map((f) => Number(f.funcion_id))
+    );
+    if (row.funcionId) ids.add(Number(row.funcionId));
+    if (state.source.funcionFija) ids.add(state.source.funcionFija);
+    return [...ids]
+      .map((id) => ({ id, funcion: state.funciones.get(id) || `Función ${id}` }))
+      .sort((a, b) => a.funcion.localeCompare(b.funcion, "es"));
+  }
+
+  const funcionOptions = (row) =>
+    `<option value="">— Sin función —</option>` +
+    funcionesPosibles(row)
+      .map((f) => `<option value="${f.id}" ${String(f.id) === row.funcionId ? "selected" : ""}>${esc(f.funcion)}</option>`)
+      .join("");
 
   /* ---------- interfaz ---------- */
 
@@ -357,7 +567,7 @@
     dialog.className = "facturacion-dialog programming-carga-dialog programming-registros-dialog";
     dialog.innerHTML = `
       <div class="facturacion-dialog-header">
-        <h3>Pasar programación a Registros</h3>
+        <h3 id="pr-title">Pasar a Registros</h3>
         <button type="button" data-pr-close aria-label="Cerrar">×</button>
       </div>
       <p class="inline-note" id="pr-intro"></p>
@@ -369,7 +579,7 @@
         <span class="programming-carga-spacer"></span>
         <strong id="pr-count" class="programming-registros-count"></strong>
         <button type="button" id="pr-generate" data-icon="calendar" data-icon-mode="icon-text" disabled
-          title="Crea un registro REG / NORM por cada jornada marcada">Pasar a Registros</button>
+          title="Crea un registro (situación NORM) por cada jornada marcada">Pasar a Registros</button>
       </div>`;
     document.body.appendChild(dialog);
     dialog.querySelectorAll("[data-pr-close]").forEach((b) => b.addEventListener("click", close));
@@ -390,19 +600,20 @@
     el.dataset.tone = tone;
   }
 
-  async function open() {
+  async function open(sourceKey = "programacion") {
     buildDialog();
-    const { jornadas, unlinked } = buildJornadas();
+    state.source = SOURCES[sourceKey] || SOURCES.programacion;
+    const { jornadas, unlinked } = state.source.build();
     state.rows = jornadas;
     state.unlinked = unlinked;
     setMsg("");
+    $("#pr-title").textContent = state.source.title;
     $("#pr-bulk").innerHTML = "";
     $("#pr-body").innerHTML = '<p class="empty-state">Cargando contratos y puestos...</p>';
     renderIntro();
     if (!dialog.open) dialog.showModal();
     if (!jornadas.length) {
-      $("#pr-body").innerHTML =
-        '<p class="empty-state">No hay programación con personal e instalación enlazados en los filtros actuales.</p>';
+      $("#pr-body").innerHTML = `<p class="empty-state">${esc(state.source.empty)}</p>`;
       updateCount();
       return;
     }
@@ -425,15 +636,11 @@
   }
 
   function renderIntro() {
-    const personas = new Set(state.rows.map((r) => r.personalId)).size;
-    const aviso = state.unlinked
-      ? ` · ${state.unlinked} ${state.unlinked === 1 ? "turno queda fuera" : "turnos quedan fuera"} por no tener personal o instalación enlazados.`
-      : "";
-    $("#pr-intro").textContent =
-      `Programación filtrada: ${state.rows.length} ${state.rows.length === 1 ? "jornada" : "jornadas"} de ` +
-      `${personas} ${personas === 1 ? "persona" : "personas"}. Entrada y salida diarias según el Informe individual ` +
-      `(los tramos con menos de 30 min de hueco se unen).${aviso}`;
+    $("#pr-intro").textContent = state.source.intro(state.rows, state.unlinked);
   }
+
+  const tipoHoraOptions = (row) =>
+    TIPOS_HORA.map((t) => `<option value="${t.id}" ${String(t.id) === row.tipoHoraId ? "selected" : ""}>${esc(t.label)}</option>`).join("");
 
   const contratoOptions = (row) => {
     const list = contratosPosibles(row);
@@ -445,10 +652,13 @@
   };
 
   const puestoOptions = (row) => {
-    if (!row.contratoId) return '<option value="">— Elige antes el contrato —</option>';
+    const posibles = puestosPosibles(row);
+    if (!posibles.length) {
+      return '<option value="">Sin historial laboral vigente</option>';
+    }
     return (
       `<option value="">— Elige puesto —</option>` +
-      puestosPosibles(row.contratoId)
+      posibles
         .map((p) => `<option value="${p.id}" ${String(p.id) === row.puestoId ? "selected" : ""}>${esc(p.puesto)}</option>`)
         .join("")
     );
@@ -470,9 +680,9 @@
 
   // Primero los puestos que la persona ya tiene en sus actividades (de cualquier contrato).
   function puestoChips(row) {
-    if (!row.contratoId || row.puestoId) return "";
+    if (row.puestoId) return "";
     const suyos = new Set(state.actividades.filter((a) => a.personal_id === row.personalId).map((a) => a.puesto_id));
-    const list = puestosPosibles(row.contratoId).sort((a, b) => Number(suyos.has(b.id)) - Number(suyos.has(a.id)));
+    const list = puestosPosibles(row).sort((a, b) => Number(suyos.has(b.id)) - Number(suyos.has(a.id)));
     return suggestionChips("puestoId", list.map((p) => ({ id: p.id, label: p.puesto })));
   }
 
@@ -491,18 +701,30 @@
       </td>
       <td>${esc(row.persona)}${
         row.existente
-          ? `<span class="programming-registros-badge" title="La persona ya tiene un registro ese día que se solapa con esta jornada">Ya en Registros${
+          ? `<span class="programming-registros-badge" title="${
+              row.asignacionId && String(row.existente.evento_asignacion_id) === String(row.asignacionId)
+                ? "Esta asignación ya generó su registro"
+                : "La persona ya tiene un registro ese día que se solapa con esta jornada"
+            }">Ya en Registros${
               row.existente.hora_inicio ? ` · ${esc(String(row.existente.hora_inicio).slice(0, 5))}–${esc(String(row.existente.hora_fin || "").slice(0, 5))}` : ""
             }</span>`
           : ""
       }</td>
+      ${
+        state.source.showEvento
+          ? `<td${row.paso ? ` title="${esc(row.paso)}"` : ""}>${esc(row.evento)}</td>`
+          : ""
+      }
       <td>${esc(row.instalacion)}</td>
       <td><input type="time" data-pr-field="entrada" value="${esc(row.entrada)}" /></td>
       <td><input type="time" data-pr-field="salida" value="${esc(row.salida)}" /></td>
-      <td class="num" data-pr-hours title="${row.turnos} turno(s) de programación">${esc(fmtHours(hoursBetween(row.entrada, row.salida)))}</td>
+      <td class="num" data-pr-hours ${row.turnos ? `title="${row.turnos} turno(s) de programación"` : ""}>${esc(fmtHours(hoursBetween(row.entrada, row.salida)))}</td>
+      ${state.source.tipoHoraEditable ? `<td><select data-pr-field="tipoHoraId" class="programming-registros-tipo">${tipoHoraOptions(row)}</select></td>` : ""}
       <td><select data-pr-field="contratoId" ${sinContrato ? "disabled" : ""}
         title="${sinContrato ? "La persona y la instalación no comparten ningún contrato vigente ese día" : ""}">${contratoOptions(row)}</select>${contratoChips(row)}</td>
-      <td><select data-pr-field="puestoId" ${row.contratoId ? "" : "disabled"}>${puestoOptions(row)}</select>${puestoChips(row)}</td>
+      <td><select data-pr-field="puestoId">${puestoOptions(row)}</select>${puestoChips(row)}</td>
+      <td><select data-pr-field="funcionId" class="${row.funcionId ? "" : "is-empty"}"
+        title="${row.funcionId ? "" : "Sin función: el registro no tendrá tarifa en Facturación"}">${funcionOptions(row)}</select></td>
     </tr>`;
   }
 
@@ -532,7 +754,8 @@
         <table>
           <thead><tr>
             <th><input type="checkbox" data-pr-select-all ${allSelected ? "checked" : ""} aria-label="Marcar todas" /></th>
-            <th>Día</th><th>Persona</th><th>Instalación</th><th>Entrada</th><th>Salida</th><th>Horas</th><th>Contrato</th><th>Puesto</th>
+            <th>Día</th><th>Persona</th>${state.source.showEvento ? "<th>Evento</th>" : ""}<th>Instalación</th>
+            <th>Entrada</th><th>Salida</th><th>Horas</th>${state.source.tipoHoraEditable ? "<th>Tipo hora</th>" : ""}<th>Contrato</th><th>Puesto</th><th>Función</th>
           </tr></thead>
           <tbody>${state.rows.map(rowHtml).join("")}</tbody>
         </table>
@@ -593,7 +816,9 @@
           sinHistorial.add(`${row.persona} (${formatDisplayDate(row.fecha)})`);
           return;
         }
-        const { funcionId, modalidadId, actividadId } = resolverFuncion(row);
+        const funcionId = row.funcionId ? Number(row.funcionId) : null;
+        const modalidadId = funcionId ? row.modalidadId ?? null : null;
+        const actividadId = funcionId ? row.actividadId ?? null : null;
         if (!funcionId) sinFuncion.add(`${row.persona} (${formatDisplayDate(row.fecha)})`);
         filas.push({
           fecha: row.fecha,
@@ -606,7 +831,8 @@
           modalidad_id: modalidadId,
           actividad_id: actividadId,
           situacion_id: SITUACION_NORM,
-          tipo_hora_id: TIPO_HORA_REG,
+          tipo_hora_id: Number(row.tipoHoraId) || TIPO_HORA_REG,
+          evento_asignacion_id: row.asignacionId ?? null,
           hora_inicio: `${row.entrada}:00`,
           hora_fin: `${row.salida}:00`,
           horas: hoursBetween(row.entrada, row.salida),
@@ -616,7 +842,7 @@
           descanso: false,
           sustitucion: false,
           anio: Number(row.fecha.slice(0, 4)),
-          observacion: "Desde Programación",
+          observacion: state.source.observacion(row),
         });
       });
 
@@ -632,9 +858,12 @@
         yaHechas ? `${yaHechas} jornada(s) marcadas se solapan con registros que ya existen.` : "",
       ].filter(Boolean);
       const horas = filas.reduce((sum, f) => sum + f.horas, 0);
+      const porTipo = new Map();
+      filas.forEach((f) => porTipo.set(tipoHoraLabel(f.tipo_hora_id), (porTipo.get(tipoHoraLabel(f.tipo_hora_id)) || 0) + 1));
+      const tipos = [...porTipo.entries()].map(([tipo, n]) => (porTipo.size > 1 ? `${n} ${tipo}` : tipo)).join(", ");
       if (
         !window.confirm(
-          `Se van a crear ${filas.length} registro${filas.length === 1 ? "" : "s"} (REG, NORM) con ${fmtHours(Math.round(horas * 100) / 100)}.` +
+          `Se van a crear ${filas.length} registro${filas.length === 1 ? "" : "s"} (${tipos}; NORM) con ${fmtHours(Math.round(horas * 100) / 100)}.` +
             (avisos.length ? `\n\n${avisos.join("\n\n")}` : "") +
             "\n\n¿Continuar?"
         )
@@ -688,9 +917,13 @@
       row.selected = target.checked;
     } else if (target.dataset.prField === "contratoId") {
       row.contratoId = target.value;
-      row.puestoId = target.value ? puestoPropuesto(row) : "";
+      if (!row.puestoId) row.puestoId = puestoPropuesto(row);
+      syncFuncion(row);
+    } else if (target.dataset.prField === "funcionId") {
+      setFuncionManual(row, target.value);
     } else if (target.dataset.prField) {
       row[target.dataset.prField] = target.value;
+      if (target.dataset.prField === "puestoId") syncFuncion(row);
       if (target.dataset.prField === "entrada" || target.dataset.prField === "salida") {
         row.existente = existenteDe(row) || null;
       }
@@ -706,10 +939,11 @@
     if (!row) return;
     if (chip.dataset.prSuggest === "contratoId") {
       row.contratoId = chip.dataset.id;
-      row.puestoId = puestoPropuesto(row);
+      if (!row.puestoId) row.puestoId = puestoPropuesto(row);
     } else {
       row.puestoId = chip.dataset.id;
     }
+    syncFuncion(row);
     refreshRow(row);
     updateCount();
   }
@@ -723,7 +957,8 @@
       if (!contratosPosibles(row).some((c) => String(c.id) === target.value)) return;
       if (row.contratoId !== target.value) {
         row.contratoId = target.value;
-        row.puestoId = puestoPropuesto(row);
+        if (!row.puestoId) row.puestoId = puestoPropuesto(row);
+        syncFuncion(row);
       }
       applied += 1;
     });
@@ -732,5 +967,5 @@
     setMsg(`Contrato aplicado a ${applied} ${applied === 1 ? "jornada" : "jornadas"}.`);
   }
 
-  window.CoordinacionProgramacionRegistros = { open };
+  window.CoordinacionPasarRegistros = { open };
 })();
