@@ -1,5 +1,5 @@
 -- registros_detalle: se anaden los totales derivados de registro_apuntes
--- (ponderados por el multiplicador de la tarifa de cada apunte):
+-- (sin ponderar: las horas FTRAB ya llevan el multiplicador en el registro):
 --   apunte_abonado   = suma de apuntes con abonar=true
 --   apunte_facturado = suma de apuntes con facturar=true
 --   apunte_neto      = suma de todos los apuntes (un PNR da 0: +h y -h)
@@ -94,9 +94,12 @@ left join lateral (
 ) subs on true
 left join lateral (
   select
-    coalesce(sum(case when apx.abonar   then apx.cantidad * coalesce(thc.multiplicador,1) end),0) as apunte_abonado,
-    coalesce(sum(case when apx.facturar then apx.cantidad * coalesce(thc.multiplicador,1) end),0) as apunte_facturado,
-    coalesce(sum(apx.cantidad * coalesce(thc.multiplicador,1)),0) as apunte_neto,
+    -- SIN multiplicador (27/11/2026): registros.horas ya trae el x1,75 de FTRAB
+    -- (trigger registros_ftrab_factor.sql) y el apunte copia esas horas, asi que
+    -- ponderar aqui lo aplicaba dos veces (5,25 h FTRAB salian 9,19 h abonadas).
+    coalesce(sum(case when apx.abonar   then apx.cantidad end),0) as apunte_abonado,
+    coalesce(sum(case when apx.facturar then apx.cantidad end),0) as apunte_facturado,
+    coalesce(sum(apx.cantidad),0) as apunte_neto,
     coalesce(sum(case when apx.movimiento = 'BOLSA_ENTRA' then apx.cantidad end),0) as bolsa_entrada,
     coalesce(sum(case when apx.movimiento = 'BOLSA_SALE' then abs(apx.cantidad) end),0) as bolsa_salida
   from public.registro_apuntes apx
